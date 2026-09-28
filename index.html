@@ -4021,20 +4021,59 @@ function buildGym(T){
   addBox(g.x + rm, g.z, g.doorW + 0.3, g.t / 2, g.door, g.h + g.r, {a:-D});
 }
 
+/* the east woods: the owner's leaf-card trees (and a few pines), thinner at the edge, dense inside, with one clearing left empty for The Hollow.
+   Beyond the walkable ring: more woods, and the planet's other campuses on the hills, every one built the same (blueprint 7). */
+function buildWoods(){
+  const W = CAMPUS.woods.x0, Cl = CAMPUS.clearing, q = rng(WORLDS.campus.seed * 17 + 3), trees = [], pines = [], all = [];
+  const put = (list, x, z, k, col) => { const t = {x, y:G(x, z) - 0.1, z, s:k, ry:q() * TAU}; list.push(t); all.push(t); if(col) colliders.push({x, z, r:(list === pines ? 0.3 : 0.35) * k}); };
+  for(let i = 0; i < 1400 && all.length < 120; i++){
+    const x = W + q() * (57 - W), z = -57 + q() * 114;
+    if(Math.hypot(x, z) > 55.5 || campusBuilt(x, z, 2) || Math.hypot(x - Cl.x, z - Cl.z) < Cl.r + 1.2) continue;
+    if(q() > 0.3 + 0.7 * smooth(W, W + 7, x)) continue;                           // the wood thins out toward the lawn
+    if(all.some(t => Math.hypot(t.x - x, t.z - z) < 2.7)) continue;
+    put(q() < 0.2 ? pines : trees, x, z, 0.9 + q() * 0.75, true);
+  }
+  // an avenue of trees along the main walk, and a few on the west lawn
+  [[-5.8, -13], [5.8, -13], [-5.8, -2.5], [5.8, -2.5], [-20, 14], [-24, 22], [-15, -20], [-44, 16]].forEach(a => put(trees, a[0], a[1], 1.05 + q() * 0.2, true));
+  // outside the ring: woods all round (thickest east), no colliders needed
+  for(let i = 0; i < 70 + 190 * Q; i++){ const a = q() * TAU, d = 62 + q() * 110, x = Math.cos(a) * d, z = Math.sin(a) * d; if(x < 0 && q() < 0.45) continue; put(q() < 0.25 ? pines : trees, x, z, 1 + q() * 0.8, false); }
+  plantTrees(treeGeos(), trees, [0x3f6b2a, 0x4d7c30, 0x5a8a36, 0x456f2c], q);
+  plantTrees(pineGeos(), pines, [0x28472e, 0x2f5234], q);
+  // the clearing: a ring of mossy stones marks its edge; the middle stays open
+  const rocks = []; for(let i = 0; i < 9; i++){ const a = i / 9 * TAU + q() * 0.4, d = Cl.r - 0.6 + q() * 1.2, x = Cl.x + Math.cos(a) * d, z = Cl.z + Math.sin(a) * d, k = 0.35 + q() * 0.45; if(Math.hypot(x, z) > 55.5) continue; rocks.push({x, y:G(x, z) - 0.05, z, s:k, ry:q() * TAU}); colliders.push({x, z, r:k * 0.8}); }
+  placeRocks(rocks, 0x6f7a62, {seed:4411});
+  // the other campuses: the same hall on every hill, pale in the haze
+  const parts = [], sites = [[0.4, 210], [1.3, 260], [2.2, 190], [2.9, 300], [3.7, 230], [4.6, 280], [5.5, 200]];
+  sites.forEach(([a, d]) => {
+    const x = Math.cos(a) * d, z = Math.sin(a) * d, y = G(x, z) - 1, ry = Math.atan2(x, z);   // the portico faces this campus
+    const m = new THREE.Matrix4().makeRotationY(ry).setPosition(x, y, z);
+    const body = new THREE.BoxGeometry(26, 9, 20); body.translate(0, 4.5, 10); parts.push(body.applyMatrix4(m));
+    const por = new THREE.BoxGeometry(25, 1.2, 4.4); por.translate(0, 8.1, -2); parts.push(por.applyMatrix4(m));
+    for(let c = -2.5; c <= 2.5; c++){ const cg = new THREE.CylinderGeometry(0.55, 0.62, 7.5, 10); cg.translate(c * 4.2, 3.75, -3); parts.push(cg.applyMatrix4(m)); }
+    const sh = new THREE.Shape(); sh.moveTo(-13, 0); sh.lineTo(13, 0); sh.lineTo(0, 3); sh.lineTo(-13, 0);
+    const pd = new THREE.ExtrudeGeometry(sh, {depth:24, bevelEnabled:false}); pd.deleteAttribute('uv'); pd.translate(0, 9, -4.2); parts.push(pd.applyMatrix4(m));
+    const dm = new THREE.SphereGeometry(8, 24, 10, 0, TAU, 0, Math.PI / 2); dm.translate(-24, 5, 8); parts.push(dm.applyMatrix4(m));
+    const dr = new THREE.CylinderGeometry(8, 8, 5, 24); dr.translate(-24, 2.5, 8); parts.push(dr.applyMatrix4(m));
+  });
+  const far = mk(merge(parts), std(0xece6da, {roughness:0.6}));
+  far.castShadow = false;
+}
+
 BUILD.campus = (r, n) => {
   const T = campusTextures(), W = CAMPUS.woods.x0;
   buildTerrain({maxR:900, color:(x, y, z, sl) => {
     const v = n.fbm(x * 0.045, z * 0.045, 3) * 0.5 + 0.5, d = Math.hypot(x, z);
     let c = mixA(hexArr(0x4d7f2c), hexArr(0x6e9d3b), v);                                   // mown lawn
     c = mixA(c, hexArr(0x3d5a26), smooth(W - 2, W + 8, x) * smooth(R + 6, R - 4, d) * 0.75);  // darker, leafier floor under the woods
+    c = mixA(c, hexArr(0x55703a), smooth(CAMPUS.clearing.r + 1, CAMPUS.clearing.r - 3, Math.hypot(x - CAMPUS.clearing.x, z - CAMPUS.clearing.z)) * 0.6);   // mossy clearing
     c = mixA(c, hexArr(0x6b665c), smooth(0.9, 0.7, sl));
     return mixA(c, hexArr(0x5c7a44), smooth(R + 20, R + 90, d) * 0.6);                        // far hills, a touch paler
   }});
   const pm = std(0xffffff, {map:T.pave.map, normalMap:T.pave.normal, roughnessMap:T.pave.rough, roughness:1});
   reg('plaza', {mat:pm, kind:'path', rep:1.6});
   const pmesh = new THREE.Mesh(pathGeo(CAMPUS.paths, 4), pm); pmesh.receiveShadow = true; world.add(pmesh);
-  buildHall(T); buildGym(T);
-  makeGrass(Math.round(46000 * Q), 2, 57, [0x5f9636, 0x6ca23f, 0x7aae4a, 0x588c32], [0.16, 0.36], (x, z) => campusBuilt(x, z, 0.25));   // mown: short, dense, bright
+  buildHall(T); buildGym(T); buildWoods();
+  makeGrass(Math.round(46000 * Q), 2, 57, [0x5f9636, 0x6ca23f, 0x7aae4a, 0x588c32], [0.16, 0.36], (x, z) => campusBuilt(x, z, 0.25) || (x > W + 3 && Math.abs(Math.sin(x * 12.9898 + z * 78.233) * 43758.5453) % 1 < 0.55));   // mown: short, dense, bright; thinner under the trees
 };
 
 /* ================= spawning ================= */
