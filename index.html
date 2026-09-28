@@ -184,7 +184,7 @@ body.paused #joy, body.paused #jumpBtn{ display:none; }
     <p class="lede" id="avatarState">Any species, size or style. Watch it appear on the left.</p>
     <div class="swatch-row"><span>Suit</span><span class="swatches" id="suitSw"></span></div>
     <div class="swatch-row"><span>Glow</span><span class="swatches" id="visorSw"></span></div>
-    <p class="controls mouse-only">WASD to move, Shift to run, Space to jump and Space again mid-air to boost. Drag to look, scroll to zoom. M warp, E shop, Esc this panel.</p>
+    <p class="controls mouse-only">WASD to move, Shift to run, Space to jump and Space again mid-air to boost. Drag to look, scroll to zoom. M warp, E ride / shop, V camera, N sound, Esc this panel.</p>
     <p class="controls touch-only">Left stick to move, Jump twice to boost, drag anywhere else to look. Warp is top right.</p>
     <button class="start" id="startBtn">Enter the Hub</button>
   </div>
@@ -2215,9 +2215,9 @@ const WORLDS = {
   grid:  { name:'Neon Grid', seed:51, exposure:1.1, fog:0.0055, stars:true, sector:1, rules:{magic:false, tech:true, danger:true},
            sky:{top:0x05001a, horizon:0x7a1a6e, ground:0x12001f, sun:0xff5fb0, dir:[0,0.1,-1], size:0, clouds:0, lit:0x000000, shade:0x000000},
            sun:[0xff9ad5,1.0], hemi:[0x8a5cff,0x1a0830,0.4], portals:[{to:'hub',x:0,z:-26}], pads:[] },
-  grove: { name:'Night Grove', seed:37, exposure:1.3, fog:0.011, stars:true, sector:1, rules:{magic:true, tech:false, danger:true},
+  grove: { name:'Night Grove', seed:37, exposure:1.42, fog:0.0095, stars:true, sector:1, rules:{magic:true, tech:false, danger:true},
            sky:{top:0x02050d, horizon:0x1c2c4c, ground:0x0a0f18, sun:0xdde8ff, dir:[0.4,0.42,-0.8], size:0.007, clouds:0.22, lit:0x34445f, shade:0x0e1626},
-           sun:[0x9fb4ff,0.9], hemi:[0x5a6fb0,0x0a0c10,0.32], portals:[{to:'hub',x:0,z:-26}], pads:[{x:0,z:0,r:7}] },
+           sun:[0x9fb4ff,1.05], hemi:[0x5a6fb0,0x0a0c10,0.42], portals:[{to:'hub',x:0,z:-26}], pads:[{x:0,z:0,r:7}] },
   sky:   { name:'Sky Isles', seed:73, exposure:0.88, fog:0.0026, sector:1, rules:{magic:true, tech:true, danger:false},
            sky:{top:0x3d7fe0, horizon:0xf3dbe6, ground:0xf4eef2, sun:0xfff4e0, dir:[0.5,0.38,-0.78], size:0.009, clouds:0.3, lit:0xffffff, shade:0xc8d0e8},
            sun:[0xfff0dc,2.8], hemi:[0xcfe0ff,0x8aa070,0.6], portals:[{to:'hub',x:0,z:-26}], pads:[] }
@@ -3648,7 +3648,7 @@ function startGame(){
   introEl.classList.add('hidden'); setPaused(false);
   if(!state.started){ state.started = true; toast('Welcome to the Hub, ' + state.name); }
 }
-function openIntro(){ introEl.classList.remove('hidden'); setPaused(true); $('#startBtn').textContent = state.started ? 'Back to the game' : 'Enter the Hub'; }
+function openIntro(){ if(cam.view === 2) setView(0); introEl.classList.remove('hidden'); setPaused(true); $('#startBtn').textContent = state.started ? 'Back to the game' : 'Enter the Hub'; }
 $('#startBtn').addEventListener('click', startGame);
 $('#helpBtn').addEventListener('click', openIntro);
 
@@ -3889,6 +3889,7 @@ window.addEventListener('keydown', e => {
   if(!shopEl.classList.contains('hidden')){ if(e.code === 'Escape' || e.code === 'KeyE') closeShop(); return; }
   if(e.code === 'KeyE'){ if(bike.riding) dismountBike(); else if(bike.near) mountBike(); else if(shopNear) openShop(); return; }
   if(e.code === 'KeyN'){ setMute(snd.on); return; }
+  if(e.code === 'KeyV'){ cycleView(); return; }
   if(e.code === 'Escape'){ openIntro(); return; }
   if(e.code === 'KeyM'){ openWarp(); return; }
   if(e.code === 'KeyR'){ aiStart(); return; }
@@ -3905,12 +3906,20 @@ canvas.addEventListener('pointerdown', e => { if(lookId !== null) return; lookId
 canvas.addEventListener('pointermove', e => {
   if(e.pointerId !== lookId) return;
   const s = e.pointerType === 'touch' ? 0.008 : 0.005;
-  cam.yaw -= (e.clientX - lx) * s; cam.pitch = clamp(cam.pitch + (e.clientY - ly) * s * 0.8, -0.15, 1.2);
+  cam.yaw -= (e.clientX - lx) * s; cam.pitch = clamp(cam.pitch + (e.clientY - ly) * s * 0.8, cam.view === 2 ? -1.1 : -0.15, 1.2);
   lx = e.clientX; ly = e.clientY;
 });
 const endLook = e => { if(e.pointerId === lookId) lookId = null; };
 canvas.addEventListener('pointerup', endLook); canvas.addEventListener('pointercancel', endLook);
-canvas.addEventListener('wheel', e => { cam.dist = clamp(cam.dist + e.deltaY * 0.008, 2.5, 14); e.preventDefault(); }, {passive:false});
+canvas.addEventListener('wheel', e => { if(cam.view === 2) return; cam.dist = clamp(cam.dist + e.deltaY * 0.008, 2.5, 14); e.preventDefault(); }, {passive:false});
+/* three camera views (V): third-person, over-the-shoulder, first-person (the avatar hides so it never blocks the view) */
+const VIEWS = [{dist:5.5, pitch:0.28, name:'Third person'}, {dist:2.6, pitch:0.12, name:'Shoulder'}, {dist:0.05, pitch:0.02, name:'First person'}];
+function setView(i){
+  cam.view = i; const v = VIEWS[i]; cam.dist = v.dist; cam.pitch = Math.max(cam.pitch, v.pitch);
+  me.g.visible = i !== 2; toast(v.name, 1200);
+}
+function cycleView(){ setView((cam.view + 1) % VIEWS.length); }
+cam.view = 0;
 const joy = {x:0, y:0}, joyEl = $('#joy'), knob = $('#knob'); let joyId = null;
 function joyMove(e){
   const b = joyEl.getBoundingClientRect(); let dx = e.clientX - (b.left + b.width / 2), dy = e.clientY - (b.top + b.height / 2);
@@ -3958,6 +3967,10 @@ function drawMap(){
   const star = (x, z, col) => { o = T(x, z); mx2.fillStyle = col; mx2.beginPath(); mx2.moveTo(o[0], o[1] - 7); mx2.lineTo(o[0] + 5, o[1]); mx2.lineTo(o[0], o[1] + 7); mx2.lineTo(o[0] - 5, o[1]); mx2.fill(); };
   if(shardObj) star(shardObj.m.position.x, shardObj.m.position.z, hexStr(SHARD_COLORS[shardObj.id]));
   if(state.world === 'hub') star(0, 0, '#ffd166');
+  if(shopKiosk){ o = T(shopKiosk.x, shopKiosk.z); mx2.fillStyle = '#ffd166'; mx2.fillRect(o[0] - 3.5, o[1] - 3.5, 7, 7); }
+  if(bike.g && !bike.riding){ o = T(bike.x, bike.z); mx2.fillStyle = '#5ce1e6'; mx2.beginPath(); mx2.arc(o[0], o[1], 3.5, 0, TAU); mx2.fill(); }
+  if(trial.padPos){ o = T(trial.padPos.x, trial.padPos.z); mx2.strokeStyle = '#ffd166'; mx2.lineWidth = 2; mx2.beginPath(); mx2.arc(o[0], o[1], 4, 0, TAU); mx2.stroke(); }
+  if(trial.active && trial.rings[trial.idx]){ const rg = trial.rings[trial.idx]; o = T(rg.x, rg.z); mx2.strokeStyle = '#9dff6a'; mx2.lineWidth = 2; mx2.beginPath(); mx2.arc(o[0], o[1], 5, 0, TAU); mx2.stroke(); }
   hazards.forEach(hz => { o = T(hz.x, hz.z); mx2.strokeStyle = 'rgba(255,45,85,0.85)'; mx2.lineWidth = 1.5; mx2.beginPath(); mx2.arc(o[0], o[1], hz.L * sc, 0, TAU); mx2.stroke(); });
   bundles.forEach(bb => { if(bb.world === state.world) star(bb.x, bb.z, '#ff9f1c'); });
   const tip = T(p.x + Math.sin(p.facing) * 2.4, p.z + Math.cos(p.facing) * 2.4), ang = Math.atan2(tip[1] - c, tip[0] - c);
@@ -4409,9 +4422,10 @@ window.addEventListener('pointerdown', audioInit, {once:true, capture:true}); wi
 /* ================= loop ================= */
 const _t0 = new V3(), _t1 = new V3();
 function camTarget(){
-  const side = introEl.classList.contains('hidden') ? 0 : 1.35 * me.S;
-  const tx = p.x + Math.cos(cam.yaw) * side, ty = p.y + 1.5 * me.S, tz = p.z - Math.sin(cam.yaw) * side, cp = Math.cos(cam.pitch);
-  _t0.set(tx + Math.sin(cam.yaw) * cp * cam.dist, ty + Math.sin(cam.pitch) * cam.dist, tz + Math.cos(cam.yaw) * cp * cam.dist); _t1.set(tx, ty, tz);
+  const side = introEl.classList.contains('hidden') ? 0 : 1.35 * me.S, fp = cam.view === 2;
+  const tx = p.x + Math.cos(cam.yaw) * side, ty = p.y + (fp ? 1.62 : 1.5) * me.S, tz = p.z - Math.sin(cam.yaw) * side, cp = Math.cos(cam.pitch);
+  if(fp){ _t0.set(tx, ty, tz); _t1.set(tx - Math.sin(cam.yaw) * cp * 6, ty - Math.sin(cam.pitch) * 6, tz - Math.cos(cam.yaw) * cp * 6); }
+  else { _t0.set(tx + Math.sin(cam.yaw) * cp * cam.dist, ty + Math.sin(cam.pitch) * cam.dist, tz + Math.cos(cam.yaw) * cp * cam.dist); _t1.set(tx, ty, tz); }
 }
 function snapCamera(){ camTarget(); camera.position.copy(_t0); camera.lookAt(_t1); }
 function lerpAngle(a, b, t){ const d = ((b - a + Math.PI) % TAU + TAU) % TAU - Math.PI; return a + d * t; }
