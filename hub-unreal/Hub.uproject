@@ -1,0 +1,24 @@
+{
+	"FileVersion": 3,
+	"EngineAssociation": "5.4",
+	"Category": "Game",
+	"Description": "Hub: an OASIS-style universe. Photoreal realms linked by portals, describable avatars, hoverbikes, a hunt.",
+	"Modules": [
+		{
+			"Name": "Hub",
+			"Type": "Runtime",
+			"LoadingPhase": "Default",
+			"AdditionalDependencies": [
+				"Engine",
+				"EnhancedInput"
+			]
+		}
+	],
+	"Plugins": [
+		{ "Name": "EnhancedInput", "Enabled": true },
+		{ "Name": "ModelingToolsEditorMode", "Enabled": true, "TargetAllowList": [ "Editor" ] },
+		{ "Name": "Bridge", "Enabled": true, "SupportedTargetPlatforms": [ "Win64", "Mac", "Linux" ] },
+		{ "Name": "Water", "Enabled": true },
+		{ "Name": "Niagara", "Enabled": true }
+	]
+}

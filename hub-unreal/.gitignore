@@ -1,0 +1,20 @@
+# Unreal Engine
+Binaries/
+DerivedDataCache/
+Intermediate/
+Saved/
+Build/
+.vs/
+.vscode/
+*.sln
+*.suo
+*.opensdf
+*.sdf
+*.VC.db
+*.VC.opendb
+*.xcworkspace
+*.xcodeproj
+Plugins/*/Binaries/
+Plugins/*/Intermediate/
+# Fab/Bridge downloads live outside the repo
+Content/Megascans/**/*.uasset
