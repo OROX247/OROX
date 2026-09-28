@@ -2954,18 +2954,44 @@ function sandstoneTextures(){
 }
 // adds a small-tiled second normal map (r128 MeshStandardMaterial has no detail map of its own) and,
 // if dustHex is given, mixes in sand dust from a per-vertex 'dust' attribute, broken up by the texture so edges are not smooth
-function withDetailNormal(mat, tex, rep, amt, dustHex){
+// tri {s, o}: triplanar mapping from object-space position instead of the mesh UVs (s = tiles per unit, o = strata offset on the sides),
+// for round shapes (boulders) whose sphere UVs pinch into a starburst at the poles. Sides read (x|z, y) so the strata stay level; the top reads (x, z).
+const TRI_GLSL = `
+varying vec3 vTp; varying vec3 vTn; uniform vec2 triSO;
+vec3 triW(){ vec3 w = pow( abs( normalize( vTn ) ), vec3( 4.0 ) ); return w / ( w.x + w.y + w.z ); }
+vec2 triUV( int i ){ return i == 0 ? vec2( vTp.z, vTp.y ) * triSO.x + vec2( 0.0, triSO.y ) : i == 1 ? vec2( vTp.x, vTp.z ) * triSO.x : vec2( vTp.x, vTp.y ) * triSO.x + vec2( 0.0, triSO.y ); }
+vec4 triTex( sampler2D t, float k ){ vec3 w = triW(); return texture2D( t, triUV( 0 ) * k ) * w.x + texture2D( t, triUV( 1 ) * k ) * w.y + texture2D( t, triUV( 2 ) * k ) * w.z; }
+vec3 triPerturb( vec3 eye_pos, vec3 N, vec3 mapN, float fd, vec2 uv ){
+  vec3 q0 = vec3( dFdx( eye_pos.x ), dFdx( eye_pos.y ), dFdx( eye_pos.z ) ), q1 = vec3( dFdy( eye_pos.x ), dFdy( eye_pos.y ), dFdy( eye_pos.z ) );
+  vec2 st0 = dFdx( uv ), st1 = dFdy( uv ); vec3 q1perp = cross( q1, N ), q0perp = cross( N, q0 );
+  vec3 T = q1perp * st0.x + q0perp * st1.x, B = q1perp * st0.y + q0perp * st1.y; float det = max( dot( T, T ), dot( B, B ) ), sc = det == 0.0 ? 0.0 : fd * inversesqrt( det );
+  return normalize( T * ( mapN.x * sc ) + B * ( mapN.y * sc ) + N * mapN.z ); }`;
+function withDetailNormal(mat, tex, rep, amt, dustHex, tri){
   mat.onBeforeCompile = sh => {
     sh.uniforms.detailNormalMap = {value:tex}; sh.uniforms.detailRep = {value:rep}; sh.uniforms.detailAmt = {value:amt};
-    let fs = sh.fragmentShader.replace('#include <normal_fragment_maps>',
+    let fs = tri ? sh.fragmentShader.replace('#include <normal_fragment_maps>', `
+	{ vec3 tw = triW(), acc = vec3( 0.0 );
+	  for( int i = 0; i < 3; i++ ){ vec2 tu = triUV( i ); vec3 mN = texture2D( normalMap, tu ).xyz * 2.0 - 1.0; mN.xy *= normalScale;
+	    vec3 dN = texture2D( detailNormalMap, tu * detailRep ).xyz * 2.0 - 1.0; mN = normalize( vec3( mN.xy + dN.xy * detailAmt, mN.z ) );
+	    acc += triPerturb( -vViewPosition, normal, mN, faceDirection, tu ) * ( i == 0 ? tw.x : i == 1 ? tw.y : tw.z ); }
+	  normal = normalize( acc ); }`)
+      .replace('#include <map_fragment>', 'vec4 texelColor = mapTexelToLinear( triTex( map, 1.0 ) ); diffuseColor *= texelColor;')
+      .replace('#include <roughnessmap_fragment>', 'float roughnessFactor = roughness * triTex( roughnessMap, 1.0 ).g;')
+    : sh.fragmentShader.replace('#include <normal_fragment_maps>',
       THREE.ShaderChunk.normal_fragment_maps.replace('mapN.xy *= normalScale;', 'mapN.xy *= normalScale;\n\tvec3 dtN = texture2D( detailNormalMap, vUv * detailRep ).xyz * 2.0 - 1.0;\n\tmapN = normalize( vec3( mapN.xy + dtN.xy * detailAmt, mapN.z ) );'));
     if(dustHex != null){
       sh.uniforms.dustColor = {value:C(dustHex)};
       sh.vertexShader = 'attribute float dust;\nvarying float vDust;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n\tvDust = dust;');
-      fs = 'uniform vec3 dustColor;\nvarying float vDust;\n' + fs.replace('#include <color_fragment>', '#include <color_fragment>\n\t{ float dn = texture2D( detailNormalMap, vUv * detailRep * 0.37 ).x; float dm = smoothstep( 0.2, 0.8, vDust * 1.4 - 0.2 + ( dn - 0.5 ) * 0.7 ) * 0.9;\n\t  diffuseColor.rgb = mix( diffuseColor.rgb, dustColor * ( 0.82 + 0.25 * dn ), dm ); }');
+      fs = 'uniform vec3 dustColor;\nvarying float vDust;\n' + fs.replace('#include <color_fragment>', '#include <color_fragment>\n\t{ float dn = ' + (tri ? 'triTex( detailNormalMap, detailRep * 0.37 ).x' : 'texture2D( detailNormalMap, vUv * detailRep * 0.37 ).x') + '; float dm = smoothstep( 0.2, 0.8, vDust * 1.4 - 0.2 + ( dn - 0.5 ) * 0.7 ) * 0.9;\n\t  diffuseColor.rgb = mix( diffuseColor.rgb, dustColor * ( 0.82 + 0.25 * dn ), dm ); }');
+    }
+    if(tri){
+      sh.uniforms.triSO = {value:new V2(tri.s, tri.o || 0)};
+      sh.vertexShader = 'varying vec3 vTp;\nvarying vec3 vTn;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n\tvTp = transformed; vTn = objectNormal;');
+      fs = TRI_GLSL + '\n' + fs;
     }
     sh.fragmentShader = 'uniform sampler2D detailNormalMap;\nuniform float detailRep;\nuniform float detailAmt;\n' + fs;
   };
+  if(tri) mat.customProgramCacheKey = () => 'tri';
   return mat;
 }
 const waterNormal = normalTex(tileField(256, makeNoise(9), 0.03, 4), 256, 7); waterNormal.repeat.set(3, 3);
@@ -3961,19 +3987,19 @@ function dustAttr(g, lowH, layerTint){
   g.setAttribute('dust', new THREE.BufferAttribute(d, 1)); g.setAttribute('color', new THREE.BufferAttribute(col, 3)); return g;
 }
 // eroded sandstone column: dense mesh, layered lumps, grooves where the strata are soft, flat top to stand on.
-// o: {seed, y0 (world y of the base), uvs (metres per texture tile), seg, rowsPerM, sc (lump size), bulge, notch, top, bottom, dustH}
+// o: {seed, y0 (world y of the base), uvs (metres per texture tile), seg, rowsPerM, sc (lump size), bulge, notch, top, bottom, rim (rounded height), rimIn (how far the rim pulls in), dustH}
 function sandstoneColumn(rad, h, o){
   const layer = sandstoneTextures().layer, S = o.seg || 48, rows = Math.max(4, Math.round(h * (o.rowsPerM || 8)));
   const geo = new THREE.CylinderGeometry(1, 1, h, S, rows); geo.translate(0, h / 2, 0);
   const p = geo.attributes.position, uv = geo.attributes.uv, torso = (rows + 1) * (S + 1), around = Math.max(1, Math.round(TAU * rad / o.uvs)), sd = o.seed, sc = o.sc || 1;
   for(let i = 0; i < p.count; i++){
     const x = p.getX(i), y = p.getY(i), z = p.getZ(i), rr = Math.hypot(x, z), cx = rr > 1e-4 ? x / rr : 0, cz = rr > 1e-4 ? z / rr : 0, wy = y + o.y0;
-    const L = layer(wy / o.uvs), rim = smooth(h - (o.rim || 0.3), h, y), prof = ((o.bottom || 1.14) + ((o.top || 0.94) - (o.bottom || 1.14)) * (y / h)) * (1 - 0.12 * rim * rim) + (o.apron || 0) * Math.pow(smooth(h * 0.3, 0, y), 2);
+    const L = layer(wy / o.uvs), rim = smooth(h - (o.rim || 0.3), h, y), prof = ((o.bottom || 1.14) + ((o.top || 0.94) - (o.bottom || 1.14)) * (y / h)) * (1 - (o.rimIn == null ? 0.12 : o.rimIn) * rim * rim) + (o.apron || 0) * Math.pow(smooth(h * 0.3, 0, y), 2);
     const f = 1 + o.bulge * (0.6 * lump(cx * 1.1 + sd, wy * 0.35 / sc, cz * 1.1 - sd) + 0.3 * lump(cx * 2.3 - sd, wy * 0.9 / sc, cz * 2.3 + sd * 0.5) + 0.12 * lump(cx * 5.1 + sd, wy * 2.1 / sc, cz * 5.1)) / 1.5
                 - o.notch * (1 - L.l.hard) * Math.sin(Math.PI * L.frac);
     const R = rad * prof * f * (rr > 1e-4 ? 1 : 0);
     p.setXYZ(i, cx * R, y, cz * R);
-    if(i < torso) uv.setXY(i, (i % (S + 1)) / S * around, wy / o.uvs); else uv.setXY(i, cx * R / o.uvs * 0.15, (h + o.y0) / o.uvs - 0.02);   // tops: one layer, not stripes
+    if(i < torso) uv.setXY(i, (i % (S + 1)) / S * around, wy / o.uvs); else uv.setXY(i, cx * R / o.uvs, cz * R / o.uvs);   // tops: flat planar mapping (x, z), a real 2D patch of stone, not one texture row stretched into stripes
   }
   geo.computeVertexNormals(); weldNormals(geo);
   return dustAttr(geo, o.dustH || 1, i => { const L = layer((p.getY(i) + o.y0) / o.uvs); return 0.9 + 0.1 * L.l.hard; });
@@ -4333,12 +4359,12 @@ BUILD.dunes = (r, n) => {
     return mixA(c, hexArr(0xa9744e), smooth(0.7, 0.5, sl));                                   // very steep: bare, reddish
   }});
   const st = sandstoneTextures();
-  const stoneMat = hex => withDetailNormal(std(hex, {map:st.map, normalMap:st.normal, roughnessMap:st.rough, roughness:1, vertexColors:true}), detailNormal, 5, 0.35, 0xc9a577);
+  const stoneMat = (hex, tri) => withDetailNormal(std(hex, {map:st.map, normalMap:st.normal, roughnessMap:st.rough, roughness:1, vertexColors:true}), detailNormal, 5, 0.35, 0xc9a577, tri);
   const sandstone = reg('rock', {mat:stoneMat(0xffffff), kind:'pillar'});
   const cx = 22, cz = 16;
   for(let i = 0; i < 7; i++){
     const a = i * 0.78, rad = i === 6 ? 1.8 : 1.35, top = 1 + i, x = cx + Math.cos(a) * 6, z = cz + Math.sin(a) * 6, h = top + 0.4;
-    const geo = sandstoneColumn(rad, h, {seed:i * 1.7 + 0.3, y0:-0.4, uvs:4, seg:64, rowsPerM:10, bulge:0.14, notch:0.09, rim:0.35, dustH:0.9});
+    const geo = sandstoneColumn(rad, h, {seed:i * 1.7 + 0.3, y0:-0.4, uvs:4, seg:64, rowsPerM:10, bulge:0.14, notch:0.09, rim:0.35, rimIn:0.05, top:1.02, dustH:0.9});   // top edge ~0.97 rad: the stone reaches out to where the player can stand (r + 0.2)
     mk(geo, sandstone, x, -0.4, z);
     addPlatform(x, z, rad, top);
   }
@@ -4357,7 +4383,7 @@ BUILD.dunes = (r, n) => {
   const rocks = [];
   for(let i = 0; i < 24; i++){ const s = freeSpot(r, 8, 55, 2); if(!s) continue; const k = 0.5 + r() * 1.1; rocks.push({x:s[0], y:G(s[0], s[1]) - 0.1, z:s[1], s:k, ry:r() * TAU}); colliders.push({x:s[0], z:s[1], r:k * 0.85}); }
   for(let i = 0; i < 40; i++){ const a = r() * TAU, d = 62 + r() * 120, x = Math.cos(a) * d, z = Math.sin(a) * d; rocks.push({x, y:G(x, z) - 0.3, z, s:1 + r() * 3, ry:r() * TAU}); }
-  placeRocks(rocks, 0xf4ebe2, {seed:2311, geo:sandstoneRockGeo(), mat:stoneMat(0xffffff)});
+  placeRocks(rocks, 0xf4ebe2, {seed:2311, geo:sandstoneRockGeo(), mat:stoneMat(0xffffff, {s:0.5, o:0.19})});   // triplanar: no starburst at the top pole
   addClutter(r, {rMin:5, rMax:57, pebbles:900, pebbleSurf:'redrock', pebbleHex:0xe0c4a8, weeds:260, weedHexes:[0x8a8a52, 0xa09a5a, 0x7a7a48]});
   addFlock('bird', 7, {rng:r, x:30, z:-40});
   const mesaM = reg('rock', {mat:stoneMat(0xe6cfc0), kind:'pillar'});
@@ -4704,6 +4730,20 @@ function buildHall(T){
 /* the zero-g gym: a marble drum with a glass dome. Inside the drum gravity is off (see update): WASD drifts, Space pushes up, Shift pushes down, walls bounce you. */
 const gymIn = (x, z) => !!gym && Math.hypot(x - gym.x, z - gym.z) < gym.r - 0.25;
 const gymCeil = (x, z) => gym.h + Math.sqrt(Math.max(0, (gym.r - 0.2) * (gym.r - 0.2) - (x - gym.x) * (x - gym.x) - (z - gym.z) * (z - gym.z)));
+// soft gym ball: six stitched gores (orange and cream) meeting round caps at the poles, sunken seams in the normal map, a light pebbled grain
+function gymBallMaterial(){
+  const S = 512, f = new Float32Array(S * S), px = new Uint8ClampedArray(S * S * 4), q = rng(919), cap = 0.075;
+  for(let y = 0; y < S; y++) for(let x = 0; x < S; x++){
+    const u = (x + 0.5) / S, v = (y + 0.5) / S, th = v * Math.PI, sn = Math.sin(th), gu = u * 6, gi = Math.floor(gu), gf = gu - gi;
+    const seamGore = Math.min(gf, 1 - gf) / 6 * TAU * sn, seamCap = Math.abs(Math.min(v, 1 - v) - cap) * Math.PI, inCap = Math.min(v, 1 - v) < cap;
+    const dSeam = inCap ? seamCap : Math.min(seamGore, seamCap), groove = 1 - smooth(0.004, 0.028, dSeam), g = q();
+    const i = y * S + x; f[i] = -groove * 0.9 + (g - 0.5) * 0.05 + (1 - smooth(0.02, 0.07, dSeam)) * 0.12;   // seam groove with a puffed panel edge beside it
+    const c = inCap ? [0.95, 0.93, 0.88] : (gi & 1) ? [0.96, 0.92, 0.84] : [1.0, 0.52, 0.3], k = (0.93 + (g - 0.5) * 0.05) * (1 - groove * 0.45);
+    const o = i * 4; px[o] = c[0] * k * 255; px[o + 1] = c[1] * k * 255; px[o + 2] = c[2] * k * 255; px[o + 3] = 255;
+  }
+  const map = canvasTex(S, S, x => { const im = x.createImageData(S, S); im.data.set(px); x.putImageData(im, 0, 0); });
+  return std(0xffffff, {map, normalMap:normalTex(f, S, 6), roughness:0.55});
+}
 function buildGym(T){
   const g = CAMPUS.gym, D = Math.PI / 2, a = Math.asin(g.doorW / g.r), Ro = g.r + g.t, len = TAU - 2 * a;
   gym = {x:g.x, z:g.z, r:g.r, h:g.h};
@@ -4745,12 +4785,12 @@ function buildGym(T){
   { const t = new THREE.TorusGeometry(Ro, 0.1, 8, 160); t.rotateX(Math.PI / 2); ribs.push(t); }
   mk(merge(ribs), std(0x8a6a44, {metalness:0.85, roughness:0.3}), 0, g.h, 0, G0);
   // floating kit: glowing hoops to fly through and soft balls that drift in place
-  const hoopM = glowM(0xb6ff7a, 1.8), ballM = std(0xff8f5a, {roughness:0.6}), q = rng(907);
+  const hoopM = glowM(0xb6ff7a, 1.8), ballM = gymBallMaterial(), ballGeo = new THREE.SphereGeometry(1, 48, 32), q = rng(907);
   [[3, 3.2, 1.5, 0.3], [-4, 5.5, -2, 1.2], [1, 8.2, -4.5, 0.7], [-2, 2.2, 5, 2], [5.5, 6.5, 3.5, 2.6]].forEach((h, i) => {
     const o = mk(new THREE.TorusGeometry(1.1, 0.08, 10, 48), hoopM, h[0], h[1], h[2], G0); o.rotation.y = h[3]; o.castShadow = true;
     floaters.push({o, y:h[1], a:0.18, w:0.5 + i * 0.07, ph:i * 1.9, spin:0});
   });
-  for(let i = 0; i < 7; i++){ const ang = q() * TAU, d = 2 + q() * 5.5, y = 1.5 + q() * 6.5, o = mk(new THREE.IcosahedronGeometry(0.32 + q() * 0.18, 3), ballM, Math.cos(ang) * d, y, Math.sin(ang) * d, G0); floaters.push({o, y, a:0.35, w:0.4 + q() * 0.4, ph:q() * TAU, spin:0.4}); }
+  for(let i = 0; i < 7; i++){ const ang = q() * TAU, d = 2 + q() * 5.5, y = 1.5 + q() * 6.5, o = mk(ballGeo, ballM, Math.cos(ang) * d, y, Math.sin(ang) * d, G0); o.scale.setScalar(0.32 + q() * 0.18); o.rotation.set(i * 1.3, i * 2.1, 0); floaters.push({o, y, a:0.35, w:0.4 + q() * 0.4, ph:q() * TAU, spin:0.4}); }
   { const l = label('Zero-G Gym · gravity off inside', {small:true, edge:'#7fd0ff', fg:'#7fd0ff'}); l.position.set(Ro + 0.8, g.door + 1.6, 0); G0.add(l); }
   glow(0x7fd0ff, 3.5, Ro + 0.3, 0.6, 0, G0, 0.35);
   // collision: the drum as 26 straight segments (the doorway left open) plus the wall over the door; tall, so a floating player cannot drift over the top
