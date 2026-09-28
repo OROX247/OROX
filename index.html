@@ -95,6 +95,9 @@ input#nameInput:focus{ outline:none; border-color:var(--cyan); }
 .ghost{ width:100%; margin-top:16px; padding:11px; background:none; border:1.5px solid rgba(255,255,255,.25); color:#f3f0ff; font:600 15px 'Chakra Petch','Trebuchet MS',sans-serif; cursor:pointer; }
 button:focus-visible, .warp-item:focus-visible{ outline:3px solid var(--cyan); outline-offset:2px; }
 #warpList{ display:grid; gap:6px; }
+#shopList{ display:grid; gap:5px; max-height:54vh; overflow:auto; padding-right:4px; }
+#shopList .warp-item{ padding:9px 12px; font-size:15px; }
+#shopList .warp-item.owned{ box-shadow:inset 3px 0 0 #9dff6a; }
 .warp-item{ display:flex; justify-content:space-between; align-items:center; padding:11px 14px; border:none; cursor:pointer; text-align:left;
   background:rgba(255,255,255,.06); color:#f3f0ff; font:600 16px 'Chakra Petch','Trebuchet MS',sans-serif; box-shadow:inset 3px 0 0 var(--c); }
 .warp-item:hover{ background:rgba(255,255,255,.12); }
@@ -147,7 +150,7 @@ body.paused #joy, body.paused #jumpBtn{ display:none; }
 
 <div id="corner">
   <canvas id="minimap" aria-label="Minimap"></canvas>
-  <div class="btns"><button class="hbtn" id="aiBtn" title="AI reality mode (R)">AI</button><button class="hbtn" id="lookBtn" title="Realm look (L)">Look</button><button class="hbtn" id="mapBtn">Warp</button><button class="hbtn" id="helpBtn" aria-label="Avatar and controls">?</button></div>
+  <div class="btns"><button class="hbtn" id="aiBtn" title="AI reality mode (R)">AI</button><button class="hbtn" id="lookBtn" title="Realm look (L)">Look</button><button class="hbtn" id="shopBtn" style="display:none">Shop</button><button class="hbtn" id="mapBtn">Warp</button><button class="hbtn" id="helpBtn" aria-label="Avatar and controls">?</button></div>
 </div>
 
 <div id="intro" class="overlay" role="dialog" aria-labelledby="introTitle">
@@ -162,7 +165,7 @@ body.paused #joy, body.paused #jumpBtn{ display:none; }
     <p class="lede" id="avatarState">Any species, size or style. Watch it appear on the left.</p>
     <div class="swatch-row"><span>Suit</span><span class="swatches" id="suitSw"></span></div>
     <div class="swatch-row"><span>Glow</span><span class="swatches" id="visorSw"></span></div>
-    <p class="controls mouse-only">WASD to move, Shift to run, Space to jump and Space again mid-air to boost. Drag to look, scroll to zoom. M opens warp, Esc opens this panel.</p>
+    <p class="controls mouse-only">WASD to move, Shift to run, Space to jump and Space again mid-air to boost. Drag to look, scroll to zoom. M warp, E shop, Esc this panel.</p>
     <p class="controls touch-only">Left stick to move, Jump twice to boost, drag anywhere else to look. Warp is top right.</p>
     <button class="start" id="startBtn">Enter the Hub</button>
   </div>
@@ -193,6 +196,14 @@ body.paused #joy, body.paused #jumpBtn{ display:none; }
     <div class="look-row"><button class="ghost" id="texMake">Reload real</button><button class="ghost" id="texAI">Make with AI</button><button class="ghost" id="texClear">Remove</button></div>
     <button class="start" id="lookSave">Save look</button>
     <div class="look-row"><button class="ghost" id="lookReset">Reset to default</button><button class="ghost" id="lookClose">Close</button></div>
+  </div>
+</div>
+<div id="shop" class="overlay hidden" role="dialog" aria-labelledby="shopTitle">
+  <div class="card">
+    <h2 id="shopTitle">Outfitters</h2>
+    <p class="lede">Gear for your avatar. Buy once, keep forever, wear or remove any time. You have <b id="shopCredits">0</b> credits.</p>
+    <div id="shopList"></div>
+    <button class="ghost" id="shopClose">Close</button>
   </div>
 </div>
 <div id="toast" class="panel" role="status"></div>
@@ -2134,12 +2145,12 @@ const state = {
   name: typeof sv.name === 'string' ? sv.name : '', color: typeof sv.color === 'string' ? sv.color : '#1f2a44',
   visor: typeof sv.visor === 'string' ? sv.visor : '#5ce1e6', xp: num(sv.xp, 0), credits: num(sv.credits, 20),
   won: !!sv.won, world: 'hub', started: false,
-  look: typeof sv.look === 'string' ? sv.look.slice(0, 300) : '', recipe: null
+  look: typeof sv.look === 'string' ? sv.look.slice(0, 300) : '', recipe: null, owned: new Set(arr(sv.owned))
 };
 // state.recipe is filled in once the recipe schema below is defined (see loadRecipe)
 function persist(){
   try{ localStorage.setItem(SAVE_KEY, JSON.stringify({coins:[...state.coins], shards:[...state.shards], visited:[...state.visited],
-    name:state.name, color:state.color, visor:state.visor, xp:state.xp, credits:state.credits, won:state.won, look:state.look, recipe:state.recipe})); }catch(e){}
+    name:state.name, color:state.color, visor:state.visor, xp:state.xp, credits:state.credits, won:state.won, look:state.look, recipe:state.recipe, owned:[...state.owned]})); }catch(e){}
 }
 function rng(seed){ return function(){ seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
 function makeNoise(seed){
@@ -2171,9 +2182,10 @@ const WORLDS = {
            sky:{top:0x1d2b5e, horizon:0xf2986a, ground:0x3a2a3a, sun:0xffcf9a, dir:[-0.55,0.09,-0.83], size:0.011, clouds:0.42, lit:0xffc6a0, shade:0x6a5070},
            sun:[0xffbf85,2.4], hemi:[0x9aa6ff,0x3a2a30,0.45],
            portals:[{to:'dunes',x:20,z:-14},{to:'grid',x:7,z:-24},{to:'grove',x:-7,z:-24},{to:'sky',x:-20,z:-14}], pads:[] },
-  dunes: { name:'Glass Dunes', seed:23, exposure:0.8, fog:0.0042,
-           sky:{top:0x2a66c9, horizon:0xd8e6f0, ground:0xc9a77a, sun:0xfff1d6, dir:[0.35,0.7,-0.6], size:0.008, clouds:0.16, lit:0xffffff, shade:0xb7c4d6},
-           sun:[0xfff0d8,3.0], hemi:[0xcfe3ff,0xb08050,0.5], portals:[{to:'hub',x:0,z:-26}], pads:[{x:22,z:16,r:9}] },
+  dunes: { name:'Glass Dunes', seed:23, exposure:0.86, fog:0.0034,
+           // late-afternoon desert: a lower, warmer sun, a pale dusty horizon that the far mesas fade into (aerial perspective), a warm sand bounce from below
+           sky:{top:0x2f6fcf, horizon:0xe9dcc4, ground:0xcaa678, sun:0xffe6c0, dir:[0.55,0.42,-0.72], size:0.009, clouds:0.14, lit:0xfff4e6, shade:0xc9b9a8},
+           sun:[0xffe0b8,3.2], hemi:[0xcfe0ff,0xc09060,0.55], portals:[{to:'hub',x:0,z:-26}], pads:[{x:22,z:16,r:9}] },
   grid:  { name:'Neon Grid', seed:51, exposure:1.1, fog:0.0055, stars:true,
            sky:{top:0x05001a, horizon:0x7a1a6e, ground:0x12001f, sun:0xff5fb0, dir:[0,0.1,-1], size:0, clouds:0, lit:0x000000, shade:0x000000},
            sun:[0xff9ad5,1.0], hemi:[0x8a5cff,0x1a0830,0.4], portals:[{to:'hub',x:0,z:-26}], pads:[] },
@@ -2488,7 +2500,7 @@ function cleanRecipe(r){
   const cols = o.colours || o.colors || {}, eyes = o.eyes || {};
   const glow = hex(cols.glow, d.colours.glow);
   return { body:pick(o.body, R_BODIES, d.body), height:clamp(num(o.height, d.height), 0.6, 2.4), build:pick(o.build, R_BUILDS, d.build), head:pick(o.head, R_HEADS, d.head),
-    features:arr(o.features).filter((f, i, a) => R_FEATURES.indexOf(f) >= 0 && a.indexOf(f) === i).slice(0, 8), material:pick(o.material, R_MATERIALS, d.material), pattern:pick(o.pattern, R_PATTERNS, d.pattern),
+    features:arr(o.features).filter((f, i, a) => R_FEATURES.indexOf(f) >= 0 && a.indexOf(f) === i).slice(0, 12), material:pick(o.material, R_MATERIALS, d.material), pattern:pick(o.pattern, R_PATTERNS, d.pattern),
     colours:{main:hex(cols.main, d.colours.main), second:hex(cols.second, d.colours.second), trim:hex(cols.trim, d.colours.trim), glow},
     eyes:{style:pick(eyes.style, R_EYES, d.eyes.style), glow:hex(eyes.glow, glow)} };
 }
@@ -2806,7 +2818,7 @@ function animateAvatar(a, dt, speed, grounded, time){
   if(a.ears.length) a.ears.forEach((e, i) => { e.rotation.x = Math.sin(time * 1.6 + i + a.seed) * 0.08 - 0.1 * A; });
 }
 
-state.recipe = cleanRecipe(sv.recipe && typeof sv.recipe === 'object' ? sv.recipe : {colours:{main:state.color, glow:state.visor}, eyes:{glow:state.visor}});
+state.recipe = cleanRecipe(sv.recipe && typeof sv.recipe === 'object' ? sv.recipe : state.look ? parseDescription(state.look) : {colours:{main:state.color, glow:state.visor}, eyes:{glow:state.visor}});
 let me = null, halo = null;
 function rebuildPlayer(){
   const pos = me ? me.g.position.clone() : null, ry = me ? me.g.rotation.y : Math.PI;
@@ -2833,7 +2845,7 @@ const p = { x:0, y:0, z:14, vy:0, grounded:true, airJumps:1, facing:Math.PI, fla
 const cam = { yaw:0, pitch:0.28, dist:5.5 };
 
 /* ================= world state ================= */
-let colliders = [], platforms = [], coins = [], portals = [], spinners = [], npcs = [], shardObj = null, vault = null, gridSun = null, fireflies = null;
+let colliders = [], platforms = [], coins = [], portals = [], spinners = [], npcs = [], shardObj = null, vault = null, gridSun = null, fireflies = null, shopKiosk = null;
 let hf = () => 0, G = () => 0, grassMeshes = [], qLevel = 0, slotMats = {};
 function reg(slot, e){ (slotMats[slot] = slotMats[slot] || []).push(e); return e.mat; }
 
@@ -3102,6 +3114,17 @@ BUILD.hub = (r, n) => {
     colliders.push({x, z, r:0.6});
   });
   vault = {field, open};
+  // Outfitters kiosk: the shop (blueprint section 6), facing the spawn point
+  { const kx = 11, kz = 9, kM = std(0x23252e, {metalness:0.85, roughness:0.35});
+    const k = new THREE.Group(); k.position.set(kx, 0, kz); k.rotation.y = Math.atan2(0 - kx, 14 - kz); world.add(k);
+    mk(new THREE.BoxGeometry(2.6, 1.0, 0.9), kM, 0, 0.5, 0, k);
+    mk(new THREE.BoxGeometry(2.8, 0.08, 1.1), phys(0xe9e5dc, {roughness:0.3}), 0, 1.04, 0, k);
+    mk(new THREE.BoxGeometry(2.2, 0.06, 0.5), glowM(0xffd166, 1.6), 0, 1.09, 0.15, k).castShadow = false;
+    const holo = mk(new THREE.OctahedronGeometry(0.32, 0), glowM(0xffd166, 2.5), 0, 1.9, 0, k); holo.castShadow = false; spinners.push({o:holo, bob:1.9});
+    glow(0xffd166, 4, 0, 1.9, 0, k, 0.45);
+    const l = label('Outfitters', {edge:'#ffd166', fg:'#ffd166'}); l.position.y = 3.1; k.add(l);
+    colliders.push({x:kx, z:kz, r:1.7}); shopKiosk = {x:kx, z:kz};
+  }
   // lamps
   const lampM = std(0x2a2c34, {metalness:0.8, roughness:0.35}), bulbM = std(0xfff1d6, {emissive:C(0xffd9a0), emissiveIntensity:3});
   const lamps = [];
@@ -3349,7 +3372,7 @@ function buildWorld(key){
   clearWorld();
   const W = WORLDS[key]; state.world = key;
   world = new THREE.Group(); scene.add(world);
-  grassMeshes = []; slotMats = {}; colliders = []; platforms = []; coins = []; portals = []; spinners = []; npcs = []; shardObj = null; vault = null; gridSun = null; fireflies = null;
+  grassMeshes = []; slotMats = {}; colliders = []; platforms = []; coins = []; portals = []; spinners = []; npcs = []; shardObj = null; vault = null; gridSun = null; fireflies = null; shopKiosk = null;
   const r = rng(W.seed), noise = makeNoise(W.seed * 7 + 1);
   applyLook(W);
   const pads = W.portals.map(q => ({x:q.x, z:q.z, r:4})).concat(W.pads || []);
@@ -3444,6 +3467,46 @@ function openIntro(){ introEl.classList.remove('hidden'); setPaused(true); $('#s
 $('#startBtn').addEventListener('click', startGame);
 $('#helpBtn').addEventListener('click', openIntro);
 
+/* ================= Outfitters (shop) ================= */
+const SHOP_ITEMS = [
+  {id:'cape', name:'Cape', price:30, kind:'feature'}, {id:'hood', name:'Hood', price:20, kind:'feature'}, {id:'wings', name:'Wings', price:60, kind:'feature'}, {id:'halo', name:'Halo', price:40, kind:'feature'},
+  {id:'crown', name:'Crown', price:50, kind:'feature'}, {id:'horns', name:'Horns', price:25, kind:'feature'}, {id:'antenna', name:'Antenna', price:15, kind:'feature'}, {id:'spikes', name:'Spikes', price:20, kind:'feature'},
+  {id:'tail', name:'Tail', price:20, kind:'feature'}, {id:'backpack', name:'Backpack', price:25, kind:'feature'}, {id:'jetpack', name:'Jetpack', price:45, kind:'feature'}, {id:'sword', name:'Sword', price:35, kind:'feature'},
+  {id:'staff', name:'Staff', price:35, kind:'feature'}, {id:'mask', name:'Mask', price:15, kind:'feature'},
+  {id:'fin:chrome', name:'Chrome finish', price:80, kind:'finish', value:'chrome'}, {id:'fin:neon', name:'Neon finish', price:60, kind:'finish', value:'neon'}, {id:'fin:glass', name:'Glass finish', price:90, kind:'finish', value:'glass'},
+  {id:'fin:stone', name:'Stone finish', price:40, kind:'finish', value:'stone'}, {id:'fin:jelly', name:'Jelly finish', price:50, kind:'finish', value:'jelly'}, {id:'fin:fur', name:'Fur finish', price:45, kind:'finish', value:'fur'}
+];
+const shopEl = $('#shop'); let shopNear = false, shopHinted = false;
+function itemWorn(it){ return it.kind === 'feature' ? state.recipe.features.indexOf(it.id) >= 0 : state.recipe.material === it.value; }
+function renderShop(){
+  $('#shopCredits').textContent = state.credits;
+  const list = $('#shopList'); list.innerHTML = '';
+  SHOP_ITEMS.forEach(it => {
+    const owned = state.owned.has(it.id), worn = itemWorn(it);
+    const b = document.createElement('button'); b.className = 'warp-item' + (owned ? ' owned' : ''); b.style.setProperty('--c', owned ? '#9dff6a' : '#ffd166');
+    b.innerHTML = '<span>' + it.name + '</span><small>' + (owned ? (worn ? 'Wearing — remove' : 'Owned — wear') : '₵ ' + it.price) + '</small>';
+    b.addEventListener('click', () => shopAction(it)); list.appendChild(b);
+  });
+}
+function shopAction(it){
+  const owned = state.owned.has(it.id);
+  if(!owned){
+    if(state.credits < it.price){ toast('Not enough credits. Coins turn into credits.'); return; }
+    state.credits -= it.price; state.owned.add(it.id); toast('Bought: ' + it.name + ' for ₵' + it.price, 2600); reward(10, 0);
+  }
+  if(it.kind === 'feature'){ const f = state.recipe.features, i = f.indexOf(it.id); if(owned && i >= 0) f.splice(i, 1); else if(i < 0) f.push(it.id); }
+  else { state.recipe.material = (owned && state.recipe.material === it.value) ? (state.look ? parseDescription(state.look).material : 'plate') : it.value; }
+  persist(); refreshHud(); rebuildPlayer(); renderShop();
+}
+function openShop(){ renderShop(); shopEl.classList.remove('hidden'); setPaused(true); const first = shopEl.querySelector('button'); if(first) first.focus(); }
+function closeShop(){ shopEl.classList.add('hidden'); setPaused(false); }
+$('#shopClose').addEventListener('click', closeShop);
+$('#shopBtn').addEventListener('click', openShop);
+function shopProximity(){
+  const near = !!(shopKiosk && state.world === 'hub' && Math.hypot(p.x - shopKiosk.x, p.z - shopKiosk.z) < 3.4);
+  if(near !== shopNear){ shopNear = near; $('#shopBtn').style.display = near ? '' : 'none'; if(near && !shopHinted && playing){ shopHinted = true; toast('Outfitters: press E (or tap Shop) to browse gear', 3000); } }
+}
+
 /* ================= warp + board ================= */
 const boardRng = rng(99);
 const BOARD = NPC_NAMES.slice(0, 11).map(nm => ({name:nm, shards:Math.floor(boardRng() * 2.6), xp:Math.floor(150 + boardRng() * 2300)}));
@@ -3476,6 +3539,8 @@ window.addEventListener('keydown', e => {
   if(!introEl.classList.contains('hidden')){ if(e.code === 'Enter' || (e.code === 'Escape' && state.started)){ e.preventDefault(); startGame(); } return; }
   if(!lookEl.classList.contains('hidden')){ if(e.code === 'Escape') closeLook(); return; }
   if(!warpEl.classList.contains('hidden')){ if(e.code === 'Escape' || e.code === 'KeyM') closeWarp(); return; }
+  if(!shopEl.classList.contains('hidden')){ if(e.code === 'Escape' || e.code === 'KeyE') closeShop(); return; }
+  if(e.code === 'KeyE'){ if(shopNear) openShop(); return; }
   if(e.code === 'Escape'){ openIntro(); return; }
   if(e.code === 'KeyM'){ openWarp(); return; }
   if(e.code === 'KeyR'){ aiStart(); return; }
@@ -4000,6 +4065,7 @@ function update(dt, time){
   if(state.world === 'hub' && state.shards.size >= 3 && !state.won && Math.hypot(p.x, p.z) < 2.8){
     state.won = true; reward(500, 200); setHalo(); toast('You opened the vault. First to crack the Hub.   +500 XP', 5000);
   }
+  shopProximity();
   portalCool -= dt;
   if(playing && portalCool <= 0 && !traveling) for(const q of portals){ if(Math.hypot(p.x - q.x, p.z - q.z) < 1.6 && p.y - G(p.x, p.z) < 2){ travel(q.to); break; } }
 }
