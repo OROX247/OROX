@@ -125,7 +125,7 @@ button:focus-visible, .warp-item:focus-visible{ outline:3px solid var(--cyan); o
 .tabs{ display:flex; gap:6px; margin:0 0 10px; }
 .tabs button{ flex:1; padding:8px; border:none; background:rgba(255,255,255,.06); color:#c7c1ea; font:600 15px 'Chakra Petch','Trebuchet MS',sans-serif; cursor:pointer; box-shadow:inset 0 -2px 0 rgba(255,255,255,.12); }
 .tabs button.sel{ color:var(--gold); background:rgba(255,209,102,.1); box-shadow:inset 0 -2px 0 var(--gold); }
-#invList, #sellList{ display:grid; gap:5px; max-height:54vh; overflow:auto; padding-right:4px; }
+#invList, #sellList, #vendList{ display:grid; gap:5px; max-height:54vh; overflow:auto; padding-right:4px; }
 .inv-row{ display:grid; grid-template-columns:34px 1fr auto; align-items:center; gap:10px; padding:8px 12px; background:rgba(255,255,255,.06); color:#f3f0ff;
   box-shadow:inset 3px 0 0 var(--r); font:600 15px 'Chakra Petch','Trebuchet MS',sans-serif; border:none; text-align:left; width:100%; }
 button.inv-row{ cursor:pointer; } button.inv-row:hover{ background:rgba(255,255,255,.12); }
@@ -188,7 +188,7 @@ body.paused #joy, body.paused #jumpBtn{ display:none; }
 
 <div id="corner">
   <canvas id="minimap" aria-label="Minimap"></canvas>
-  <div class="btns"><button class="hbtn" id="aiBtn" title="AI reality mode (R)">AI</button><button class="hbtn" id="lookBtn" title="Realm look (L)">Look</button><button class="hbtn" id="rideBtn" style="display:none">Ride</button><button class="hbtn" id="sndBtn" title="Sound on/off (N)">Sound</button><button class="hbtn" id="shopBtn" style="display:none">Shop</button><button class="hbtn" id="invBtn" title="Inventory (I)">Bag</button><button class="hbtn" id="mapBtn">Warp</button><button class="hbtn" id="helpBtn" aria-label="Avatar and controls">?</button></div>
+  <div class="btns"><button class="hbtn" id="aiBtn" title="AI reality mode (R)">AI</button><button class="hbtn" id="lookBtn" title="Realm look (L)">Look</button><button class="hbtn" id="rideBtn" style="display:none">Ride</button><button class="hbtn" id="sndBtn" title="Sound on/off (N)">Sound</button><button class="hbtn" id="shopBtn" style="display:none">Shop</button><button class="hbtn" id="vendBtn" style="display:none">Vend</button><button class="hbtn" id="invBtn" title="Inventory (I)">Bag</button><button class="hbtn" id="mapBtn">Warp</button><button class="hbtn" id="helpBtn" aria-label="Avatar and controls">?</button></div>
 </div>
 
 <div id="intro" class="overlay" role="dialog" aria-labelledby="introTitle">
@@ -203,7 +203,7 @@ body.paused #joy, body.paused #jumpBtn{ display:none; }
     <p class="lede" id="avatarState">Any species, size or style. Watch it appear on the left.</p>
     <div class="swatch-row"><span>Suit</span><span class="swatches" id="suitSw"></span></div>
     <div class="swatch-row"><span>Glow</span><span class="swatches" id="visorSw"></span></div>
-    <p class="controls mouse-only">WASD to move, Shift to run, Space to jump and Space again mid-air to boost. Drag to look, scroll to zoom. M warp, E ride / shop, I inventory, V camera, C cinematic, N sound, Esc this panel.</p>
+    <p class="controls mouse-only">WASD to move, Shift to run, Space to jump and Space again mid-air to boost. Drag to look, scroll to zoom. M warp, E ride / shop / vend, I inventory, V camera, C cinematic, N sound, Esc this panel.</p>
     <p class="controls touch-only">Left stick to move, Jump twice to boost, drag anywhere else to look. Warp is top right.</p>
     <button class="start" id="startBtn">Enter the Hub</button>
   </div>
@@ -245,6 +245,14 @@ body.paused #joy, body.paused #jumpBtn{ display:none; }
     <div id="shopList"></div>
     <div id="sellList" hidden></div>
     <button class="ghost" id="shopClose">Close</button>
+  </div>
+</div>
+<div id="vend" class="overlay hidden" role="dialog" aria-labelledby="vendTitle">
+  <div class="card">
+    <h2 id="vendTitle">Vending terminal</h2>
+    <p class="lede"><span id="vendLede">Supplies for the road. Bought items go to your bag (I) and are used from there.</span> You have <b id="vendCredits">0</b> credits.</p>
+    <div id="vendList"></div>
+    <button class="ghost" id="vendClose">Close</button>
   </div>
 </div>
 <div id="inv" class="overlay hidden" role="dialog" aria-labelledby="invTitle">
@@ -3109,7 +3117,7 @@ const cam = { yaw:0, pitch:0.28, dist:5.5 };
 
 /* ================= world state ================= */
 let colliders = [], platforms = [], coins = [], portals = [], spinners = [], npcs = [], shardObj = null, vault = null, gridSun = null, fireflies = null, shopKiosk = null;
-let hf = () => 0, G = () => 0, grassMeshes = [], qLevel = 0, slotMats = {}, hazards = [], burst = null, pickups = [];
+let hf = () => 0, G = () => 0, grassMeshes = [], qLevel = 0, slotMats = {}, hazards = [], burst = null, pickups = [], vendor = null;
 function reg(slot, e){ (slotMats[slot] = slotMats[slot] || []).push(e); return e.mat; }
 
 function clearWorld(){
@@ -3741,7 +3749,7 @@ function buildWorld(key){
   clearWorld();
   const W = WORLDS[key]; state.world = key;
   world = new THREE.Group(); scene.add(world);
-  grassMeshes = []; slotMats = {}; colliders = []; platforms = []; coins = []; portals = []; spinners = []; npcs = []; shardObj = null; vault = null; gridSun = null; fireflies = null; shopKiosk = null; hazards = []; burst = null; pickups = []; bike.g = null; bike.riding = false; bike.near = false; engineStop(); $('#rideBtn').style.display = 'none'; trial.active = false; trial.rings = []; trial.pad = null; trial.padPos = null; $('#trialPanel').style.display = 'none';
+  grassMeshes = []; slotMats = {}; colliders = []; platforms = []; coins = []; portals = []; spinners = []; npcs = []; shardObj = null; vault = null; gridSun = null; fireflies = null; shopKiosk = null; vendor = null; hazards = []; burst = null; pickups = []; bike.g = null; bike.riding = false; bike.near = false; engineStop(); $('#rideBtn').style.display = 'none'; trial.active = false; trial.rings = []; trial.pad = null; trial.padPos = null; $('#trialPanel').style.display = 'none';
   const r = rng(W.seed), noise = makeNoise(W.seed * 7 + 1);
   applyLook(W);
   const pads = W.portals.map(q => ({x:q.x, z:q.z, r:4})).concat(W.pads || []);
@@ -3766,6 +3774,7 @@ function buildWorld(key){
   spawnNPCs(key, r);
   addHazards(key);
   addPickups(key);
+  addVendor(key);
   bundles.forEach(b => { b.g = null; if(b.world === key) addBundleMesh(b); });
   applyPhotos(key); autoReal(key);
   if(typeof aiPrompt === 'function') aiPrompt();
@@ -4236,6 +4245,7 @@ function renderSell(){
 }
 function invRefresh(){
   if(!invEl.classList.contains('hidden')) renderInventory();
+  if(!vendEl.classList.contains('hidden')) renderVend();
   if(!shopEl.classList.contains('hidden')){ const f = document.activeElement && document.activeElement.closest && document.activeElement.closest('#sellList') ? [...$('#sellList').children].indexOf(document.activeElement) : -1; renderShop(); if(f >= 0){ const k = $('#sellList').children; const t = k[Math.min(f, k.length - 1)]; if(t && t.focus) t.focus(); } }
 }
 function openInventory(){ if(zeroing) return; renderInventory(); invEl.classList.remove('hidden'); setPaused(true); $('#invClose').focus(); }
@@ -4325,6 +4335,102 @@ function closeWarp(){ warpEl.classList.add('hidden'); setPaused(false); }
 $('#mapBtn').addEventListener('click', openWarp);
 $('#warpClose').addEventListener('click', closeWarp);
 
+/* ================= vending terminals (blueprint 6): one per realm, near the arrival point, selling consumables ================= */
+// What they sell is data: add a row to VEND (an ITEMS id with a use() hook and a whole-credit price above its sale value).
+const VEND = [{id:'health-kit', price:15}, {id:'fuel-cell', price:10}];
+// Fixed spots, tried in order: the first one clear of everything already built wins. Placed after pickups, with no rng, so nothing else moves.
+// Hub: beside the spawn point (0, 14). Other realms: beside the arrival point in front of the Hub portal (0, -21.5).
+const VENDOR_SPOTS = {
+  hub:[[-5.5, 10.5], [-5, 18], [5, 18], [-3.5, 8]],
+  other:[[-5, -17.5], [5, -17.5], [-6.5, -14.5], [6.5, -14.5], [-3.5, -13.5], [3.5, -13.5], [-8, -21], [8, -21]]
+};
+const VENDOR_LOOK = {
+  hub:  {body:() => std(0x23252e, {metalness:0.85, roughness:0.35}), trim:() => phys(0xe9e5dc, {roughness:0.3}), acc:0x5ce1e6, bg:'#07142a', shape:'box', top:'ring'},
+  dunes:{body:() => std(0xc9a070, {map:detailTex, roughness:0.95}), trim:() => std(0xb98a3a, {metalness:1, roughness:0.32}), acc:0xffb020, bg:'#2a1606', shape:'box', top:'dome'},
+  grid: {body:() => phys(0x0c0818, {roughness:0.15, metalness:0.5}), trim:() => glowM(0xff4fa3, 2.5), acc:0x5ce1e6, bg:'#05030c', shape:'box', top:'edges'},
+  grove:{body:() => std(0x4a3526, {map:detailTex, roughness:0.92}), trim:() => std(0x2e4a2a, {roughness:1}), acc:0x7dffb0, bg:'#04140c', shape:'stump', top:'cap'},
+  sky:  {body:() => phys(0xf4f1ea, {roughness:0.25}), trim:() => std(0xffd166, {metalness:1, roughness:0.2}), acc:0x9fd0ff, bg:'#0b1a33', shape:'pillar', top:'crystal'}
+};
+const vendorsSeen = {};
+function vendorSpot(key){
+  const list = VENDOR_SPOTS[key] || VENDOR_SPOTS.other, ax = 0, az = key === 'hub' ? 14 : -21.5;
+  const clear = ([x, z]) => Math.hypot(x - ax, z - az) > 3.5
+    && !colliders.some(c => Math.hypot(x - c.x, z - c.z) < c.r + 1.4)
+    && !platforms.some(q => Math.hypot(x - q.x, z - q.z) < q.r + 2)
+    && !portals.some(q => Math.hypot(x - q.x, z - q.z) < 5)
+    && !hazards.some(h => Math.hypot(x - h.x, z - h.z) < h.L + 2)
+    && !(bike.g && Math.hypot(x - bike.x, z - bike.z) < 4.5)
+    && !(trial.padPos && Math.hypot(x - trial.padPos.x, z - trial.padPos.z) < 4)
+    && !(shopKiosk && Math.hypot(x - shopKiosk.x, z - shopKiosk.z) < 5);
+  return {s:list.find(clear) || list[0], ax, az};
+}
+function vendScreen(L){
+  const acc = hexStr(L.acc);
+  return canvasTex(256, 320, (x, w, h) => {
+    x.fillStyle = L.bg; x.fillRect(0, 0, w, h);
+    x.strokeStyle = acc; x.lineWidth = 6; x.strokeRect(8, 8, w - 16, h - 16);
+    x.fillStyle = acc; x.font = 'bold 44px "Chakra Petch","Trebuchet MS",sans-serif'; x.textAlign = 'center'; x.fillText('VEND', w / 2, 66);
+    x.fillStyle = '#ff5a6e'; x.fillRect(38, 110, 44, 14); x.fillRect(53, 95, 14, 44);
+    x.fillStyle = '#ffb020'; x.fillRect(40, 196, 40, 58); x.fillRect(52, 188, 16, 8); x.fillStyle = L.bg; x.fillRect(46, 202, 28, 20);
+    x.textAlign = 'left'; x.fillStyle = '#f3f0ff'; x.font = 'bold 26px "Chakra Petch","Trebuchet MS",sans-serif';
+    x.fillText('HEALTH', 100, 116); x.fillText('FUEL', 100, 222);
+    x.fillStyle = acc; x.font = '600 24px "Chakra Petch","Trebuchet MS",sans-serif';
+    x.fillText('₵ ' + VEND[0].price, 100, 146); x.fillText('₵ ' + VEND[1].price, 100, 252);
+    x.textAlign = 'center'; x.fillStyle = 'rgba(243,240,255,0.6)'; x.font = '600 18px "Chakra Petch","Trebuchet MS",sans-serif'; x.fillText('PRESS E', w / 2, 296);
+  });
+}
+function addVendor(key){
+  const L = VENDOR_LOOK[key]; if(!L) return;
+  const {s, ax, az} = vendorSpot(key), [x, z] = s;
+  const g = new THREE.Group(); g.position.set(x, G(x, z), z); g.rotation.y = Math.atan2(ax - x, az - z); world.add(g);
+  const body = L.body(), trim = L.trim();
+  let front = 0.41;
+  if(L.shape === 'box'){ mk(new THREE.BoxGeometry(1.1, 2.4, 0.8), body, 0, 0.9, 0, g); mk(new THREE.BoxGeometry(1.24, 0.1, 0.94), trim, 0, 2.14, 0, g); mk(new THREE.BoxGeometry(1.2, 0.14, 0.9), trim, 0, -0.2, 0, g); }
+  else if(L.shape === 'stump'){ const sg = new THREE.CylinderGeometry(0.62, 0.78, 2.4, 14, 3); displace(sg, 0.04, 3); mk(sg, body, 0, 0.9, 0, g); mk(new THREE.TorusGeometry(0.72, 0.12, 8, 20), trim, 0, 0.05, 0, g).rotation.x = Math.PI / 2; front = 0.68; }
+  else { mk(new THREE.CylinderGeometry(0.55, 0.72, 2.4, 32), body, 0, 0.9, 0, g); mk(new THREE.CylinderGeometry(0.66, 0.66, 0.08, 32), trim, 0, 2.12, 0, g); mk(new THREE.TorusGeometry(0.72, 0.05, 8, 40), trim, 0, 0.1, 0, g).rotation.x = Math.PI / 2; front = 0.66; }
+  // screen, bezel and dispense slot on the front (+z faces the arrival point)
+  mk(new THREE.BoxGeometry(0.8, 0.98, 0.06), trim, 0, 1.36, front, g).castShadow = false;
+  const scr = new THREE.Mesh(new THREE.PlaneGeometry(0.7, 0.875), new THREE.MeshBasicMaterial({map:vendScreen(L), toneMapped:false}));
+  scr.position.set(0, 1.36, front + 0.035); g.add(scr);
+  mk(new THREE.BoxGeometry(0.56, 0.16, 0.08), glowM(L.acc, 1.8), 0, 0.55, front + 0.01, g).castShadow = false;
+  glow(L.acc, 1.6, 0, 1.36, front + 0.3, g, 0.3);
+  if(L.top === 'ring'){ const t = mk(new THREE.TorusGeometry(0.28, 0.04, 10, 40), glowM(L.acc, 2.4), 0, 2.6, 0, g); t.castShadow = false; spinners.push({o:t, bob:2.6}); glow(L.acc, 2.2, 0, 2.6, 0, g, 0.4); }
+  else if(L.top === 'dome'){ mk(new THREE.SphereGeometry(0.4, 32, 12, 0, TAU, 0, Math.PI / 2), trim, 0, 2.18, 0, g); const b = mk(new THREE.SphereGeometry(0.1, 16, 12), glowM(L.acc, 2.5), 0, 2.62, 0, g); b.castShadow = false; glow(L.acc, 1.6, 0, 2.62, 0, g, 0.5); }
+  else if(L.top === 'edges'){ const eg = new THREE.BoxGeometry(1.1, 2.4, 0.8); const e = new THREE.LineSegments(new THREE.EdgesGeometry(eg), new THREE.LineBasicMaterial({color:C(0xff4fa3), toneMapped:false})); eg.dispose(); e.position.y = 0.9; g.add(e); glow(0xff4fa3, 2.4, 0, 2.3, 0, g, 0.45); }
+  else if(L.top === 'cap'){ const c = mk(new THREE.SphereGeometry(0.9, 28, 12, 0, TAU, 0, Math.PI / 2), phys(L.acc, {emissive:C(L.acc), emissiveIntensity:1.2, roughness:0.35}), 0, 2.1, 0, g); c.scale.y = 0.5; glow(L.acc, 3, 0, 2.4, 0, g, 0.35); }
+  else if(L.top === 'crystal'){ const c = mk(new THREE.OctahedronGeometry(0.26, 0), phys(L.acc, {emissive:C(L.acc), emissiveIntensity:1.6, roughness:0.1}), 0, 2.7, 0, g); c.scale.set(0.8, 1.5, 0.8); c.castShadow = false; spinners.push({o:c, bob:2.7}); glow(L.acc, 2.2, 0, 2.7, 0, g, 0.45); }
+  const l = label('Vending · E', {small:true, edge:hexStr(L.acc), fg:hexStr(L.acc)}); l.position.y = 3.35; g.add(l);
+  colliders.push({x, z, r:0.9});
+  vendor = {world:key, x, z, g}; vendorsSeen[key] = {x, z};
+}
+const vendEl = $('#vend'); let vendNear = false, vendHinted = false;
+function renderVend(){
+  $('#vendCredits').textContent = state.credits;
+  $('#vendTitle').textContent = (vendor ? WORLDS[vendor.world].name + ' ' : '') + 'vending terminal';
+  const list = $('#vendList'); list.innerHTML = '';
+  VEND.forEach(v => {
+    const d = ITEMS[v.id], r = RARITY[d.rarity], n = state.inv[v.id] || 0, b = document.createElement('button');
+    b.className = 'inv-row'; b.style.setProperty('--r', r.col); b.dataset.id = v.id;
+    b.innerHTML = '<i class="ico ' + d.shape + '" style="--c:' + hexStr(d.col) + '"></i><span class="nm">' + esc(d.name) + (n ? ' <span class="rar">in bag: ' + n + '</span>' : '') + '<small>' + esc(d.desc) + '</small></span><span class="val">Buy <b>₵ ' + v.price + '</b></span>';
+    b.addEventListener('click', () => buyVend(v.id)); list.appendChild(b);
+  });
+}
+function buyVend(id){
+  const v = VEND.find(q => q.id === id); if(!v) return false;
+  if(state.credits < v.price){ toast('Not enough credits. Coins and sold items turn into credits.'); return false; }
+  state.credits -= v.price; giveItem(id, 1, true); persist(); refreshHud(); sfx('buy');
+  toast('Bought: ' + ITEMS[id].name + ' for ₵' + v.price + '. Use it from your bag (I).', 2600);
+  invRefresh(); return true;
+}
+function openVendor(){ if(zeroing) return; renderVend(); vendEl.classList.remove('hidden'); setPaused(true); const first = vendEl.querySelector('button'); if(first) first.focus(); }
+function closeVendor(){ vendEl.classList.add('hidden'); setPaused(false); }
+$('#vendClose').addEventListener('click', closeVendor);
+$('#vendBtn').addEventListener('click', openVendor);
+function vendProximity(){
+  const near = !!(vendor && !bike.riding && Math.hypot(p.x - vendor.x, p.z - vendor.z) < 2.8);
+  if(near !== vendNear){ vendNear = near; $('#vendBtn').style.display = near ? '' : 'none'; if(near && !vendHinted && playing){ vendHinted = true; toast('Vending terminal: press E (or tap Vend) for health kits and fuel cells', 3000); } }
+}
+
 /* ================= input ================= */
 let jumpBuffer = 0;
 window.addEventListener('keydown', e => {
@@ -4333,8 +4439,9 @@ window.addEventListener('keydown', e => {
   if(!warpEl.classList.contains('hidden')){ if(e.code === 'Escape' || e.code === 'KeyM') closeWarp(); return; }
   if(!shopEl.classList.contains('hidden')){ if(e.code === 'Escape' || e.code === 'KeyE') closeShop(); return; }
   if(!invEl.classList.contains('hidden')){ if(e.code === 'Escape' || e.code === 'KeyI') closeInventory(); return; }
+  if(!vendEl.classList.contains('hidden')){ if(e.code === 'Escape' || e.code === 'KeyE') closeVendor(); return; }
   if(e.code === 'KeyI'){ openInventory(); return; }
-  if(e.code === 'KeyE'){ if(bike.riding) dismountBike(); else if(bike.near) mountBike(); else if(shopNear) openShop(); return; }
+  if(e.code === 'KeyE'){ if(bike.riding) dismountBike(); else if(bike.near) mountBike(); else if(shopNear) openShop(); else if(vendNear) openVendor(); return; }
   if(e.code === 'KeyN'){ setMute(snd.on); return; }
   if(e.code === 'KeyV'){ cycleView(); return; }
   if(e.code === 'KeyC'){ setCine(!post.cine); return; }
@@ -4418,6 +4525,7 @@ function drawMap(){
   if(shardObj) star(shardObj.m.position.x, shardObj.m.position.z, hexStr(SHARD_COLORS[shardObj.id]));
   if(state.world === 'hub') star(0, 0, '#ffd166');
   if(shopKiosk){ o = T(shopKiosk.x, shopKiosk.z); mx2.fillStyle = '#ffd166'; mx2.fillRect(o[0] - 3.5, o[1] - 3.5, 7, 7); }
+  if(vendor){ o = T(vendor.x, vendor.z); mx2.fillStyle = '#9dff6a'; mx2.fillRect(o[0] - 4.5, o[1] - 1.5, 9, 3); mx2.fillRect(o[0] - 1.5, o[1] - 4.5, 3, 9); }
   if(bike.g && !bike.riding){ o = T(bike.x, bike.z); mx2.fillStyle = '#5ce1e6'; mx2.beginPath(); mx2.arc(o[0], o[1], 3.5, 0, TAU); mx2.fill(); }
   if(trial.padPos){ o = T(trial.padPos.x, trial.padPos.z); mx2.strokeStyle = '#ffd166'; mx2.lineWidth = 2; mx2.beginPath(); mx2.arc(o[0], o[1], 4, 0, TAU); mx2.stroke(); }
   if(trial.active && trial.rings[trial.idx]){ const rg = trial.rings[trial.idx]; o = T(rg.x, rg.z); mx2.strokeStyle = '#9dff6a'; mx2.lineWidth = 2; mx2.beginPath(); mx2.arc(o[0], o[1], 5, 0, TAU); mx2.stroke(); }
@@ -4989,7 +5097,7 @@ function update(dt, time){
     state.won = true; reward(500, 200); sfx('win'); setHalo(); toast('You opened the vault. First to crack the Hub.   +500 XP', 5000);
   }
   if(playing && p.grounded && p.speed > 0.6){ snd.stepT -= dt; if(snd.stepT <= 0){ sfx('step'); snd.stepT = p.speed > 7 ? 0.27 : 0.42; } } else snd.stepT = 0.1;
-  shopProximity(); bikeProximity(); trialUpdate(dt, time);
+  shopProximity(); bikeProximity(); vendProximity(); trialUpdate(dt, time);
   updatePickups(dt, time); hurtCool -= dt; simTime += dt; updateHazards(simTime); updateBurst(dt); checkBundles();
   if(!WORLDS[state.world].rules.danger && !zeroing && state.hp < maxHp()){ state.hp = Math.min(maxHp(), state.hp + 12 * dt); hpHud(); }
   portalCool -= dt;
@@ -5044,7 +5152,9 @@ window.__hub = { state, p, cam, post, stats, WORLDS, scene, renderer, camera, su
   damage(n){ return hurt(n, 'test'); }, get hazards(){ return hazards.map(h => ({x:h.x, z:h.z, L:h.L})); },
   get bundles(){ return bundles.map(b => ({id:b.id, world:b.world, x:b.x, y:b.y, z:b.z, credits:b.credits, items:b.items.map(i => Object.assign({}, i)), why:b.why})); }, get zeroing(){ return zeroing; }, get hp(){ return state.hp; }, get maxHp(){ return maxHp(); }, get level(){ return lvlOf(state.xp); },
   ITEMS, RARITY, get inv(){ return Object.assign({}, state.inv); }, giveItem(id, n){ return giveItem(id, n); }, sell(id){ return sellItem(id); }, useItem, openInventory, closeInventory, openShop, closeShop,
-  get pickups(){ return pickups.map(q => ({pid:q.pid, id:q.id, x:q.x, y:q.y, z:q.z})); }, get shopKiosk(){ return shopKiosk && {x:shopKiosk.x, z:shopKiosk.z}; }, get simTime(){ return simTime; } };
+  get pickups(){ return pickups.map(q => ({pid:q.pid, id:q.id, x:q.x, y:q.y, z:q.z})); }, get shopKiosk(){ return shopKiosk && {x:shopKiosk.x, z:shopKiosk.z}; }, get simTime(){ return simTime; },
+  VEND, get vendor(){ return vendor && {world:vendor.world, x:vendor.x, z:vendor.z}; }, get vendors(){ return JSON.parse(JSON.stringify(vendorsSeen)); }, get vendNear(){ return vendNear; }, openVendor, closeVendor, buyVend,
+  get fuel(){ return state.fuel; }, set fuel(v){ state.fuel = clamp(+v || 0, 0, FUEL_MAX); fuelShown = -1; fuelHud(); }, FUEL_MAX };
 })();
 </script>
 </body>
