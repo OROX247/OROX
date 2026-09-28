@@ -71,7 +71,7 @@ html,body{ height:100%; margin:0; overflow:hidden; background:#07061a; color:var
 #statPanel.bump{ animation:bump .35s ease; }
 @keyframes bump{ 50%{ transform:scale(1.06); } }
 
-#lookText{ width:100%; box-sizing:border-box; padding:10px 12px; font:15px/1.45 'Chakra Petch','Trebuchet MS',sans-serif; color:#f3f0ff; background:rgba(255,255,255,.07); border:1.5px solid rgba(255,255,255,.2); border-radius:10px; resize:vertical; }
+#lookText, #forgeText{ width:100%; box-sizing:border-box; padding:10px 12px; font:15px/1.45 'Chakra Petch','Trebuchet MS',sans-serif; color:#f3f0ff; background:rgba(255,255,255,.07); border:1.5px solid rgba(255,255,255,.2); border-radius:10px; resize:vertical; }
 .look-row{ display:flex; gap:10px; } .look-row .ghost{ margin-top:10px; }
 .ghost.sel{ border-color:#5ce1e6; color:#5ce1e6; }
 .hbtn.on{ background:#5ce1e6; color:#07061a; }
@@ -188,7 +188,7 @@ body.paused #joy, body.paused #jumpBtn{ display:none; }
 
 <div id="corner">
   <canvas id="minimap" aria-label="Minimap"></canvas>
-  <div class="btns"><button class="hbtn" id="aiBtn" title="AI reality mode (R)">AI</button><button class="hbtn" id="lookBtn" title="Realm look (L)">Look</button><button class="hbtn" id="rideBtn" style="display:none">Ride</button><button class="hbtn" id="sndBtn" title="Sound on/off (N)">Sound</button><button class="hbtn" id="shopBtn" style="display:none">Shop</button><button class="hbtn" id="vendBtn" style="display:none">Vend</button><button class="hbtn" id="enrolBtn" style="display:none">Enrol</button><button class="hbtn" id="invBtn" title="Inventory (I)">Bag</button><button class="hbtn" id="mapBtn">Warp</button><button class="hbtn" id="helpBtn" aria-label="Avatar and controls">?</button></div>
+  <div class="btns"><button class="hbtn" id="aiBtn" title="AI reality mode (R)">AI</button><button class="hbtn" id="lookBtn" title="Realm look (L)">Look</button><button class="hbtn" id="forgeBtn" title="Worldsmith: describe a realm (F)">Forge</button><button class="hbtn" id="rideBtn" style="display:none">Ride</button><button class="hbtn" id="sndBtn" title="Sound on/off (N)">Sound</button><button class="hbtn" id="shopBtn" style="display:none">Shop</button><button class="hbtn" id="vendBtn" style="display:none">Vend</button><button class="hbtn" id="enrolBtn" style="display:none">Enrol</button><button class="hbtn" id="invBtn" title="Inventory (I)">Bag</button><button class="hbtn" id="mapBtn">Warp</button><button class="hbtn" id="helpBtn" aria-label="Avatar and controls">?</button></div>
 </div>
 
 <div id="intro" class="overlay" role="dialog" aria-labelledby="introTitle">
@@ -203,7 +203,7 @@ body.paused #joy, body.paused #jumpBtn{ display:none; }
     <p class="lede" id="avatarState">Any species, size or style. Watch it appear on the left.</p>
     <div class="swatch-row"><span>Suit</span><span class="swatches" id="suitSw"></span></div>
     <div class="swatch-row"><span>Glow</span><span class="swatches" id="visorSw"></span></div>
-    <p class="controls mouse-only">WASD to move, Shift to run, Space to jump and Space again mid-air to boost. Drag to look, scroll to zoom. M warp, E ride / shop / vend, I inventory, V camera, C cinematic, N sound, Esc this panel.</p>
+    <p class="controls mouse-only">WASD to move, Shift to run, Space to jump and Space again mid-air to boost. Drag to look, scroll to zoom. M warp, E ride / shop / vend, F Worldsmith (describe a realm and it is built), I inventory, V camera, C cinematic, N sound, Esc this panel.</p>
     <p class="controls touch-only">Left stick to move, Jump twice to boost, drag anywhere else to look. Warp is top right.</p>
     <button class="start" id="startBtn">Enter the Hub</button>
   </div>
@@ -235,6 +235,19 @@ body.paused #joy, body.paused #jumpBtn{ display:none; }
     <div class="look-row"><button class="ghost" id="texMake">Reload real</button><button class="ghost" id="texAI">Make with AI</button><button class="ghost" id="texClear">Remove</button></div>
     <button class="start" id="lookSave">Save look</button>
     <div class="look-row"><button class="ghost" id="lookReset">Reset to default</button><button class="ghost" id="lookClose">Close</button></div>
+  </div>
+</div>
+<div id="forge" class="overlay hidden" role="dialog" aria-labelledby="forgeTitle">
+  <div class="card">
+    <h2 id="forgeTitle">Worldsmith</h2>
+    <p class="lede">Describe a realm and the game builds it: the land, the ground, water, the time of day, weather, trees, buildings, colours. It gets its own sector on the star map, and going there is free.</p>
+    <textarea id="forgeText" rows="3" spellcheck="true" placeholder="a volcanic island at dusk with black sand, lava rivers, a ruined temple and embers in the air"></textarea>
+    <div class="look-row"><button class="ghost" id="forgeIdea">Surprise me</button><button class="ghost" id="forgeVoice">Speak it</button><button class="ghost" id="forgeSave">Build and keep</button></div>
+    <button class="start" id="forgeBuild">Build it and go</button>
+    <p class="lede" id="forgeMade"></p>
+    <h3>Your realms</h3>
+    <div id="forgeList"></div>
+    <div class="look-row"><button class="ghost" id="forgeClose">Close</button></div>
   </div>
 </div>
 <div id="shop" class="overlay hidden" role="dialog" aria-labelledby="shopTitle">
@@ -2497,7 +2510,7 @@ const WORLD_ORDER = ['hub','campus','dunes','grid','grove','sky'];
 /* the universe is a 3x3x3 cube of 27 sectors (blueprint section 3); a sector's coordinates come from its number */
 const sectorXYZ = n => [(n - 1) % 3, Math.floor((n - 1) / 3) % 3, Math.floor((n - 1) / 9)];
 function sectorDistance(a, b){ const A = sectorXYZ(a), B = sectorXYZ(b); return Math.max(Math.abs(A[0] - B[0]), Math.abs(A[1] - B[1]), Math.abs(A[2] - B[2])); }
-function fare(from, to){ if(to === 'hub') return 0; if(state.enrolled && (from === 'campus' || to === 'campus')) return 0; const d = sectorDistance(WORLDS[from].sector, WORLDS[to].sector); return d === 0 ? 10 : d === 1 ? 25 : d === 2 ? 60 : 120; }
+function fare(from, to){ if(to === 'hub') return 0; if(WORLDS[to] && WORLDS[to].own) return 0; if(state.enrolled && (from === 'campus' || to === 'campus')) return 0; const d = sectorDistance(WORLDS[from].sector, WORLDS[to].sector); return d === 0 ? 10 : d === 1 ? 25 : d === 2 ? 60 : 120; }
 const rulesText = W => (W.rules.magic ? 'magic' : 'no magic') + ' · ' + (W.rules.tech ? 'tech' : 'no tech') + ' · ' + (W.rules.danger ? 'danger zone' : 'safe');
 const PORTAL_COLORS = { hub:0xffd166, campus:0xb6ff7a, dunes:0xf2a07b, grid:0xff4fa3, grove:0x5ce1e6, sky:0xbfe0ff };
 const NPC_NAMES = ['Kestrel','Nyx_77','Pixelwolf','Dune Rider','Glitch','Moth','Sable','Byte Queen','Vektor','Ember','Lumen','Rook','Juno','Static','Marrow','Quill'];
@@ -2677,9 +2690,9 @@ float height(vec2 uv){
     float clump = fbm(uv * P * 0.5, P * 0.5, 3), blades = fbm(uv * P * vec2(1.0, 3.0) * 6.0, P * 6.0, 3), fine = pn(uv * P * 40.0 + vec2(3.1), P * 40.0);
     return clump * 0.35 + blades * 0.45 + fine * 0.2; }
   if(k < 1.5){ // soil: crumbly, with half-buried stones and a few cracks
-    vec3 v = voro(uv * P * 3.0, P * 3.0); float stone = (v.z > 0.72 ? 1.0 : 0.0) * smoothstep(0.42, 0.05, v.x);
+    vec3 v = voro(uv * P * 3.0, P * 3.0); float stone = (v.z > 0.86 ? 1.0 : 0.0) * smoothstep(0.36, 0.05, v.x);
     float crack = smoothstep(0.02, 0.09, v.y - v.x) ; float g = fbm(uv * P * 2.0, P * 2.0, 6);
-    return g * 0.55 + stone * 0.4 - (1.0 - crack) * 0.08 + pn(uv * P * 30.0, P * 30.0) * 0.08; }
+    return g * 0.6 + stone * 0.3 - (1.0 - crack) * 0.06 + pn(uv * P * 30.0, P * 30.0) * 0.1; }
   if(k < 2.5){ // rock: ridged mass, cracks along cell edges, a little strata
     float r = ridge(uv * P, P, 5), crackV = voro(uv * P * 1.5 + 0.3, P * 1.5).y - voro(uv * P * 1.5 + 0.3, P * 1.5).x;
     float crack = smoothstep(0.0, 0.07, crackV), strata = sin(uv.y * P * 6.28 * 2.0 + fbm(uv * P * 2.0, P * 2.0, 3) * 4.0) * 0.5 + 0.5;
@@ -2705,15 +2718,17 @@ float height(vec2 uv){
   if(k < 9.5){ // sand: wind ripples with grain
     float ph = uv.x * P * 6.28 * 2.2 + uv.y * P * 0.9 + fbm(uv * P * 0.7, P * 0.7, 3) * 5.0; float t = fract(ph / 6.28); float rip = t < 0.72 ? t / 0.72 : (1.0 - t) / 0.28; rip = rip * rip * (3.0 - 2.0 * rip);
     return rip * 0.55 * (0.4 + 0.6 * fbm(uv * P * 1.3 + 9.0, P * 1.3, 3)) + fbm(uv * P * 2.0, P * 2.0, 4) * 0.3 + pn(uv * P * 80.0, P * 80.0) * 0.12; }
-  // 10: concrete / rendered wall: fine grain, faint stains, a few pits
-  return fbm(uv * P * 4.0, P * 4.0, 5) * 0.5 + pn(uv * P * 60.0, P * 60.0) * 0.15 + smoothstep(0.35, 0.0, voro(uv * P * 6.0, P * 6.0).x) * 0.1 * step(0.9, voro(uv * P * 6.0, P * 6.0).z);
+  if(k < 10.5){ // concrete / rendered wall: fine grain, faint stains, a few pits
+    return fbm(uv * P * 4.0, P * 4.0, 5) * 0.5 + pn(uv * P * 60.0, P * 60.0) * 0.15 + smoothstep(0.35, 0.0, voro(uv * P * 6.0, P * 6.0).x) * 0.1 * step(0.9, voro(uv * P * 6.0, P * 6.0).z); }
+  // 11: lava crust: cooled plates with glowing cracks between them
+  { vec3 v = voro(uv * P, P); float crack = smoothstep(0.0, 0.09, v.y - v.x); return crack * 0.7 + fbm(uv * P * 3.0, P * 3.0, 4) * 0.3; }
 }
 vec4 colour(vec2 uv, float h){
   float k = kind; float P = per; vec3 c; float rough = 0.85;
   if(k < 0.5){ float clump = fbm(uv * P * 0.5, P * 0.5, 3), dry = smoothstep(0.55, 0.8, fbm(uv * P * 0.9 + 2.0, P * 0.9, 3));
     c = mix(colA, colB, clump * 0.9); c = mix(c, colC, dry * 0.7); c *= 0.6 + 0.7 * h; rough = 0.9; }
-  else if(k < 1.5){ vec3 v = voro(uv * P * 3.0, P * 3.0); float stone = (v.z > 0.72 ? 1.0 : 0.0) * smoothstep(0.42, 0.05, v.x);
-    c = mix(colA, colB, fbm(uv * P * 1.5 + 3.0, P * 1.5, 3)); c = mix(c, colC * (0.7 + 0.6 * v.z), stone); c *= 0.55 + 0.8 * h; rough = 0.92 - stone * 0.25; }
+  else if(k < 1.5){ vec3 v = voro(uv * P * 3.0, P * 3.0); float stone = (v.z > 0.86 ? 1.0 : 0.0) * smoothstep(0.36, 0.05, v.x);
+    c = mix(colA, colB, fbm(uv * P * 1.5 + 3.0, P * 1.5, 3)); c = mix(c, mix(c, colC, 0.6) * (0.75 + 0.4 * v.z), stone * 0.8); c *= 0.6 + 0.7 * h; rough = 0.92 - stone * 0.2; }
   else if(k < 2.5){ float lichen = smoothstep(0.62, 0.8, fbm(uv * P * 2.5 + 8.0, P * 2.5, 4)); c = mix(colA, colB, fbm(uv * P * 0.8 + 1.0, P * 0.8, 3) * 0.8);
     c = mix(c, colC, lichen * 0.8); c *= 0.45 + 0.9 * h; rough = 0.8 - lichen * 0.1; }
   else if(k < 3.5){ vec3 a = voro(uv * P * 4.0, P * 4.0), b = voro(uv * P * 9.0 + 4.0, P * 9.0); float big = smoothstep(0.75, 0.0, a.x);
@@ -2727,7 +2742,8 @@ vec4 colour(vec2 uv, float h){
   else if(k < 7.5){ c = mix(colA, colB, h); c = mix(c, colC, smoothstep(0.6, 0.9, fbm(uv * P * vec2(2.0, 0.25) + 3.0, P * 2.0, 4)) * 0.6); c *= 0.5 + 0.8 * h; rough = 0.9; }
   else if(k < 8.5){ c = mix(colA, colB, h); c = mix(c, colC, smoothstep(0.6, 0.8, fbm(uv * P * 0.7 + 6.0, P * 0.7, 3)) * 0.5); rough = 0.95; }
   else if(k < 9.5){ float g = h12(floor(uv * P * 400.0)); c = mix(colA, colB, fbm(uv * P * 0.9 + 7.0, P * 0.9, 3)); c *= 0.8 + 0.35 * h; if(g < 0.02) c *= 0.55; else if(g > 0.985) c = mix(c, colC, 0.7); rough = 0.95; }
-  else { c = mix(colA, colB, fbm(uv * P * 0.6 + 2.0, P * 0.6, 3)); c *= 0.8 + 0.3 * h; rough = 0.8; }
+  else if(k < 10.5){ c = mix(colA, colB, fbm(uv * P * 0.6 + 2.0, P * 0.6, 3)); c *= 0.8 + 0.3 * h; rough = 0.8; }
+  else { vec3 v = voro(uv * P, P); float crack = smoothstep(0.0, 0.09, v.y - v.x), hot = 1.0 - smoothstep(0.0, 0.16, v.y - v.x); vec3 crust = mix(colA, colB, fbm(uv * P * 2.0, P * 2.0, 4)) * (0.6 + 0.6 * h); c = mix(crust, colC * (0.8 + 0.5 * fbm(uv * P * 6.0 + 3.0, P * 6.0, 3)), hot * hot); rough = 0.95 - hot * 0.5; }
   return vec4(c, rough);
 }`;
 const surfMatColor = new THREE.ShaderMaterial({ uniforms:{kind:{value:0}, seed:{value:1}, per:{value:8}, colA:{value:new THREE.Color()}, colB:{value:new THREE.Color()}, colC:{value:new THREE.Color()}},
@@ -2758,7 +2774,8 @@ const SURFACES = {
   moss:       {kind:8, per:6,  A:0x2f5a2a, B:0x5f8a3c, C:0x3a3a24, strength:60},
   sand:       {kind:9, per:8,  A:0xe2c391, B:0xd0a872, C:0xf4e6c8, strength:45},
   ash:        {kind:9, per:8,  A:0x3c3a3a, B:0x2a2828, C:0x6a6260, strength:45},
-  concrete:   {kind:10, per:6, A:0xa8a49c, B:0x8e8a84, C:0x8e8a84, strength:35}
+  concrete:   {kind:10, per:6, A:0xa8a49c, B:0x8e8a84, C:0x8e8a84, strength:35},
+  lava:       {kind:11, per:4, A:0x1a100c, B:0x2c1c14, C:0xffb040, strength:60}
 };
 const surfCache = {};
 function surface(name){
@@ -3388,7 +3405,7 @@ const cam = { yaw:0, pitch:0.28, dist:5.5 };
 
 /* ================= world state ================= */
 let boxes = [], desk = null, gym = null, floaters = [], colliders = [], platforms = [], coins = [], portals = [], spinners = [], npcs = [], shardObj = null, vault = null, gridSun = null, fireflies = null, shopKiosk = null;
-let hf = () => 0, G = () => 0, grassMeshes = [], qLevel = 0, slotMats = {}, hazards = [], burst = null, pickups = [], vendor = null;
+let hf = () => 0, G = () => 0, grassMeshes = [], qLevel = 0, slotMats = {}, hazards = [], burst = null, pickups = [], vendor = null, forgeStand = null, forgeNear = false, forgeHinted = false;
 function reg(slot, e){ (slotMats[slot] = slotMats[slot] || []).push(e); return e.mat; }
 
 function clearWorld(){
@@ -3720,7 +3737,7 @@ function addPortal(q){
 function freeSpot(r, minR, maxR, clear){
   for(let t = 0; t < 90; t++){
     const a = r() * TAU, d = minR + r() * (maxR - minR), x = Math.cos(a) * d, z = Math.sin(a) * d;
-    let ok = !(state.world === 'hub' && Math.hypot(x, z - 14) < 3.5);
+    let ok = !(state.world === 'hub' && Math.hypot(x, z - 14) < 3.5) && !(WORLDS[state.world].custom && Math.hypot(x, z - 14) < 9);
     if(ok) for(const q of portals) if(Math.hypot(x - q.x, z - q.z) < 6){ ok = false; break; }
     if(ok) for(const c of colliders) if(Math.hypot(x - c.x, z - c.z) < c.r + clear){ ok = false; break; }
     if(ok) for(const s of platforms) if(Math.hypot(x - s.x, z - s.z) < s.r + 2.5){ ok = false; break; }
@@ -3887,6 +3904,17 @@ BUILD.hub = (r, n) => {
     glow(0xffd166, 4, 0, 1.9, 0, k, 0.45);
     const l = label('Outfitters', {edge:'#ffd166', fg:'#ffd166'}); l.position.y = 3.1; k.add(l);
     colliders.push({x:kx, z:kz, r:1.7}); shopKiosk = {x:kx, z:kz};
+  }
+  // Worldsmith forge: where realms are described into being (blueprint: users build worlds)
+  { const fx = -11, fz = -6, fM = std(0x2a2620, {metalness:0.6, roughness:0.5}), gr = surface('granite');
+    const k = new THREE.Group(); k.position.set(fx, 0, fz); k.rotation.y = Math.atan2(0 - fx, 14 - fz); world.add(k);
+    mk(new THREE.CylinderGeometry(1.5, 1.7, 0.9, 24), std(0xb8b2a8, {roughness:0.85, map:gr.map, normalMap:gr.normal}), 0, 0.45, 0, k);
+    mk(new THREE.CylinderGeometry(0.9, 1.1, 0.5, 20), fM, 0, 1.15, 0, k);
+    const orb = mk(new THREE.SphereGeometry(0.55, 32, 24), phys(0x5ce1e6, {emissive:C(0x1d7a78), emissiveIntensity:1.2, roughness:0.15, transparent:true, opacity:0.9}), 0, 2.2, 0, k); orb.castShadow = false; spinners.push({o:orb, bob:2.2});
+    mk(new THREE.TorusGeometry(0.85, 0.04, 8, 48), glowM(0xb18cff, 2), 0, 2.2, 0, k).rotation.x = 1.2;
+    glow(0x5ce1e6, 5, 0, 2.2, 0, k, 0.4);
+    const l = label('Worldsmith', {edge:'#b18cff', fg:'#e6d8ff'}); l.position.y = 3.6; k.add(l);
+    colliders.push({x:fx, z:fz, r:1.9}); forgeStand = {x:fx, z:fz};
   }
   buildBike(-11, 9); buildTrialPad('hub');
   // lamps
@@ -4460,6 +4488,485 @@ BUILD.campus = (r, n) => {
   makeGrass(Math.round(46000 * Q), 2, 57, [0x5f9636, 0x6ca23f, 0x7aae4a, 0x588c32], [0.16, 0.36], (x, z) => campusBuilt(x, z, 0.25) || (x > W + 3 && Math.abs(Math.sin(x * 12.9898 + z * 78.233) * 43758.5453) % 1 < 0.55));   // mown: short, dense, bright; thinner under the trees
 };
 
+/* ================= Worldsmith: describe a realm and the game builds it =================
+   Words become a realm recipe (terrain, ground, water, time of day, weather, plants, buildings, colours, extras),
+   the recipe becomes a seeded world with its own sky, ground surfaces and things to find. Realms are saved on this
+   computer and get a sector of their own on the star map; warping to your own realm is free. */
+const WS_WORDS = {
+  terrain:{ plains:'plains', plain:'plains', meadow:'plains', meadows:'plains', field:'plains', fields:'plains', grassland:'plains', grasslands:'plains', prairie:'plains', steppe:'plains', savanna:'plains', savannah:'plains',
+    hills:'hills', hill:'hills', hilly:'hills', rolling:'hills', downs:'hills', moor:'hills', moors:'hills', moorland:'hills', tundra:'hills', highland:'hills', highlands:'hills',
+    mountain:'mountains', mountains:'mountains', alpine:'mountains', alps:'mountains', peaks:'mountains', peak:'mountains', summit:'mountains', ridge:'mountains', ridges:'mountains', glacier:'mountains', glaciers:'mountains',
+    island:'island', isle:'island', atoll:'island', archipelago:'archipelago', islands:'archipelago', isles:'archipelago', coast:'coast', coastal:'coast', shore:'coast', beach:'coast', beaches:'coast', bay:'coast', cove:'coast', lagoon:'coast', fjord:'coast',
+    canyon:'canyon', canyons:'canyon', gorge:'canyon', ravine:'canyon', badlands:'canyon', mesa:'canyon', mesas:'canyon', plateau:'canyon', cliffs:'canyon',
+    crater:'crater', craters:'crater', caldera:'crater', moonscape:'crater', lunar:'crater', asteroid:'crater', valley:'valley', valleys:'valley', dale:'valley', glen:'valley', basin:'valley',
+    dune:'dunes', dunes:'dunes', desert:'dunes', sahara:'dunes', flat:'flat', flats:'flat', salt:'flat', plateaus:'flat', swamp:'swamp', swamps:'swamp', marsh:'swamp', marshes:'swamp', bog:'swamp', wetland:'swamp', wetlands:'swamp', everglades:'swamp', mangrove:'swamp', caves:'canyon' },
+  surface:{ grass:'grass', grassy:'grass', green:'grass', lawn:'lawn', turf:'lawn', meadow:'meadow', wildflower:'meadow', wildflowers:'meadow', sand:'sand', sandy:'sand', desert:'sand', beach:'sand', dune:'sand', dunes:'sand',
+    snow:'snow', snowy:'snow', ice:'snow', icy:'snow', frozen:'snow', arctic:'snow', frost:'snow', tundra:'snow', glacier:'snow', ash:'ash', ashen:'ash', charcoal:'ash', burnt:'ash', scorched:'ash', volcanic:'ash', obsidian:'ash', cinder:'ash',
+    rock:'rock', rocky:'rock', stone:'rock', stony:'rock', barren:'rock', moonscape:'rock', lunar:'rock', asteroid:'rock', gravel:'gravel', pebble:'gravel', pebbles:'gravel', shingle:'gravel', scree:'gravel',
+    mud:'forest', muddy:'forest', needles:'forest', leaves:'forest', woodland:'forest', moss:'moss', mossy:'moss', soil:'soil', dirt:'soil', earth:'soil', clay:'soil', mars:'mars', martian:'mars', rust:'mars', rusty:'mars', crimson:'mars', ochre:'mars' },
+  water:{ lake:'lake', lakes:'lake', pond:'lake', ponds:'lake', pool:'lake', pools:'lake', loch:'lake', tarn:'lake', mere:'lake', river:'lake', rivers:'lake', stream:'lake', sea:'sea', ocean:'sea', tide:'sea', waves:'sea', surf:'sea', lagoon:'sea', bay:'sea',
+    lava:'lava', magma:'lava', molten:'lava', acid:'acid', toxic:'acid', slime:'acid', ice:'ice', frozen:'ice', swamp:'swamp', marsh:'swamp', bog:'swamp' },
+  time:{ dawn:'dawn', sunrise:'dawn', daybreak:'dawn', morning:'morning', noon:'noon', midday:'noon', afternoon:'afternoon', sunset:'sunset', evening:'sunset', golden:'sunset', dusk:'dusk', twilight:'dusk', night:'night', nighttime:'night', midnight:'night', moonlit:'night', moonlight:'night', starry:'night', stars:'night', nocturnal:'night', dark:'night' },
+  weather:{ clear:'clear', cloudless:'clear', sunny:'clear', cloudy:'cloudy', clouds:'cloudy', overcast:'overcast', grey:'overcast', gray:'overcast', gloomy:'overcast', bleak:'overcast', fog:'fog', foggy:'fog', mist:'fog', misty:'fog', haze:'fog', hazy:'fog', smog:'fog',
+    storm:'storm', stormy:'storm', thunder:'storm', thunderstorm:'storm', lightning:'storm', rain:'rain', rainy:'rain', raining:'rain', drizzle:'rain', monsoon:'rain', wet:'rain', snowing:'snow', snowfall:'snow', blizzard:'snow', snowstorm:'snow', sandstorm:'sandstorm', dust:'sandstorm', embers:'embers', ashfall:'embers', smoke:'embers' },
+  trees:{ forest:'leaf', forests:'leaf', woods:'leaf', wood:'leaf', wooded:'leaf', trees:'leaf', tree:'leaf', oak:'leaf', oaks:'leaf', birch:'leaf', maple:'leaf', orchard:'leaf', grove:'leaf', jungle:'jungle', rainforest:'jungle', tropical:'jungle', palms:'jungle', palm:'jungle', lush:'jungle',
+    pine:'pine', pines:'pine', conifer:'pine', conifers:'pine', spruce:'pine', fir:'pine', firs:'pine', taiga:'pine', evergreen:'pine', evergreens:'pine', redwood:'pine', redwoods:'pine', cedar:'pine' },
+  extras:{ mushroom:'mushrooms', mushrooms:'mushrooms', fungi:'mushrooms', fungus:'mushrooms', toadstool:'mushrooms', toadstools:'mushrooms', crystal:'crystals', crystals:'crystals', gems:'crystals', gemstones:'crystals', quartz:'crystals', flower:'flowers', flowers:'flowers', wildflowers:'flowers', blossom:'flowers', blossoms:'flowers', tulips:'flowers', poppies:'flowers', lavender:'flowers',
+    firefly:'fireflies', fireflies:'fireflies', glowing:'fireflies', bioluminescent:'fireflies', luminous:'fireflies', lantern:'lanterns', lanterns:'lanterns', torches:'lanterns', campfire:'lanterns', aurora:'aurora', auroras:'aurora', borealis:'aurora', moons:'moons', planet:'planet', planets:'planet', ringed:'planet', rings:'planet', saturn:'planet', jupiter:'planet', gas:'planet',
+    cactus:'cactus', cacti:'cactus', cactuses:'cactus', bamboo:'bamboo', reeds:'bamboo', boulders:'boulders', boulder:'boulders', rocks:'boulders', stones:'boulders', geyser:'geysers', geysers:'geysers', snowcapped:'snowcap', snowcaps:'snowcap', glaciers:'snowcap', volcano:'volcano', volcanoes:'volcano', volcanic:'volcano', eruption:'volcano', erupting:'volcano' },
+  structures:{ ruin:'ruins', ruins:'ruins', ruined:'ruins', ancient:'ruins', abandoned:'ruins', overgrown:'ruins', temple:'temple', temples:'temple', shrine:'temple', shrines:'temple', monastery:'temple', tower:'tower', towers:'tower', spire:'tower', spires:'tower', watchtower:'tower',
+    castle:'castle', castles:'castle', fortress:'castle', fort:'castle', citadel:'castle', keep:'castle', walls:'castle', village:'village', villages:'village', hut:'village', huts:'village', cottage:'village', cottages:'village', hamlet:'village', town:'village', cabins:'village', cabin:'village', farm:'village', farmhouse:'village',
+    city:'city', cities:'city', skyline:'city', skyscrapers:'city', skyscraper:'city', metropolis:'city', downtown:'city', cyberpunk:'city', neon:'city', lighthouse:'lighthouse', statue:'statues', statues:'statues', colossus:'statues', giants:'statues',
+    monolith:'monoliths', monoliths:'monoliths', obelisk:'monoliths', obelisks:'monoliths', stonehenge:'monoliths', standing:'monoliths', megalith:'monoliths', megaliths:'monoliths', menhir:'monoliths', pyramid:'pyramid', pyramids:'pyramid', ziggurat:'pyramid', arch:'arch', arches:'arch', gate:'arch', gateway:'arch', portal:'arch', windmill:'windmill', windmills:'windmill' },
+  tone:{ dangerous:'danger', deadly:'danger', hostile:'danger', cursed:'danger', haunted:'danger', perilous:'danger', treacherous:'danger', wild:'danger', peaceful:'safe', calm:'safe', safe:'safe', serene:'safe', gentle:'safe', quiet:'safe', tranquil:'safe', idyllic:'safe' }
+};
+const WS_FLAVOUR = { dawn:'Dawn', morning:'Morning', noon:'Bright', afternoon:'Amber', sunset:'Ember', dusk:'Violet', night:'Midnight', fog:'Misty', overcast:'Grey', storm:'Storm', rain:'Rain', snow:'Frost', sandstorm:'Dust', embers:'Cinder', clear:'Clear' };
+const WS_NOUN = { plains:'Plains', hills:'Hills', mountains:'Peaks', island:'Isle', archipelago:'Isles', coast:'Shore', canyon:'Canyon', crater:'Crater', valley:'Vale', dunes:'Dunes', flat:'Flats', swamp:'Marsh', volcano:'Caldera' };
+const WS_ADJ = ['Silent','Hollow','Far','Lost','Golden','Shattered','Wandering','Sunken','Quiet','Broken','High','Low','Old','Wild','Pale','Bright','Deep','Last','First','Hidden'];
+function parseRealm(text){
+  const raw = String(text || '').slice(0, 400), words = raw.toLowerCase().replace(/[^a-z0-9\s\-']/g, ' ').split(/\s+/).filter(Boolean);
+  const stem = w => w.replace(/(ies|es|s)$/, m => m === 'ies' ? 'y' : '');
+  const pick = (table, def) => { let out = def; words.forEach(w => { if(table[w]) out = table[w]; else if(table[stem(w)]) out = table[stem(w)]; }); return out; };
+  const has = (table) => { const set = new Set(); words.forEach(w => { if(table[w]) set.add(table[w]); else if(table[stem(w)]) set.add(table[stem(w)]); }); return set; };
+  let seed = 7; for(let i = 0; i < raw.length; i++) seed = (Math.imul(seed, 31) + raw.charCodeAt(i)) | 0;
+  const waters = has(WS_WORDS.water), water = ['lava', 'acid', 'sea', 'lake', 'ice', 'swamp'].find(w => waters.has(w)) || null;
+  const weathers = has(WS_WORDS.weather), weather = ['sandstorm', 'embers', 'storm', 'snow', 'rain', 'fog', 'overcast', 'cloudy', 'clear'].find(w => weathers.has(w)) || 'clear';
+  const r = { text:raw, seed:Math.abs(seed) % 1000000 + 1, terrain:pick(WS_WORDS.terrain, null), surface:pick(WS_WORDS.surface, null), water, time:pick(WS_WORDS.time, 'afternoon'), weather,
+    trees:pick(WS_WORDS.trees, null), density:0.6, extras:has(WS_WORDS.extras), structures:has(WS_WORDS.structures), tone:pick(WS_WORDS.tone, null), tints:{}, name:'', notes:[] };
+  // amounts: "dense forest", "a few trees", "no trees", "treeless", "dead trees", "autumn"
+  const idx = w => words.indexOf(w);
+  if(words.some(w => /^(dense|thick|deep|endless|vast)$/.test(w))) r.density = 1;
+  if(words.some(w => /^(sparse|few|scattered|lone|lonely|some)$/.test(w))) r.density = 0.25;
+  if(words.some(w => /^(treeless|barren|lifeless|bare|empty|desolate)$/.test(w)) || (idx('no') >= 0 && /^(trees|forest|plants|life)$/.test(words[idx('no') + 1] || ''))) r.trees = 'none';
+  if(words.some(w => /^(dead|withered|petrified|burnt|charred|blackened)$/.test(w))) r.dead = true;
+  if(words.some(w => /^(autumn|autumnal|fall)$/.test(w))) r.leafHue = 'autumn';
+  if(words.some(w => /^(cherry|sakura|blossoming)$/.test(w))) r.leafHue = 'blossom';
+  if(words.some(w => /^(snowcapped|snow-capped)$/.test(w))) r.extras.add('snowcap');
+  if(words.some(w => /^(twin|two|double|binary)$/.test(w)) && words.some(w => /^(suns?|moons?)$/.test(w))) r.extras.add(words.some(w => /^moons?$/.test(w)) ? 'moons' : 'twosuns');
+  // colours next to a thing ("purple sky", "black sand", "red trees", "green water")
+  const TARGET = { sky:'sky', skies:'sky', heavens:'sky', clouds:'sky', sand:'ground', grass:'ground', ground:'ground', soil:'ground', earth:'ground', rock:'ground', rocks:'ground', stone:'ground', snow:'ground', ash:'ground', dust:'ground', moss:'ground', fields:'ground', meadow:'ground', water:'water', sea:'water', ocean:'water', lake:'water', lava:'water', river:'water', trees:'leaves', tree:'leaves', leaves:'leaves', forest:'leaves', foliage:'leaves', woods:'leaves', jungle:'leaves', grassland:'ground', sun:'sun', moon:'sun', light:'sun' };
+  for(let i = 0; i < words.length; i++){
+    let w = words[i]; const hex = COLOUR_WORDS[w]; if(!hex || /^(sand|sandy|rust|rusty|bronze|copper|bone|chrome|steel|neon|rainbow|ginger|olive|mint|lavender|coral|peach|rose)$/.test(w)) continue;
+    let mod = 1; if(i > 0 && COLOUR_MODS[words[i - 1]] != null) mod = COLOUR_MODS[words[i - 1]];
+    let tgt = null; for(let j = i + 1; j <= i + 2 && j < words.length; j++){ const t = TARGET[words[j]] || TARGET[stem(words[j])]; if(t){ tgt = t; break; } if(COLOUR_WORDS[words[j]] || COLOUR_MODS[words[j]]) continue; }
+    if(!tgt && i > 0 && (TARGET[words[i - 1]] || TARGET[stem(words[i - 1])]) && !r.tints[TARGET[words[i - 1]] || TARGET[stem(words[i - 1])]]) tgt = TARGET[words[i - 1]] || TARGET[stem(words[i - 1])];
+    if(tgt){ const c = new THREE.Color(hex); c.multiplyScalar(mod); r.tints[tgt] = '#' + c.getHexString(); }
+  }
+  // defaults that follow from each other
+  if(!r.terrain) r.terrain = r.water === 'sea' ? 'island' : r.surface === 'sand' ? 'dunes' : r.surface === 'snow' ? 'hills' : r.trees ? 'hills' : 'plains';
+  if(!r.surface) r.surface = r.terrain === 'dunes' ? 'sand' : r.terrain === 'crater' ? 'rock' : r.terrain === 'swamp' ? 'forest' : r.terrain === 'mountains' ? 'grass' : r.trees === 'pine' ? 'forest' : 'grass';
+  if(!r.water){ r.water = (r.terrain === 'island' || r.terrain === 'archipelago' || r.terrain === 'coast') ? 'sea' : r.terrain === 'swamp' ? 'swamp' : 'none'; }
+  if(r.water === 'lake' && waters.has('ice')) r.water = 'ice';
+  if(r.water === 'ice') r.surface = 'snow';
+  if(r.extras.has('volcano')){ if(!r.terrain) r.terrain = 'hills'; if(!r.surface) r.surface = 'ash'; if(!r.water) r.water = 'lava'; r.extras.add('embersLight'); }
+  if(!r.trees) r.trees = (r.surface === 'sand' || r.surface === 'ash' || r.surface === 'rock' || r.surface === 'mars' || r.surface === 'gravel' || r.terrain === 'crater' || r.terrain === 'dunes') ? 'none' : r.surface === 'snow' ? 'pine' : 'leaf';
+  r.airless = words.some(w => /^(airless|vacuum|lunar|asteroid)$/.test(w)) || (idx('no') >= 0 && /^(air|atmosphere)$/.test(words[idx('no') + 1] || '')) || (words.indexOf('moon') >= 0 && words.indexOf('moons') < 0 && !r.time.match(/night/));
+  if(words.indexOf('moon') >= 0 && words.indexOf('moons') < 0 && !r.airless) r.time = 'night';
+  if(r.airless){ if(!r.terrain || r.terrain === 'plains') r.terrain = 'crater'; if(!r.surface) r.surface = 'rock'; r.trees = 'none'; r.weather = 'clear'; }
+  if(r.extras.has('aurora') && r.time !== 'night') r.time = 'night';
+  if(r.surface === 'meadow') r.extras.add('flowers');
+  r.danger = r.tone === 'danger' || r.water === 'lava' || r.water === 'acid' || r.weather === 'storm';
+  r.magic = !words.some(w => /^(no-magic|mundane|technological|scientific)$/.test(w)); r.tech = !words.some(w => /^(medieval|primitive|ancient|magical|fantasy|enchanted)$/.test(w));
+  // a name: "called X" / "named X" / quoted, else made from the words
+  const m = raw.match(/(?:called|named|known as)\s+([A-Za-z][A-Za-z' -]{1,28})/i) || raw.match(/"([^"]{2,30})"/);
+  if(m) r.name = m[1].trim().replace(/[^A-Za-z' -]/g, '').split(' ').slice(0, 3).map(s => s.charAt(0).toUpperCase() + s.slice(1)).join(' ');
+  if(!r.name){ const q = rng(r.seed); const fl = WS_FLAVOUR[r.weather !== 'clear' ? r.weather : r.time] || WS_ADJ[Math.floor(q() * WS_ADJ.length)]; const adj = q() < 0.5 ? fl : WS_ADJ[Math.floor(q() * WS_ADJ.length)]; r.name = (q() < 0.3 ? 'The ' : '') + adj + ' ' + (WS_NOUN[r.terrain] || 'Reach'); }
+  return r;
+}
+function describeRealm(r){
+  const bits = [r.time, r.weather !== 'clear' ? r.weather : null, r.terrain, r.surface + ' ground', r.water !== 'none' ? r.water : null, r.trees !== 'none' ? (r.density > 0.8 ? 'dense ' : r.density < 0.4 ? 'a few ' : '') + (r.dead ? 'dead ' : '') + r.trees + ' trees' : 'no trees'].concat([...r.structures]).concat([...r.extras].filter(e => e !== 'embersLight'));
+  return bits.filter(Boolean).join(', ');
+}
+// the realm's look (sky, light, fog) from time of day and weather
+function realmLook(r){
+  const T = { dawn:{elev:3.5, az:1.2, turb:4.5, ray:2.6, mie:0.005, g:0.85, bright:0.55, sat:1.3, hz:0xf2986a, top:0x1d2b5e, sun:[0xffbf85, 2.6], hemi:[0x9aa6ff, 0x3a2a30, 0.62], exp:1.0},
+    morning:{elev:24, az:1.0, turb:2.5, ray:1.4, mie:0.004, g:0.72, bright:0.66, sat:1.15, hz:0xd4e6f5, top:0x2c6fd6, sun:[0xfff3e0, 3.0], hemi:[0xd3e4ff, 0x7a8e5c, 0.62], exp:0.95},
+    noon:{elev:62, az:0.4, turb:2, ray:1.1, mie:0.003, g:0.7, bright:0.7, sat:1.1, hz:0xdde8f5, top:0x2f6fcf, sun:[0xffffff, 3.2], hemi:[0xdde8ff, 0x8a8a70, 0.65], exp:0.9},
+    afternoon:{elev:34, az:-0.7, turb:3, ray:1.6, mie:0.005, g:0.76, bright:0.66, sat:1.15, hz:0xe9dcc4, top:0x2f6fcf, sun:[0xffe6c8, 3.1], hemi:[0xcfe0ff, 0x9a8a60, 0.6], exp:0.92},
+    sunset:{elev:3.5, az:-1.3, turb:5, ray:2.6, mie:0.005, g:0.85, bright:0.55, sat:1.3, hz:0xf2986a, top:0x1d2b5e, sun:[0xffbf85, 2.6], hemi:[0x9aa6ff, 0x3a2a30, 0.62], exp:1.0},
+    dusk:{elev:0.8, az:-1.4, turb:4, ray:2.8, mie:0.004, g:0.85, bright:0.32, sat:1.35, hz:0xc06080, top:0x1a1a4a, sun:[0xd08aa0, 1.4], hemi:[0x6a6ab0, 0x2a1a30, 0.5], exp:1.1},
+    night:{elev:28, az:0.6, turb:2.5, ray:1.6, mie:0.004, g:0.76, bright:0.05, sat:1.1, hz:0x1c2c4c, top:0x02050d, sun:[0x9fb4ff, 1.05], hemi:[0x5a6fb0, 0x0a0c10, 0.42], exp:1.42, night:true} }[r.time];
+  const L = { sky:{top:T.top, horizon:T.hz, ground:0x3a2a3a, sun:T.night ? 0xdde8ff : 0xffcf9a, dir:[Math.sin(T.az) * Math.cos(T.elev * Math.PI / 180), Math.sin(T.elev * Math.PI / 180), -Math.cos(T.az) * Math.cos(T.elev * Math.PI / 180)], size:0.009, clouds:0.3, lit:0xffffff, shade:0xbac7dc},
+    atm:{turb:T.turb, ray:T.ray, mie:T.mie, g:T.g, bright:T.bright, sat:T.sat, clouds:0.3, cloudH:1500, cirrus:0.3, rays:T.night ? 0.3 : 0.5, flare:T.night ? 0.25 : 0.6, fogSun:0.6, wind:[0.6, 0.3]},
+    sun:T.sun.slice(), hemi:T.hemi.slice(), exposure:T.exp, fog:0.004, fogH:0.035, stars:!!T.night };
+  if(T.night) L.atm.tint = 0x8fa6ff;
+  const W = r.weather, A = L.atm;
+  if(W === 'clear') A.clouds = 0.08; else if(W === 'cloudy') A.clouds = 0.5; else if(W === 'overcast' || W === 'rain' || W === 'snow'){ A.clouds = 0.95; L.sun[1] *= 0.35; L.hemi[2] *= 1.3; A.bright *= 0.8; A.rays = 0; A.flare = 0; L.fog = 0.007; }
+  else if(W === 'storm'){ A.clouds = 1; L.sun[1] *= 0.2; L.hemi[2] *= 1.1; A.bright *= 0.55; A.rays = 0; A.flare = 0; L.fog = 0.009; L.exposure *= 0.85; }
+  else if(W === 'fog'){ L.fog = 0.016; L.fogH = 0.02; A.clouds = 0.6; A.rays *= 0.5; }
+  else if(W === 'sandstorm'){ L.fog = 0.02; L.fogH = 0.03; A.tint = 0xd8b070; A.clouds = 0.2; A.turb = 9; A.mie = 0.02; A.rays *= 0.4; }
+  else if(W === 'embers'){ L.fog = 0.009; A.tint = 0xd0a090; A.clouds = 0.35; A.turb = 7; }
+  if(r.airless){ A.bright = 0.0; A.clouds = 0; L.fog = 0.0002; L.stars = true; L.hemi = [0x8090a0, 0x202020, 0.35]; A.rays = 0; }
+  if(r.tints.sky){ const c = new THREE.Color(r.tints.sky); A.tint = c.getHex(); L.sky.horizon = c.clone().lerp(new THREE.Color(T.hz), 0.4).getHex(); if(!T.night) A.bright *= 1.1; }
+  if(r.tints.sun){ L.sun[0] = new THREE.Color(r.tints.sun).getHex(); }
+  if(r.water === 'lava') { L.hemi[1] = 0x6a2a10; }
+  return L;
+}
+const WS_KEY = 'hub-realms-v1';
+let realms = []; try{ realms = JSON.parse(localStorage.getItem(WS_KEY) || '[]'); if(!Array.isArray(realms)) realms = []; }catch(e){ realms = []; }
+function saveRealms(){ try{ localStorage.setItem(WS_KEY, JSON.stringify(realms.slice(-26))); }catch(e){} }
+function realmKey(rl){ return 'w:' + rl.id; }
+function registerRealm(rl){
+  const rec = parseRealm(rl.text), L = realmLook(rec), key = realmKey(rl), sector = 2 + (realms.indexOf(rl) + 26) % 26;
+  WORLDS[key] = Object.assign({name:rl.name || rec.name, seed:rec.seed, sector, rules:{magic:rec.magic, tech:rec.tech, danger:rec.danger}, portals:[{to:'hub', x:0, z:-26}], pads:[], custom:rec, own:true}, L);
+  PORTAL_COLORS[key] = [0xffd166, 0xb6ff7a, 0xf2a07b, 0xff4fa3, 0x5ce1e6, 0xbfe0ff, 0xc9a8ff, 0xffe066][realms.indexOf(rl) % 8];
+  LINES[key] = ['Someone described this place into being.', 'This realm was forged with words.', 'Every stone here came from a sentence.'];
+  return key;
+}
+realms.forEach(registerRealm);
+const customKeys = () => realms.map(realmKey);
+function forgeRealm(text){
+  const rec = parseRealm(text); if(!rec.text.trim()) return null;
+  let rl = realms.find(x => x.text === rec.text);
+  if(!rl){ rl = {id:(Date.now().toString(36) + Math.floor(Math.random() * 1e4).toString(36)), text:rec.text, name:rec.name, made:Date.now()}; realms.push(rl); saveRealms(); }
+  registerRealm(rl); return rl;
+}
+function deleteRealm(id){ const i = realms.findIndex(x => x.id === id); if(i < 0) return; const key = realmKey(realms[i]); realms.splice(i, 1); saveRealms(); delete WORLDS[key]; if(state.world === key) travel('hub', {spawn:true}); }
+
+/* --- the realm's ground --- */
+function customHeight(rec){
+  return (n, pf) => {
+    const t = rec.terrain, big = (x, z, s, o) => n.fbm(x * s + (o || 0), z * s - (o || 0), 4), ridge = (x, z, s) => { const v = 1 - Math.abs(n.fbm(x * s, z * s, 5) * 1.5); return v * v; };
+    return (x, z) => {
+      const d = Math.hypot(x, z); let h = 0; const inner = smooth(4, 20, d), far = smooth(R + 8, R + 170, d);
+      if(t === 'plains') h = big(x, z, 0.03) * 1.6 * inner + far * (6 + big(x, z, 0.005, 30) * 22);
+      else if(t === 'hills') h = big(x, z, 0.02) * 5 * inner + big(x, z, 0.06) * 0.6 + far * (ridge(x, z, 0.006) * 45 + 10);
+      else if(t === 'mountains') h = big(x, z, 0.03) * 2.2 * inner + smooth(R + 4, R + 120, d) * (ridge(x, z, 0.007) * 140 + 18) + smooth(R + 100, R + 400, d) * 60;
+      else if(t === 'valley'){ const ax = Math.abs(x) / (R + 10); h = big(x, z, 0.03) * 1.8 * inner + smooth(0.9, 2.2, ax) * (80 + ridge(x, z, 0.008) * 70) + smooth(R + 60, R + 300, Math.abs(z)) * 40; }
+      else if(t === 'island' || t === 'coast'){ const edge = t === 'island' ? d : (z + 30 + big(x, 0, 0.02) * 12); h = big(x, z, 0.03) * 1.8 * inner + 1.2 - smooth(R - 8, R + 26, edge) * 16 + smooth(R + 60, R + 200, edge) * (-2); if(t === 'coast'){ h += smooth(R + 20, R + 200, -z) * (ridge(x, z, 0.006) * 60 + 8); } }
+      else if(t === 'archipelago'){ const isl = n.fbm(x * 0.006 + 9, z * 0.006, 3); h = big(x, z, 0.03) * 1.6 * inner + 1.2 - smooth(R - 8, R + 24, d) * (12 - smooth(0.05, 0.3, isl) * 18); }
+      else if(t === 'canyon'){ const chan = Math.abs(x - Math.sin(z * 0.012) * 40) - 24 + big(0, z, 0.03) * 6; h = big(x, z, 0.03) * 1.5 * inner + smooth(R + 6, R + 40, d) * (28 + big(x, z, 0.01) * 14) * smooth(0, 16, chan) + smooth(R + 200, R + 500, d) * 30; }
+      else if(t === 'crater'){ const rc = R + 34; h = big(x, z, 0.03) * 1.6 * inner - smooth(rc, rc - 50, d) * 0 + smooth(rc - 26, rc, d) * 22 * (1 - smooth(rc, rc + 30, d) * 0.8) + smooth(rc + 30, rc + 220, d) * (ridge(x, z, 0.006) * 40 + 6) + (rec.airless ? big(x, z, 0.08) * 1.2 : 0); }
+      else if(t === 'dunes'){ const w = n.fbm(x * 0.01, z * 0.01, 3), ri = 1 - Math.abs(n.n2(x * 0.028 + w * 2, z * 0.011 + w)); h = ri * ri * 3.4 * (0.25 + 0.75 * inner) + far * (ri * ri * 26 + 8); }
+      else if(t === 'flat') h = big(x, z, 0.02) * 0.25 + far * (4 + big(x, z, 0.004) * 12);
+      else if(t === 'swamp'){ const pool = smooth(0.58, 0.66, n.fbm(x * 0.04 + 5, z * 0.04, 3) * 0.5 + 0.5) * smooth(6, 16, d); h = big(x, z, 0.03) * 0.8 - pool * 1.4 + far * (ridge(x, z, 0.007) * 30 + 6); }
+      if(rec.extras.has('volcano')){ const vx = x - 40, vz = z + 200, vd = Math.hypot(vx, vz), cone = smooth(150, 30, vd) * 130 * (1 - smooth(34, 0, vd) * 0.55); h = h * (1 - smooth(150, 60, vd)) + cone; }
+      return h * pf(x, z);
+    };
+  };
+}
+function customBuild(rec){
+  return (r, n) => {
+    const W = WORLDS[state.world];
+    // ground surfaces
+    const S = { grass:['grass', 'soil', 'rock'], lawn:['lawn', 'soil', 'rock'], meadow:['meadow', 'soil', 'rock'], sand:['sand', 'sandsoil', 'redrock'], snow:['snow', 'rock', 'darkrock'], ash:['ash', 'darkrock', 'darkrock'], rock:['rock', 'gravel', 'darkrock'], gravel:['gravel', 'rock', 'rock'], forest:['forest', 'moss', 'darkrock'], moss:['moss', 'forest', 'darkrock'], soil:['soil', 'grass', 'rock'], mars:['sandsoil', 'redrock', 'redrock'] }[rec.surface] || ['grass', 'soil', 'rock'];
+    const snowTop = rec.extras.has('snowcap') || rec.surface === 'snow';
+    const tintG = rec.tints.ground ? hexArr(new THREE.Color(rec.tints.ground).getHex()) : null;
+    buildTerrain({maxR:900, surf:{layers:[{surf:S[0], rep:3.2}, {surf:S[1], rep:3}, {surf:S[2], rep:6}, {surf:snowTop ? 'snow' : S[0], rep:4}], rules:{patch:[0.62, 0.84], slope:[0.22, 0.44], height:snowTop ? (rec.surface === 'snow' ? [-1e6, -1e5] : [40, 60]) : [1e6, 1e7]}, macro:0.9},
+      color:(x, y, z, sl) => { const v = n.fbm(x * 0.04, z * 0.04, 3) * 0.5 + 0.5; let c = [0.86 + 0.16 * v, 0.88 + 0.14 * v, 0.84 + 0.14 * v]; if(tintG) c = [c[0] * (0.35 + tintG[0] * 1.3), c[1] * (0.35 + tintG[1] * 1.3), c[2] * (0.35 + tintG[2] * 1.3)]; return c; }});
+    // water
+    const waterLevel = rec.terrain === 'swamp' ? -0.5 : (rec.terrain === 'island' || rec.terrain === 'archipelago' || rec.terrain === 'coast') ? -0.8 : -0.7;
+    if(rec.water === 'sea' || rec.water === 'lake' || rec.water === 'swamp' || rec.water === 'acid' || rec.water === 'ice') addWater(rec.water, waterLevel, rec.tints.water, r);
+    if(rec.water === 'lava') addLava(rec.extras.has('volcano') ? {x:40, z:-200, y:58, rad:36} : null, waterLevel - 0.2, r);
+    // trees
+    const leafSets = { leaf:[0x3f6b2a, 0x557a2f, 0x6b8a36, 0x4a7a3a], jungle:[0x2f7a2a, 0x3f9a34, 0x57a83a, 0x2a6a30], pine:[0x1f3b2c, 0x24402f, 0x2a4636] };
+    let leafHex = rec.leafHue === 'autumn' ? [0xc9642a, 0xd88a2e, 0xb8441f, 0xe0a83a] : rec.leafHue === 'blossom' ? [0xf2a3c2, 0xf7c1d8, 0xe88ab0, 0xfbd9e6] : leafSets[rec.trees] || leafSets.leaf;
+    if(rec.tints.leaves){ const t = new THREE.Color(rec.tints.leaves); leafHex = [0.85, 1, 1.15, 0.95].map(k => t.clone().multiplyScalar(k).getHex()); }
+    if(rec.trees !== 'none'){
+      const TG = rec.trees === 'pine' ? pineGeos() : treeGeos(), list = [], dens = rec.density, inner = Math.round((rec.trees === 'pine' ? 55 : 30) * dens), outer = Math.round((80 + 200 * Q) * dens);
+      const under = (x, z) => G(x, z) < waterLevel + 0.4 && rec.water !== 'none';
+      for(let i = 0; i < inner; i++){ const s = freeSpot(r, 9, 56, 3); if(!s || under(s[0], s[1])) continue; const k = 0.85 + r() * 0.6 * (rec.trees === 'jungle' ? 1.6 : 1); list.push({x:s[0], y:G(s[0], s[1]) - 0.1, z:s[1], s:k, ry:r() * TAU}); colliders.push({x:s[0], z:s[1], r:0.35 * k}); }
+      for(let i = 0; i < outer; i++){ const a = r() * TAU, d = 62 + r() * 130, x = Math.cos(a) * d, z = Math.sin(a) * d; if(under(x, z) || G(x, z) > 45) continue; list.push({x, y:G(x, z) - 0.2, z, s:0.9 + r() * 0.9, ry:r() * TAU}); }
+      if(rec.dead){ const mats = list.map(t => mat4(t.x, t.y, t.z, 0, t.ry, 0, t.s, t.s, t.s)); const bk = surface('pinebark'); instanced(TG.trunk, std(0xffffff, {roughness:0.95, map:bk.map, normalMap:bk.normal, color:0x8a8078}), mats); }
+      else plantTrees(TG, list, leafHex, r);
+    }
+    // grass, clutter, boulders
+    if(rec.surface === 'grass' || rec.surface === 'lawn' || rec.surface === 'meadow' || rec.surface === 'moss' || rec.surface === 'soil') makeGrass(Math.round(26000 * Q), 5, 57, tintG ? [rec.tints.ground, rec.tints.ground, rec.tints.ground].map(h => new THREE.Color(h).getHex()) : [0x55752f, 0x6b8436, 0x7d8f3e, 0x4d6a2c], [0.3, 0.75], (x, z) => G(x, z) < waterLevel + 0.3 && rec.water !== 'none');
+    if((rec.surface === 'forest' || rec.trees === 'pine') && !/^(snow|ash|sand|rock|gravel|mars)$/.test(rec.surface)) makeGrass(Math.round(12000 * Q), 5, 57, [0x2a4a36, 0x365a3e, 0x3f6048], [0.25, 0.6], (x, z) => G(x, z) < waterLevel + 0.3 && rec.water !== 'none');
+    addClutter(r, {rMin:5, rMax:57, pebbles:rec.surface === 'gravel' ? 1400 : 500, weeds:(rec.surface === 'sand' || rec.surface === 'ash' || rec.surface === 'rock' || rec.surface === 'snow' || rec.airless) ? 0 : 700, pebbleSurf:rec.surface === 'mars' || rec.surface === 'sand' ? 'redrock' : rec.surface === 'ash' ? 'darkrock' : 'gravel', skip:(x, z) => G(x, z) < waterLevel + 0.2 && rec.water !== 'none'});
+    const rocks = [], nR = rec.extras.has('boulders') ? 34 : 12;
+    for(let i = 0; i < nR; i++){ const s = freeSpot(r, 8, 55, 2); if(!s) continue; const k = 0.5 + r() * (rec.extras.has('boulders') ? 2.2 : 1); rocks.push({x:s[0], y:G(s[0], s[1]) - 0.1, z:s[1], s:k, ry:r() * TAU}); colliders.push({x:s[0], z:s[1], r:k * 0.85}); }
+    for(let i = 0; i < 30; i++){ const a = r() * TAU, d = 62 + r() * 120, x = Math.cos(a) * d, z = Math.sin(a) * d; rocks.push({x, y:G(x, z) - 0.3, z, s:1 + r() * 3, ry:r() * TAU}); }
+    placeRocks(rocks, rec.surface === 'mars' || rec.surface === 'sand' ? 0xd8b090 : rec.surface === 'ash' ? 0x4a4a50 : 0x9a948c, {surf:rec.surface === 'mars' || rec.surface === 'sand' ? 'redrock' : rec.surface === 'ash' || rec.surface === 'snow' ? 'darkrock' : 'rock'});
+    // extras
+    if(rec.extras.has('crystals')) addCrystals(r, rec.tints.water ? new THREE.Color(rec.tints.water).getHex() : 0x9be7ff, 18);
+    if(rec.extras.has('mushrooms')) addMushrooms(r, 26, rec.time === 'night' || rec.extras.has('fireflies'));
+    if(rec.extras.has('flowers')) addFlowers(r);
+    if(rec.extras.has('fireflies') || (rec.time === 'night' && rec.trees !== 'none' && !rec.airless)) addFireflies(r, rec.extras.has('fireflies') ? 320 : 120);
+    if(rec.extras.has('cactus')) addCacti(r, 40);
+    if(rec.extras.has('bamboo')) addBamboo(r, 260);
+    if(rec.extras.has('lanterns')) addLanterns(r, 14);
+    if(rec.extras.has('geysers')) addGeysers(r, 5);
+    // buildings
+    rec.structures.forEach(s => addStructure(s, r, rec));
+    // sky and weather
+    if(rec.extras.has('planet')) addPlanet(r, rec);
+    if(rec.extras.has('moons')) addMoons(r, 2);
+    if(rec.extras.has('twosuns')) addSecondSun();
+    if(rec.extras.has('aurora')) addAurora(r);
+    if(rec.weather === 'rain' || rec.weather === 'storm') addWeather('rain');
+    else if(rec.weather === 'snow') addWeather('snow');
+    else if(rec.weather === 'embers' || rec.extras.has('embersLight')) addWeather('embers');
+    else if(rec.weather === 'sandstorm') addWeather('dust');
+    if(W.stars) addStars(r, rec.airless ? 3200 : 1400);
+    buildBike(-11, 9);
+  };
+}
+/* --- pieces the Worldsmith can place --- */
+function addWater(kind, level, tintHex, r){
+  const deep = kind === 'acid' ? 0x2a6a10 : kind === 'swamp' ? 0x2a3a22 : kind === 'ice' ? 0xc8dcea : 0x0b3a5a, col = tintHex ? new THREE.Color(tintHex).getHex() : deep;
+  const mat = kind === 'ice' ? std(col, {roughness:0.12, metalness:0.05, normalMap:waterNormal, normalScale:new V2(0.15, 0.15), envMapIntensity:1.6, transparent:true, opacity:0.96})
+    : std(col, {roughness:0.05, metalness:0.15, normalMap:waterNormal, normalScale:new V2(0.4, 0.4), envMapIntensity:1.8, transparent:true, opacity:kind === 'swamp' ? 0.9 : 0.86, emissive:C(kind === 'acid' ? 0x3aff20 : 0x000000), emissiveIntensity:kind === 'acid' ? 0.5 : 0});
+  const w = new THREE.Mesh(new THREE.CircleGeometry(950, 96), mat); w.rotation.x = -Math.PI / 2; w.position.y = level; w.receiveShadow = true; world.add(w);
+  waterBody = {level, kind, mesh:w};
+  if(kind === 'acid') glow(0x8fff60, 40, 0, level + 2, -40, world, 0.12);
+}
+let waterBody = null, lavaMat = null;
+function addLava(pool, level, r){
+  if(!lavaMat){ const lv = surface('lava'); lavaMat = std(0x140a06, {map:lv.map, emissive:C(0xff7a20), emissiveMap:lv.map, emissiveIntensity:2.6, roughness:0.9, normalMap:lv.normal, normalScale:new V2(0.5, 0.5)}); lavaMat.userData.shared = true; }
+  const w = new THREE.Mesh(new THREE.CircleGeometry(950, 96), lavaMat); w.rotation.x = -Math.PI / 2; w.position.y = level; world.add(w);
+  waterBody = {level, kind:'lava', mesh:w};
+  if(pool){ const p2 = new THREE.Mesh(new THREE.CircleGeometry(pool.rad, 48), lavaMat); p2.rotation.x = -Math.PI / 2; p2.position.set(pool.x, pool.y, pool.z); world.add(p2); glow(0xff6a20, 120, pool.x, pool.y + 30, pool.z, world, 0.25); }
+  glow(0xff5a10, 60, 0, level + 3, -30, world, 0.12);
+}
+function addCrystals(r, hex, count){
+  const crystalGeo = merge([new THREE.CylinderGeometry(0.22, 0.26, 1.6, 6).translate(0, 0.8, 0), new THREE.ConeGeometry(0.22, 0.5, 6).translate(0, 1.85, 0)]);
+  const cmats = [], parent = new THREE.Matrix4();
+  for(let i = 0; i < count; i++){
+    const s = freeSpot(r, 8, 54, 3); if(!s) continue;
+    const k = 0.8 + r() * 0.9, y = G(s[0], s[1]) - 0.15; parent.copy(mat4(s[0], y, s[1], 0, r() * TAU, 0, k));
+    const cnt = 3 + Math.floor(r() * 4);
+    for(let j = 0; j < cnt; j++) cmats.push(new THREE.Matrix4().multiplyMatrices(parent, mat4((r() - 0.5) * 0.8, 0, (r() - 0.5) * 0.8, (r() - 0.5) * 0.9, r() * TAU, (r() - 0.5) * 0.9, 0.6 + r() * 0.8)));
+    glow(hex, 3.5 * k, s[0], y + 1.2 * k, s[1], world, 0.3); colliders.push({x:s[0], z:s[1], r:0.9 * k});
+  }
+  instanced(crystalGeo, phys(hex, {roughness:0.05, metalness:0.1, transparent:true, opacity:0.85, emissive:C(hex), emissiveIntensity:0.5, envMapIntensity:1.5}), cmats);
+}
+function addMushrooms(r, count, glowing){
+  const stemM = phys(0xe9e2d4, {roughness:0.6}), capCols = [0xff5fa2, 0x4fe3ff, 0xb58cff, 0xffb347], caps = capCols.map(c => phys(c, {emissive:C(c), emissiveIntensity:glowing ? 1.4 : 0.1, roughness:0.35}));
+  for(let i = 0; i < count; i++){
+    const s = freeSpot(r, 9, 54, 3); if(!s) continue;
+    const k = 0.5 + r() * 1.2, y = G(s[0], s[1]), ci = i % 4;
+    mk(new THREE.LatheGeometry([[0.001,0],[0.2*k,0],[0.14*k,0.4*k],[0.12*k,1.2*k],[0.15*k,1.6*k],[0.001,1.62*k]].map(a => new V2(a[0], a[1])), 16), stemM, s[0], y, s[1]);
+    mk(new THREE.SphereGeometry(0.9 * k, 28, 14, 0, TAU, 0, Math.PI / 2), caps[ci], s[0], y + 1.55 * k, s[1]).scale.y = 0.55;
+    if(glowing) glow(capCols[ci], 3.6 * k, s[0], y + 1.7 * k, s[1], world, 0.3);
+    colliders.push({x:s[0], z:s[1], r:0.25 * k});
+  }
+}
+function addFlowers(r){
+  const fm = [], fc = [], fcols = [0xffffff, 0xffe066, 0xff8fc4, 0xc9a8ff, 0xff6a4a];
+  for(let i = 0; i < 1600 * Q; i++){ const a = r() * TAU, d = Math.sqrt(r()) * 56, x = Math.cos(a) * d, z = Math.sin(a) * d; if(waterBody && G(x, z) < waterBody.level + 0.3) continue; fm.push(mat4(x, G(x, z) + 0.25 + r() * 0.2, z, 0, 0, 0, 0.8 + r() * 0.6)); fc.push(C(fcols[Math.floor(r() * fcols.length)])); }
+  instanced(new THREE.IcosahedronGeometry(0.06, 0), std(0xffffff, {roughness:0.6}), fm, fc, false);
+}
+function addFireflies(r, nf){
+  const base = [], pos = new Float32Array(nf * 3);
+  for(let i = 0; i < nf; i++){ const a = r() * TAU, d = 4 + r() * 46, x = Math.cos(a) * d, z = Math.sin(a) * d; base.push([x, G(x, z) + 0.5 + r() * 3, z, r() * TAU]); }
+  const fg = new THREE.BufferGeometry(); fg.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  const fpts = new THREE.Points(fg, new THREE.PointsMaterial({map:glowTex, color:C(0xd9ff8a), size:0.55, transparent:true, blending:THREE.AdditiveBlending, depthWrite:false, fog:false}));
+  fpts.frustumCulled = false; world.add(fpts); fireflies = {geo:fg, base};
+}
+function addCacti(r, count){
+  const g = merge([new THREE.CylinderGeometry(0.22, 0.28, 2.4, 10).translate(0, 1.2, 0), new THREE.CylinderGeometry(0.12, 0.14, 0.9, 8).translate(0.55, 1.5, 0), new THREE.CylinderGeometry(0.12, 0.12, 0.6, 8).translate(0.6, 1.9, 0).rotateZ(0.0), new THREE.CylinderGeometry(0.11, 0.13, 0.8, 8).translate(-0.5, 1.2, 0)]);
+  const mats = []; for(let i = 0; i < count; i++){ const s = freeSpot(r, 6, 56, 1.5); if(!s) continue; const k = 0.6 + r() * 0.9; mats.push(mat4(s[0], G(s[0], s[1]) - 0.05, s[1], 0, r() * TAU, 0, k)); colliders.push({x:s[0], z:s[1], r:0.35 * k}); }
+  const ms = surface('moss'); instanced(g, std(0x4f7a3a, {roughness:0.7, normalMap:ms.normal, normalScale:new V2(0.5, 0.5)}), mats);
+}
+function addBamboo(r, count){
+  const g = new THREE.CylinderGeometry(0.05, 0.06, 5, 6, 5); g.translate(0, 2.5, 0);
+  { const p = g.attributes.position; for(let i = 0; i < p.count; i++){ const y = p.getY(i); const ring = Math.abs(((y / 5) * 5) % 1 - 0.5) < 0.06 ? 1.15 : 1; p.setX(i, p.getX(i) * ring); p.setZ(i, p.getZ(i) * ring); } }
+  const mats = [], cols = []; for(let i = 0; i < count; i++){ const s = freeSpot(r, 8, 56, 0.6); if(!s) continue; const k = 0.7 + r() * 0.8; mats.push(mat4(s[0], G(s[0], s[1]) - 0.05, s[1], (r() - 0.5) * 0.12, r() * TAU, (r() - 0.5) * 0.12, 1, k, 1)); const c = C(0x8fb83c); c.multiplyScalar(0.75 + r() * 0.5); cols.push(c); }
+  instanced(g, std(0xffffff, {roughness:0.55}), mats, cols);
+}
+function addLanterns(r, count){
+  const postM = std(0x2a2c34, {metalness:0.8, roughness:0.35}), bulbM = std(0xfff1d6, {emissive:C(0xffb060), emissiveIntensity:3});
+  for(let i = 0; i < count; i++){ const s = freeSpot(r, 6, 50, 1); if(!s) continue; const y = G(s[0], s[1]);
+    mk(new THREE.CylinderGeometry(0.05, 0.07, 2.6, 8), postM, s[0], y + 1.3, s[1]); mk(new THREE.BoxGeometry(0.34, 0.4, 0.34), bulbM, s[0], y + 2.75, s[1]).castShadow = false; glow(0xffb060, 3.2, s[0], y + 2.7, s[1], world, 0.5); colliders.push({x:s[0], z:s[1], r:0.15 }); }
+}
+function addGeysers(r, count){
+  for(let i = 0; i < count; i++){ const s = freeSpot(r, 10, 50, 3); if(!s) continue; const y = G(s[0], s[1]);
+    mk(new THREE.CylinderGeometry(1.6, 2.2, 0.5, 20), std(0xd8d0c0, {roughness:0.7, map:surface('concrete').map}), s[0], y + 0.2, s[1]);
+    const steam = new THREE.Sprite(new THREE.SpriteMaterial({map:glowTex, color:C(0xffffff), transparent:true, opacity:0.35, depthWrite:false})); steam.position.set(s[0], y + 4, s[1]); steam.scale.set(3, 8, 1); world.add(steam); spinners.push({o:steam, bob:y + 4});
+    colliders.push({x:s[0], z:s[1], r:2.2}); }
+}
+function addStructure(kind, r, rec){
+  const stone = surface(rec.surface === 'sand' || rec.surface === 'mars' ? 'redrock' : 'granite'), stoneM = std(0xd8d0c4, {roughness:0.85, map:stone.map, normalMap:stone.normal, normalScale:new V2(0.6, 0.6)});
+  const dark = surface('darkrock'), darkM = std(0x8a8a90, {roughness:0.9, map:dark.map, normalMap:dark.normal});
+  const conc = surface('concrete'), concM = std(0xb0aca4, {roughness:0.8, map:conc.map, normalMap:conc.normal, normalScale:new V2(0.4, 0.4)});
+  const spot = (min, max, clear) => freeSpot(r, min, max, clear);
+  const column = (x, z, h, rad, broken) => { const y = G(x, z); const g = new THREE.CylinderGeometry(rad, rad * 1.08, h, 14, 4); if(broken){ const p = g.attributes.position; for(let i = 0; i < p.count; i++){ if(p.getY(i) > h * 0.3) p.setY(i, p.getY(i) - (r() * 0.5) * h * 0.4 * (p.getX(i) > 0 ? 1 : 0.2)); } g.computeVertexNormals(); }
+    mk(g, stoneM, x, y + h / 2, z); mk(new THREE.CylinderGeometry(rad * 1.5, rad * 1.5, 0.3, 14), stoneM, x, y + 0.15, z); colliders.push({x, z, r:rad + 0.2}); };
+  if(kind === 'ruins'){
+    const s = spot(14, 40, 9) || [18, 18]; const [cx, cz] = s, y = G(cx, cz);
+    for(let i = 0; i < 8; i++){ const a = i / 8 * TAU, x = cx + Math.cos(a) * 6, z = cz + Math.sin(a) * 6; column(x, z, 2.5 + r() * 4, 0.45, r() < 0.7); }
+    for(let i = 0; i < 4; i++){ const a = r() * TAU, d = 9 + r() * 6, x = cx + Math.cos(a) * d, z = cz + Math.sin(a) * d, w = 3 + r() * 4, h = 1.5 + r() * 2.5; const wall = mk(new THREE.BoxGeometry(w, h, 0.7), stoneM, x, G(x, z) + h / 2 - 0.3, z); wall.rotation.y = r() * TAU; colliders.push({x, z, r:w / 2}); }
+    mk(new THREE.CylinderGeometry(7.5, 8, 0.6, 32), stoneM, cx, y + 0.1, cz).receiveShadow = true;
+    if(rec.trees !== 'none') makeGrass(Math.round(1500 * Q), 0, 12, [0x55752f, 0x6b8436], [0.3, 0.7], (x, z) => Math.hypot(x - cx, z - cz) > 12);
+  }
+  else if(kind === 'temple'){
+    const s = spot(16, 40, 12) || [0, 24]; const [cx, cz] = s, y = G(cx, cz);
+    [[12, 0.8], [10, 0.7], [8, 0.6]].forEach((t, i) => { const yy = y + [0, 0.8, 1.5][i]; mk(new THREE.BoxGeometry(t[0] * 2, t[1], t[0] * 2), stoneM, cx, yy + t[1] / 2, cz); });
+    for(let i = 0; i < 12; i++){ const a = i / 12 * TAU, x = cx + Math.cos(a) * 6.5, z = cz + Math.sin(a) * 6.5; mk(new THREE.CylinderGeometry(0.42, 0.48, 5, 14), stoneM, x, y + 2.1 + 2.5, z); colliders.push({x, z, r:0.6}); }
+    mk(new THREE.CylinderGeometry(7.6, 7.6, 0.6, 32), stoneM, cx, y + 2.1 + 5.3, cz); mk(new THREE.ConeGeometry(7.8, 3, 32), darkM, cx, y + 2.1 + 7.1, cz);
+    const alt = mk(new THREE.BoxGeometry(1.6, 1.1, 1.6), darkM, cx, y + 2.1 + 0.55, cz); glow(0xffd166, 4, cx, y + 4.2, cz, world, 0.4); colliders.push({x:cx, z:cz, r:1.2});
+    addPlatform(cx, cz, 12, y + 0.8); addPlatform(cx, cz, 10, y + 1.5); addPlatform(cx, cz, 8, y + 2.1);
+  }
+  else if(kind === 'tower'){
+    for(let t = 0; t < 2; t++){ const s = spot(20, 52, 5); if(!s) continue; const [x, z] = s, y = G(x, z), h = 18 + r() * 14;
+      mk(new THREE.CylinderGeometry(2.4, 3.2, h, 20), stoneM, x, y + h / 2, z); mk(new THREE.CylinderGeometry(3.2, 3.2, 1.2, 20), stoneM, x, y + h + 0.6, z); mk(new THREE.ConeGeometry(3.4, 4, 20), darkM, x, y + h + 3.2, z);
+      for(let k = 1; k < 4; k++) mk(new THREE.BoxGeometry(0.6, 1.1, 0.3), std(0x1a1610), x + Math.cos(k * 1.3) * 3.0, y + h * k / 4, z + Math.sin(k * 1.3) * 3.0);
+      glow(0xffd9a0, 4, x, y + h + 0.9, z, world, 0.35); colliders.push({x, z, r:3.4}); }
+  }
+  else if(kind === 'castle'){
+    const s = spot(24, 42, 20) || [0, 36]; const [cx, cz] = s, y = G(cx, cz), half = 12, hw = 7;
+    [[-half, 0, 0], [half, 0, 0], [0, -half, Math.PI / 2], [0, half, Math.PI / 2]].forEach(w => { const wall = mk(new THREE.BoxGeometry(1.4, hw, half * 2), stoneM, cx + w[0], y + hw / 2, cz + w[1]); wall.rotation.y = w[2]; });
+    [[-half, -half], [half, -half], [-half, half], [half, half]].forEach(c => { mk(new THREE.CylinderGeometry(2.6, 2.9, hw + 5, 16), stoneM, cx + c[0], y + (hw + 5) / 2, cz + c[1]); mk(new THREE.ConeGeometry(2.9, 3.2, 16), darkM, cx + c[0], y + hw + 6.6, cz + c[1]); colliders.push({x:cx + c[0], z:cz + c[1], r:3}); });
+    mk(new THREE.BoxGeometry(9, hw + 9, 9), stoneM, cx, y + (hw + 9) / 2, cz); mk(new THREE.ConeGeometry(6.6, 4, 4), darkM, cx, y + hw + 11, cz).rotation.y = Math.PI / 4; colliders.push({x:cx, z:cz, r:6.5});
+    for(let i = 0; i < 4; i++) for(let k = -4; k <= 4; k++){ const w = [[-half, k * 2.5], [half, k * 2.5], [k * 2.5, -half], [k * 2.5, half]][i]; mk(new THREE.BoxGeometry(i < 2 ? 1.6 : 1.2, 1, i < 2 ? 1.2 : 1.6), stoneM, cx + w[0], y + hw + 0.5, cz + w[1]).castShadow = false; }
+    boxesPush(cx, cz, half, hw);
+  }
+  else if(kind === 'village'){
+    const roofM = std(0x7a4a32, {roughness:0.9, map:surface('bark').map}), wallM = std(0xe8dcc8, {roughness:0.9, map:conc.map, normalMap:conc.normal});
+    for(let i = 0; i < 7; i++){ const s = spot(12, 50, 5); if(!s) continue; const [x, z] = s, y = G(x, z), w = 4 + r() * 3, d = 4 + r() * 2, h = 2.6 + r() * 0.8, ry = r() * TAU;
+      const g = new THREE.Group(); g.position.set(x, y, z); g.rotation.y = ry; world.add(g);
+      mk(new THREE.BoxGeometry(w, h, d), wallM, 0, h / 2, 0, g); const roof = mk(new THREE.ConeGeometry(Math.hypot(w, d) / 2 * 1.05, h * 0.75, 4), roofM, 0, h + h * 0.375, 0, g); roof.rotation.y = Math.PI / 4; roof.scale.set(w / Math.hypot(w, d) * 1.42, 1, d / Math.hypot(w, d) * 1.42);
+      mk(new THREE.BoxGeometry(0.9, 1.6, 0.12), std(0x3a2a1a), 0, 0.8, d / 2 + 0.02, g); mk(new THREE.BoxGeometry(0.7, 0.7, 0.1), std(0xffe0a0, {emissive:C(0xffc070), emissiveIntensity:rec.time === 'night' || rec.time === 'dusk' ? 1.6 : 0.2}), w * 0.3, 1.5, d / 2 + 0.02, g).castShadow = false;
+      mk(new THREE.BoxGeometry(0.6, 1.2, 0.6), darkM, w * 0.3, h + 0.6, 0, g);
+      colliders.push({x, z, r:Math.max(w, d) / 2 + 0.3}); }
+  }
+  else if(kind === 'city'){
+    const skyline = [0, 1, 2].map(v => towerMaterial(v));
+    for(let i = 0; i < 40 * (COARSE ? 0.6 : 1); i++){
+      const a = r() * TAU, d = 95 + r() * 220, x = Math.cos(a) * d, z = Math.sin(a) * d, h = 25 + r() * r() * 140, w = 9 + r() * 14, dp = w * (0.7 + r() * 0.6), y0 = G(x, z) - 2;
+      const g = new THREE.BoxGeometry(w, h, dp), uv = g.attributes.uv, fl = Math.max(1, Math.round(h / 3.6));
+      for(let k = 0; k < uv.count; k++){ const face = Math.floor(k / 4); const u = uv.getX(k), vv = uv.getY(k); const span = (face < 2) ? dp : w; uv.setXY(k, u * span / 4, face === 2 || face === 3 ? vv * 0.02 : vv * fl); }
+      const b = mk(g, skyline[i % 3], x, y0 + h / 2, z); b.rotation.y = r() * TAU; b.castShadow = false;
+      if(h > 100) glow(0xff4040, 4, x, y0 + h + 1, z, world, 0.7);
+    }
+  }
+  else if(kind === 'lighthouse'){
+    const s = spot(30, 52, 6) || [0, 40]; const [x, z] = s, y = G(x, z), h = 26;
+    const g = new THREE.CylinderGeometry(2.2, 3.4, h, 24, 8), p = g.attributes.position; for(let i = 0; i < p.count; i++){ /* stripes come from the texture uv */ }
+    const striped = canvasTex(64, 512, (c, w, hh) => { for(let i = 0; i < 8; i++){ c.fillStyle = i % 2 ? '#c8202a' : '#f2f0ea'; c.fillRect(0, i * hh / 8, w, hh / 8); } });
+    mk(g, std(0xffffff, {map:striped, roughness:0.7}), x, y + h / 2, z); mk(new THREE.CylinderGeometry(2.6, 2.6, 0.5, 24), darkM, x, y + h + 0.25, z);
+    mk(new THREE.CylinderGeometry(1.6, 1.6, 3, 16), std(0xfff0c0, {emissive:C(0xfff0c0), emissiveIntensity:3, transparent:true, opacity:0.85}), x, y + h + 2, z).castShadow = false; mk(new THREE.ConeGeometry(2.2, 2, 16), darkM, x, y + h + 4.5, z);
+    glow(0xfff0c0, 24, x, y + h + 2, z, world, 0.5); colliders.push({x, z, r:3.6});
+  }
+  else if(kind === 'statues'){
+    for(let i = 0; i < 3; i++){ const s = spot(14, 48, 6); if(!s) continue; const [x, z] = s, y = G(x, z), sc = 4.5 + r() * 2.5;
+      mk(new THREE.CylinderGeometry(2.2, 2.6, 1.4, 20), stoneM, x, y + 0.7, z);
+      const av = makeAvatar({recipe:parseDescription(randomLook(r)), name:''}); av.g.traverse(o => { if(o.isSprite) o.visible = false; if(o.isMesh){ o.material = stoneM; o.castShadow = true; } });
+      av.g.position.set(x, y + 1.4, z); av.g.rotation.y = Math.atan2(-x, -z); av.g.scale.setScalar(sc); world.add(av.g); colliders.push({x, z, r:2.8}); }
+  }
+  else if(kind === 'monoliths'){
+    const s = spot(16, 40, 14) || [-20, 20]; const [cx, cz] = s;
+    for(let i = 0; i < 9; i++){ const a = i / 9 * TAU, x = cx + Math.cos(a) * 9, z = cz + Math.sin(a) * 9, y = G(x, z), h = 4 + r() * 3; const m = mk(new THREE.BoxGeometry(1.6, h, 0.9), darkM, x, y + h / 2 - 0.2, z); m.rotation.y = a + Math.PI / 2 + (r() - 0.5) * 0.3; m.rotation.z = (r() - 0.5) * 0.12; colliders.push({x, z, r:1.1}); }
+    const cy = G(cx, cz); mk(new THREE.BoxGeometry(2.2, 0.8, 2.2), darkM, cx, cy + 0.4, cz); glow(0xb18cff, 5, cx, cy + 1.6, cz, world, 0.3); colliders.push({x:cx, z:cz, r:1.5});
+  }
+  else if(kind === 'pyramid'){
+    const s = spot(22, 46, 18) || [0, 36]; const [cx, cz] = s, y = G(cx, cz), steps = 7;
+    for(let i = 0; i < steps; i++){ const w = 26 - i * 3.4, h = 2.2; mk(new THREE.BoxGeometry(w, h, w), stoneM, cx, y + i * h + h / 2, cz); addPlatform(cx, cz, w / 2, y + (i + 1) * h); }
+    glow(0xffd166, 8, cx, y + steps * 2.2 + 1.5, cz, world, 0.35);
+  }
+  else if(kind === 'arch'){
+    const s = spot(14, 44, 6) || [16, -8]; const [x, z] = s, y = G(x, z);
+    const g = new THREE.Group(); g.position.set(x, y, z); g.rotation.y = r() * TAU; world.add(g);
+    mk(new THREE.BoxGeometry(1.4, 7, 1.4), stoneM, -3.5, 3.5, 0, g); mk(new THREE.BoxGeometry(1.4, 7, 1.4), stoneM, 3.5, 3.5, 0, g); mk(new THREE.TorusGeometry(3.5, 0.7, 10, 24, Math.PI), stoneM, 0, 7, 0, g);
+    colliders.push({x:x - 3.5, z, r:1}, {x:x + 3.5, z, r:1});
+  }
+  else if(kind === 'windmill'){
+    const s = spot(16, 48, 6) || [-20, 20]; const [x, z] = s, y = G(x, z), h = 9;
+    mk(new THREE.CylinderGeometry(2.2, 3, h, 16), concM, x, y + h / 2, z); mk(new THREE.ConeGeometry(2.6, 2.4, 16), darkM, x, y + h + 1.2, z);
+    const sails = new THREE.Group(); sails.position.set(x, y + h - 0.5, z + 2.6); world.add(sails);
+    for(let i = 0; i < 4; i++){ const b = mk(new THREE.BoxGeometry(0.8, 7, 0.12), std(0xe8dcc8, {roughness:0.9}), 0, 3.5, 0, sails); const pivot = new THREE.Group(); pivot.rotation.z = i * Math.PI / 2; sails.add(pivot); pivot.add(b); b.position.set(0, 3.5, 0); }
+    spinners.push({o:sails, axis:'z'}); colliders.push({x, z, r:3.2});
+  }
+}
+function boxesPush(cx, cz, half, hw){ for(let k = -half; k <= half; k += 2.4){ colliders.push({x:cx - half, z:cz + k, r:1}, {x:cx + half, z:cz + k, r:1}, {x:cx + k, z:cz - half, r:1}, {x:cx + k, z:cz + half, r:1}); } }
+/* --- sky props: planets, moons, a second sun, aurora, weather --- */
+const skyProps = new THREE.Group(); sky.add(skyProps);
+function clearSkyProps(){ while(skyProps.children.length){ const o = skyProps.children.pop(); o.traverse(q => { if(q.geometry) q.geometry.dispose(); if(q.material){ (q.material.map && !SHARED_TEX.has(q.material.map)) && q.material.map.dispose(); q.material.dispose(); } }); } }
+function planetTexture(r){
+  return canvasTex(512, 256, (x, w, h) => {
+    const base = [[0xc8a070, 0xe0c090, 0xa07050], [0x6a8ac0, 0x9ab0d8, 0x4a6a98], [0xb06a50, 0xd89a70, 0x804838]][Math.floor(r() * 3)].map(hexStr);
+    for(let y = 0; y < h; y++){ const t = y / h, k = Math.sin(t * 40 + r() * 0.3) * 0.5 + 0.5, c = base[Math.floor(k * 2.99)]; x.fillStyle = c; x.globalAlpha = 0.85 + Math.sin(y * 0.7) * 0.1; x.fillRect(0, y, w, 1); }
+    x.globalAlpha = 0.25; for(let i = 0; i < 40; i++){ x.fillStyle = r() < 0.5 ? '#ffffff' : '#000000'; x.beginPath(); x.ellipse(r() * w, r() * h, 20 + r() * 60, 4 + r() * 8, 0, 0, TAU); x.fill(); }
+  });
+}
+function addPlanet(r, rec){
+  const rad = 110 + r() * 60, el = 0.35 + r() * 0.3, az = r() * TAU, d = 880;
+  const m = new THREE.Mesh(new THREE.SphereGeometry(rad, 48, 32), std(0xffffff, {map:planetTexture(r), roughness:0.9}));
+  m.position.set(Math.cos(az) * Math.cos(el) * d, Math.sin(el) * d, Math.sin(az) * Math.cos(el) * d); m.rotation.z = 0.4; m.castShadow = m.receiveShadow = false; skyProps.add(m);
+  if(rec.text.match(/ring|saturn/i) || r() < 0.5){ const ringTex = canvasTex(256, 8, (x, w, h) => { for(let i = 0; i < w; i++){ const t = i / w, a = t < 0.15 ? 0 : (0.4 + Math.sin(t * 60) * 0.25) * smooth(0.15, 0.25, t) * (1 - smooth(0.85, 1, t)); x.fillStyle = 'rgba(230,215,190,' + a.toFixed(2) + ')'; x.fillRect(i, 0, 1, h); } });
+    ringTex.wrapS = ringTex.wrapT = THREE.ClampToEdgeWrapping; const rg = new THREE.RingGeometry(rad * 1.3, rad * 2.3, 96, 1); const uv = rg.attributes.uv, p = rg.attributes.position; for(let i = 0; i < uv.count; i++){ const rr = Math.hypot(p.getX(i), p.getY(i)); uv.setXY(i, (rr - rad * 1.3) / rad, 0.5); }
+    const ring = new THREE.Mesh(rg, std(0xffffff, {map:ringTex, transparent:true, side:THREE.DoubleSide, roughness:0.8, depthWrite:false})); ring.position.copy(m.position); ring.rotation.set(Math.PI / 2 - 0.5, 0, 0.3); skyProps.add(ring); }
+}
+function addMoons(r, n){
+  for(let i = 0; i < n; i++){ const rad = 22 + r() * 30, el = 0.2 + r() * 0.5, az = r() * TAU, d = 900;
+    const m = new THREE.Mesh(new THREE.SphereGeometry(rad, 32, 24), std(0xd8d8e0, {roughness:1, map:surface('rock').map, emissive:C(0x404050), emissiveIntensity:0.3}));
+    m.position.set(Math.cos(az) * Math.cos(el) * d, Math.sin(el) * d, Math.sin(az) * Math.cos(el) * d); m.castShadow = m.receiveShadow = false; skyProps.add(m); }
+}
+function addSecondSun(){
+  const s = new THREE.Sprite(new THREE.SpriteMaterial({map:glowTex, color:C(0xff9a60), transparent:true, opacity:0.9, blending:THREE.AdditiveBlending, depthWrite:false, fog:false, toneMapped:false}));
+  const d = sunDirW.clone(); d.applyAxisAngle(new V3(0, 1, 0), 0.9); d.y = Math.max(d.y + 0.15, 0.1); s.position.copy(d.normalize().multiplyScalar(900)); s.scale.set(140, 140, 1); skyProps.add(s);
+  const core = new THREE.Sprite(new THREE.SpriteMaterial({map:glowTex, color:C(0xfff0d0), transparent:true, opacity:1, blending:THREE.AdditiveBlending, depthWrite:false, fog:false, toneMapped:false})); core.position.copy(s.position); core.scale.set(40, 40, 1); skyProps.add(core);
+}
+function addAurora(r){
+  const mat = new THREE.ShaderMaterial({ uniforms:{time:uTime, c1:{value:new THREE.Color(0x3aff9a)}, c2:{value:new THREE.Color(0x8a5cff)}}, transparent:true, depthWrite:false, side:THREE.DoubleSide, blending:THREE.AdditiveBlending, fog:false,
+    vertexShader:'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+    fragmentShader:'uniform float time; uniform vec3 c1, c2; varying vec2 vUv;' + NOISE_GLSL + ' void main(){ float b = fbm5(vec2(vUv.x * 6.0 + time * 0.03, time * 0.05)); float band = smoothstep(0.35, 0.6, b) * (1.0 - smoothstep(0.6, 0.95, b)); float v = pow(1.0 - vUv.y, 1.6) * smoothstep(0.0, 0.15, vUv.y); float fl = 0.6 + 0.4 * sin(vUv.x * 40.0 + time * 2.0 + b * 10.0); vec3 col = mix(c1, c2, vUv.y * 1.2 + b * 0.3); gl_FragColor = vec4(col * band * v * fl * 1.6, band * v * 0.55); }' });
+  for(let i = 0; i < 3; i++){ const g = new THREE.PlaneGeometry(900, 160, 64, 1), p = g.attributes.position; for(let k = 0; k < p.count; k++){ const x = p.getX(k); p.setZ(k, Math.sin(x * 0.006 + i) * 90); }
+    const m = new THREE.Mesh(g, mat); m.position.set((r() - 0.5) * 200, 320 + i * 60, -420 - i * 120); m.rotation.y = (r() - 0.5) * 0.8; m.renderOrder = -4; world.add(m); }
+}
+let weatherFx = null;
+function addWeather(kind){
+  const n = kind === 'rain' ? 2600 : kind === 'snow' ? 1400 : kind === 'dust' ? 900 : 500, pos = new Float32Array(n * 3), vel = new Float32Array(n * 3), box = kind === 'rain' ? 34 : 30;
+  for(let i = 0; i < n; i++){ pos[i*3] = (Math.random() - 0.5) * box * 2; pos[i*3+1] = Math.random() * 30; pos[i*3+2] = (Math.random() - 0.5) * box * 2; vel[i*3] = Math.random(); vel[i*3+1] = Math.random(); vel[i*3+2] = Math.random(); }
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  const tex = kind === 'rain' ? canvasTex(32, 128, (x, w, h) => { x.clearRect(0, 0, w, h); const gr = x.createLinearGradient(0, 0, 0, h); gr.addColorStop(0, 'rgba(255,255,255,0)'); gr.addColorStop(0.5, 'rgba(220,230,255,0.9)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); x.fillStyle = gr; x.fillRect(13, 0, 6, h); }) : glowTex;
+  const mat = new THREE.PointsMaterial({map:tex, color:C(kind === 'embers' ? 0xff8a30 : kind === 'dust' ? 0xd8b070 : 0xffffff), size:kind === 'rain' ? 1.6 : kind === 'snow' ? 0.32 : kind === 'dust' ? 0.9 : 0.22, transparent:true, opacity:kind === 'rain' ? 0.55 : kind === 'dust' ? 0.25 : 0.9, depthWrite:false, blending:kind === 'embers' ? THREE.AdditiveBlending : THREE.NormalBlending, fog:kind !== 'embers'});
+  const pts = new THREE.Points(g, mat); pts.frustumCulled = false; pts.userData.noAO = true; scene.add(pts);
+  weatherFx = {kind, pts, geo:g, vel, n, box};
+}
+function updateWeather(dt, time){
+  if(!weatherFx) return; const w = weatherFx, pa = w.geo.attributes.position, a = pa.array, box = w.box;
+  w.pts.position.set(p.x, p.y, p.z);
+  for(let i = 0; i < w.n; i++){ const k = i * 3;
+    if(w.kind === 'rain'){ a[k+1] -= (16 + w.vel[k] * 6) * dt; a[k] += 2.5 * dt; if(a[k+1] < -2){ a[k+1] += 32; a[k] = (Math.random() - 0.5) * box * 2; a[k+2] = (Math.random() - 0.5) * box * 2; } }
+    else if(w.kind === 'snow'){ a[k+1] -= (1.1 + w.vel[k] * 1.2) * dt; a[k] += Math.sin(time * 0.9 + w.vel[k+1] * 9) * 0.6 * dt + 0.5 * dt; a[k+2] += Math.cos(time * 0.7 + w.vel[k+2] * 9) * 0.6 * dt; if(a[k+1] < -2){ a[k+1] += 30; a[k] = (Math.random() - 0.5) * box * 2; a[k+2] = (Math.random() - 0.5) * box * 2; } }
+    else if(w.kind === 'embers'){ a[k+1] += (0.8 + w.vel[k] * 1.5) * dt; a[k] += Math.sin(time * 1.3 + w.vel[k+1] * 9) * 1.2 * dt; a[k+2] += Math.cos(time * 1.1 + w.vel[k+2] * 9) * 1.2 * dt + 0.6 * dt; if(a[k+1] > 28){ a[k+1] = -1; a[k] = (Math.random() - 0.5) * box * 2; a[k+2] = (Math.random() - 0.5) * box * 2; } }
+    else { a[k] += (5 + w.vel[k] * 6) * dt; a[k+1] += Math.sin(time * 1.5 + w.vel[k+1] * 9) * 1.5 * dt; if(a[k] > box){ a[k] = -box; a[k+1] = Math.random() * 12; a[k+2] = (Math.random() - 0.5) * box * 2; } if(a[k+1] < 0) a[k+1] = 0.2; }
+    if(a[k] > box) a[k] -= box * 2; if(a[k] < -box) a[k] += box * 2; if(a[k+2] > box) a[k+2] -= box * 2; if(a[k+2] < -box) a[k+2] += box * 2;
+  }
+  pa.needsUpdate = true;
+}
+/* --- the Worldsmith panel --- */
+const forgeEl = $('#forge');
+function renderForge(){
+  const list = $('#forgeList'); list.innerHTML = '';
+  if(!realms.length){ list.innerHTML = '<p class="lede">No realms yet. Describe one above and build it.</p>'; return; }
+  realms.slice().reverse().forEach(rl => {
+    const key = realmKey(rl), W = WORLDS[key], here = key === state.world;
+    const b = document.createElement('button'); b.className = 'warp-item'; b.style.setProperty('--c', hexStr(PORTAL_COLORS[key]));
+    b.innerHTML = '<span>' + W.name.replace(/[<>&"]/g, '') + '<br><small>' + describeRealm(W.custom).replace(/[<>&"]/g, '') + '</small></span><small>' + (here ? 'You are here' : 'Go · free') + '</small>';
+    if(here) b.disabled = true;
+    b.addEventListener('click', () => { closeForge(); travel(key, {spawn:true}); });
+    const del = document.createElement('button'); del.className = 'ghost'; del.style.cssText = 'width:auto;margin:0 0 0 6px;padding:6px 10px;font-size:13px'; del.textContent = 'Forget'; del.title = 'Delete this realm';
+    del.addEventListener('click', e => { e.stopPropagation(); deleteRealm(rl.id); renderForge(); });
+    const row = document.createElement('div'); row.style.cssText = 'display:flex;align-items:stretch;margin-top:6px'; b.style.flex = '1'; row.appendChild(b); row.appendChild(del); list.appendChild(row);
+  });
+}
+function openForge(){ if(zeroing) return; renderForge(); forgeEl.classList.remove('hidden'); setPaused(true); $('#forgeText').focus(); }
+function closeForge(){ forgeEl.classList.add('hidden'); setPaused(false); }
+function forgeFromText(go){
+  const text = $('#forgeText').value.trim(); if(!text){ toast('Describe the realm first'); return; }
+  const rl = forgeRealm(text); if(!rl) return; renderForge(); sfx('shard');
+  const key = realmKey(rl); $('#forgeMade').textContent = 'Made: ' + WORLDS[key].name + ' · ' + describeRealm(WORLDS[key].custom);
+  if(go){ closeForge(); travel(key, {spawn:true}); }
+}
+const FORGE_IDEAS = ['a volcanic island at dusk with black sand, lava rivers, a ruined temple and embers in the air', 'misty pine mountains at dawn with a frozen lake, a lighthouse and snow falling', 'purple grasslands under a ringed planet with monoliths and glowing mushrooms',
+  'a tropical archipelago at noon with palms, a village and crystal water', 'red martian canyon with two moons, dust storms and an abandoned city', 'a moonlit meadow of wildflowers with fireflies, a castle and the aurora', 'golden autumn woods at sunset with a windmill, a pond and lanterns', 'a lunar crater with no air, boulders, a pyramid and a giant statue', 'foggy swamp with dead trees, toadstools, ruins and rain', 'a bamboo valley in the morning with geysers, a shrine and cherry blossom'];
+$('#forgeBtn').addEventListener('click', openForge);
+$('#forgeBuild').addEventListener('click', () => forgeFromText(true));
+$('#forgeSave').addEventListener('click', () => forgeFromText(false));
+$('#forgeIdea').addEventListener('click', () => { $('#forgeText').value = FORGE_IDEAS[Math.floor(Math.random() * FORGE_IDEAS.length)]; });
+$('#forgeClose').addEventListener('click', closeForge);
+$('#forgeText').addEventListener('keydown', e => { if(e.code === 'Enter' && !e.shiftKey){ e.preventDefault(); forgeFromText(true); } });
+$('#forgeVoice').addEventListener('click', () => {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition; if(!SR){ toast('Voice input is not available in this browser'); return; }
+  const rec = new SR(); rec.lang = 'en-GB'; rec.interimResults = false; $('#forgeVoice').textContent = 'Listening…';
+  rec.onresult = e => { $('#forgeText').value = e.results[0][0].transcript; $('#forgeVoice').textContent = 'Speak it'; };
+  rec.onerror = () => { $('#forgeVoice').textContent = 'Speak it'; toast('Did not catch that'); }; rec.onend = () => { $('#forgeVoice').textContent = 'Speak it'; };
+  try{ rec.start(); }catch(e){ toast('Voice input could not start'); }
+});
+
 /* ================= spawning ================= */
 function spawnNPCs(key, r){
   const pool = NPC_NAMES.slice(), count = (key === 'hub' ? 8 : 5) - (COARSE ? 2 : 0);
@@ -4516,22 +5023,24 @@ function buildWorld(key){
   const W = WORLDS[key]; state.world = key;
   world = new THREE.Group(); scene.add(world);
   if(camHid){ camHid = false; if(!zeroing) me.g.visible = true; }
-  grassMeshes = []; slotMats = {}; boxes = []; desk = null; gym = null; floaters = []; p.zeroG = false; colliders = []; platforms = []; coins = []; portals = []; spinners = []; npcs = []; shardObj = null; vault = null; gridSun = null; fireflies = null; shopKiosk = null; vendor = null; hazards = []; burst = null; pickups = []; bike.g = null; bike.riding = false; bike.near = false; engineStop(); $('#rideBtn').style.display = 'none'; trial.active = false; trial.rings = []; trial.pad = null; trial.padPos = null; $('#trialPanel').style.display = 'none';
+  grassMeshes = []; slotMats = {}; boxes = []; desk = null; gym = null; floaters = []; p.zeroG = false; colliders = []; platforms = []; coins = []; portals = []; spinners = []; npcs = []; shardObj = null; vault = null; gridSun = null; fireflies = null; shopKiosk = null; forgeStand = null; vendor = null; hazards = []; burst = null; pickups = []; bike.g = null; bike.riding = false; bike.near = false; engineStop(); $('#rideBtn').style.display = 'none'; trial.active = false; trial.rings = []; trial.pad = null; trial.padPos = null; $('#trialPanel').style.display = 'none';
   const r = rng(W.seed), noise = makeNoise(W.seed * 7 + 1);
+  waterBody = null; if(weatherFx){ scene.remove(weatherFx.pts); weatherFx.geo.dispose(); weatherFx.pts.material.dispose(); weatherFx = null; } clearSkyProps();
   applyLook(W);
-  const pads = W.portals.map(q => ({x:q.x, z:q.z, r:4})).concat(W.pads || []);
+  const pads = W.portals.map(q => ({x:q.x, z:q.z, r:4})).concat(W.pads || []).concat(W.custom ? [{x:0, z:14, r:6}] : []);
   const pf = (x, z) => { let f = 1; for(const q of pads) f *= smooth(q.r, q.r + 7, Math.hypot(x - q.x, z - q.z)); return f; };
-  hf = HEIGHTS[key](noise, pf);
+  hf = W.custom ? customHeight(W.custom)(noise, pf) : HEIGHTS[key](noise, pf);
   G = key === 'grid' ? (x, z) => Math.max(0, hf(x, z)) : hf;
   W.portals.forEach(addPortal);
-  BUILD[key](r, noise);
-  if(W.stars) addStars(r, 1400);
+  if(W.custom) customBuild(W.custom)(r, noise); else BUILD[key](r, noise);
+  if(W.stars && !W.custom) addStars(r, 1400);
   // coins
   const coinGeo = new THREE.CylinderGeometry(0.34, 0.34, 0.07, 40); coinGeo.rotateX(Math.PI / 2);
   const coinMat = std(0xffc94d, {metalness:1, roughness:0.2, emissive:C(0x6a4300), emissiveIntensity:0.5});
   const spots = [], onPl = key === 'grid' ? [0, 1, 2] : (key === 'dunes' || key === 'sky') ? [1, 3, 5] : [];
   onPl.forEach(i => { const s = platforms[i]; if(s) spots.push([s.x + (key === 'grid' ? s.r - 0.45 : 0), s.top + 1, s.z]); });
   while(spots.length < 12){ const s = freeSpot(r, 5, 52, 2); spots.push(s ? [s[0], G(s[0], s[1]) + 1, s[1]] : [0, 1, 8]); }
+  if(W.custom) spots.length = 0;   // forged realms have no coins: the coin count belongs to the charted universe
   spots.forEach((s, i) => {
     const id = key + ':' + i; if(state.coins.has(id)) return;
     const g = new THREE.Group(); g.position.set(s[0], s[1], s[2]); world.add(g);
@@ -4925,7 +5434,12 @@ $('#shopClose').addEventListener('click', closeShop);
 $('#shopBtn').addEventListener('click', () => openShop());
 $('#tabBuy').addEventListener('click', () => setShopTab('buy'));
 $('#tabSell').addEventListener('click', () => setShopTab('sell'));
+function forgeProximity(){
+  const near = !!(forgeStand && state.world === 'hub' && Math.hypot(p.x - forgeStand.x, p.z - forgeStand.z) < 3.6);
+  if(near !== forgeNear){ forgeNear = near; $('#forgeBtn').classList.toggle('on', near); if(near && !forgeHinted && playing){ forgeHinted = true; toast('Worldsmith: press E (or F) to describe a realm and the game builds it', 3600); } }
+}
 function shopProximity(){
+  forgeProximity();
   const near = !!(shopKiosk && state.world === 'hub' && Math.hypot(p.x - shopKiosk.x, p.z - shopKiosk.z) < 3.4);
   if(near !== shopNear){ shopNear = near; $('#shopBtn').style.display = near ? '' : 'none'; if(near && !shopHinted && playing){ shopHinted = true; toast('Outfitters: press E (or tap Shop) to browse gear', 3000); } }
 }
@@ -5063,7 +5577,7 @@ const BOARD = NPC_NAMES.slice(0, 11).map(nm => ({name:nm, shards:Math.floor(boar
 function openWarp(){
   if(zeroing) return;
   const list = $('#warpList'); list.innerHTML = '';
-  WORLD_ORDER.forEach(k => {
+  WORLD_ORDER.concat(customKeys()).forEach(k => {
     const b = document.createElement('button'); b.className = 'warp-item'; b.style.setProperty('--c', hexStr(PORTAL_COLORS[k]));
     const here = k === state.world, cost = fare(state.world, k), enr = !cost && k !== 'hub' && state.enrolled && (k === 'campus' || state.world === 'campus');
     b.innerHTML = '<span>' + WORLDS[k].name + '<br><small>Sector ' + WORLDS[k].sector + ' · ' + rulesText(WORLDS[k]) + (bundles.some(bb => bb.world === k) ? ' · your bundle' : '') + '</small></span><small>' + (here ? 'You are here' : cost ? '₵ ' + cost : enr ? 'Free · enrolled' : 'Free') + '</small>';
@@ -5085,7 +5599,7 @@ function drawStarMap(){
   const c = $('#starMap'), d = Math.min(window.devicePixelRatio || 1, 2), W = c.clientWidth || 400; c.width = W * d; c.height = Math.round(W * 0.42) * d;
   const x = c.getContext('2d'); x.scale(d, d); const w = W, h = c.height / d, cell = Math.min((w - 40) / 3 / 3.4, h / 3.8), gap = cell * 3 + 14;
   x.clearRect(0, 0, w, h); x.font = '600 11px "Chakra Petch","Trebuchet MS",sans-serif'; x.textAlign = 'center';
-  const charted = {}; WORLD_ORDER.forEach(k => { (charted[WORLDS[k].sector] = charted[WORLDS[k].sector] || []).push(k); });
+  const charted = {}; WORLD_ORDER.concat(customKeys()).forEach(k => { (charted[WORLDS[k].sector] = charted[WORLDS[k].sector] || []).push(k); });
   for(let layer = 0; layer < 3; layer++){
     const ox = (w - gap * 3 + 14) / 2 + layer * gap, oy = 18;
     x.fillStyle = 'rgba(199,193,234,0.9)'; x.fillText('Layer ' + (layer + 1), ox + cell * 1.5, 11);
@@ -5224,8 +5738,10 @@ window.addEventListener('keydown', e => {
   if(!shopEl.classList.contains('hidden')){ if(e.code === 'Escape' || e.code === 'KeyE') closeShop(); return; }
   if(!invEl.classList.contains('hidden')){ if(e.code === 'Escape' || e.code === 'KeyI') closeInventory(); return; }
   if(!vendEl.classList.contains('hidden')){ if(e.code === 'Escape' || e.code === 'KeyE') closeVendor(); return; }
+  if(!forgeEl.classList.contains('hidden')){ if(e.code === 'Escape') closeForge(); return; }
   if(e.code === 'KeyI'){ openInventory(); return; }
-  if(e.code === 'KeyE'){ if(bike.riding) dismountBike(); else if(bike.near) mountBike(); else if(shopNear) openShop(); else if(vendNear) openVendor(); else if(deskNear) enroll(); return; }
+  if(e.code === 'KeyF'){ e.preventDefault(); openForge(); return; }
+  if(e.code === 'KeyE'){ if(bike.riding) dismountBike(); else if(bike.near) mountBike(); else if(shopNear) openShop(); else if(vendNear) openVendor(); else if(deskNear) enroll(); else if(forgeNear) openForge(); return; }
   if(e.code === 'KeyN'){ setMute(snd.on); return; }
   if(e.code === 'KeyV'){ cycleView(); return; }
   if(e.code === 'KeyC'){ setCine(!post.cine); return; }
@@ -5952,7 +6468,8 @@ function update(dt, time){
 
   for(const f of floaters){ f.o.position.y = f.y + Math.sin(time * f.w + f.ph) * f.a; f.o.rotation.x += dt * f.spin; f.o.rotation.z += dt * f.w * 0.2; }
   for(const q of portals){ const d = Math.hypot(camera.position.x - q.x, camera.position.y - q.y, camera.position.z - q.z); q.gl.material.opacity = 0.35 * smooth(2.5, 7, d); q.disc.material.uniforms.fade.value = smooth(1.2, 3.5, d); }
-  spinners.forEach(s => { s.o.rotation.y += dt * 0.9; if(s.bob) s.o.position.y = s.bob + Math.sin(time * 1.3) * 0.25; });
+  spinners.forEach(s => { if(s.axis === 'z') s.o.rotation.z += dt * 0.9; else s.o.rotation.y += dt * 0.9; if(s.bob) s.o.position.y = s.bob + Math.sin(time * 1.3) * 0.25; });
+  updateWeather(dt, time);
   if(fireflies){
     const pa = fireflies.geo.attributes.position;
     fireflies.base.forEach((b, i) => pa.setXYZ(i, b[0] + Math.sin(time * 0.7 + b[3]) * 0.9, b[1] + Math.sin(time * 1.3 + b[3] * 2) * 0.4, b[2] + Math.cos(time * 0.6 + b[3]) * 0.9));
@@ -6075,6 +6592,7 @@ window.addEventListener('message', e => {
     if(m.hud != null) document.querySelectorAll('#hud,#corner,#toast,#errBox').forEach(el => { el.style.visibility = m.hud ? '' : 'hidden'; });
     if(m.hideMe != null) me.g.visible = !m.hideMe;
     if(m.cine != null) setCine(!!m.cine);
+    if(typeof m.forge === 'string'){ $('#forgeText').value = m.forge; forgeFromText(true); }
     if(m.stats && e.source) e.source.postMessage({hub:'stats', fps:Math.round(stats.fps), ms:Math.round(stats.ms * 10) / 10, q:qLevel, world:state.world, gl:GL_INFO, pr:renderer.getPixelRatio(), w:innerWidth, h:innerHeight, post:post.on}, '*');
   }catch(err){ console.warn('ctl', err); }
 });
@@ -6087,6 +6605,7 @@ window.__hub = { state, p, cam, post, stats, WORLDS, scene, renderer, camera, su
   VEND, get vendor(){ return vendor && {world:vendor.world, x:vendor.x, z:vendor.z}; }, get vendors(){ return JSON.parse(JSON.stringify(vendorsSeen)); }, get vendNear(){ return vendNear; }, openVendor, closeVendor, buyVend,
   get fuel(){ return state.fuel; }, set fuel(v){ state.fuel = clamp(+v || 0, 0, FUEL_MAX); fuelShown = -1; fuelHud(); }, FUEL_MAX,
   get inGym(){ return !!p.zeroG; }, get gym(){ return gym && {x:gym.x, z:gym.z, r:gym.r, h:gym.h}; }, gymIn:(x, z) => gymIn(x, z),
+  forgeRealm, realmKey, parseRealm, describeRealm, deleteRealm, get realms(){ return realms.map(x => Object.assign({}, x)); }, get waterBody(){ return waterBody && {level:waterBody.level, kind:waterBody.kind}; },
   fare, CAMPUS, get enrolled(){ return state.enrolled; }, set enrolled(v){ state.enrolled = !!v; persist(); }, enroll, get desk(){ return desk && {x:desk.x, z:desk.z}; }, get deskNear(){ return deskNear; }, get boxes(){ return boxes.length; }, boxOut, G:(x, z) => G(x, z), get portals(){ return portals.map(q => ({to:q.to, x:q.x, z:q.z})); }, get coins(){ return coins.map(k => ({id:k.id, x:k.g.position.x, y:k.g.position.y, z:k.g.position.z})); },
   get npcs(){ return npcs.map(nn => ({name:nn.name, x:nn.x, z:nn.z, line:nn.line})); }, get colliders(){ return colliders.map(c => Object.assign({}, c)); } };
 })();

@@ -104,6 +104,10 @@ The owner's rule: the avatar can be whatever the player wants. They type a descr
 
 **Done means.** Typing "a tall chrome knight with a red cape and glowing blue eyes" gives a visibly tall, chrome, caped avatar with blue eye glow that walks, runs, jumps and boosts with the existing animation, collides with the world at its new size, keeps its name tag, and is still there after a reload. "A small fox in a hoodie" gives a short beast body with ears, snout, tail and a hood. Ten NPCs on the Spaceport look different from each other. Path 2 and path 3 are only checked in the local file with keys present; without keys the game never asks for them just to make an avatar.
 
+## 5b. The Worldsmith: describe a realm and the game builds it (built; keep it working)
+
+The OASIS let anyone build a world. Hub's version is the Worldsmith (F key, the Forge button, or the Worldsmith stand on the Spaceport): the player types or speaks a sentence and a realm is built from it, seeded by the sentence so the same words always give the same realm. `parseRealm` reads the land (plains, hills, mountains, island, archipelago, coast, canyon, crater, valley, dunes, flat, swamp), the ground (grass, lawn, meadow, sand, snow, ash, rock, gravel, forest floor, moss, soil, martian), water (lake, sea, lava, acid, ice, swamp), the time of day (dawn to midnight), weather (clear, cloudy, overcast, fog, storm, rain, snow, sandstorm, embers), trees (leaf, jungle, pine; dense or sparse; dead; autumn; blossom), extras (mushrooms, crystals, flowers, fireflies, lanterns, aurora, moons, a ringed planet, cactus, bamboo, boulders, geysers, a volcano), buildings (ruins, temple, tower, castle, village, city, lighthouse, statues, monoliths, pyramid, arch, windmill), colours next to a thing ("purple sky", "black sand", "red trees"), and a name ("called X"). Realms are saved on the player's computer (`hub-realms-v1`), get a sector of their own on the star map (2 to 27), have a portal back to the Spaceport, and warping to your own realm is free. They have no coins (the coin total belongs to the charted universe). Done means: ten different sentences give ten realms that match their words, and a saved realm comes back identical after a reload.
+
 ## 6. Money
 
 - Joining is a one-off tiny fee; after that everything inside costs: teleports, fuel, ammunition, gear, food, clothing, rent for private rooms.
@@ -216,7 +220,7 @@ The AI reality mode (R) must keep working on top of the new pipeline: the AI see
 17. Artifacts: The Second Breath, The Bell Jar, plus three more with named powers, one copy each.
 18. Meridian Units, the Bell Jar field and the Blackout event.
 19. Vehicles: the hoverbike with fuel.
-20. New realms, one at a time: Warfront, a noir city, a holiday isle, a casino, a memory copy of the Architect's home town.
+20. New realms, one at a time: Warfront, a noir city, a holiday isle, a casino, a memory copy of the Architect's home town. (The Worldsmith, section 5b, can rough any of these out from a sentence; a hand-built realm then replaces it.)
 21. The Den (private room) with decor.
 
 **Phase 4: polish.** Performance on phones, sound per realm, save slots, accessibility. Multiplayer stays parked until the owner says otherwise.
