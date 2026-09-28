@@ -2820,7 +2820,7 @@ function sectorDistance(a, b){ const A = sectorXYZ(a), B = sectorXYZ(b); return 
 function fare(from, to){ if(to === 'hub') return 0; if(WORLDS[to] && WORLDS[to].own) return 0; if(state.enrolled && (from === 'campus' || to === 'campus')) return 0; const d = sectorDistance(WORLDS[from].sector, WORLDS[to].sector); return d === 0 ? 10 : d === 1 ? 25 : d === 2 ? 60 : 120; }
 const rulesText = W => (W.rules.magic ? 'magic' : 'no magic') + ' · ' + (W.rules.tech ? 'tech' : 'no tech') + ' · ' + (W.rules.danger ? 'danger zone' : 'safe');
 const PORTAL_COLORS = { hub:0xffd166, campus:0xb6ff7a, dunes:0xf2a07b, grid:0xff4fa3, grove:0x5ce1e6, sky:0xbfe0ff };
-const NPC_NAMES = ['Kestrel','Nyx_77','Pixelwolf','Dune Rider','Glitch','Moth','Sable','Byte Queen','Vektor','Ember','Lumen','Rook','Juno','Static','Marrow','Quill'];
+const NPC_NAMES = ['Kestrel','Nyx_77','Pixelwolf','Dune Rider','Glitch','Moth','Sable','Byte Queen','Vektor','Ember','Lumen','Rook','Juno','Static','Marrow','Quill','Tallow','Orbit','Sixpence','Halcyon','Wren','Cinder'];
 const SUITS = [0x1f2a44,0x6b1d2e,0x1d4a46,0x2a2a30,0xdad9de,0x3b2a5a,0x4a3a22,0x0f3b5f];
 const PLATES = [0xeceef2,0xb9bec8,0x2b2d33,0xd9b26a,0xf2efe8];
 const GLOWS = [0x5ce1e6,0xff4fa3,0xffb020,0x9dff6a,0xb18cff];
@@ -3295,8 +3295,8 @@ const hemi = new THREE.HemisphereLight(0xffffff, 0x444444, 0.5); scene.add(hemi)
 const sunLight = new THREE.DirectionalLight(0xffffff, 2); sunLight.castShadow = true;
 const SHADOW_RES = COARSE ? 2048 : 4096;
 sunLight.shadow.mapSize.set(SHADOW_RES, SHADOW_RES);
-Object.assign(sunLight.shadow.camera, {left:-40, right:40, top:40, bottom:-40, near:1, far:400});
-sunLight.shadow.camera.updateProjectionMatrix(); sunLight.shadow.bias = -0.00025; sunLight.shadow.normalBias = 0.04;
+Object.assign(sunLight.shadow.camera, {left:-58, right:58, top:58, bottom:-58, near:1, far:420});   // 116 m of shadow around the player: 2.8 cm per texel at 4096
+sunLight.shadow.camera.updateProjectionMatrix(); sunLight.shadow.bias = -0.0002; sunLight.shadow.normalBias = 0.05;
 scene.add(sunLight); scene.add(sunLight.target);
 hemi.layers.enable(1); sunLight.layers.enable(1); sunLight.shadow.camera.layers.enable(1);
 const lightDir = new V3(0, 1, 0), sunDirW = new V3(0, 1, 0);
@@ -5371,7 +5371,7 @@ $('#forgeVoice').addEventListener('click', () => {
 
 /* ================= spawning ================= */
 function spawnNPCs(key, r){
-  const pool = NPC_NAMES.slice(), count = (key === 'hub' ? 8 : 5) - (COARSE ? 2 : 0);
+  const pool = NPC_NAMES.slice(), count = (key === 'hub' ? 12 : 5) - (COARSE ? 2 : 0);
   for(let i = 0; i < count; i++){
     const s = freeSpot(r, 6, 40, 2); if(!s) continue;
     const name = pool.splice(Math.floor(r() * pool.length), 1)[0];
@@ -6176,7 +6176,7 @@ function setView(i){
   me.g.visible = i !== 2; toast(v.name, 1200);
 }
 function cycleView(){ setView((cam.view + 1) % VIEWS.length); }
-function setCine(on){ post.cine = on; if(post.on){ if(post.dof) post.dof.enabled = on && qLevel < 1 && !COARSE; post.grade.uniforms.grain.value = on ? 0.035 : 0; post.grade.uniforms.chroma.value = on ? 0.0006 : 0; } toast(on ? 'Cinematic: depth of field, grain and lens colour on' : 'Cinematic off', 1600); }
+function setCine(on){ post.cine = on; if(post.on){ if(post.dof) post.dof.enabled = on && qLevel < 1 && !COARSE; post.grade.uniforms.grain.value = on ? 0.03 : 0; post.grade.uniforms.chroma.value = on ? 0.0006 : 0; } toast(on ? 'Cinematic: depth of field, grain and lens colour on' : 'Cinematic off', 1600); }
 cam.view = 0;
 const joy = {x:0, y:0}, joyEl = $('#joy'), knob = $('#knob'); let joyId = null;
 function joyMove(e){
@@ -6602,7 +6602,7 @@ class SunRaysPass extends THREE.Pass {
   }
 }
 const GRADE_SHADER = {
-  uniforms:{ tDiffuse:{value:null}, tRays:{value:null}, vignette:{value:0.24}, saturation:{value:1.06}, contrast:{value:1.04}, grain:{value:0.035}, chroma:{value:0.0006}, time:uTime,
+  uniforms:{ tDiffuse:{value:null}, tRays:{value:null}, vignette:{value:0.3}, saturation:{value:1.08}, contrast:{value:1.08}, grain:{value:0.03}, chroma:{value:0.0006}, time:uTime,
     sunUV:{value:new V2(0.5, 0.5)}, flare:{value:0}, aspect:{value:1.78}, sunTint:{value:new THREE.Color(1, 0.85, 0.6)} },
   vertexShader:'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
   fragmentShader:'uniform sampler2D tDiffuse, tRays; uniform float vignette, saturation, contrast, grain, chroma, time, flare, aspect; uniform vec2 sunUV; uniform vec3 sunTint; varying vec2 vUv;' +
@@ -6893,6 +6893,7 @@ function update(dt, time){
         else { nn.x = ax; nn.z = az; nn.facing = lerpAngle(nn.facing, Math.atan2(dx, dz), 1 - Math.exp(-dt * 6)); }
       }
     }
+    if(sp === 0 && nn.wait > 0.3){ for(const o of npcs){ if(o === nn) continue; const d = Math.hypot(o.x - nn.x, o.z - nn.z); if(d < 3.2 && d > 0.3){ nn.facing = lerpAngle(nn.facing, Math.atan2(o.x - nn.x, o.z - nn.z), 1 - Math.exp(-dt * 4)); if(nn.wait < 2.5 && Math.random() < dt * 0.3) nn.wait += 3; break; } } }
     nn.av.g.position.set(nn.x, G(nn.x, nn.z), nn.z); nn.av.g.rotation.y = nn.facing;
     animateAvatar(nn.av, dt, sp, true, time);
     if(playing && !nn.spoke && Math.hypot(nn.x - p.x, nn.z - p.z) < 3 && p.y - G(p.x, p.z) < 1){ nn.spoke = true; nn.wait = 3; nn.facing = Math.atan2(p.x - nn.x, p.z - nn.z); toast(nn.name + ': ' + nn.line, 3600); }
