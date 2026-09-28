@@ -120,6 +120,22 @@ button:focus-visible, .warp-item:focus-visible{ outline:3px solid var(--cyan); o
 .warp-item[disabled]{ opacity:.55; cursor:default; }
 .warp-item small{ font-weight:400; color:#c7c1ea; font-size:13px; }
 .warp-item > span > small{ font-size:11.5px; color:#b9b2e0; }
+.tabs{ display:flex; gap:6px; margin:0 0 10px; }
+.tabs button{ flex:1; padding:8px; border:none; background:rgba(255,255,255,.06); color:#c7c1ea; font:600 15px 'Chakra Petch','Trebuchet MS',sans-serif; cursor:pointer; box-shadow:inset 0 -2px 0 rgba(255,255,255,.12); }
+.tabs button.sel{ color:var(--gold); background:rgba(255,209,102,.1); box-shadow:inset 0 -2px 0 var(--gold); }
+#invList, #sellList{ display:grid; gap:5px; max-height:54vh; overflow:auto; padding-right:4px; }
+.inv-row{ display:grid; grid-template-columns:34px 1fr auto; align-items:center; gap:10px; padding:8px 12px; background:rgba(255,255,255,.06); color:#f3f0ff;
+  box-shadow:inset 3px 0 0 var(--r); font:600 15px 'Chakra Petch','Trebuchet MS',sans-serif; border:none; text-align:left; width:100%; }
+button.inv-row{ cursor:pointer; } button.inv-row:hover{ background:rgba(255,255,255,.12); }
+.inv-row .nm small{ display:block; font-weight:400; font-size:12px; color:#b9b2e0; }
+.inv-row .rar{ color:var(--r); font-size:11.5px; letter-spacing:.08em; text-transform:uppercase; font-weight:700; margin-right:6px; }
+.inv-row .val{ text-align:right; white-space:nowrap; font-size:14px; } .inv-row .val b{ color:var(--gold); }
+.inv-row .use{ margin-left:8px; padding:3px 9px; border:1.5px solid var(--edge); background:none; color:var(--ink); font:600 13px 'Chakra Petch','Trebuchet MS',sans-serif; cursor:pointer; }
+.ico{ width:26px; height:26px; justify-self:center; background:radial-gradient(circle at 35% 30%, #fff 0 8%, var(--c) 45%, #0a0918 115%); filter:drop-shadow(0 0 5px var(--r)); }
+.ico.gem{ clip-path:polygon(50% 0,92% 38%,50% 100%,8% 38%); } .ico.orb{ border-radius:50%; } .ico.chip{ clip-path:polygon(18% 0,82% 0,100% 18%,100% 82%,82% 100%,18% 100%,0 82%,0 18%); }
+.ico.coil{ border-radius:50%; background:none; box-shadow:inset 0 0 0 6px var(--c), 0 0 0 1px rgba(255,255,255,.3); }
+#shopList[hidden], #sellList[hidden]{ display:none; }
+.inv-empty{ color:#b9b2e0; font-size:14.5px; padding:14px 4px; }
 #board{ margin:0; padding:0; list-style:none; counter-reset:r; font-size:14.5px; }
 #board li{ counter-increment:r; display:flex; gap:10px; padding:6px 0; border-bottom:1px solid rgba(255,255,255,.08); }
 #board li::before{ content:counter(r); width:18px; color:#c7c1ea; }
@@ -169,7 +185,7 @@ body.paused #joy, body.paused #jumpBtn{ display:none; }
 
 <div id="corner">
   <canvas id="minimap" aria-label="Minimap"></canvas>
-  <div class="btns"><button class="hbtn" id="aiBtn" title="AI reality mode (R)">AI</button><button class="hbtn" id="lookBtn" title="Realm look (L)">Look</button><button class="hbtn" id="rideBtn" style="display:none">Ride</button><button class="hbtn" id="sndBtn" title="Sound on/off (N)">Sound</button><button class="hbtn" id="shopBtn" style="display:none">Shop</button><button class="hbtn" id="mapBtn">Warp</button><button class="hbtn" id="helpBtn" aria-label="Avatar and controls">?</button></div>
+  <div class="btns"><button class="hbtn" id="aiBtn" title="AI reality mode (R)">AI</button><button class="hbtn" id="lookBtn" title="Realm look (L)">Look</button><button class="hbtn" id="rideBtn" style="display:none">Ride</button><button class="hbtn" id="sndBtn" title="Sound on/off (N)">Sound</button><button class="hbtn" id="shopBtn" style="display:none">Shop</button><button class="hbtn" id="invBtn" title="Inventory (I)">Bag</button><button class="hbtn" id="mapBtn">Warp</button><button class="hbtn" id="helpBtn" aria-label="Avatar and controls">?</button></div>
 </div>
 
 <div id="intro" class="overlay" role="dialog" aria-labelledby="introTitle">
@@ -184,7 +200,7 @@ body.paused #joy, body.paused #jumpBtn{ display:none; }
     <p class="lede" id="avatarState">Any species, size or style. Watch it appear on the left.</p>
     <div class="swatch-row"><span>Suit</span><span class="swatches" id="suitSw"></span></div>
     <div class="swatch-row"><span>Glow</span><span class="swatches" id="visorSw"></span></div>
-    <p class="controls mouse-only">WASD to move, Shift to run, Space to jump and Space again mid-air to boost. Drag to look, scroll to zoom. M warp, E ride / shop, V camera, N sound, Esc this panel.</p>
+    <p class="controls mouse-only">WASD to move, Shift to run, Space to jump and Space again mid-air to boost. Drag to look, scroll to zoom. M warp, E ride / shop, I inventory, V camera, N sound, Esc this panel.</p>
     <p class="controls touch-only">Left stick to move, Jump twice to boost, drag anywhere else to look. Warp is top right.</p>
     <button class="start" id="startBtn">Enter the Hub</button>
   </div>
@@ -221,9 +237,19 @@ body.paused #joy, body.paused #jumpBtn{ display:none; }
 <div id="shop" class="overlay hidden" role="dialog" aria-labelledby="shopTitle">
   <div class="card">
     <h2 id="shopTitle">Outfitters</h2>
-    <p class="lede">Gear for your avatar. Buy once, keep forever, wear or remove any time. You have <b id="shopCredits">0</b> credits.</p>
+    <div class="tabs" role="tablist"><button id="tabBuy" class="sel" role="tab" aria-selected="true">Buy</button><button id="tabSell" role="tab" aria-selected="false">Sell</button></div>
+    <p class="lede"><span id="shopLede">Gear for your avatar. Buy once, keep forever, wear or remove any time.</span> You have <b id="shopCredits">0</b> credits.</p>
     <div id="shopList"></div>
+    <div id="sellList" hidden></div>
     <button class="ghost" id="shopClose">Close</button>
+  </div>
+</div>
+<div id="inv" class="overlay hidden" role="dialog" aria-labelledby="invTitle">
+  <div class="card">
+    <h2 id="invTitle">Inventory</h2>
+    <p class="lede" id="invLede"></p>
+    <div id="invList"></div>
+    <button class="ghost" id="invClose">Close</button>
   </div>
 </div>
 <div id="toast" class="panel" role="status"></div>
@@ -2167,12 +2193,13 @@ const state = {
   name: typeof sv.name === 'string' ? sv.name : '', color: typeof sv.color === 'string' ? sv.color : '#1f2a44',
   visor: typeof sv.visor === 'string' ? sv.visor : '#5ce1e6', xp: num(sv.xp, 0), credits: num(sv.credits, 20),
   won: !!sv.won, world: 'hub', started: false,
-  look: typeof sv.look === 'string' ? sv.look.slice(0, 300) : '', recipe: null, owned: new Set(arr(sv.owned)), mute: !!sv.mute, best: (sv.best && typeof sv.best === 'object') ? sv.best : {}
+  look: typeof sv.look === 'string' ? sv.look.slice(0, 300) : '', recipe: null, owned: new Set(arr(sv.owned)), mute: !!sv.mute, best: (sv.best && typeof sv.best === 'object') ? sv.best : {},
+  inv: (sv.inv && typeof sv.inv === 'object' && !Array.isArray(sv.inv)) ? sv.inv : {}, picked: new Set(arr(sv.picked))   // inv is cleaned once ITEMS exists (cleanInv)
 };
 // state.recipe is filled in once the recipe schema below is defined (see loadRecipe)
 function persist(){
   try{ localStorage.setItem(SAVE_KEY, JSON.stringify({coins:[...state.coins], shards:[...state.shards], visited:[...state.visited],
-    name:state.name, color:state.color, visor:state.visor, xp:state.xp, credits:state.credits, won:state.won, look:state.look, recipe:state.recipe, owned:[...state.owned], mute:state.mute, best:state.best})); }catch(e){}
+    name:state.name, color:state.color, visor:state.visor, xp:state.xp, credits:state.credits, won:state.won, look:state.look, recipe:state.recipe, owned:[...state.owned], mute:state.mute, best:state.best, inv:state.inv, picked:[...state.picked]})); }catch(e){}
 }
 function rng(seed){ return function(){ seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
 function makeNoise(seed){
@@ -2877,7 +2904,7 @@ const cam = { yaw:0, pitch:0.28, dist:5.5 };
 
 /* ================= world state ================= */
 let colliders = [], platforms = [], coins = [], portals = [], spinners = [], npcs = [], shardObj = null, vault = null, gridSun = null, fireflies = null, shopKiosk = null;
-let hf = () => 0, G = () => 0, grassMeshes = [], qLevel = 0, slotMats = {}, hazards = [], burst = null;
+let hf = () => 0, G = () => 0, grassMeshes = [], qLevel = 0, slotMats = {}, hazards = [], burst = null, pickups = [];
 function reg(slot, e){ (slotMats[slot] = slotMats[slot] || []).push(e); return e.mat; }
 
 function clearWorld(){
@@ -3461,7 +3488,7 @@ function buildWorld(key){
   clearWorld();
   const W = WORLDS[key]; state.world = key;
   world = new THREE.Group(); scene.add(world);
-  grassMeshes = []; slotMats = {}; colliders = []; platforms = []; coins = []; portals = []; spinners = []; npcs = []; shardObj = null; vault = null; gridSun = null; fireflies = null; shopKiosk = null; hazards = []; burst = null; bike.g = null; bike.riding = false; bike.near = false; engineStop(); $('#rideBtn').style.display = 'none'; trial.active = false; trial.rings = []; trial.pad = null; trial.padPos = null; $('#trialPanel').style.display = 'none';
+  grassMeshes = []; slotMats = {}; colliders = []; platforms = []; coins = []; portals = []; spinners = []; npcs = []; shardObj = null; vault = null; gridSun = null; fireflies = null; shopKiosk = null; hazards = []; burst = null; pickups = []; bike.g = null; bike.riding = false; bike.near = false; engineStop(); $('#rideBtn').style.display = 'none'; trial.active = false; trial.rings = []; trial.pad = null; trial.padPos = null; $('#trialPanel').style.display = 'none';
   const r = rng(W.seed), noise = makeNoise(W.seed * 7 + 1);
   applyLook(W);
   const pads = W.portals.map(q => ({x:q.x, z:q.z, r:4})).concat(W.pads || []);
@@ -3485,6 +3512,7 @@ function buildWorld(key){
   });
   spawnNPCs(key, r);
   addHazards(key);
+  addPickups(key);
   bundles.forEach(b => { b.g = null; if(b.world === key) addBundleMesh(b); });
   applyPhotos(key); autoReal(key);
   if(typeof aiPrompt === 'function') aiPrompt();
@@ -3533,7 +3561,8 @@ function hurt(n, why){
    Goal 6 (inventory) adds its row here and its items drop and return with no other change. Worn looks stay: the avatar
    only changes when the player changes it, so dropped gear is ownership (state.owned), not the recipe. */
 const CARRY = {
-  gear:{ take(){ const a = [...state.owned].map(id => ({kind:'gear', id})); state.owned.clear(); return a; }, give(it){ state.owned.add(it.id); } }
+  gear:{ take(){ const a = [...state.owned].map(id => ({kind:'gear', id})); state.owned.clear(); return a; }, give(it){ state.owned.add(it.id); } },
+  items:{ take(){ const a = Object.keys(state.inv).map(id => ({kind:'items', id, n:state.inv[id]})); state.inv = {}; return a; }, give(it){ giveItem(it.id, it.n, true); } }
 };
 function takeCarried(){ let items = []; for(const k in CARRY) items = items.concat(CARRY[k].take()); return items; }
 function giveBack(it){ const c = CARRY[it.kind]; if(c) c.give(it); }
@@ -3541,6 +3570,7 @@ const bundles = []; let bundleSeq = 0;   // loot bundles last for the session (n
 function groundAt(x, z, y){ let g = G(x, z); for(const s of platforms) if(Math.hypot(x - s.x, z - s.z) < s.r + 0.2 && y >= s.top - 0.3) g = Math.max(g, s.top); return g; }
 function disposeTree(o){ o.traverse(x => { if(x.geometry) x.geometry.dispose(); if(x.material){ if(x.material.map && !SHARED_TEX.has(x.material.map)) x.material.map.dispose(); x.material.dispose(); } }); }
 const itemsText = n => n + (n === 1 ? ' item' : ' items');
+const unitCount = items => items.reduce((a, it) => a + (it.n || 1), 0);
 function addBundleMesh(b){
   const g = new THREE.Group(); g.position.set(b.x, b.y, b.z); world.add(g);
   const cloth = std(0x6b4526, {roughness:0.88}), gold = std(0xffc94d, {metalness:1, roughness:0.25, emissive:C(0x6a4300), emissiveIntensity:0.4});
@@ -3552,14 +3582,14 @@ function addBundleMesh(b){
   glow(0xffc94d, 2.2, 0, 0.6, 0, g, 0.4);
   const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 80, 8, 1, true), new THREE.MeshBasicMaterial({color:C(0xffc94d), transparent:true, opacity:0.32, depthWrite:false, blending:THREE.AdditiveBlending}));
   beam.position.y = 40.9; g.add(beam);
-  const l = label('Your bundle · ₵' + b.credits + (b.items.length ? ' + ' + itemsText(b.items.length) : ''), {small:true, edge:'#ffd166', fg:'#ffd166'}); l.position.y = 1.55; g.add(l);
+  const l = label('Your bundle · ₵' + b.credits + (b.items.length ? ' + ' + itemsText(unitCount(b.items)) : ''), {small:true, edge:'#ffd166', fg:'#ffd166'}); l.position.y = 1.55; g.add(l);
   b.g = g;
 }
 function pickBundle(b){
   const i = bundles.indexOf(b); if(i < 0) return; bundles.splice(i, 1);
   if(b.g){ world.remove(b.g); disposeTree(b.g); b.g = null; }
   state.credits += b.credits; b.items.forEach(giveBack); persist(); refreshHud(); bump();
-  toast('Bundle recovered: ₵' + b.credits + (b.items.length ? ' and ' + itemsText(b.items.length) : ''), 3400);
+  toast('Bundle recovered: ₵' + b.credits + (b.items.length ? ' and ' + itemsText(unitCount(b.items)) : ''), 3400);
 }
 function checkBundles(){
   if(zeroing || traveling) return;
@@ -3596,7 +3626,7 @@ function zeroOut(why){
   coinBurst(p.x, p.y + 1.1, p.z, clamp(12 + Math.round(b.credits / 4), 12, 48));
   me.g.visible = false; p.speed = 0; jumpBuffer = 0;
   state.credits = 0; state.xp = 0; persist(); refreshHud();   // level and XP back to 1; HP stays 0 until the respawn
-  $('#zeroMsg').textContent = empty ? 'Nothing to drop. Back to the Spaceport.' : 'Dropped ₵' + b.credits + (b.items.length ? ' and ' + itemsText(b.items.length) : '') + ' in ' + WORLDS[where].name;
+  $('#zeroMsg').textContent = empty ? 'Nothing to drop. Back to the Spaceport.' : 'Dropped ₵' + b.credits + (b.items.length ? ' and ' + itemsText(unitCount(b.items)) : '') + ' in ' + WORLDS[where].name;
   $('#zeroFx').classList.add('on');
   const respawn = () => {
     if(traveling){ setTimeout(respawn, 300); return; }
@@ -3812,8 +3842,18 @@ const SHOP_ITEMS = [
 ];
 const shopEl = $('#shop'); let shopNear = false, shopHinted = false;
 function itemWorn(it){ return it.kind === 'feature' ? state.recipe.features.indexOf(it.id) >= 0 : state.recipe.material === it.value; }
+let shopTab = 'buy';
+function setShopTab(t){
+  shopTab = t === 'sell' ? 'sell' : 'buy';
+  [['#tabBuy', 'buy'], ['#tabSell', 'sell']].forEach(([id, k]) => { $(id).classList.toggle('sel', shopTab === k); $(id).setAttribute('aria-selected', shopTab === k ? 'true' : 'false'); });
+  renderShop();
+}
 function renderShop(){
   $('#shopCredits').textContent = state.credits;
+  const selling = shopTab === 'sell';
+  $('#shopList').hidden = selling; $('#sellList').hidden = !selling;
+  $('#shopLede').textContent = selling ? 'Outfitters buys anything you carry at its listed value, one at a time.' : 'Gear for your avatar. Buy once, keep forever, wear or remove any time.';
+  if(selling){ renderSell(); return; }
   const list = $('#shopList'); list.innerHTML = '';
   SHOP_ITEMS.forEach(it => {
     const owned = state.owned.has(it.id), worn = itemWorn(it);
@@ -3832,13 +3872,133 @@ function shopAction(it){
   else { state.recipe.material = (owned && state.recipe.material === it.value) ? (state.look ? parseDescription(state.look).material : 'plate') : it.value; }
   persist(); refreshHud(); rebuildPlayer(); renderShop();
 }
-function openShop(){ renderShop(); shopEl.classList.remove('hidden'); setPaused(true); const first = shopEl.querySelector('button'); if(first) first.focus(); }
+function openShop(tab){ setShopTab(tab || 'buy'); shopEl.classList.remove('hidden'); setPaused(true); const first = shopEl.querySelector('button'); if(first) first.focus(); }
 function closeShop(){ shopEl.classList.add('hidden'); setPaused(false); }
 $('#shopClose').addEventListener('click', closeShop);
-$('#shopBtn').addEventListener('click', openShop);
+$('#shopBtn').addEventListener('click', () => openShop());
+$('#tabBuy').addEventListener('click', () => setShopTab('buy'));
+$('#tabSell').addEventListener('click', () => setShopTab('sell'));
 function shopProximity(){
   const near = !!(shopKiosk && state.world === 'hub' && Math.hypot(p.x - shopKiosk.x, p.z - shopKiosk.z) < 3.4);
   if(near !== shopNear){ shopNear = near; $('#shopBtn').style.display = near ? '' : 'none'; if(near && !shopHinted && playing){ shopHinted = true; toast('Outfitters: press E (or tap Shop) to browse gear', 3000); } }
+}
+
+/* ================= inventory (blueprint 5 and 6): items with rarity and a whole-credit sale price ================= */
+// An item is data. Add a row to ITEMS; `shape` picks the pickup mesh and the panel icon (gem, orb, chip, coil).
+// `use` is the hook for consumables (Goal 7: health kit, fuel cell): use() returns true when one is used up. Items without it are loot to sell.
+// Rarity 'artifact' is for Goal 17's one-of-a-kind items: giveItem never lets the player hold more than one.
+const RARITY = {
+  common:{name:'Common', col:'#c9c4e6'}, uncommon:{name:'Uncommon', col:'#9dff6a'}, rare:{name:'Rare', col:'#5ce1e6'},
+  epic:{name:'Epic', col:'#c58cff'}, artifact:{name:'Artifact', col:'#ffb020'}
+};
+const ITEMS = {
+  'dock-token':     {name:'Dock Token', rarity:'common', value:5, shape:'coil', col:0xd8dde6, desc:'A spent Spaceport berth token.'},
+  'beacon-lens':    {name:'Beacon Lens', rarity:'uncommon', value:15, shape:'orb', col:0xffd166, desc:'Cracked lens from a landing beacon.'},
+  'glass-bead':     {name:'Glass Bead', rarity:'common', value:6, shape:'orb', col:0xffb070, desc:'Sand fused by a Glass Dunes storm.'},
+  'sunfire-opal':   {name:'Sunfire Opal', rarity:'rare', value:45, shape:'gem', col:0xff7a2e, desc:'Holds the heat of noon for years.'},
+  'grid-chip':      {name:'Grid Chip', rarity:'common', value:8, shape:'chip', col:0xff4fa3, desc:'Still hums with Neon Grid current.'},
+  'pulse-core':     {name:'Pulse Core', rarity:'rare', value:50, shape:'coil', col:0xb14cff, desc:'The heart of a retired sweeper pylon.'},
+  'glowcap':        {name:'Glowcap Spore', rarity:'common', value:7, shape:'orb', col:0x7dffb0, desc:'A Night Grove mushroom spore, softly lit.'},
+  'moonwood-charm': {name:'Moonwood Charm', rarity:'uncommon', value:20, shape:'gem', col:0x9fd0ff, desc:'Carved from a fallen moonwood branch.'},
+  'sky-feather':    {name:'Skyglass Feather', rarity:'uncommon', value:16, shape:'gem', col:0xbff4ff, desc:'Shed by something that never lands.'},
+  'stormglass-idol':{name:'Stormglass Idol', rarity:'epic', value:120, shape:'gem', col:0x6a8cff, desc:'Old Sky Isles craft. Nobody knows who made it.'}
+};
+// fixed, seeded pickups per realm (placed by addPickups with their own rng, so nothing else moves)
+const LOOT = {
+  hub:['dock-token', 'beacon-lens'], dunes:['glass-bead', 'glass-bead', 'sunfire-opal'], grid:['grid-chip', 'grid-chip', 'pulse-core'],
+  grove:['glowcap', 'glowcap', 'moonwood-charm'], sky:['sky-feather', 'sky-feather', 'stormglass-idol']
+};
+function cleanInv(o){ const out = {}; for(const id in o) if(ITEMS[id]){ const n = Math.floor(num(o[id], 0)); if(n > 0) out[id] = ITEMS[id].rarity === 'artifact' ? 1 : Math.min(n, 999); } return out; }
+state.inv = cleanInv(state.inv);
+const itemCount = () => Object.values(state.inv).reduce((a, n) => a + n, 0);
+const itemWorth = () => Object.keys(state.inv).reduce((a, id) => a + ITEMS[id].value * state.inv[id], 0);
+function giveItem(id, n, quiet){
+  const d = ITEMS[id]; if(!d) return false;
+  n = Math.max(1, Math.floor(num(n, 1)));
+  state.inv[id] = d.rarity === 'artifact' ? 1 : Math.min(999, (state.inv[id] || 0) + n);
+  if(!quiet){ persist(); invRefresh(); }
+  return true;
+}
+function takeItem(id){ if(!state.inv[id]) return false; if(--state.inv[id] <= 0) delete state.inv[id]; return true; }
+function sellItem(id){
+  const d = ITEMS[id]; if(!d || !takeItem(id)) return 0;
+  state.credits += d.value; persist(); refreshHud(); bump(); sfx('coin'); invRefresh();
+  toast('Sold ' + d.name + ' for ₵' + d.value, 2200);
+  return d.value;
+}
+function useItem(id){
+  const d = ITEMS[id]; if(!d || !state.inv[id] || !d.use) return false;
+  if(d.use() === true){ takeItem(id); persist(); invRefresh(); return true; }
+  return false;
+}
+const esc = t => String(t).replace(/[<>&"]/g, c => ({'<':'&lt;', '>':'&gt;', '&':'&amp;', '"':'&quot;'})[c]);
+function itemRow(id, tag, right){
+  const d = ITEMS[id], r = RARITY[d.rarity], n = state.inv[id], el = document.createElement(tag);
+  el.className = 'inv-row'; el.style.setProperty('--r', r.col);
+  el.innerHTML = '<i class="ico ' + d.shape + '" style="--c:' + hexStr(d.col) + '"></i><span class="nm"><span class="rar">' + r.name + '</span>' + esc(d.name) + (n > 1 ? ' ×' + n : '') + '<small>' + esc(d.desc) + '</small></span><span class="val">' + right + '</span>';
+  return el;
+}
+const byValue = () => Object.keys(state.inv).sort((a, b) => ITEMS[b].value - ITEMS[a].value || ITEMS[a].name.localeCompare(ITEMS[b].name));
+const invEl = $('#inv');
+function renderInventory(){
+  const n = itemCount();
+  $('#invLede').innerHTML = n ? n + (n === 1 ? ' item' : ' items') + ', worth <b class="cr">₵' + itemWorth() + '</b> at Outfitters. ' + state.owned.size + ' gear owned.' : 'Nothing carried yet. Relics and ore glow where they lie in every realm; walk into one to pick it up.';
+  const list = $('#invList'); list.innerHTML = '';
+  byValue().forEach(id => {
+    const d = ITEMS[id], row = itemRow(id, 'div', '<b>₵ ' + d.value + '</b>');
+    if(d.use){ const b = document.createElement('button'); b.className = 'use'; b.textContent = 'Use'; b.addEventListener('click', () => useItem(id)); row.querySelector('.val').appendChild(b); }
+    list.appendChild(row);
+  });
+}
+function renderSell(){
+  const list = $('#sellList'); list.innerHTML = '';
+  const ids = byValue();
+  if(!ids.length){ list.innerHTML = '<div class="inv-empty">You carry nothing to sell. Items you pick up in the realms show here.</div>'; return; }
+  ids.forEach(id => { const b = itemRow(id, 'button', 'Sell <b>₵ ' + ITEMS[id].value + '</b>'); b.addEventListener('click', () => sellItem(id)); list.appendChild(b); });
+}
+function invRefresh(){
+  if(!invEl.classList.contains('hidden')) renderInventory();
+  if(!shopEl.classList.contains('hidden')){ const f = document.activeElement && document.activeElement.closest && document.activeElement.closest('#sellList') ? [...$('#sellList').children].indexOf(document.activeElement) : -1; renderShop(); if(f >= 0){ const k = $('#sellList').children; const t = k[Math.min(f, k.length - 1)]; if(t && t.focus) t.focus(); } }
+}
+function openInventory(){ if(zeroing) return; renderInventory(); invEl.classList.remove('hidden'); setPaused(true); $('#invClose').focus(); }
+function closeInventory(){ invEl.classList.add('hidden'); setPaused(false); }
+$('#invClose').addEventListener('click', closeInventory);
+$('#invBtn').addEventListener('click', openInventory);
+/* pickups: small glowing relics on the ground. Picked ones are remembered in state.picked and never come back. */
+function addPickups(key){
+  const list = LOOT[key]; if(!list) return;
+  const r = rng(WORLDS[key].seed * 53 + 11);
+  const geos = {gem:new THREE.OctahedronGeometry(0.22, 0), orb:new THREE.IcosahedronGeometry(0.17, 3), chip:new THREE.BoxGeometry(0.34, 0.06, 0.26), coil:new THREE.TorusGeometry(0.16, 0.055, 12, 32)};
+  geos.gem.scale(0.8, 1.4, 0.8);
+  list.forEach((id, i) => {
+    let s = null;
+    for(let t = 0; t < 30 && !s; t++){
+      const c = freeSpot(r, key === 'hub' ? 7 : 10, key === 'hub' ? 26 : 46, 1.5); if(!c) break;
+      if(hazards.some(h => Math.hypot(c[0] - h.x, c[1] - h.z) < h.L + 1.5) || pickups.some(q => Math.hypot(c[0] - q.x, c[1] - q.z) < 6) || coins.some(k => Math.hypot(c[0] - k.g.position.x, c[1] - k.g.position.z) < 3)) continue;
+      s = c;
+    }
+    const pid = key + ':i' + i; if(!s || state.picked.has(pid)) return;
+    const d = ITEMS[id], rc = RARITY[d.rarity].col, y = G(s[0], s[1]) + 0.85;
+    const g = new THREE.Group(); g.position.set(s[0], y, s[1]); world.add(g);
+    const m = mk(geos[d.shape], phys(d.col, {roughness:0.18, metalness:0.35, emissive:C(d.col), emissiveIntensity:0.55}), 0, 0, 0, g);
+    const ring = new THREE.Mesh(new THREE.RingGeometry(0.34, 0.42, 48), new THREE.MeshBasicMaterial({color:C(parseInt(rc.slice(1), 16)), transparent:true, opacity:0.55, depthWrite:false, side:THREE.DoubleSide, toneMapped:false}));
+    ring.rotation.x = -Math.PI / 2; ring.position.y = G(s[0], s[1]) + 0.03 - y; g.add(ring);
+    glow(parseInt(rc.slice(1), 16), 1.3, 0, 0, 0, g, 0.6);
+    const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 3, 8, 1, true), new THREE.MeshBasicMaterial({color:C(parseInt(rc.slice(1), 16)), transparent:true, opacity:0.35, depthWrite:false, blending:THREE.AdditiveBlending, toneMapped:false}));
+    beam.position.y = 1.5; g.add(beam);
+    m.scale.setScalar(1.3);
+    pickups.push({pid, id, x:s[0], z:s[1], y, g, m, phase:i * 1.7});
+  });
+  for(const k in geos) if(!pickups.some(q => q.m.geometry === geos[k])) geos[k].dispose();
+}
+function updatePickups(dt, time){
+  for(let i = pickups.length - 1; i >= 0; i--){
+    const q = pickups[i]; q.m.rotation.y += dt * 1.6; q.m.position.y = Math.sin(time * 1.8 + q.phase) * 0.1;
+    if(!playing || zeroing || traveling || Math.hypot(q.x - p.x, q.y - (p.y + 1), q.z - p.z) > 1.3) continue;
+    pickups.splice(i, 1); world.remove(q.g); q.g.traverse(o => { if(o.material) o.material.dispose(); if(o.geometry && !pickups.some(z => z.m.geometry === o.geometry)) o.geometry.dispose(); });
+    state.picked.add(q.pid); giveItem(q.id); sfx('coin');
+    const d = ITEMS[q.id]; toast('Picked up: ' + d.name + ' · ' + RARITY[d.rarity].name + ' · ₵' + d.value + '   (I to view)', 2800);
+  }
 }
 
 /* ================= warp + board ================= */
@@ -3894,6 +4054,8 @@ window.addEventListener('keydown', e => {
   if(!lookEl.classList.contains('hidden')){ if(e.code === 'Escape') closeLook(); return; }
   if(!warpEl.classList.contains('hidden')){ if(e.code === 'Escape' || e.code === 'KeyM') closeWarp(); return; }
   if(!shopEl.classList.contains('hidden')){ if(e.code === 'Escape' || e.code === 'KeyE') closeShop(); return; }
+  if(!invEl.classList.contains('hidden')){ if(e.code === 'Escape' || e.code === 'KeyI') closeInventory(); return; }
+  if(e.code === 'KeyI'){ openInventory(); return; }
   if(e.code === 'KeyE'){ if(bike.riding) dismountBike(); else if(bike.near) mountBike(); else if(shopNear) openShop(); return; }
   if(e.code === 'KeyN'){ setMute(snd.on); return; }
   if(e.code === 'KeyV'){ cycleView(); return; }
@@ -3970,6 +4132,7 @@ function drawMap(){
   mx2.fillStyle = 'rgba(255,255,255,0.14)'; platforms.forEach(s => { o = T(s.x, s.z); mx2.beginPath(); mx2.arc(o[0], o[1], s.r * sc, 0, TAU); mx2.fill(); });
   portals.forEach(q => { o = T(q.x, q.z); mx2.strokeStyle = hexStr(PORTAL_COLORS[q.to]); mx2.lineWidth = 2.5; mx2.beginPath(); mx2.arc(o[0], o[1], 2.2 * sc, 0, TAU); mx2.stroke(); });
   mx2.fillStyle = '#ffd166'; coins.forEach(k => { o = T(k.g.position.x, k.g.position.z); mx2.beginPath(); mx2.arc(o[0], o[1], Math.max(2, 0.6 * sc), 0, TAU); mx2.fill(); });
+  pickups.forEach(q => { o = T(q.x, q.z); mx2.fillStyle = RARITY[ITEMS[q.id].rarity].col; mx2.beginPath(); mx2.arc(o[0], o[1], Math.max(2.5, 0.6 * sc), 0, TAU); mx2.fill(); });
   mx2.fillStyle = 'rgba(255,255,255,0.75)'; npcs.forEach(nn => { o = T(nn.x, nn.z); mx2.beginPath(); mx2.arc(o[0], o[1], Math.max(2, 0.5 * sc), 0, TAU); mx2.fill(); });
   const star = (x, z, col) => { o = T(x, z); mx2.fillStyle = col; mx2.beginPath(); mx2.moveTo(o[0], o[1] - 7); mx2.lineTo(o[0] + 5, o[1]); mx2.lineTo(o[0], o[1] + 7); mx2.lineTo(o[0] - 5, o[1]); mx2.fill(); };
   if(shardObj) star(shardObj.m.position.x, shardObj.m.position.z, hexStr(SHARD_COLORS[shardObj.id]));
@@ -4538,7 +4701,7 @@ function update(dt, time){
   }
   if(playing && p.grounded && p.speed > 0.6){ snd.stepT -= dt; if(snd.stepT <= 0){ sfx('step'); snd.stepT = p.speed > 7 ? 0.27 : 0.42; } } else snd.stepT = 0.1;
   shopProximity(); bikeProximity(); trialUpdate(dt, time);
-  hurtCool -= dt; simTime += dt; updateHazards(simTime); updateBurst(dt); checkBundles();
+  updatePickups(dt, time); hurtCool -= dt; simTime += dt; updateHazards(simTime); updateBurst(dt); checkBundles();
   if(!WORLDS[state.world].rules.danger && !zeroing && state.hp < maxHp()){ state.hp = Math.min(maxHp(), state.hp + 12 * dt); hpHud(); }
   portalCool -= dt;
   if(playing && portalCool <= 0 && !traveling && !zeroing) for(const q of portals){ if(Math.hypot(p.x - q.x, p.z - q.z) < 1.6 && p.y - G(p.x, p.z) < 2){ travel(q.to); break; } }
@@ -4589,7 +4752,9 @@ ready.then(() => new Promise(res => setTimeout(res, 60))).then(() => {
 // hooks for the tester (headless checks) and for debugging; not used by the game itself
 window.__hub = { state, p, cam, post, stats, WORLDS, scene, renderer, camera, sunLight, hemi, gl:GL_INFO, softwareGL:SOFTWARE_GL, travel, buildWorld, startGame, setPaused, degrade, parseDescription, makeFromWords, rebuildPlayer, cleanRecipe, snd, sfx, setMute, bike, mountBike, dismountBike, keys, update, trial, trialStart, COURSES, get me(){ return me; }, freezeQuality(){ warm = 1e9; }, get qLevel(){ return qLevel; }, get world(){ return state.world; }, get envRT(){ return envRT; },
   damage(n){ return hurt(n, 'test'); }, get hazards(){ return hazards.map(h => ({x:h.x, z:h.z, L:h.L})); },
-  get bundles(){ return bundles.map(b => ({id:b.id, world:b.world, x:b.x, y:b.y, z:b.z, credits:b.credits, items:b.items.map(i => Object.assign({}, i)), why:b.why})); }, get zeroing(){ return zeroing; }, get hp(){ return state.hp; }, get maxHp(){ return maxHp(); }, get level(){ return lvlOf(state.xp); } };
+  get bundles(){ return bundles.map(b => ({id:b.id, world:b.world, x:b.x, y:b.y, z:b.z, credits:b.credits, items:b.items.map(i => Object.assign({}, i)), why:b.why})); }, get zeroing(){ return zeroing; }, get hp(){ return state.hp; }, get maxHp(){ return maxHp(); }, get level(){ return lvlOf(state.xp); },
+  ITEMS, RARITY, get inv(){ return Object.assign({}, state.inv); }, giveItem(id, n){ return giveItem(id, n); }, sell(id){ return sellItem(id); }, useItem, openInventory, closeInventory, openShop, closeShop,
+  get pickups(){ return pickups.map(q => ({pid:q.pid, id:q.id, x:q.x, y:q.y, z:q.z})); }, get shopKiosk(){ return shopKiosk && {x:shopKiosk.x, z:shopKiosk.z}; }, get simTime(){ return simTime; } };
 })();
 </script>
 </body>
