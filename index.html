@@ -53,6 +53,12 @@ html,body{ height:100%; margin:0; overflow:hidden; background:#07061a; color:var
 @keyframes hurt{ 30%{ transform:translateX(4px); box-shadow:inset 0 0 0 2px #ff3d5a; } 60%{ transform:translateX(-3px); } }
 #hurtFx{ position:fixed; inset:0; pointer-events:none; z-index:3; opacity:0; transition:opacity .6s; background:radial-gradient(ellipse at center,rgba(255,40,70,0) 55%,rgba(255,40,70,.5)); }
 #hurtFx.on{ opacity:1; transition:none; }
+#zeroFx{ position:fixed; inset:0; display:grid; place-items:center; pointer-events:none; z-index:7; opacity:0; transition:opacity .35s;
+  background:radial-gradient(ellipse at center,rgba(20,6,30,.1) 30%,rgba(90,10,45,.6)); }
+#zeroFx.on{ opacity:1; }
+#zeroFx .panel{ text-align:center; padding:14px 28px; }
+#zeroFx b{ display:block; font-size:34px; letter-spacing:.16em; color:var(--pink); }
+#zeroFx small{ display:block; margin-top:4px; color:var(--muted); font-size:14px; }
 .stat{ display:flex; align-items:center; gap:5px; font-weight:600; font-size:15px; }
 .stat .of{ color:var(--muted); font-weight:400; font-size:13px; }
 .cr{ color:var(--gold); font-weight:700; }
@@ -137,7 +143,7 @@ body.paused #joy, body.paused #jumpBtn{ display:none; }
 #knob{ position:absolute; left:50%; top:50%; width:52px; height:52px; margin:-26px 0 0 -26px; border-radius:50%; background:rgba(92,225,230,.55); }
 #jumpBtn{ right:28px; bottom:calc(env(safe-area-inset-bottom,0px) + 44px); width:84px; height:84px; border-radius:50%;
   background:rgba(255,79,163,.8); border:none; color:#fff; font:700 16px 'Chakra Petch','Trebuchet MS',sans-serif; }
-@media (prefers-reduced-motion: reduce){ #toast,#fade,.xpbar i,.hpbar i,#hurtFx{ transition:none; } #statPanel.bump,#idPanel.hurt{ animation:none; } }
+@media (prefers-reduced-motion: reduce){ #toast,#fade,.xpbar i,.hpbar i,#hurtFx,#zeroFx{ transition:none; } #statPanel.bump,#idPanel.hurt{ animation:none; } }
 </style>
 </head>
 <body class="paused">
@@ -222,6 +228,7 @@ body.paused #joy, body.paused #jumpBtn{ display:none; }
 <div id="toast" class="panel" role="status"></div>
 <div id="fade"></div>
 <div id="hurtFx"></div>
+<div id="zeroFx" role="alert"><div class="panel"><b>ZEROED OUT</b><small id="zeroMsg"></small></div></div>
 <div id="loading" style="position:fixed;inset:0;display:grid;place-items:center;background:#07061a;z-index:20;font-size:18px;color:#b9b2e0">Building worlds…</div>
 <div id="joy"><div id="knob"></div></div>
 <button id="jumpBtn">Jump</button>
@@ -2869,7 +2876,7 @@ const cam = { yaw:0, pitch:0.28, dist:5.5 };
 
 /* ================= world state ================= */
 let colliders = [], platforms = [], coins = [], portals = [], spinners = [], npcs = [], shardObj = null, vault = null, gridSun = null, fireflies = null, shopKiosk = null;
-let hf = () => 0, G = () => 0, grassMeshes = [], qLevel = 0, slotMats = {}, hazards = [];
+let hf = () => 0, G = () => 0, grassMeshes = [], qLevel = 0, slotMats = {}, hazards = [], burst = null;
 function reg(slot, e){ (slotMats[slot] = slotMats[slot] || []).push(e); return e.mat; }
 
 function clearWorld(){
@@ -3424,7 +3431,7 @@ function buildWorld(key){
   clearWorld();
   const W = WORLDS[key]; state.world = key;
   world = new THREE.Group(); scene.add(world);
-  grassMeshes = []; slotMats = {}; colliders = []; platforms = []; coins = []; portals = []; spinners = []; npcs = []; shardObj = null; vault = null; gridSun = null; fireflies = null; shopKiosk = null; hazards = [];
+  grassMeshes = []; slotMats = {}; colliders = []; platforms = []; coins = []; portals = []; spinners = []; npcs = []; shardObj = null; vault = null; gridSun = null; fireflies = null; shopKiosk = null; hazards = []; burst = null;
   const r = rng(W.seed), noise = makeNoise(W.seed * 7 + 1);
   applyLook(W);
   const pads = W.portals.map(q => ({x:q.x, z:q.z, r:4})).concat(W.pads || []);
@@ -3448,6 +3455,7 @@ function buildWorld(key){
   });
   spawnNPCs(key, r);
   addHazards(key);
+  bundles.forEach(b => { b.g = null; if(b.world === key) addBundleMesh(b); });
   applyPhotos(key); autoReal(key);
   if(typeof aiPrompt === 'function') aiPrompt();
   $('#worldName').textContent = W.name;
@@ -3490,7 +3498,85 @@ function hurt(n, why){
   if(state.hp <= 0) zeroOut(why);
   return n;
 }
-function zeroOut(why){}
+/* What the avatar carries. Each kind hands its things to a loot bundle (take) and gets them back (give).
+   Goal 6 (inventory) adds its row here and its items drop and return with no other change. Worn looks stay: the avatar
+   only changes when the player changes it, so dropped gear is ownership (state.owned), not the recipe. */
+const CARRY = {
+  gear:{ take(){ const a = [...state.owned].map(id => ({kind:'gear', id})); state.owned.clear(); return a; }, give(it){ state.owned.add(it.id); } }
+};
+function takeCarried(){ let items = []; for(const k in CARRY) items = items.concat(CARRY[k].take()); return items; }
+function giveBack(it){ const c = CARRY[it.kind]; if(c) c.give(it); }
+const bundles = []; let bundleSeq = 0;   // loot bundles last for the session (not saved)
+function groundAt(x, z, y){ let g = G(x, z); for(const s of platforms) if(Math.hypot(x - s.x, z - s.z) < s.r + 0.2 && y >= s.top - 0.3) g = Math.max(g, s.top); return g; }
+function disposeTree(o){ o.traverse(x => { if(x.geometry) x.geometry.dispose(); if(x.material){ if(x.material.map && !SHARED_TEX.has(x.material.map)) x.material.map.dispose(); x.material.dispose(); } }); }
+const itemsText = n => n + (n === 1 ? ' item' : ' items');
+function addBundleMesh(b){
+  const g = new THREE.Group(); g.position.set(b.x, b.y, b.z); world.add(g);
+  const cloth = std(0x6b4526, {roughness:0.88}), gold = std(0xffc94d, {metalness:1, roughness:0.25, emissive:C(0x6a4300), emissiveIntensity:0.4});
+  mk(new THREE.SphereGeometry(0.42, 28, 18), cloth, 0, 0.36, 0, g).scale.set(1, 0.85, 0.9);
+  mk(new THREE.CylinderGeometry(0.13, 0.2, 0.24, 18), cloth, 0, 0.8, 0, g);
+  mk(new THREE.TorusGeometry(0.16, 0.035, 8, 28), gold, 0, 0.73, 0, g).rotation.x = Math.PI / 2;
+  const cg = new THREE.CylinderGeometry(0.2, 0.2, 0.05, 24);
+  [[0.45, 0.03, 0.2, 0.1], [-0.35, 0.03, 0.38, -0.2], [0.1, 0.03, -0.5, 0.3]].forEach(c => { mk(cg, gold, c[0], c[1], c[2], g).rotation.z = c[3]; });
+  glow(0xffc94d, 2.2, 0, 0.6, 0, g, 0.4);
+  const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 80, 8, 1, true), new THREE.MeshBasicMaterial({color:C(0xffc94d), transparent:true, opacity:0.32, depthWrite:false, blending:THREE.AdditiveBlending}));
+  beam.position.y = 40.9; g.add(beam);
+  const l = label('Your bundle · ₵' + b.credits + (b.items.length ? ' + ' + itemsText(b.items.length) : ''), {small:true, edge:'#ffd166', fg:'#ffd166'}); l.position.y = 1.55; g.add(l);
+  b.g = g;
+}
+function pickBundle(b){
+  const i = bundles.indexOf(b); if(i < 0) return; bundles.splice(i, 1);
+  if(b.g){ world.remove(b.g); disposeTree(b.g); b.g = null; }
+  state.credits += b.credits; b.items.forEach(giveBack); persist(); refreshHud(); bump();
+  toast('Bundle recovered: ₵' + b.credits + (b.items.length ? ' and ' + itemsText(b.items.length) : ''), 3400);
+}
+function checkBundles(){
+  if(zeroing || traveling) return;
+  for(let i = bundles.length - 1; i >= 0; i--){ const b = bundles[i]; if(b.g && b.world === state.world && Math.hypot(b.x - p.x, b.y - p.y, b.z - p.z) < 1.5) pickBundle(b); }
+}
+function coinBurst(x, y, z, n){
+  const geo = new THREE.CylinderGeometry(0.2, 0.2, 0.05, 20); geo.rotateX(Math.PI / 2);
+  const m = new THREE.InstancedMesh(geo, std(0xffc94d, {metalness:1, roughness:0.2, emissive:C(0x8a5a00), emissiveIntensity:1}), n);
+  m.castShadow = true; m.frustumCulled = false; world.add(m);
+  const q = rng(bundleSeq * 97 + 5), parts = [];
+  for(let i = 0; i < n; i++){ const a = q() * TAU, out = 1.5 + q() * 3.5; parts.push({p:[x, y + q() * 0.6, z], v:[Math.cos(a) * out, 5 + q() * 6, Math.sin(a) * out], r:q() * TAU, s:6 + q() * 10}); }
+  burst = {m, parts};
+}
+function updateBurst(dt){
+  if(!burst) return;
+  burst.parts.forEach((c, i) => {
+    c.v[1] -= 20 * dt; c.p[0] += c.v[0] * dt; c.p[1] += c.v[1] * dt; c.p[2] += c.v[2] * dt; c.r += c.s * dt;
+    const g = G(c.p[0], c.p[2]) + 0.2; if(c.p[1] < g){ c.p[1] = g; c.v[1] *= -0.35; c.v[0] *= 0.6; c.v[2] *= 0.6; c.s *= 0.6; }
+    burst.m.setMatrixAt(i, mat4(c.p[0], c.p[1], c.p[2], c.r, c.r * 0.7, 0));
+  });
+  burst.m.instanceMatrix.needsUpdate = true;
+}
+// Goal 17 hook: when the player holds The Second Breath, consume it here, refill HP, say so, and return true to cancel this death
+function trySecondBreath(why){ return false; }
+function zeroOut(why){
+  if(zeroing) return;
+  if(trySecondBreath(why)) return;
+  zeroing = true;
+  const where = state.world, y = groundAt(p.x, p.z, p.y);
+  const b = {id:++bundleSeq, world:where, x:p.x, y, z:p.z, credits:state.credits, items:takeCarried(), why:why || ''};
+  const empty = !b.credits && !b.items.length;
+  if(!empty){ bundles.push(b); addBundleMesh(b); }
+  coinBurst(p.x, p.y + 1.1, p.z, clamp(12 + Math.round(b.credits / 4), 12, 48));
+  me.g.visible = false; p.speed = 0; jumpBuffer = 0;
+  state.credits = 0; state.xp = 0; persist(); refreshHud();   // level and XP back to 1; HP stays 0 until the respawn
+  $('#zeroMsg').textContent = empty ? 'Nothing to drop. Back to the Spaceport.' : 'Dropped ₵' + b.credits + (b.items.length ? ' and ' + itemsText(b.items.length) : '') + ' in ' + WORLDS[where].name;
+  $('#zeroFx').classList.add('on');
+  const respawn = () => {
+    if(traveling){ setTimeout(respawn, 300); return; }
+    travel('hub', {spawn:true, arrive(){
+      state.hp = maxHp(); hpHud(); me.g.visible = true; zeroing = false;
+      // the panel carries the respawn message (a toast would be overwritten by the texture loader); it fades after a moment
+      $('#zeroMsg').textContent = 'Respawned at the Spaceport, level 1.' + (empty ? '' : ' Your bundle waits in ' + WORLDS[where].name + ': follow the gold beam.');
+      setTimeout(() => $('#zeroFx').classList.remove('on'), 3200);
+    }});
+  };
+  setTimeout(respawn, 1800);
+}
 
 /* ================= intro / customise ================= */
 function swatchSet(el, list, key, apply){
@@ -3585,11 +3671,12 @@ function shopProximity(){
 const boardRng = rng(99);
 const BOARD = NPC_NAMES.slice(0, 11).map(nm => ({name:nm, shards:Math.floor(boardRng() * 2.6), xp:Math.floor(150 + boardRng() * 2300)}));
 function openWarp(){
+  if(zeroing) return;
   const list = $('#warpList'); list.innerHTML = '';
   WORLD_ORDER.forEach(k => {
     const b = document.createElement('button'); b.className = 'warp-item'; b.style.setProperty('--c', hexStr(PORTAL_COLORS[k]));
     const here = k === state.world, cost = fare(state.world, k);
-    b.innerHTML = '<span>' + WORLDS[k].name + '<br><small>Sector ' + WORLDS[k].sector + ' · ' + rulesText(WORLDS[k]) + '</small></span><small>' + (here ? 'You are here' : cost ? '₵ ' + cost : 'Free') + '</small>';
+    b.innerHTML = '<span>' + WORLDS[k].name + '<br><small>Sector ' + WORLDS[k].sector + ' · ' + rulesText(WORLDS[k]) + (bundles.some(bb => bb.world === k) ? ' · your bundle' : '') + '</small></span><small>' + (here ? 'You are here' : cost ? '₵ ' + cost : 'Free') + '</small>';
     if(here) b.disabled = true;
     b.addEventListener('click', () => {
       if(state.credits < cost){ toast('Not enough credits. Collect coins to earn more.'); return; }
@@ -3671,17 +3758,18 @@ $('#jumpBtn').addEventListener('pointerdown', e => { jumpBuffer = 0.15; e.preven
 /* ================= travel ================= */
 let traveling = false, portalCool = 0;
 const fadeEl = $('#fade');
-function travel(to){
-  if(traveling) return; traveling = true;
+function travel(to, opts){
+  if(traveling) return; traveling = true; opts = opts || {};
   const from = state.world; fadeEl.classList.add('on');
   setTimeout(() => {
     buildWorld(to);
-    if(to === 'hub' && !portals.some(q => q.to === from)){ p.x = 0; p.z = 14; cam.yaw = 0; }
+    if(opts.spawn || (to === 'hub' && !portals.some(q => q.to === from))){ p.x = 0; p.z = 14; cam.yaw = 0; }
     else { const back = portals.find(q => q.to === from) || portals[0], d = Math.hypot(back.x, back.z) || 1; p.x = back.x - back.x / d * 4.5; p.z = back.z - back.z / d * 4.5; cam.yaw = Math.atan2(back.x, back.z); }
     p.y = G(p.x, p.z); p.vy = 0; p.facing = cam.yaw + Math.PI; snapCamera(); portalCool = 1;
     fadeEl.classList.remove('on'); traveling = false;
     if(!state.visited.has(to)){ state.visited.add(to); reward(25, 0); toast('New world discovered: ' + WORLDS[to].name + '   +25 XP', 3000); }
-    else toast(WORLDS[to].name);
+    else toast(WORLDS[to].name + (bundles.some(b => b.world === to) ? ' · your bundle is here: follow the gold beam' : ''), 3000);
+    if(opts.arrive) opts.arrive();
   }, 450);
 }
 
@@ -3701,6 +3789,8 @@ function drawMap(){
   const star = (x, z, col) => { o = T(x, z); mx2.fillStyle = col; mx2.beginPath(); mx2.moveTo(o[0], o[1] - 7); mx2.lineTo(o[0] + 5, o[1]); mx2.lineTo(o[0], o[1] + 7); mx2.lineTo(o[0] - 5, o[1]); mx2.fill(); };
   if(shardObj) star(shardObj.m.position.x, shardObj.m.position.z, hexStr(SHARD_COLORS[shardObj.id]));
   if(state.world === 'hub') star(0, 0, '#ffd166');
+  hazards.forEach(hz => { o = T(hz.x, hz.z); mx2.strokeStyle = 'rgba(255,45,85,0.85)'; mx2.lineWidth = 1.5; mx2.beginPath(); mx2.arc(o[0], o[1], hz.L * sc, 0, TAU); mx2.stroke(); });
+  bundles.forEach(bb => { if(bb.world === state.world) star(bb.x, bb.z, '#ff9f1c'); });
   const tip = T(p.x + Math.sin(p.facing) * 2.4, p.z + Math.cos(p.facing) * 2.4), ang = Math.atan2(tip[1] - c, tip[0] - c);
   mx2.translate(c, c); mx2.rotate(ang); mx2.fillStyle = '#fff'; mx2.beginPath(); mx2.moveTo(9, 0); mx2.lineTo(-6, -6); mx2.lineTo(-3, 0); mx2.lineTo(-6, 6); mx2.fill();
   mx2.restore();
@@ -4066,7 +4156,7 @@ function lerpAngle(a, b, t){ const d = ((b - a + Math.PI) % TAU + TAU) % TAU - M
 function update(dt, time){
   uTime.value = time;
   let fwd = 0, side = 0;
-  if(playing && !traveling){
+  if(playing && !traveling && !zeroing){
     if(keys.KeyW || keys.ArrowUp) fwd += 1; if(keys.KeyS || keys.ArrowDown) fwd -= 1;
     if(keys.KeyD || keys.ArrowRight) side += 1; if(keys.KeyA || keys.ArrowLeft) side -= 1;
     fwd += joy.y; side += joy.x;
@@ -4087,7 +4177,7 @@ function update(dt, time){
   const dr = Math.hypot(nx, nz), lim = R - 1.5; if(dr > lim){ nx *= lim / dr; nz *= lim / dr; }
   p.x = nx; p.z = nz;
   jumpBuffer -= dt;
-  if(jumpBuffer > 0){
+  if(jumpBuffer > 0 && !zeroing){
     if(p.grounded){ p.vy = 8.6; p.grounded = false; p.airJumps = 1; jumpBuffer = 0; }
     else if(p.airJumps > 0){ if(WORLDS[state.world].rules.tech){ p.vy = 8.4; p.airJumps = 0; jumpBuffer = 0; p.flameT = 0.45; } else { p.airJumps = 0; jumpBuffer = 0; toast('No tech works in ' + WORLDS[state.world].name + ': the boost is dead here', 2200); } }
   }
@@ -4161,10 +4251,10 @@ function update(dt, time){
     state.won = true; reward(500, 200); setHalo(); toast('You opened the vault. First to crack the Hub.   +500 XP', 5000);
   }
   shopProximity();
-  hurtCool -= dt; updateHazards(time);
+  hurtCool -= dt; updateHazards(time); updateBurst(dt); checkBundles();
   if(!WORLDS[state.world].rules.danger && !zeroing && state.hp < maxHp()){ state.hp = Math.min(maxHp(), state.hp + 12 * dt); hpHud(); }
   portalCool -= dt;
-  if(playing && portalCool <= 0 && !traveling) for(const q of portals){ if(Math.hypot(p.x - q.x, p.z - q.z) < 1.6 && p.y - G(p.x, p.z) < 2){ travel(q.to); break; } }
+  if(playing && portalCool <= 0 && !traveling && !zeroing) for(const q of portals){ if(Math.hypot(p.x - q.x, p.z - q.z) < 1.6 && p.y - G(p.x, p.z) < 2){ travel(q.to); break; } }
 }
 
 const clock = new THREE.Clock();
@@ -4211,7 +4301,8 @@ ready.then(() => new Promise(res => setTimeout(res, 60))).then(() => {
 }).catch(err => { const ld = $('#loading'); if(ld) ld.textContent = 'Could not start: ' + err.message; });
 // hooks for the tester (headless checks) and for debugging; not used by the game itself
 window.__hub = { state, p, cam, post, stats, WORLDS, scene, renderer, camera, sunLight, hemi, gl:GL_INFO, softwareGL:SOFTWARE_GL, travel, buildWorld, startGame, setPaused, degrade, parseDescription, makeFromWords, rebuildPlayer, cleanRecipe, get me(){ return me; }, freezeQuality(){ warm = 1e9; }, get qLevel(){ return qLevel; }, get world(){ return state.world; }, get envRT(){ return envRT; },
-  damage(n){ return hurt(n, 'test'); }, get hazards(){ return hazards.map(h => ({x:h.x, z:h.z, L:h.L})); }, get hp(){ return state.hp; }, get maxHp(){ return maxHp(); }, get level(){ return lvlOf(state.xp); } };
+  damage(n){ return hurt(n, 'test'); }, get hazards(){ return hazards.map(h => ({x:h.x, z:h.z, L:h.L})); },
+  get bundles(){ return bundles.map(b => ({id:b.id, world:b.world, x:b.x, y:b.y, z:b.z, credits:b.credits, items:b.items.map(i => Object.assign({}, i)), why:b.why})); }, get zeroing(){ return zeroing; }, get hp(){ return state.hp; }, get maxHp(){ return maxHp(); }, get level(){ return lvlOf(state.xp); } };
 })();
 </script>
 </body>
