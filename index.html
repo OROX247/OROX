@@ -164,6 +164,7 @@ body.paused #joy, body.paused #jumpBtn{ display:none; }
     </span>
   </div>
   <div class="panel" id="worldName">Hub Spaceport</div>
+  <div class="panel" id="trialPanel" style="display:none;color:var(--gold);font-weight:700">Ring 1 / 8 · 0.0s</div>
 </div>
 
 <div id="corner">
@@ -2166,12 +2167,12 @@ const state = {
   name: typeof sv.name === 'string' ? sv.name : '', color: typeof sv.color === 'string' ? sv.color : '#1f2a44',
   visor: typeof sv.visor === 'string' ? sv.visor : '#5ce1e6', xp: num(sv.xp, 0), credits: num(sv.credits, 20),
   won: !!sv.won, world: 'hub', started: false,
-  look: typeof sv.look === 'string' ? sv.look.slice(0, 300) : '', recipe: null, owned: new Set(arr(sv.owned)), mute: !!sv.mute
+  look: typeof sv.look === 'string' ? sv.look.slice(0, 300) : '', recipe: null, owned: new Set(arr(sv.owned)), mute: !!sv.mute, best: (sv.best && typeof sv.best === 'object') ? sv.best : {}
 };
 // state.recipe is filled in once the recipe schema below is defined (see loadRecipe)
 function persist(){
   try{ localStorage.setItem(SAVE_KEY, JSON.stringify({coins:[...state.coins], shards:[...state.shards], visited:[...state.visited],
-    name:state.name, color:state.color, visor:state.visor, xp:state.xp, credits:state.credits, won:state.won, look:state.look, recipe:state.recipe, owned:[...state.owned], mute:state.mute})); }catch(e){}
+    name:state.name, color:state.color, visor:state.visor, xp:state.xp, credits:state.credits, won:state.won, look:state.look, recipe:state.recipe, owned:[...state.owned], mute:state.mute, best:state.best})); }catch(e){}
 }
 function rng(seed){ return function(){ seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
 function makeNoise(seed){
@@ -3175,7 +3176,7 @@ BUILD.hub = (r, n) => {
     const l = label('Outfitters', {edge:'#ffd166', fg:'#ffd166'}); l.position.y = 3.1; k.add(l);
     colliders.push({x:kx, z:kz, r:1.7}); shopKiosk = {x:kx, z:kz};
   }
-  buildBike(-11, 9);
+  buildBike(-11, 9); buildTrialPad('hub');
   // lamps
   const lampM = std(0x2a2c34, {metalness:0.8, roughness:0.35}), bulbM = std(0xfff1d6, {emissive:C(0xffd9a0), emissiveIntensity:3});
   const lamps = [];
@@ -3228,7 +3229,7 @@ BUILD.hub = (r, n) => {
 };
 
 BUILD.dunes = (r, n) => {
-  buildBike(7, -19);
+  buildBike(7, -19); buildTrialPad('dunes');
   const sand = sandTextures();
   buildTerrain({maxR:900, map:sand.map, normalMap:sand.normal, ns:0.85, rough:0.96, color:(x, y, z, sl) => {
     const v = n.fbm(x * 0.03, z * 0.03, 3) * 0.5 + 0.5, big = n.fbm(x * 0.004 + 40, z * 0.004 - 17, 3) * 0.5 + 0.5;
@@ -3453,7 +3454,7 @@ function buildWorld(key){
   clearWorld();
   const W = WORLDS[key]; state.world = key;
   world = new THREE.Group(); scene.add(world);
-  grassMeshes = []; slotMats = {}; colliders = []; platforms = []; coins = []; portals = []; spinners = []; npcs = []; shardObj = null; vault = null; gridSun = null; fireflies = null; shopKiosk = null; hazards = []; burst = null; bike.g = null; bike.riding = false; bike.near = false; engineStop(); $('#rideBtn').style.display = 'none';
+  grassMeshes = []; slotMats = {}; colliders = []; platforms = []; coins = []; portals = []; spinners = []; npcs = []; shardObj = null; vault = null; gridSun = null; fireflies = null; shopKiosk = null; hazards = []; burst = null; bike.g = null; bike.riding = false; bike.near = false; engineStop(); $('#rideBtn').style.display = 'none'; trial.active = false; trial.rings = []; trial.pad = null; trial.padPos = null; $('#trialPanel').style.display = 'none';
   const r = rng(W.seed), noise = makeNoise(W.seed * 7 + 1);
   applyLook(W);
   const pads = W.portals.map(q => ({x:q.x, z:q.z, r:4})).concat(W.pads || []);
@@ -3733,6 +3734,65 @@ function bikeProximity(){
   if(near !== bike.near){ bike.near = near; $('#rideBtn').style.display = (near || bike.riding) ? '' : 'none'; if(near) $('#rideBtn').textContent = 'Ride'; }
 }
 $('#rideBtn').addEventListener('click', () => { if(bike.riding) dismountBike(); else if(bike.near) mountBike(); });
+
+/* ================= time trial (the first quest: ride the rings) ================= */
+const COURSES = {
+  hub:   { pad:[-14, 13], par:42, rings:[[-26, 20], [-33, 2], [-24, -22], [0, -34], [24, -22], [33, 4], [26, 20], [8, 30], [-8, 30]] },
+  dunes: { pad:[12, -16], par:48, rings:[[26, -30], [42, -10], [44, 14], [30, 34], [4, 44], [-22, 36], [-40, 12], [-36, -18], [-14, -38], [8, -30]] }
+};
+const trial = { active:false, world:null, idx:0, t:0, rings:[], pad:null, padPos:null };
+function buildTrialPad(key){
+  const c = COURSES[key]; if(!c) return;
+  const x = c.pad[0], z = c.pad[1], y = G(x, z);
+  const ring = mk(new THREE.TorusGeometry(2.0, 0.08, 8, 48), glowM(0xffd166, 2.4), x, y + 0.08, z); ring.rotation.x = Math.PI / 2; ring.castShadow = false;
+  const disc = new THREE.Mesh(new THREE.CircleGeometry(1.95, 48), new THREE.MeshBasicMaterial({color:C(0xffd166), transparent:true, opacity:0.12, depthWrite:false})); disc.rotation.x = -Math.PI / 2; disc.position.set(x, y + 0.05, z); world.add(disc);
+  const best = state.best[key];
+  const l = label('Time trial · ride the rings' + (best ? ' · best ' + best.toFixed(1) + 's' : ''), {small:true, edge:'#ffd166', fg:'#ffd166'}); l.position.set(x, y + 2.6, z); world.add(l);
+  trial.pad = ring; trial.padPos = {x, z}; trial.active = false; trial.rings = [];
+}
+function trialStart(){
+  const key = state.world, c = COURSES[key]; if(!c || trial.active) return;
+  trial.active = true; trial.world = key; trial.idx = 0; trial.t = 0; trial.rings = [];
+  c.rings.forEach((r, i) => {
+    const x = r[0], z = r[1], y = G(x, z) + 1.7, prev = i ? c.rings[i - 1] : c.pad;
+    const g = new THREE.Group(); g.position.set(x, y, z); g.rotation.y = Math.atan2(x - prev[0], z - prev[1]); world.add(g);
+    const m = mk(new THREE.TorusGeometry(2.4, 0.14, 10, 48), glowM(i === c.rings.length - 1 ? 0x9dff6a : 0xffd166, 2.2), 0, 0, 0, g); m.castShadow = false;
+    const gl = glow(0xffd166, 5, 0, 0, 0, g, 0.35);
+    const n = label(String(i + 1), {small:true}); n.position.y = 3.1; g.add(n);
+    trial.rings.push({g, x, z, y, m, gl});
+  });
+  trialHud(); sfx('level'); toast('Time trial: ride through the ' + c.rings.length + ' rings in order. Par ' + c.par + 's', 3200);
+}
+function trialEnd(done){
+  const key = trial.world, c = COURSES[key];
+  trial.rings.forEach(r => world.remove(r.g)); trial.rings = []; trial.active = false;
+  $('#trialPanel').style.display = 'none';
+  if(!done){ toast('Time trial cancelled'); return; }
+  const t = trial.t, best = state.best[key], newBest = !best || t < best;
+  if(newBest) state.best[key] = t;
+  const credits = 60 + (t <= c.par ? 40 : 0) + (newBest ? 20 : 0);
+  reward(120, credits); sfx('win'); persist();
+  toast('Finished in ' + t.toFixed(1) + 's' + (t <= c.par ? ' — under par' : '') + (newBest ? ' — new best' : '') + '.   +120 XP  +₵' + credits, 5000);
+  if(state.world === key){ buildTrialPad(key); }
+}
+function trialHud(){
+  const el = $('#trialPanel'); el.style.display = '';
+  el.textContent = 'Ring ' + Math.min(trial.idx + 1, trial.rings.length) + ' / ' + trial.rings.length + ' · ' + trial.t.toFixed(1) + 's';
+}
+function trialUpdate(dt, time){
+  if(!trial.active){
+    if(trial.padPos && playing && !traveling && !zeroing && Math.hypot(p.x - trial.padPos.x, p.z - trial.padPos.z) < 2.0) trialStart();
+    return;
+  }
+  trial.t += dt; trialHud();
+  trial.rings.forEach((r, i) => { r.m.rotation.z += dt * (i === trial.idx ? 2.2 : 0.4); r.gl.material.opacity = i === trial.idx ? 0.55 + Math.sin(time * 6) * 0.2 : 0.2; });
+  const r = trial.rings[trial.idx];
+  if(r && Math.hypot(p.x - r.x, p.z - r.z) < 2.6 && Math.abs((p.y + 1) - r.y) < 3.2){
+    world.remove(r.g); trial.idx++; sfx('coin');
+    if(trial.idx >= trial.rings.length) trialEnd(true); else trialHud();
+  }
+  if(trial.t > 150) trialEnd(false);
+}
 
 /* ================= Outfitters (shop) ================= */
 const SHOP_ITEMS = [
@@ -4456,7 +4516,7 @@ function update(dt, time){
     state.won = true; reward(500, 200); sfx('win'); setHalo(); toast('You opened the vault. First to crack the Hub.   +500 XP', 5000);
   }
   if(playing && p.grounded && p.speed > 0.6){ snd.stepT -= dt; if(snd.stepT <= 0){ sfx('step'); snd.stepT = p.speed > 7 ? 0.27 : 0.42; } } else snd.stepT = 0.1;
-  shopProximity(); bikeProximity();
+  shopProximity(); bikeProximity(); trialUpdate(dt, time);
   hurtCool -= dt; updateHazards(time); updateBurst(dt); checkBundles();
   if(!WORLDS[state.world].rules.danger && !zeroing && state.hp < maxHp()){ state.hp = Math.min(maxHp(), state.hp + 12 * dt); hpHud(); }
   portalCool -= dt;
@@ -4506,7 +4566,7 @@ ready.then(() => new Promise(res => setTimeout(res, 60))).then(() => {
   $('#nameInput').focus();
 }).catch(err => { const ld = $('#loading'); if(ld) ld.textContent = 'Could not start: ' + err.message; });
 // hooks for the tester (headless checks) and for debugging; not used by the game itself
-window.__hub = { state, p, cam, post, stats, WORLDS, scene, renderer, camera, sunLight, hemi, gl:GL_INFO, softwareGL:SOFTWARE_GL, travel, buildWorld, startGame, setPaused, degrade, parseDescription, makeFromWords, rebuildPlayer, cleanRecipe, snd, sfx, setMute, bike, mountBike, dismountBike, keys, update, get me(){ return me; }, freezeQuality(){ warm = 1e9; }, get qLevel(){ return qLevel; }, get world(){ return state.world; }, get envRT(){ return envRT; },
+window.__hub = { state, p, cam, post, stats, WORLDS, scene, renderer, camera, sunLight, hemi, gl:GL_INFO, softwareGL:SOFTWARE_GL, travel, buildWorld, startGame, setPaused, degrade, parseDescription, makeFromWords, rebuildPlayer, cleanRecipe, snd, sfx, setMute, bike, mountBike, dismountBike, keys, update, trial, trialStart, COURSES, get me(){ return me; }, freezeQuality(){ warm = 1e9; }, get qLevel(){ return qLevel; }, get world(){ return state.world; }, get envRT(){ return envRT; },
   damage(n){ return hurt(n, 'test'); }, get hazards(){ return hazards.map(h => ({x:h.x, z:h.z, L:h.L})); },
   get bundles(){ return bundles.map(b => ({id:b.id, world:b.world, x:b.x, y:b.y, z:b.z, credits:b.credits, items:b.items.map(i => Object.assign({}, i)), why:b.why})); }, get zeroing(){ return zeroing; }, get hp(){ return state.hp; }, get maxHp(){ return maxHp(); }, get level(){ return lvlOf(state.xp); } };
 })();
