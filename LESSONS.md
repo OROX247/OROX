@@ -16,3 +16,5 @@
 
 - Avatars are recipe-driven (blueprint 5a): `parseDescription(text)` -> recipe -> `makeAvatar({recipe, name})`. Add a species to SPECIES, a word to WORD_FEATURES/WORD_MATERIALS/WORD_PATTERNS, or a feature builder inside makeAvatar; never special-case one description. `cleanRecipe` validates everything, so an AI path only has to return JSON. The player is `let me`; anything that changes the recipe calls `rebuildPlayer()`.
 - Non-uniform group scale (height vs build) is fine for meshes but stretches sprites: divide a name-tag sprite's scale by the group scale.
+- Sectors: every realm has `sector` and `rules:{magic, tech, danger}` in WORLDS; `fare(from, to)` prices warps by Chebyshev distance on the 3x3x3 cube (0 -> 10, 1 -> 25, 2 -> 60, 3 -> 120, Hub free). The star map is drawn by `drawStarMap()` from WORLDS, so a new realm only needs its sector number to appear on it.
+- The shop is data: add a row to SHOP_ITEMS (feature ids come from R_FEATURES, finishes from R_MATERIALS). `state.owned` persists purchases; wearing is just the recipe.

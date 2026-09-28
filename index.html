@@ -103,6 +103,7 @@ button:focus-visible, .warp-item:focus-visible{ outline:3px solid var(--cyan); o
 .warp-item:hover{ background:rgba(255,255,255,.12); }
 .warp-item[disabled]{ opacity:.55; cursor:default; }
 .warp-item small{ font-weight:400; color:#c7c1ea; font-size:13px; }
+.warp-item > span > small{ font-size:11.5px; color:#b9b2e0; }
 #board{ margin:0; padding:0; list-style:none; counter-reset:r; font-size:14.5px; }
 #board li{ counter-increment:r; display:flex; gap:10px; padding:6px 0; border-bottom:1px solid rgba(255,255,255,.08); }
 #board li::before{ content:counter(r); width:18px; color:#c7c1ea; }
@@ -174,7 +175,8 @@ body.paused #joy, body.paused #jumpBtn{ display:none; }
 <div id="warp" class="overlay hidden" role="dialog" aria-labelledby="warpTitle">
   <div class="card">
     <h2 id="warpTitle">Warp</h2>
-    <p class="lede">Jump straight to any world. The Hub is free, everywhere else costs 10 credits. Walking through portals is always free.</p>
+    <p class="lede">Jump straight to any world. Fares rise with sector distance; the Hub is always free, and walking through portals is free.</p>
+    <canvas id="starMap" aria-label="Star map of the 27 sectors" style="width:100%;height:auto;display:block;margin:0 0 10px"></canvas>
     <div id="warpList"></div>
     <h3>Hunt board</h3>
     <ol id="board"></ol>
@@ -2178,25 +2180,30 @@ const xpAt = l => 60 * (l - 1) * (l - 1);
 const R = 58;
 const SHARD_COLORS = { dunes:0xffb020, grid:0xff4fa3, sky:0x5ce1e6 };
 const WORLDS = {
-  hub:   { name:'Hub Spaceport', seed:11, exposure:0.95, fog:0.0052,
+  hub:   { name:'Hub Spaceport', seed:11, exposure:0.95, fog:0.0052, sector:1, rules:{magic:true, tech:true, danger:false},
            sky:{top:0x1d2b5e, horizon:0xf2986a, ground:0x3a2a3a, sun:0xffcf9a, dir:[-0.55,0.09,-0.83], size:0.011, clouds:0.42, lit:0xffc6a0, shade:0x6a5070},
            sun:[0xffbf85,2.4], hemi:[0x9aa6ff,0x3a2a30,0.45],
            portals:[{to:'dunes',x:20,z:-14},{to:'grid',x:7,z:-24},{to:'grove',x:-7,z:-24},{to:'sky',x:-20,z:-14}], pads:[] },
-  dunes: { name:'Glass Dunes', seed:23, exposure:0.86, fog:0.0034,
+  dunes: { name:'Glass Dunes', seed:23, exposure:0.86, fog:0.0034, sector:1, rules:{magic:true, tech:true, danger:true},
            // late-afternoon desert: a lower, warmer sun, a pale dusty horizon that the far mesas fade into (aerial perspective), a warm sand bounce from below
            sky:{top:0x2f6fcf, horizon:0xe9dcc4, ground:0xcaa678, sun:0xffe6c0, dir:[0.55,0.42,-0.72], size:0.009, clouds:0.14, lit:0xfff4e6, shade:0xc9b9a8},
            sun:[0xffe0b8,3.2], hemi:[0xcfe0ff,0xc09060,0.55], portals:[{to:'hub',x:0,z:-26}], pads:[{x:22,z:16,r:9}] },
-  grid:  { name:'Neon Grid', seed:51, exposure:1.1, fog:0.0055, stars:true,
+  grid:  { name:'Neon Grid', seed:51, exposure:1.1, fog:0.0055, stars:true, sector:1, rules:{magic:false, tech:true, danger:true},
            sky:{top:0x05001a, horizon:0x7a1a6e, ground:0x12001f, sun:0xff5fb0, dir:[0,0.1,-1], size:0, clouds:0, lit:0x000000, shade:0x000000},
            sun:[0xff9ad5,1.0], hemi:[0x8a5cff,0x1a0830,0.4], portals:[{to:'hub',x:0,z:-26}], pads:[] },
-  grove: { name:'Night Grove', seed:37, exposure:1.3, fog:0.011, stars:true,
+  grove: { name:'Night Grove', seed:37, exposure:1.3, fog:0.011, stars:true, sector:1, rules:{magic:true, tech:false, danger:true},
            sky:{top:0x02050d, horizon:0x1c2c4c, ground:0x0a0f18, sun:0xdde8ff, dir:[0.4,0.42,-0.8], size:0.007, clouds:0.22, lit:0x34445f, shade:0x0e1626},
            sun:[0x9fb4ff,0.9], hemi:[0x5a6fb0,0x0a0c10,0.32], portals:[{to:'hub',x:0,z:-26}], pads:[{x:0,z:0,r:7}] },
-  sky:   { name:'Sky Isles', seed:73, exposure:0.88, fog:0.0026,
+  sky:   { name:'Sky Isles', seed:73, exposure:0.88, fog:0.0026, sector:1, rules:{magic:true, tech:true, danger:false},
            sky:{top:0x3d7fe0, horizon:0xf3dbe6, ground:0xf4eef2, sun:0xfff4e0, dir:[0.5,0.38,-0.78], size:0.009, clouds:0.3, lit:0xffffff, shade:0xc8d0e8},
            sun:[0xfff0dc,2.8], hemi:[0xcfe0ff,0x8aa070,0.6], portals:[{to:'hub',x:0,z:-26}], pads:[] }
 };
 const WORLD_ORDER = ['hub','dunes','grid','grove','sky'];
+/* the universe is a 3x3x3 cube of 27 sectors (blueprint section 3); a sector's coordinates come from its number */
+const sectorXYZ = n => [(n - 1) % 3, Math.floor((n - 1) / 3) % 3, Math.floor((n - 1) / 9)];
+function sectorDistance(a, b){ const A = sectorXYZ(a), B = sectorXYZ(b); return Math.max(Math.abs(A[0] - B[0]), Math.abs(A[1] - B[1]), Math.abs(A[2] - B[2])); }
+function fare(from, to){ if(to === 'hub') return 0; const d = sectorDistance(WORLDS[from].sector, WORLDS[to].sector); return d === 0 ? 10 : d === 1 ? 25 : d === 2 ? 60 : 120; }
+const rulesText = W => (W.rules.magic ? 'magic' : 'no magic') + ' · ' + (W.rules.tech ? 'tech' : 'no tech') + ' · ' + (W.rules.danger ? 'danger zone' : 'safe');
 const PORTAL_COLORS = { hub:0xffd166, dunes:0xf2a07b, grid:0xff4fa3, grove:0x5ce1e6, sky:0xbfe0ff };
 const NPC_NAMES = ['Kestrel','Nyx_77','Pixelwolf','Dune Rider','Glitch','Moth','Sable','Byte Queen','Vektor','Ember','Lumen','Rook','Juno','Static','Marrow','Quill'];
 const SUITS = [0x1f2a44,0x6b1d2e,0x1d4a46,0x2a2a30,0xdad9de,0x3b2a5a,0x4a3a22,0x0f3b5f];
@@ -3514,8 +3521,8 @@ function openWarp(){
   const list = $('#warpList'); list.innerHTML = '';
   WORLD_ORDER.forEach(k => {
     const b = document.createElement('button'); b.className = 'warp-item'; b.style.setProperty('--c', hexStr(PORTAL_COLORS[k]));
-    const here = k === state.world, cost = k === 'hub' ? 0 : 10;
-    b.innerHTML = '<span>' + WORLDS[k].name + '</span><small>' + (here ? 'You are here' : cost ? '₵ ' + cost : 'Free') + '</small>';
+    const here = k === state.world, cost = fare(state.world, k);
+    b.innerHTML = '<span>' + WORLDS[k].name + '<br><small>Sector ' + WORLDS[k].sector + ' · ' + rulesText(WORLDS[k]) + '</small></span><small>' + (here ? 'You are here' : cost ? '₵ ' + cost : 'Free') + '</small>';
     if(here) b.disabled = true;
     b.addEventListener('click', () => {
       if(state.credits < cost){ toast('Not enough credits. Collect coins to earn more.'); return; }
@@ -3526,8 +3533,27 @@ function openWarp(){
   const rows = BOARD.concat([{name:state.name || 'You', shards:state.shards.size, xp:state.xp, you:true}]).sort((a, b) => b.shards - a.shards || b.xp - a.xp);
   const top = rows.slice(0, 8); if(!top.some(x => x.you)) top[7] = rows.find(x => x.you);
   $('#board').innerHTML = top.map(x => '<li class="' + (x.you ? 'you' : '') + '"><span>' + x.name.replace(/[<>&"]/g, '') + '</span><span class="sc">' + x.shards + ' shards, ' + x.xp + ' XP</span></li>').join('');
+  drawStarMap();
   warpEl.classList.remove('hidden'); setPaused(true);
   const first = list.querySelector('button:not([disabled])'); if(first) first.focus();
+}
+function drawStarMap(){
+  const c = $('#starMap'), d = Math.min(window.devicePixelRatio || 1, 2), W = c.clientWidth || 400; c.width = W * d; c.height = Math.round(W * 0.42) * d;
+  const x = c.getContext('2d'); x.scale(d, d); const w = W, h = c.height / d, cell = Math.min((w - 40) / 3 / 3.4, h / 3.8), gap = cell * 3 + 14;
+  x.clearRect(0, 0, w, h); x.font = '600 11px "Chakra Petch","Trebuchet MS",sans-serif'; x.textAlign = 'center';
+  const charted = {}; WORLD_ORDER.forEach(k => { (charted[WORLDS[k].sector] = charted[WORLDS[k].sector] || []).push(k); });
+  for(let layer = 0; layer < 3; layer++){
+    const ox = (w - gap * 3 + 14) / 2 + layer * gap, oy = 18;
+    x.fillStyle = 'rgba(199,193,234,0.9)'; x.fillText('Layer ' + (layer + 1), ox + cell * 1.5, 11);
+    for(let j = 0; j < 3; j++) for(let i = 0; i < 3; i++){
+      const n = 1 + i + j * 3 + layer * 9, has = charted[n], cx = ox + i * cell, cy = oy + j * cell;
+      x.fillStyle = has ? 'rgba(92,225,230,0.22)' : 'rgba(255,255,255,0.05)'; x.fillRect(cx + 1, cy + 1, cell - 2, cell - 2);
+      x.strokeStyle = has ? 'rgba(92,225,230,0.9)' : 'rgba(255,255,255,0.14)'; x.lineWidth = 1; x.strokeRect(cx + 1, cy + 1, cell - 2, cell - 2);
+      x.fillStyle = has ? '#f3f0ff' : 'rgba(255,255,255,0.35)'; x.fillText(has ? String(n) : '?', cx + cell / 2, cy + cell / 2 + 4);
+      if(has) has.forEach((k, q) => { x.fillStyle = hexStr(PORTAL_COLORS[k]); x.beginPath(); x.arc(cx + 6 + q * 7, cy + cell - 6, 2.5, 0, TAU); x.fill(); });
+    }
+  }
+  x.fillStyle = 'rgba(199,193,234,0.8)'; x.fillText('27 sectors. Sector 1 charted; the rest are uncharted for now.', w / 2, h - 3);
 }
 function closeWarp(){ warpEl.classList.add('hidden'); setPaused(false); }
 $('#mapBtn').addEventListener('click', openWarp);
@@ -3996,7 +4022,7 @@ function update(dt, time){
   jumpBuffer -= dt;
   if(jumpBuffer > 0){
     if(p.grounded){ p.vy = 8.6; p.grounded = false; p.airJumps = 1; jumpBuffer = 0; }
-    else if(p.airJumps > 0){ p.vy = 8.4; p.airJumps = 0; jumpBuffer = 0; p.flameT = 0.45; }
+    else if(p.airJumps > 0){ if(WORLDS[state.world].rules.tech){ p.vy = 8.4; p.airJumps = 0; jumpBuffer = 0; p.flameT = 0.45; } else { p.airJumps = 0; jumpBuffer = 0; toast('No tech works in ' + WORLDS[state.world].name + ': the boost is dead here', 2200); } }
   }
   const wasGrounded = p.grounded;
   p.vy -= 24 * dt; p.y += p.vy * dt;
