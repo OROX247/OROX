@@ -177,7 +177,7 @@ body.paused #joy, body.paused #jumpBtn{ display:none; }
   </div>
   <div class="panel row" id="statPanel">
     <span class="stat" title="Credits"><span class="cr">₵</span><b id="credits">0</b></span>
-    <span class="stat" title="Coins found"><span class="coin-ico"></span><b id="coinCount">0</b><span class="of">/ 60</span></span>
+    <span class="stat" title="Coins found"><span class="coin-ico"></span><b id="coinCount">0</b><span class="of" id="coinTotal">/ 72</span></span>
     <span class="stat" title="Shards found">
       <i class="shard" data-s="dunes" style="--c:#ffb020"></i><i class="shard" data-s="grid" style="--c:#ff4fa3"></i><i class="shard" data-s="sky" style="--c:#5ce1e6"></i>
     </span>
@@ -2407,12 +2407,13 @@ const state = {
   won: !!sv.won, world: 'hub', started: false,
   look: typeof sv.look === 'string' ? sv.look.slice(0, 300) : '', recipe: null, owned: new Set(arr(sv.owned)), mute: !!sv.mute, best: (sv.best && typeof sv.best === 'object') ? sv.best : {},
   inv: (sv.inv && typeof sv.inv === 'object' && !Array.isArray(sv.inv)) ? sv.inv : {}, picked: new Set(arr(sv.picked)),   // inv is cleaned once ITEMS exists (cleanInv)
-  fuel: Math.min(100, Math.max(0, num(sv.fuel, 100)))   // the hoverbike tank, 0-100 (FUEL_MAX), shared by the bike in every realm
+  fuel: Math.min(100, Math.max(0, num(sv.fuel, 100))),  // the hoverbike tank, 0-100 (FUEL_MAX), shared by the bike in every realm
+  enrolled: !!sv.enrolled                                // enrolled at Campus (Goal 8): warps to and from Campus cost nothing
 };
 // state.recipe is filled in once the recipe schema below is defined (see loadRecipe)
 function persist(){
   try{ localStorage.setItem(SAVE_KEY, JSON.stringify({coins:[...state.coins], shards:[...state.shards], visited:[...state.visited],
-    name:state.name, color:state.color, visor:state.visor, xp:state.xp, credits:state.credits, won:state.won, look:state.look, recipe:state.recipe, owned:[...state.owned], mute:state.mute, best:state.best, inv:state.inv, picked:[...state.picked], fuel:Math.round(state.fuel * 10) / 10})); }catch(e){}
+    name:state.name, color:state.color, visor:state.visor, xp:state.xp, credits:state.credits, won:state.won, look:state.look, recipe:state.recipe, owned:[...state.owned], mute:state.mute, best:state.best, inv:state.inv, picked:[...state.picked], fuel:Math.round(state.fuel * 10) / 10, enrolled:state.enrolled})); }catch(e){}
 }
 function rng(seed){ return function(){ seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
 function makeNoise(seed){
@@ -2447,7 +2448,11 @@ const WORLDS = {
   hub:   { name:'Hub Spaceport', seed:11, exposure:1.0, fog:0.0052, sector:1, rules:{magic:true, tech:true, danger:false},
            sky:{top:0x1d2b5e, horizon:0xf2986a, ground:0x3a2a3a, sun:0xffcf9a, dir:[-0.55,0.09,-0.83], size:0.011, clouds:0.42, lit:0xffc6a0, shade:0x6a5070},
            sun:[0xffbf85,2.6], hemi:[0x9aa6ff,0x3a2a30,0.62],
-           portals:[{to:'dunes',x:20,z:-14},{to:'grid',x:7,z:-24},{to:'grove',x:-7,z:-24},{to:'sky',x:-20,z:-14}], pads:[] },
+           portals:[{to:'dunes',x:20,z:-14},{to:'grid',x:7,z:-24},{to:'grove',x:-7,z:-24},{to:'sky',x:-20,z:-14},{to:'campus',x:26,z:2.5}], pads:[] },   // Campus portal: east edge of the plaza, placed clear of every coin, NPC and pickup spot so nothing already in the Spaceport moves
+  // Campus (blueprint 2, 7): the school planet. Permanent bright late morning, a high sun from the east-south so the marble facade and the east windows catch it.
+  campus:{ name:'Campus', seed:89, exposure:0.9, fog:0.0030, sector:1, rules:{magic:false, tech:true, danger:false},
+           sky:{top:0x2c6fd6, horizon:0xd4e6f5, ground:0x9fb487, sun:0xfff8ec, dir:[0.6,0.62,-0.48], size:0.008, clouds:0.3, lit:0xffffff, shade:0xbac7dc},
+           sun:[0xfff3e0,3.0], hemi:[0xd3e4ff,0x7a8e5c,0.62], portals:[{to:'hub',x:0,z:-26}], pads:[] },
   dunes: { name:'Glass Dunes', seed:23, exposure:0.86, fog:0.0034, sector:1, rules:{magic:true, tech:true, danger:true},
            // late-afternoon desert: a lower, warmer sun, a pale dusty horizon that the far mesas fade into (aerial perspective), a warm sand bounce from below
            sky:{top:0x2f6fcf, horizon:0xe9dcc4, ground:0xcaa678, sun:0xffe6c0, dir:[0.55,0.42,-0.72], size:0.009, clouds:0.14, lit:0xfff4e6, shade:0xc9b9a8},
@@ -2462,13 +2467,13 @@ const WORLDS = {
            sky:{top:0x3d7fe0, horizon:0xf3dbe6, ground:0xf4eef2, sun:0xfff4e0, dir:[0.5,0.38,-0.78], size:0.009, clouds:0.3, lit:0xffffff, shade:0xc8d0e8},
            sun:[0xfff0dc,2.8], hemi:[0xcfe0ff,0x8aa070,0.6], portals:[{to:'hub',x:0,z:-26}], pads:[] }
 };
-const WORLD_ORDER = ['hub','dunes','grid','grove','sky'];
+const WORLD_ORDER = ['hub','campus','dunes','grid','grove','sky'];
 /* the universe is a 3x3x3 cube of 27 sectors (blueprint section 3); a sector's coordinates come from its number */
 const sectorXYZ = n => [(n - 1) % 3, Math.floor((n - 1) / 3) % 3, Math.floor((n - 1) / 9)];
 function sectorDistance(a, b){ const A = sectorXYZ(a), B = sectorXYZ(b); return Math.max(Math.abs(A[0] - B[0]), Math.abs(A[1] - B[1]), Math.abs(A[2] - B[2])); }
-function fare(from, to){ if(to === 'hub') return 0; const d = sectorDistance(WORLDS[from].sector, WORLDS[to].sector); return d === 0 ? 10 : d === 1 ? 25 : d === 2 ? 60 : 120; }
+function fare(from, to){ if(to === 'hub') return 0; if(state.enrolled && (from === 'campus' || to === 'campus')) return 0; const d = sectorDistance(WORLDS[from].sector, WORLDS[to].sector); return d === 0 ? 10 : d === 1 ? 25 : d === 2 ? 60 : 120; }
 const rulesText = W => (W.rules.magic ? 'magic' : 'no magic') + ' · ' + (W.rules.tech ? 'tech' : 'no tech') + ' · ' + (W.rules.danger ? 'danger zone' : 'safe');
-const PORTAL_COLORS = { hub:0xffd166, dunes:0xf2a07b, grid:0xff4fa3, grove:0x5ce1e6, sky:0xbfe0ff };
+const PORTAL_COLORS = { hub:0xffd166, campus:0xb6ff7a, dunes:0xf2a07b, grid:0xff4fa3, grove:0x5ce1e6, sky:0xbfe0ff };
 const NPC_NAMES = ['Kestrel','Nyx_77','Pixelwolf','Dune Rider','Glitch','Moth','Sable','Byte Queen','Vektor','Ember','Lumen','Rook','Juno','Static','Marrow','Quill'];
 const SUITS = [0x1f2a44,0x6b1d2e,0x1d4a46,0x2a2a30,0xdad9de,0x3b2a5a,0x4a3a22,0x0f3b5f];
 const PLATES = [0xeceef2,0xb9bec8,0x2b2d33,0xd9b26a,0xf2efe8];
@@ -2479,7 +2484,9 @@ const LINES = {
   dunes: ['Those stones by the crystals climb higher than they look.','It is too bright out here.'],
   grid: ['Someone saw a shard on top of the tower.','These cabinets have been out of order since forever.'],
   grove: ['No shard here, just coins and fireflies.','The mushrooms hum at night.'],
-  sky: ['You will need the boost to reach the high isles.','Do not look down.']
+  sky: ['You will need the boost to reach the high isles.','Do not look down.'],
+  campus: ['Enrol at the desk in the marble hall and your warps here are free.','The gym dome has no gravity inside. Push off the walls.','Orbital Maths again. I still cannot land a clean pass.',
+    'They say every campus on this planet is built the same, down to the last desk.','Somebody swears there is a clearing in the east woods that is not on any map.','Shift pushes you down in the gym. I learned that the hard way.']
 };
 
 /* ================= renderer ================= */
@@ -3354,12 +3361,14 @@ function addPortal(q){
   const disc = new THREE.Mesh(new THREE.CircleGeometry(1.95, 64), new THREE.ShaderMaterial({
     uniforms:{time:uTime, color:{value:new THREE.Color(col)}}, transparent:true, side:THREE.DoubleSide, depthWrite:false,
     vertexShader:'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
-    fragmentShader:'uniform float time; uniform vec3 color; varying vec2 vUv; void main(){ vec2 p = vUv * 2.0 - 1.0; float r = length(p); if(r > 1.0) discard; float a = atan(p.y, p.x); float s1 = sin(a * 6.0 + r * 14.0 - time * 3.5) * 0.5 + 0.5; float s2 = sin(a * 3.0 - r * 9.0 + time * 2.0) * 0.5 + 0.5; vec3 c = color * (0.35 + 0.9 * s1 * s2) + vec3(1.0) * pow(1.0 - r, 4.0) * 0.8; gl_FragColor = vec4(c, (0.45 + 0.45 * s1) * smoothstep(1.0, 0.8, r)); }'
+    fragmentShader:'uniform float time, fade; uniform vec3 color; varying vec2 vUv; void main(){ vec2 p = vUv * 2.0 - 1.0; float r = length(p); if(r > 1.0) discard; float a = atan(p.y, p.x); float s1 = sin(a * 6.0 + r * 14.0 - time * 3.5) * 0.5 + 0.5; float s2 = sin(a * 3.0 - r * 9.0 + time * 2.0) * 0.5 + 0.5; vec3 c = color * (0.35 + 0.9 * s1 * s2) + vec3(1.0) * pow(1.0 - r, 4.0) * 0.8; gl_FragColor = vec4(c, (0.45 + 0.45 * s1) * smoothstep(1.0, 0.8, r) * fade); }'
   }));
+  disc.material.uniforms.fade = {value:1};
   disc.position.y = 2.7; g.add(disc);
-  glow(col, 7, 0, 2.7, 0, g, 0.35);
+  const gl = glow(col, 7, 0, 2.7, 0, g, 0.35);
   const l = label(WORLDS[q.to].name); l.position.y = 5.7; g.add(l);
-  portals.push({x:q.x, z:q.z, to:q.to});
+  // arrival puts the camera right at the portal you came through: fade its glow and disc when the camera is that close, or they flood the screen
+  portals.push({x:q.x, z:q.z, to:q.to, y:y + 2.7, gl, disc});
 }
 function freeSpot(r, minR, maxR, clear){
   for(let t = 0; t < 90; t++){
@@ -3392,13 +3401,31 @@ function addShard(id, x, y, z){
 }
 function addPlatform(x, z, rad, top, mesh, bottom){ platforms.push({x, z, r:rad, top, bottom:bottom || 0}); return mesh; }
 
+/* ================= Campus layout (Goal 8) ================= */
+// fixed plan in metres: the marble hall (walk-in, hall + classroom), the zero-g gym dome, the east woods with a clearing kept empty for The Hollow, and the walkways
+const CAMPUS = {
+  hall:{x0:-13, x1:13, z0:6, z1:26, wall:0.5, h:7.5, split:16.5},   // split: the wall between the marble hall (south) and the classroom (north)
+  gym:{x:-33, z:-2, r:10, t:0.6, h:5, door:4, doorW:2},               // cylinder wall r..r+t, glass dome on top, doorway facing +x
+  woods:{x0:21},                                                        // the forest fills the east side (x > x0) inside the walkable ring
+  clearing:{x:38, z:20, r:7.5},                                         // left empty on purpose: The Hollow goes here later
+  paths:[{pts:[[0, -22.6], [0, 5.9]], w:4.2, lift:0.045}, {pts:[[-1.6, -9], [-12, -6.2], [-22.5, -2]], w:3.2, lift:0.035}, {pts:[[1.6, -9], [12, -8.2], [21.5, -6.5]], w:3.2, lift:0.035}]
+};
+const segDist = (x, z, a, b) => { const dx = b[0] - a[0], dz = b[1] - a[1], t = clamp(((x - a[0]) * dx + (z - a[1]) * dz) / (dx * dx + dz * dz), 0, 1); return Math.hypot(x - a[0] - dx * t, z - a[1] - dz * t); };
+const rectDist = (x, z, b, m) => Math.hypot(Math.max(b.x0 - m - x, 0, x - b.x1 - m), Math.max(b.z0 - m - z, 0, z - b.z1 - m));
+function onCampusPath(x, z, m){ for(const L of CAMPUS.paths) for(let i = 0; i < L.pts.length - 1; i++) if(segDist(x, z, L.pts[i], L.pts[i + 1]) < L.w / 2 + m) return true; return false; }
+// true where something is built (walkways, the hall and its portico, the gym): no grass, no trees, no lawn bumps
+function campusBuilt(x, z, m){ const H = CAMPUS.hall, g = CAMPUS.gym; return onCampusPath(x, z, m) || rectDist(x, z, {x0:H.x0, x1:H.x1, z0:H.z0 - 4, z1:H.z1}, m) === 0 || Math.hypot(x - g.x, z - g.z) < g.r + g.t + m; }
+function campusFlat(x, z){ const H = CAMPUS.hall, g = CAMPUS.gym; return smooth(1.5, 9, rectDist(x, z, {x0:H.x0, x1:H.x1, z0:H.z0 - 4, z1:H.z1}, 0)) * smooth(1.5, 8, Math.max(0, Math.hypot(x - g.x, z - g.z) - g.r - g.t)); }
+
 /* ================= heights ================= */
 const HEIGHTS = {
   hub:(n, pf) => (x, z) => { const d = Math.hypot(x, z); let h = n.fbm(x * 0.025, z * 0.025, 4) * 2.2 * smooth(37, 50, d); h += smooth(R + 15, R + 170, d) * (10 + n.fbm(x * 0.006, z * 0.006, 4) * 45); return h * pf(x, z); },
   dunes:(n, pf) => (x, z) => { const d = Math.hypot(x, z), w = n.fbm(x * 0.01, z * 0.01, 3), ri = 1 - Math.abs(n.n2(x * 0.028 + w * 2, z * 0.011 + w)); let h = ri * ri * 3.4 + n.fbm(x * 0.06, z * 0.06, 3) * 0.5; h *= 0.25 + 0.75 * smooth(6, 26, d); h += smooth(R + 8, R + 150, d) * (ri * ri * 26 + 8); return h * pf(x, z); },
   grid:(n) => (x, z) => { const d = Math.hypot(x, z), m = smooth(R + 30, R + 170, d), ri = 1 - Math.abs(n.fbm(x * 0.008, z * 0.008, 4) * 1.6); return m * (ri * ri * 75 + 5) - 0.3 * (1 - smooth(R + 26, R + 32, d)); },
   grove:(n, pf) => (x, z) => { const d = Math.hypot(x, z); let h = n.fbm(x * 0.03, z * 0.03, 4) * 2.4 * smooth(6, 20, d); const ri = 1 - Math.abs(n.fbm(x * 0.007, z * 0.007, 5) * 1.5); h += smooth(R + 10, R + 180, d) * (ri * ri * 100 + 10); return h * pf(x, z); },
-  sky:(n, pf) => (x, z) => { const d = Math.hypot(x, z); let h = n.fbm(x * 0.035, z * 0.035, 4) * 1.6 * smooth(4, 16, d); h -= smooth(R, R + 6, d) * 3; return h * pf(x, z); }
+  sky:(n, pf) => (x, z) => { const d = Math.hypot(x, z); let h = n.fbm(x * 0.035, z * 0.035, 4) * 1.6 * smooth(4, 16, d); h -= smooth(R, R + 6, d) * 3; return h * pf(x, z); },
+  // a gently rolling lawn (flat under the buildings), a little more roll in the east woods, green hills beyond the walkable ring
+  campus:(n, pf) => (x, z) => { const d = Math.hypot(x, z); let h = n.fbm(x * 0.028, z * 0.028, 4) * (1.3 + smooth(CAMPUS.woods.x0, CAMPUS.woods.x0 + 15, x) * 1.2) * campusFlat(x, z) * smooth(3, 12, d); const ri = 1 - Math.abs(n.fbm(x * 0.006 + 9, z * 0.006, 4) * 1.4); h += smooth(R + 12, R + 170, d) * (ri * ri * 60 + 10); return h * pf(x, z); }
 };
 
 /* ================= builders ================= */
@@ -3694,6 +3721,89 @@ BUILD.sky = (r, n) => {
   instanced(new THREE.IcosahedronGeometry(0.06, 0), std(0xffffff, {roughness:0.6}), fm, fc, false);
 };
 
+/* ================= Campus (Goal 8) ================= */
+// stone surfaces as tileable slab/block patterns: marble floor, marble wall blocks, pale walkway pavers. Seeded (fixed look), built once and shared.
+function stoneSet(o){
+  const N = o.px || 1024, M = 256, F = tileField(M, makeNoise(o.seed), 0.03, 5), F2 = tileField(M, makeNoise(o.seed + 1), 0.09, 4);
+  const samp = (A, u, v) => { const fx = u * M, fy = v * M, x0 = Math.floor(fx), y0 = Math.floor(fy), tx = fx - x0, ty = fy - y0, a = (i, j) => A[((j % M + M) % M) * M + ((i % M + M) % M)];
+    return lerp(lerp(a(x0, y0), a(x0 + 1, y0), tx), lerp(a(x0, y0 + 1), a(x0 + 1, y0 + 1), tx), ty); };
+  const hash = n => { n = (n ^ 61) ^ (n >>> 16); n = Math.imul(n, 9); n ^= n >>> 4; n = Math.imul(n, 0x27d4eb2d); n ^= n >>> 15; return (n >>> 0) / 4294967296; };
+  const DIRS = [[2, 1], [1, 2], [3, 1], [1, -2], [2, -1], [-1, 3]];
+  // cell lookup: which slab, how far from its edge (metres), per-slab random
+  const cell = (u, v) => {
+    const row = Math.floor(v * o.rows), off = o.bond && (row & 1) ? 0.5 / o.cols : 0, uu = ((u + off) % 1 + 1) % 1, col = Math.floor(uu * o.cols);
+    const fx = uu * o.cols - col, fy = v * o.rows - row, id = ((row % o.rows) + o.rows) % o.rows * o.cols + col;
+    return {id, e:Math.min(Math.min(fx, 1 - fx) * o.size / o.cols, Math.min(fy, 1 - fy) * o.size / o.rows), r:hash(id * 7919 + o.seed)};
+  };
+  const col = new Uint8ClampedArray(N * N * 4), rough = new Uint8ClampedArray(N * N * 4), J = o.joint;
+  for(let y = 0; y < N; y++) for(let x = 0; x < N; x++){
+    const u = x / N, v = y / N, c = cell(u, v), j = smooth(J * 0.35, J, c.e), t = samp(F, u, v), t2 = samp(F2, u, v);
+    const base = o.base[o.checker ? (Math.floor(u * o.cols) + Math.floor(v * o.rows)) % o.base.length : Math.floor(c.r * o.base.length)];
+    let vv = 0;
+    if(o.vein){ const d = DIRS[Math.floor(c.r * 97) % DIRS.length], ph = TAU * (d[0] * u + d[1] * v) + 7 * t + c.r * 40, w = 1 - Math.abs(Math.sin(ph)); vv = (Math.pow(w, 16) * 0.85 + Math.pow(w, 5) * 0.12) * o.vein; }
+    const g = (hash(y * N + x + o.seed * 131) - 0.5) * (o.grain || 0.03) + (t2 - 0.5) * (o.cloud || 0.08) + (c.r - 0.5) * (o.tint || 0.05);
+    const k = (y * N + x) * 4, dark = lerp(o.jointDark || 0.5, 1, j);
+    for(let q = 0; q < 3; q++) col[k + q] = ((base[q] + g) * (1 - vv) + o.veinCol[q] * vv) * dark * 255;
+    col[k + 3] = 255;
+    const rv = lerp(0.85, o.rough + (t2 - 0.5) * 0.08 + vv * 0.06, j) * 255; rough[k] = rough[k + 1] = rough[k + 2] = rv; rough[k + 3] = 255;
+  }
+  const put = (data, srgb) => canvasTex(N, N, x => { const im = x.createImageData(N, N); im.data.set(data); x.putImageData(im, 0, 0); }, srgb);
+  const H = 512, hf = new Float32Array(H * H);
+  for(let y = 0; y < H; y++) for(let x = 0; x < H; x++){ const u = x / H, v = y / H, c = cell(u, v); hf[y * H + x] = smooth(0, o.joint * 1.4, c.e) * 0.6 + samp(F2, u, v) * (o.bump || 0.05) + (c.r - 0.5) * 0.02; }
+  const out = {map:put(col), rough:put(rough, false), normal:normalTex(hf, H, o.nStrength || 6)};
+  for(const k in out) SHARED_TEX.add(out[k]);
+  return out;
+}
+let campusTexCache = null;
+function campusTextures(){
+  if(campusTexCache) return campusTexCache;
+  const n = a => a.map(h => hexArr(h));
+  campusTexCache = {
+    // polished floor: 1.5 m slabs of white and dove-grey marble in a checker, fine joints (tile 6 m)
+    floor:stoneSet({seed:301, size:6, cols:4, rows:4, checker:true, base:n([0xeeebe5, 0xc9c6c1]), vein:0.55, veinCol:hexArr(0x7d7a78), joint:0.004, jointDark:0.55, rough:0.14, grain:0.02, cloud:0.06, tint:0.03, bump:0.01, nStrength:5}),
+    // wall blocks: 1.5 x 0.75 m cream marble ashlar in a running bond (tile 6 m)
+    wall:stoneSet({seed:307, size:6, cols:4, rows:8, bond:true, base:n([0xf1ece2, 0xebe4d8, 0xf4f0e8]), vein:0.3, veinCol:hexArr(0x9c948a), joint:0.006, jointDark:0.72, rough:0.38, grain:0.025, cloud:0.07, tint:0.04, bump:0.03, nStrength:7}),
+    // walkway pavers: 1 x 0.5 m pale granite in a running bond (tile 4 m)
+    pave:stoneSet({seed:313, size:4, cols:4, rows:8, bond:true, base:n([0xd3ccbf, 0xc9c1b3, 0xdcd6ca]), vein:0, veinCol:[0, 0, 0], joint:0.008, jointDark:0.5, rough:0.72, grain:0.16, cloud:0.07, tint:0.06, bump:0.08, nStrength:8})
+  };
+  return campusTexCache;
+}
+// walkway ribbons that follow the ground; u runs across the path and v along it, in texture tiles
+function pathGeo(lines, tile){
+  const pos = [], uv = [], idx = [], A = 6;
+  lines.forEach(L => {
+    const S = []; let acc = 0;
+    for(let i = 0; i < L.pts.length - 1; i++){
+      const a = L.pts[i], b = L.pts[i + 1], len = Math.hypot(b[0] - a[0], b[1] - a[1]), n = Math.max(1, Math.ceil(len / 0.7));
+      for(let k = i ? 1 : 0; k <= n; k++){ const t = k / n; S.push([a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, acc + len * t]); }
+      acc += len;
+    }
+    const base = pos.length / 3;
+    S.forEach((s, i) => {
+      const a = S[Math.max(0, i - 1)], b = S[Math.min(S.length - 1, i + 1)], tx = b[0] - a[0], tz = b[1] - a[1], tl = Math.hypot(tx, tz) || 1, nx = -tz / tl, nz = tx / tl;
+      for(let j = 0; j < A; j++){ const off = (j / (A - 1) - 0.5) * L.w, x = s[0] + nx * off, z = s[1] + nz * off; pos.push(x, G(x, z) + L.lift, z); uv.push(off / tile, s[2] / tile); }
+    });
+    for(let i = 0; i < S.length - 1; i++) for(let j = 0; j < A - 1; j++){ const a = base + i * A + j, b = a + A; idx.push(a, a + 1, b, a + 1, b + 1, b); }
+  });
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); g.setIndex(idx); g.computeVertexNormals();
+  return g;
+}
+BUILD.campus = (r, n) => {
+  const T = campusTextures(), W = CAMPUS.woods.x0;
+  buildTerrain({maxR:900, color:(x, y, z, sl) => {
+    const v = n.fbm(x * 0.045, z * 0.045, 3) * 0.5 + 0.5, d = Math.hypot(x, z);
+    let c = mixA(hexArr(0x4d7f2c), hexArr(0x6e9d3b), v);                                   // mown lawn
+    c = mixA(c, hexArr(0x3d5a26), smooth(W - 2, W + 8, x) * smooth(R + 6, R - 4, d) * 0.75);  // darker, leafier floor under the woods
+    c = mixA(c, hexArr(0x6b665c), smooth(0.9, 0.7, sl));
+    return mixA(c, hexArr(0x5c7a44), smooth(R + 20, R + 90, d) * 0.6);                        // far hills, a touch paler
+  }});
+  const pm = std(0xffffff, {map:T.pave.map, normalMap:T.pave.normal, roughnessMap:T.pave.rough, roughness:1});
+  reg('plaza', {mat:pm, kind:'path', rep:1.6});
+  const pmesh = new THREE.Mesh(pathGeo(CAMPUS.paths, 4), pm); pmesh.receiveShadow = true; world.add(pmesh);
+  makeGrass(Math.round(46000 * Q), 2, 57, [0x5f9636, 0x6ca23f, 0x7aae4a, 0x588c32], [0.16, 0.36], (x, z) => campusBuilt(x, z, 0.25));   // mown: short, dense, bright
+};
+
 /* ================= spawning ================= */
 function spawnNPCs(key, r){
   const pool = NPC_NAMES.slice(), count = (key === 'hub' ? 8 : 5) - (COARSE ? 2 : 0);
@@ -3788,6 +3898,7 @@ function toast(msg, ms){ toastEl.textContent = msg; toastEl.classList.add('on');
 function refreshHud(){
   const lvl = lvlOf(state.xp), a = xpAt(lvl), b = xpAt(lvl + 1);
   $('#hudName').textContent = state.name || 'Player';
+  $('#coinTotal').textContent = '/ ' + 12 * WORLD_ORDER.length;
   $('#hudLvl').textContent = lvl;
   $('#xpFill').style.width = (lvl >= MAX_LEVEL ? 100 : Math.round((state.xp - a) / (b - a) * 100)) + '%';
   hpHud();
@@ -4349,6 +4460,7 @@ const VENDOR_LOOK = {
   dunes:{body:() => std(0xc9a070, {map:detailTex, roughness:0.95}), trim:() => std(0xb98a3a, {metalness:1, roughness:0.32}), acc:0xffb020, bg:'#2a1606', shape:'box', top:'dome'},
   grid: {body:() => phys(0x0c0818, {roughness:0.15, metalness:0.5}), trim:() => glowM(0xff4fa3, 2.5), acc:0x5ce1e6, bg:'#05030c', shape:'box', top:'edges'},
   grove:{body:() => std(0x4a3526, {map:detailTex, roughness:0.92}), trim:() => std(0x2e4a2a, {roughness:1}), acc:0x7dffb0, bg:'#04140c', shape:'stump', top:'cap'},
+  campus:{body:() => phys(0xefebe4, {roughness:0.3}), trim:() => std(0x23385e, {metalness:0.6, roughness:0.35}), acc:0x7fd0ff, bg:'#0a1830', shape:'box', top:'ring'},
   sky:  {body:() => phys(0xf4f1ea, {roughness:0.25}), trim:() => std(0xffd166, {metalness:1, roughness:0.2}), acc:0x9fd0ff, bg:'#0b1a33', shape:'pillar', top:'crystal'}
 };
 const vendorsSeen = {};
@@ -4543,6 +4655,7 @@ const AI_PROMPTS = {
   dunes:'Photorealistic real-life video. A hot desert at midday: rippled golden sand dunes, weathered red sandstone pillars and rocks, clusters of clear blue glass crystals, flat-topped mesas far away, pale blue sky with harsh bright sunlight and strong shadows. True to life.',
   grid:'Photorealistic real-life video. A futuristic city at night: a glossy black glass floor with glowing pink and cyan neon grid lines, black glass pyramids with neon edges, a stepped black tower, arcade machines, a huge orange and pink sun low on the horizon, purple sky. Wet reflections, true to life.',
   grove:'Photorealistic real-life video. A moonlit pine forest at night: dark grass, tall pine trees, large glowing pink, cyan and violet mushrooms, a still pond reflecting the moon, fireflies, snow-capped mountains far away, cold blue moonlight and mist. True to life.',
+  campus:'Photorealistic real-life video. A sunny university campus in bright late morning: a white marble hall with tall fluted columns and a pediment, pale granite walkways across a mown green lawn, a round gymnasium with a glass dome, a dense green broadleaf wood to one side, clear blue sky with small white clouds. True to life.',
   sky:'Photorealistic real-life drone video. A lush green floating island high above a sea of white clouds on a bright morning: soft grass with wildflowers, round leafy trees, grey rocks, small floating islands with rocky undersides, clear blue sky. True to life.'
 };
 const AI_KEY = 'hub-decart-key', aiVid = $('#aiVideo');
@@ -4665,7 +4778,8 @@ const PHOTO_SLOTS = {
   hub:   { ground:[0x4f6f32, 'lush green lawn grass with a little clover'], rock:[0x807a72, 'grey granite rock surface'], plaza:[0x9a968f, 'light grey stone paving slabs with thin straight joints, a clean modern city plaza floor'] },
   dunes: { ground:[0xd9b27c, 'fine golden desert sand with gentle wind ripples'], rock:[0xb0714a, 'red sandstone rock surface with fine layers and cracks'] },
   grove: { ground:[0x2e4232, 'dark forest floor with pine needles, moss and short grass'], rock:[0x5a5f6b, 'dark grey granite with lichen and moss'] },
-  sky:   { ground:[0x6aa444, 'bright green meadow grass with tiny white and yellow wildflowers'], rock:[0x7a6f66, 'brown weathered cliff rock with cracks'] }
+  sky:   { ground:[0x6aa444, 'bright green meadow grass with tiny white and yellow wildflowers'], rock:[0x7a6f66, 'brown weathered cliff rock with cracks'] },
+  campus:{ ground:[0x5a8a36, 'freshly mown green lawn grass'], plaza:[0xcfc7b8, 'light warm grey granite paving slabs in a running bond, a clean campus walkway'] }
 };
 const TEX_SUFFIX = '. Photographed straight down from above as a flat surface filling the whole frame, soft even daylight, no shadows, no horizon, no objects, photorealistic seamless texture, sharp natural detail.';
 const idb = (() => {
@@ -4723,10 +4837,11 @@ async function applyPhotos(key){
     if(token !== photoToken || state.world !== key){ t.map.dispose(); t.normal.dispose(); return; }
     slotMats[name].forEach(en => {
       const m = en.mat, map = t.map.clone(), nor = t.normal.clone(); map.needsUpdate = nor.needsUpdate = true;
-      const rep = en.kind === 'terrain' ? (t.real ? 1.3 : 0.45) : en.kind === 'plaza' ? (t.real ? 12 : 6) : en.kind === 'rocks' ? 1.5 : 3;
+      const rep = en.rep != null ? en.rep : en.kind === 'terrain' ? (t.real ? 1.3 : 0.45) : en.kind === 'plaza' ? (t.real ? 12 : 6) : en.kind === 'rocks' ? 1.5 : 3;
       map.repeat.set(rep, rep); nor.repeat.set(rep, rep);
       m.map = map; m.normalMap = nor; m.normalScale.set(1, 1); m.color.setRGB(1, 1, 1);
       if(en.kind === 'terrain'){ m.vertexColors = false; m.roughness = 0.95; }
+      if(en.kind === 'path'){ m.roughnessMap = null; m.roughness = 0.75; }
       if(en.kind === 'rocks' && en.mesh){ const g = new THREE.Color(), q = rng(WORLDS[key].seed * 131 + 7); for(let i = 0; i < en.mesh.count; i++){ g.setScalar(0.8 + q() * 0.25); en.mesh.setColorAt(i, g); } en.mesh.instanceColor.needsUpdate = true; }
       m.needsUpdate = true;
     });
@@ -4743,7 +4858,9 @@ const PH_WANT = {
   'grove:ground':{want:['forest','needles','leaves','moss','ground'], avoid:['snow','sand','road','asphalt','tiles','brick']},
   'grove:rock':{want:['moss','rock','granite','boulder'], avoid:['wall','brick','sand','floor','tiles']},
   'sky:ground':{want:['grass','meadow','lawn','flowers'], avoid:['dry','dead','path','road','snow','leaves','rock','mud','sand']},
-  'sky:rock':{want:['cliff','rock','boulder'], avoid:['wall','brick','sand','floor','tiles','snow']}
+  'sky:rock':{want:['cliff','rock','boulder'], avoid:['wall','brick','sand','floor','tiles','snow']},
+  'campus:ground':{want:['grass','lawn','turf','meadow'], avoid:['dry','dead','path','road','snow','leaves','rock','mud','sand','flowers']},
+  'campus:plaza':{want:['paving','pavement','slabs','stone floor','tiles'], avoid:['brick','wood','roof','wall','mossy','broken','old','dirty','mud','cobble']}
 };
 let phIndex = null;
 async function phAssets(){
@@ -4934,7 +5051,7 @@ function crickets(){
 }
 function chirps(){
   const c = snd.ctx;
-  const one = () => { if(state.world !== 'sky' || !snd.ctx) return; const t = c.currentTime, n = 2 + Math.floor(Math.random() * 3), base = 1800 + Math.random() * 1400;
+  const one = () => { if((state.world !== 'sky' && state.world !== 'campus') || !snd.ctx) return; const t = c.currentTime, n = 2 + Math.floor(Math.random() * 3), base = 1800 + Math.random() * 1400;
     for(let i = 0; i < n; i++){ const o = c.createOscillator(), g = c.createGain(); o.type = 'sine'; const t0 = t + i * 0.16; o.frequency.setValueAtTime(base, t0); o.frequency.exponentialRampToValueAtTime(base * 1.5, t0 + 0.06); o.frequency.exponentialRampToValueAtTime(base * 0.9, t0 + 0.13);
       g.gain.setValueAtTime(0.0001, t0); g.gain.linearRampToValueAtTime(0.05, t0 + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.14); o.connect(g); g.connect(snd.amb); o.start(t0); o.stop(t0 + 0.16); }
     snd.timers.push(setTimeout(one, 2500 + Math.random() * 6000)); };
@@ -4947,6 +5064,7 @@ function ambience(key){
   else if(key === 'grid'){ hum([55, 110, 165], 320, 0.05, 0.5); wind(90, 0.15, 0.05, 0.3); }
   else if(key === 'grove'){ wind(260, 0.22, 0.09, 0.5); crickets(); }
   else if(key === 'sky'){ wind(900, 0.3, 0.13, 0.7); chirps(); }
+  else if(key === 'campus'){ wind(240, 0.16, 0.07, 0.4); chirps(); }
   else wind(300, 0.3, 0.1, 0.5);
 }
 function tone(type, f0, f1, dur, gain, t0, dest){
@@ -4977,7 +5095,7 @@ function sfx(name){
       case 'hit': tone('sine', 140, 55, 0.22, 0.28); noiseHit(900, 0.8, 0.12, 0.14); break;
       case 'zero': tone('sawtooth', 600, 70, 0.9, 0.16); noiseHit(300, 0.8, 0.6, 0.12, t, 60); break;
       case 'ui': tone('square', 1200, 1200, 0.04, 0.03); break;
-      case 'step': { const soft = w === 'dunes' || w === 'sky' || w === 'grove'; noiseHit(soft ? 340 : w === 'grid' ? 2100 : 800, soft ? 0.7 : 2.5, soft ? 0.07 : 0.045, soft ? 0.045 : 0.035); break; }
+      case 'step': { const soft = w === 'dunes' || w === 'sky' || w === 'grove' || w === 'campus'; noiseHit(soft ? 340 : w === 'grid' ? 2100 : 800, soft ? 0.7 : 2.5, soft ? 0.07 : 0.045, soft ? 0.045 : 0.035); break; }
     }
   }catch(e){}
 }
@@ -5052,6 +5170,7 @@ function update(dt, time){
   if(gridSun) gridSun.lookAt(camera.position.x, gridSun.position.y, camera.position.z);
   waterNormal.offset.x += dt * 0.015; waterNormal.offset.y += dt * 0.01;
 
+  for(const q of portals){ const d = Math.hypot(camera.position.x - q.x, camera.position.y - q.y, camera.position.z - q.z); q.gl.material.opacity = 0.35 * smooth(2.5, 7, d); q.disc.material.uniforms.fade.value = smooth(1.2, 3.5, d); }
   spinners.forEach(s => { s.o.rotation.y += dt * 0.9; if(s.bob) s.o.position.y = s.bob + Math.sin(time * 1.3) * 0.25; });
   if(fireflies){
     const pa = fireflies.geo.attributes.position;
@@ -5082,7 +5201,7 @@ function update(dt, time){
     const k = coins[i]; k.g.rotation.y += dt * 2.4; k.g.children[0].position.y = Math.sin(time * 2 + k.phase) * 0.12;
     if(Math.hypot(k.g.position.x - px, k.g.position.y - py, k.g.position.z - pz) < 1.2){
       world.remove(k.g); coins.splice(i, 1); state.coins.add(k.id); reward(10, 5); sfx('coin');
-      if(state.coins.size === 60) toast('All 60 coins collected', 3500);
+      if(state.coins.size === 12 * WORLD_ORDER.length) toast('All ' + 12 * WORLD_ORDER.length + ' coins collected', 3500);
       else if(coins.length === 0) toast('Every coin in ' + WORLDS[state.world].name + ' found');
     }
   }
@@ -5154,7 +5273,9 @@ window.__hub = { state, p, cam, post, stats, WORLDS, scene, renderer, camera, su
   ITEMS, RARITY, get inv(){ return Object.assign({}, state.inv); }, giveItem(id, n){ return giveItem(id, n); }, sell(id){ return sellItem(id); }, useItem, openInventory, closeInventory, openShop, closeShop,
   get pickups(){ return pickups.map(q => ({pid:q.pid, id:q.id, x:q.x, y:q.y, z:q.z})); }, get shopKiosk(){ return shopKiosk && {x:shopKiosk.x, z:shopKiosk.z}; }, get simTime(){ return simTime; },
   VEND, get vendor(){ return vendor && {world:vendor.world, x:vendor.x, z:vendor.z}; }, get vendors(){ return JSON.parse(JSON.stringify(vendorsSeen)); }, get vendNear(){ return vendNear; }, openVendor, closeVendor, buyVend,
-  get fuel(){ return state.fuel; }, set fuel(v){ state.fuel = clamp(+v || 0, 0, FUEL_MAX); fuelShown = -1; fuelHud(); }, FUEL_MAX };
+  get fuel(){ return state.fuel; }, set fuel(v){ state.fuel = clamp(+v || 0, 0, FUEL_MAX); fuelShown = -1; fuelHud(); }, FUEL_MAX,
+  fare, CAMPUS, get portals(){ return portals.map(q => ({to:q.to, x:q.x, z:q.z})); }, get coins(){ return coins.map(k => ({id:k.id, x:k.g.position.x, y:k.g.position.y, z:k.g.position.z})); },
+  get npcs(){ return npcs.map(nn => ({name:nn.name, x:nn.x, z:nn.z, line:nn.line})); }, get colliders(){ return colliders.map(c => Object.assign({}, c)); } };
 })();
 </script>
 </body>
