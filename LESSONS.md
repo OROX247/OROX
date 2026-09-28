@@ -14,3 +14,5 @@
 - Bloom on bright diffuse surfaces (sand, sky horizon) reads as haze. Keep the threshold above 0.9 so only emissive glows and the sun bloom.
 - The quality ladder (`degrade`) drops effects first: SSAO, bloom, shadow resolution, grass, then pixel ratio to 1. It never disables shadows and never goes below pixel ratio 1.
 
+- Avatars are recipe-driven (blueprint 5a): `parseDescription(text)` -> recipe -> `makeAvatar({recipe, name})`. Add a species to SPECIES, a word to WORD_FEATURES/WORD_MATERIALS/WORD_PATTERNS, or a feature builder inside makeAvatar; never special-case one description. `cleanRecipe` validates everything, so an AI path only has to return JSON. The player is `let me`; anything that changes the recipe calls `rebuildPlayer()`.
+- Non-uniform group scale (height vs build) is fine for meshes but stretches sprites: divide a name-tag sprite's scale by the group scale.
