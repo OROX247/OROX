@@ -71,7 +71,38 @@ A single, enormous, persistent virtual universe that started life as an online r
 - Death ("zeroing out"): the avatar drops everything it carried for anyone to loot, the level resets to 1, and it respawns on the start world. In the film, coins burst out of the avatar too. Only a one-of-a-kind extra-life artifact can save you, once. This rule is what makes the whole hunt tense.
 - Inventory: items, artifacts, vehicles, credits. Artifacts are unique: exactly one copy exists in the entire universe, each with a named power.
 
-**Hub version.** Keep the existing suit and glow customiser (the avatar only changes when the player changes it). Add: HP (100 at level 1, +5 per level), a level cap of 99, an inventory panel (I key), items with rarity, artifacts as unique named items. Zero-out rule exactly as above: on death in a danger realm the player drops a loot bundle containing every item and all credits at the death spot, level and XP reset to 1, respawn on Hub Spaceport, and the bundle stays for that session so the player can run back for it. The Second Breath artifact cancels one death and is consumed.
+**Hub version.** The avatar can be anything, and the player gets it by describing it in words. See section 5a for the whole system. Keep the rule that the avatar only changes when the player changes it (describing it is changing it). Add: HP (100 at level 1, +5 per level), a level cap of 99, an inventory panel (I key), items with rarity, artifacts as unique named items. Zero-out rule exactly as above: on death in a danger realm the player drops a loot bundle containing every item and all credits at the death spot, level and XP reset to 1, respawn on Hub Spaceport, and the bundle stays for that session so the player can run back for it. The Second Breath artifact cancels one death and is consumed.
+
+## 5a. Describe your avatar and the game makes it
+
+The owner's rule: the avatar can be whatever the player wants. They type a description, the AI turns it into an avatar. "A tall chrome knight with a red cape and glowing blue eyes." "A small fox in a hoodie." "A blob of green jelly with one eye." All of these must produce something that looks like the words.
+
+**Recipe.** Every avatar in the game is built from one JSON recipe. The recipe is the contract between the words and the mesh:
+
+```
+{ body: "humanoid" | "robot" | "beast" | "blob",
+  height: 0.6–2.4 (metres), build: "slim" | "normal" | "heavy" | "huge",
+  head: "helmet" | "visor" | "bare" | "animal" | "skull" | "screen",
+  features: ["ears","snout","horns","tail","wings","cape","hood","backpack","jetpack","sword","staff","antenna","halo","crown","mask","spikes"],
+  material: "cloth" | "matte" | "plate" | "chrome" | "glass" | "fur" | "jelly" | "stone" | "neon",
+  pattern: "none" | "stripes" | "plates" | "circuits" | "camo" | "checks",
+  colours: { main, second, trim, glow } (hex), eyes: { style: "visor" | "dots" | "wide" | "slits" | "one", glow: hex },
+  face_texture: <optional data-URL, from the AI image model>,
+  voice_line: <one line the avatar says on the Ledger Board, optional> }
+```
+
+**Recipe to mesh.** The current avatar builder (hips, spine, head, arms, legs, walk and jump animation) becomes the humanoid skeleton every body type hangs off. Robot: harder shapes, joints visible, screen or visor head. Beast: same skeleton, digitigrade legs, snout, ears, tail, fur material (dense short fins along the silhouette, not a fur shader). Blob: a displaced sphere on the hips node that squashes with the walk cycle, features stuck on. Height and build scale the skeleton; the walk animation, collider radius and camera height read the scale. Every feature is a small procedural part attached to a named node (cape on the shoulders, tail on the hips, wings on the spine, horns on the head). Materials are MeshStandard or MeshPhysical presets. Patterns are canvas textures. The name tag and the halo still work.
+
+**Words to recipe, three paths, best available one wins.**
+1. Always works, no key, no network: an on-device parser with a big vocabulary. Colours (all common names plus "gold", "chrome", "neon pink"), sizes ("tall", "tiny", "giant", "short"), builds ("slim", "muscular", "chunky"), species and body words ("robot", "android", "knight", "fox", "wolf", "cat", "dragon", "blob", "ghost", "astronaut"), materials, features, eye words. Unknown words are ignored. This is the floor: every description gives a sensible avatar.
+2. Local file plus a key: the description goes to a language model that returns the recipe JSON directly, so any wording works ("looks like a lighthouse keeper who fell in a vat of paint"). The game validates the JSON against the recipe schema and falls back to path 1 for anything invalid. Use an OpenAI-compatible chat endpoint or the Anthropic messages endpoint with the player's own key, stored on the device like the Decart key. The prompt to the model carries the schema and three examples.
+3. Local file plus the Decart key: the description also goes to the image model (lucy-image-2, already used for textures) to make a 1024px face or skin panel and a portrait; the face goes on the head or chest as a decal, the portrait sits beside the name on the Ledger Board. Cached in IndexedDB with the recipe.
+
+**Flow.** On the intro card: a text box "Describe your avatar", a "Make it" button, a live preview of the avatar turning slowly, "Try again" (re-runs with a different seed for the details the words do not fix), and the old suit and glow swatches under "Fine-tune". The recipe saves with the game. The avatar is exactly the same on every visit until the player describes a new one. "Reset" gives the default suit.
+
+**NPCs.** Every NPC gets a random recipe from a list of two hundred short descriptions run through path 1, so the Spaceport is full of different shapes, sizes and species. That is the single biggest thing that makes the universe feel like the OASIS.
+
+**Done means.** Typing "a tall chrome knight with a red cape and glowing blue eyes" gives a visibly tall, chrome, caped avatar with blue eye glow that walks, runs, jumps and boosts with the existing animation, collides with the world at its new size, keeps its name tag, and is still there after a reload. "A small fox in a hoodie" gives a short beast body with ears, snout, tail and a hood. Ten NPCs on the Spaceport look different from each other. Path 2 and path 3 are only checked in the local file with keys present; without keys the game never asks for them just to make an avatar.
 
 ## 6. Money
 
@@ -137,34 +168,56 @@ Shape of it in the film: a race nobody can win until someone drives backwards; a
 - Wonder: each realm is a genre of its own, with its own sky, light, sound and residents.
 - Neon and nostalgia: Hub's own invented old games and songs are everywhere in the Spaceport and Neon Grid, not real ones.
 
+## 11a. Picture quality: the owner's first goal
+
+The owner's words: make it look more realistic than GTA 6. Not "realistic" as in what the world is made of (the realms stay stylised genres), but realistic as in pixels: sharp, clean, high-quality rendering with nothing cheap-looking on screen. This comes before every other feature. Never trade sharpness or frame rate for a feature; if a feature costs quality, it waits.
+
+Honest ceiling: a one-file three.js r128 game in a browser cannot match a console engine's asset budget, but it can be as clean and sharp as the best browser games, and that is the bar. Everything below is standard three.js r128 and runs from the single index.html. The three.js example scripts (postprocessing, shaders, CSM) may be loaded as plain non-module scripts from cdn.jsdelivr.net/npm/three@0.128.0/examples/js/... (the published link allows jsdelivr; cdnjs does not carry the examples).
+
+What "quality" means here, in order of visible impact:
+1. **Resolution and edges.** Render at the full device pixel ratio (cap 2 on desktop, 1.5 on phones), MSAA on, plus an SMAA pass so no edge shimmers. Text and UI stay crisp.
+2. **Shadows.** Cascaded shadow maps (THREE.CSM from the examples) with three cascades, 2048 each on desktop, soft PCF, tuned bias so there is no acne and no peter-panning. Everything casts and receives, including grass tufts near the player.
+3. **Ambient occlusion.** SSAO or SAO pass from the examples, subtle radius, so rocks, pillars, feet and doorways sit into the ground instead of floating.
+4. **Light.** Physically based: sun + sky environment map (PMREM from the sky shader, already there) + hemisphere fill. ACES tone mapping with a per-realm exposure. Bloom pass, subtle, only on emissive glows (portals, neon, shards), never on the whole image. Optional light shafts in Glass Dunes and Night Grove using a cheap radial-blur pass.
+5. **Surfaces.** Every material gets roughness and normal detail; large surfaces get a second detail normal map tiled small so nothing looks flat close up. Procedural textures go to 1024–2048 px. Poly Haven textures (local file) go to 2k with normal, roughness and AO maps. Anisotropy 16. Wet-look variation on the Neon Grid floor, dust on the sandstone, moss on grove rocks.
+6. **Geometry.** Terrain tessellation dense near the player and coarser far away (the current ring layout already does this; raise the near density). Rocks and pillars with more subdivisions and layered displacement, no visible facets at arm's length. Trees with layered canopies; grass as alpha-tested blade cards with a wind shader, thicker near the player. Distant objects get a lower-detail version (THREE.LOD).
+7. **Atmosphere.** Height fog that tints with distance (aerial perspective), a proper sky gradient with a bright sun disc and glare, clouds that catch the light, stars at night that twinkle. Each realm keeps its own look; only the quality goes up.
+8. **Motion.** A steady 60 fps on a normal laptop, 30 on a phone, with frame time measured and a quality ladder that steps down in this order when it drops: light shafts, SSAO, bloom, shadow cascade count, pixel ratio. It never steps below "sharp edges and shadows".
+
+The AI reality mode (R) must keep working on top of the new pipeline: the AI sees the composed world image, avatars still draw on top.
+
+**Done means (checked by the tester with 1920x1080 screenshots in every realm, from the local file):** no jagged edges anywhere, soft shadows with no acne, visible occlusion under rocks and at the base of pillars, subtle bloom on glows only, no flat-looking surfaces within ten metres, no popping when walking, no console errors, and a logged frame time under 16.7 ms on the tester's machine at pixel ratio 1 (or the ladder's first step applied automatically). Before/after screenshots are committed under `shots/` so the owner can see the difference.
+
 ## 12. Roadmap (work in order; every goal is a builder task list checked by the tester)
 
-**Phase 0 (in progress): Glass Dunes looks like a real desert.** Finish the current task list first.
+**Phase 0 (in progress): Glass Dunes looks like a real desert.** Finish the current task list first; it is the first realm to hit the section 11a bar, so do it to that standard.
 
 **Phase 1: the spine.**
-1. Rules line per realm (`magic`, `tech`, `danger`) and the star map (27-sector cube, Sector 1 charted, others uncharted). Done means: the Warp screen shows the cube, each realm shows its sector and rules, and jet boost is disabled in a `tech:false` realm.
-2. Distance-priced warps. Done means: fares match section 4 and the Spaceport is always free.
-3. HP, damage and the zero-out rule with respawn and the loot bundle. Done means: taking 100 damage in a danger realm drops a bundle, resets level, respawns on the Spaceport, and picking the bundle up restores the items and credits.
-4. Inventory panel (I key) with items, rarity and sale price. Done means: an item can be picked up, seen, and sold at Outfitters.
-5. Outfitters shop on Hub Spaceport and a vending terminal in every realm. Done means: buying a cape changes the avatar and persists; buying a health kit and using it restores HP.
-6. Campus realm in Sector 1: perpetual daytime, a school building, a zero-g gym, a forest, free warps while enrolled. Done means: the portal from the Spaceport works, the gym has no gravity, the realm is `danger:false`.
+1. **Picture quality**, exactly as section 11a, applied to every realm. Done means: section 11a's done line.
+2. **Describe-your-avatar**, exactly as section 5a. Done means: section 5a's done line.
+3. Rules line per realm (`magic`, `tech`, `danger`) and the star map (27-sector cube, Sector 1 charted, others uncharted). Done means: the Warp screen shows the cube, each realm shows its sector and rules, and jet boost is disabled in a `tech:false` realm.
+4. Distance-priced warps. Done means: fares match section 4 and the Spaceport is always free.
+5. HP, damage and the zero-out rule with respawn and the loot bundle. Done means: taking 100 damage in a danger realm drops a bundle, resets level, respawns on the Spaceport, and picking the bundle up restores the items and credits.
+6. Inventory panel (I key) with items, rarity and sale price. Done means: an item can be picked up, seen, and sold at Outfitters.
+7. Outfitters shop on Hub Spaceport and a vending terminal in every realm. Done means: buying a cape changes the avatar and persists; buying a health kit and using it restores HP.
+8. Campus realm in Sector 1: perpetual daytime, a school building, a zero-g gym, a forest, free warps while enrolled. Done means: the portal from the Spaceport works, the gym has no gravity, the realm is `danger:false`.
 
 **Phase 2: the Hunt.**
-7. The Archive on the Spaceport with six memory rooms, the Registrar, and the Ledger book. Done means: every room opens, the Ledger is readable, and one hidden detail per room can be inspected.
-8. The Architect's Last Broadcast as the intro to the Hunt (plays once, replayable from the Archive).
-9. Amber Shard: The Hollow dungeon under Glass Dunes' chamber and the Comet Rally cabinet. Done means: the shard is only won by the backwards last lap.
-10. Rose Shard: The Drift and the hotel corridor.
-11. Cyan Shard: the wind chimes and "Low Tide".
-12. Ashfall and the Citadel with three gates and the vault; the Seed; the winning card.
+9. The Archive on the Spaceport with six memory rooms, the Registrar, and the Ledger book. Done means: every room opens, the Ledger is readable, and one hidden detail per room can be inspected.
+10. The Architect's Last Broadcast as the intro to the Hunt (plays once, replayable from the Archive).
+11. Amber Shard: The Hollow dungeon under Glass Dunes' chamber and the Comet Rally cabinet. Done means: the shard is only won by the backwards last lap.
+12. Rose Shard: The Drift and the hotel corridor.
+13. Cyan Shard: the wind chimes and "Low Tide".
+14. Ashfall and the Citadel with three gates and the vault; the Seed; the winning card.
 
 **Phase 3: a living universe.**
-13. Quest portals in every realm with credit and XP rewards.
-14. Monsters per realm with loot.
-15. Artifacts: The Second Breath, The Bell Jar, plus three more with named powers, one copy each.
-16. Meridian Units, the Bell Jar field and the Blackout event.
-17. Vehicles: the hoverbike with fuel.
-18. New realms, one at a time: Warfront, a noir city, a holiday isle, a casino, a memory copy of the Architect's home town.
-19. The Den (private room) with decor.
+15. Quest portals in every realm with credit and XP rewards.
+16. Monsters per realm with loot.
+17. Artifacts: The Second Breath, The Bell Jar, plus three more with named powers, one copy each.
+18. Meridian Units, the Bell Jar field and the Blackout event.
+19. Vehicles: the hoverbike with fuel.
+20. New realms, one at a time: Warfront, a noir city, a holiday isle, a casino, a memory copy of the Architect's home town.
+21. The Den (private room) with decor.
 
 **Phase 4: polish.** Performance on phones, sound per realm, save slots, accessibility. Multiplayer stays parked until the owner says otherwise.
 
