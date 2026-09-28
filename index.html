@@ -5265,7 +5265,7 @@ function addAurora(r){
     vertexShader:'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
     fragmentShader:'uniform float time; uniform vec3 c1, c2; varying vec2 vUv;' + NOISE_GLSL + ' void main(){ float b = fbm5(vec2(vUv.x * 6.0 + time * 0.03, time * 0.05)); float band = smoothstep(0.35, 0.6, b) * (1.0 - smoothstep(0.6, 0.95, b)); float v = pow(1.0 - vUv.y, 1.6) * smoothstep(0.0, 0.15, vUv.y); float fl = 0.6 + 0.4 * sin(vUv.x * 40.0 + time * 2.0 + b * 10.0); vec3 col = mix(c1, c2, vUv.y * 1.2 + b * 0.3); gl_FragColor = vec4(col * band * v * fl * 1.6, band * v * 0.55); }' });
   for(let i = 0; i < 3; i++){ const g = new THREE.PlaneGeometry(900, 160, 64, 1), p = g.attributes.position; for(let k = 0; k < p.count; k++){ const x = p.getX(k); p.setZ(k, Math.sin(x * 0.006 + i) * 90); }
-    const m = new THREE.Mesh(g, mat); m.position.set((r() - 0.5) * 200, 320 + i * 60, -420 - i * 120); m.rotation.y = (r() - 0.5) * 0.8; m.renderOrder = -4; world.add(m); }
+    const m = new THREE.Mesh(g, mat); m.position.set((r() - 0.5) * 200, 320 + i * 60, -420 - i * 120); m.rotation.y = (r() - 0.5) * 0.8; m.renderOrder = -4; m.frustumCulled = false; skyProps.add(m); }   // in the sky group, so it follows you across an endless realm
 }
 /* --- things in the air: flocks of birds, bats at night, butterflies over meadows, shuttles over the Spaceport --- */
 let flyers = [];
@@ -5394,7 +5394,19 @@ const FORGE_IDEAS = ['a volcanic island at dusk with black sand, lava rivers, a 
 $('#forgeBtn').addEventListener('click', openForge);
 $('#forgeBuild').addEventListener('click', () => forgeFromText(true));
 $('#forgeSave').addEventListener('click', () => forgeFromText(false));
-$('#forgeIdea').addEventListener('click', () => { $('#forgeText').value = FORGE_IDEAS[Math.floor(Math.random() * FORGE_IDEAS.length)]; });
+$('#forgeIdea').addEventListener('click', async () => {
+  const pick = () => { $('#forgeText').value = FORGE_IDEAS[Math.floor(Math.random() * FORGE_IDEAS.length)]; };
+  if(!(dreamer.sample || dreamer.key) || dreamer.failed){ pick(); return; }
+  $('#forgeText').value = 'Dreaming…';
+  try{
+    const prompt = 'Invent one realm for a game in a single sentence of 12-30 words, unlike these: ' + FORGE_IDEAS.slice(0, 4).join('; ') + '. Use only these kinds of words so the game can build it: land (plains, hills, mountains, island, archipelago, coast, canyon, crater, valley, dunes, flats, swamp, volcano), ground (grass, meadow, sand, snow, ash, rock, gravel, moss, soil, martian), water (lake, sea, lava, acid, ice), a time of day, weather (clear, cloudy, fog, storm, rain, snow, sandstorm, embers), trees (forest, pines, jungle, dead trees, autumn, cherry blossom), one or two of (ruins, temple, tower, castle, village, city, lighthouse, statues, monoliths, pyramid, arch, windmill), and extras (mushrooms, crystals, flowers, fireflies, lanterns, aurora, moons, ringed planet, cactus, bamboo, boulders, geysers), with a colour or two. Reply with only the sentence.';
+    let text;
+    if(dreamer.sample){ const r = await dreamer.sample(prompt, {modelTier:'quick', cache:false}); text = r.text; }
+    else { const r = await fetch('https://api.anthropic.com/v1/messages', {method:'POST', headers:{'content-type':'application/json', 'x-api-key':dreamer.key, 'anthropic-version':'2023-06-01', 'anthropic-dangerous-direct-browser-access':'true'}, body:JSON.stringify({model:'claude-haiku-4-5', max_tokens:200, messages:[{role:'user', content:prompt}]})}); const j = await r.json(); text = (j.content || []).map(c => c.text || '').join(''); }
+    text = String(text || '').replace(/^["'\s]+|["'\s]+$/g, '').split('\n')[0].slice(0, 240);
+    if(text.length > 10) $('#forgeText').value = text; else pick();
+  }catch(e){ pick(); }
+});
 $('#forgeClose').addEventListener('click', closeForge);
 $('#dreamKey').addEventListener('click', () => { const k = (window.prompt('Paste an Anthropic API key (from console.anthropic.com). It is only stored on this computer and used to invent landmarks in forged realms.') || '').trim(); if(k){ lsSet(DREAM_API_KEY, k); dreamer.key = k; dreamer.failed = false; dreamer.source = 'Claude (API)'; } else { lsSet(DREAM_API_KEY, null); dreamer.key = null; dreamer.source = dreamer.sample ? 'Claude' : 'the game'; } renderForge(); });
 $('#forgeText').addEventListener('keydown', e => { if(e.code === 'Enter' && !e.shiftKey){ e.preventDefault(); forgeFromText(true); } });
@@ -5617,17 +5629,19 @@ function dreamerPrompt(rec){
   const seen = (endless.log || []).slice(-6).map(d => d.name).join(', ');
   return 'You are the Dreamer of a game world. The player is exploring an endless realm described as: "' + rec.text + '". Invent 8 landmarks they might find there, each new and surprising, none like these already found: ' + (seen || 'none yet') + '.\n' +
     'Each landmark must be buildable from these building blocks, so its "text" field must use one of these structure words: ruins, temple, tower, castle, village, city, lighthouse, statues, monoliths, pyramid, arch, windmill; and may add at most one of: crystals, glowing mushrooms, lanterns, fireflies; plus an adjective or a colour ("a sunken black temple with crystals").\n' +
-    'Reply with only a JSON array of 8 objects {"name": a 2-4 word proper name, "text": the buildable phrase, "lore": one vivid sentence of 8-20 words the player reads on arriving, in the voice of local legend, no real-world names or brands}.';
+    'Reply with only a JSON object {"landmarks": [8 objects {"name": a 2-4 word proper name, "text": the buildable phrase, "lore": one vivid sentence of 8-20 words the player reads on arriving, in the voice of local legend}], "talk": [6 short things the locals of this realm might say to a traveller, each under 14 words]}. No real-world names or brands.';
 }
 async function askDreamer(){
   if(!endless || dreamer.busy || dreamer.failed) return; const rec = endless.rec;
   let ask = null;
   if(dreamer.sample) ask = async () => dreamer.sample.json(dreamerPrompt(rec), {modelTier:'quick', cache:false});
-  else if(dreamer.key) ask = async () => { const r = await fetch('https://api.anthropic.com/v1/messages', {method:'POST', headers:{'content-type':'application/json', 'x-api-key':dreamer.key, 'anthropic-version':'2023-06-01', 'anthropic-dangerous-direct-browser-access':'true'}, body:JSON.stringify({model:'claude-haiku-4-5', max_tokens:1200, messages:[{role:'user', content:dreamerPrompt(rec)}]})}); if(!r.ok) throw {code:'http_' + r.status}; const j = await r.json(); const t = (j.content || []).map(c => c.text || '').join(''); const m = t.match(/\[[\s\S]*\]/); return JSON.parse(m ? m[0] : t); };
+  else if(dreamer.key) ask = async () => { const r = await fetch('https://api.anthropic.com/v1/messages', {method:'POST', headers:{'content-type':'application/json', 'x-api-key':dreamer.key, 'anthropic-version':'2023-06-01', 'anthropic-dangerous-direct-browser-access':'true'}, body:JSON.stringify({model:'claude-haiku-4-5', max_tokens:1200, messages:[{role:'user', content:dreamerPrompt(rec)}]})}); if(!r.ok) throw {code:'http_' + r.status}; const j = await r.json(); const t = (j.content || []).map(c => c.text || '').join(''); const m = t.match(/\{[\s\S]*\}|\[[\s\S]*\]/); return JSON.parse(m ? m[0] : t); };
   if(!ask) return;
   dreamer.busy = true;
   try{
-    const arr = await ask(); if(!Array.isArray(arr)) throw {code:'shape'};
+    let arr = await ask(); let talk = null; if(arr && !Array.isArray(arr) && Array.isArray(arr.landmarks)){ talk = Array.isArray(arr.talk) ? arr.talk.filter(t => typeof t === 'string').map(t => t.slice(0, 120)).slice(0, 8) : null; arr = arr.landmarks; }
+    if(!Array.isArray(arr)) throw {code:'shape'};
+    if(talk && talk.length && endless){ LINES[state.world] = talk; npcs.forEach(nn => { nn.line = talk[Math.floor(Math.random() * talk.length)]; nn.spoke = false; }); }
     const clean = arr.filter(d => d && typeof d.text === 'string').slice(0, 10).map(d => ({name:String(d.name || 'A Place').slice(0, 40), text:String(d.text).slice(0, 160), lore:String(d.lore || '').slice(0, 220), from:dreamer.sample ? 'Claude' : 'Claude (API)'}));
     if(endless) endless.dreams.push(...clean); dreamer.source = clean.length ? (dreamer.sample ? 'Claude' : 'Claude (API)') : dreamer.source;
     if(clean.length && !dreamer.tried) toast('The Dreamer is awake: ' + dreamer.source + ' is inventing this realm as you walk', 3200);
@@ -7335,7 +7349,7 @@ window.addEventListener('message', e => {
     if(m.hideMe != null) me.g.visible = !m.hideMe;
     if(m.cine != null) setCine(!!m.cine);
     if(typeof m.forge === 'string'){ $('#forgeText').value = m.forge; forgeFromText(true); }
-    if(m.stats && e.source) e.source.postMessage({hub:'stats', fps:Math.round(stats.fps), ms:Math.round(stats.ms * 10) / 10, q:qLevel, world:state.world, gl:GL_INFO, pr:renderer.getPixelRatio(), w:innerWidth, h:innerHeight, post:post.on, x:Math.round(p.x), z:Math.round(p.z), frames:stats.frames, err:(document.getElementById('errBox') || {}).textContent || null, chunks:endless ? endless.chunks.size : -1, dreamer:{source:dreamer.source, sample:!!dreamer.sample, busy:dreamer.busy, failed:dreamer.failed, queue:endless ? endless.dreams.length : -1, placed:endless ? Object.values(endless.dreamsPlaced || {}).map(d => d.name + ' [' + d.from + ']') : [], log:endless ? endless.log.slice(-5) : []}}, '*');
+    if(m.stats && e.source) e.source.postMessage({hub:'stats', fps:Math.round(stats.fps), ms:Math.round(stats.ms * 10) / 10, q:qLevel, world:state.world, gl:GL_INFO, pr:renderer.getPixelRatio(), w:innerWidth, h:innerHeight, post:post.on, x:Math.round(p.x), z:Math.round(p.z), frames:stats.frames, err:(document.getElementById('errBox') || {}).textContent || null, chunks:endless ? endless.chunks.size : -1, dreamer:{source:dreamer.source, sample:!!dreamer.sample, busy:dreamer.busy, failed:dreamer.failed, queue:endless ? endless.dreams.length : -1, next:endless ? endless.dreams.slice(0, 8).map(d => d.name + ' | ' + d.text + ' | ' + d.lore) : [], talk:LINES[state.world] ? LINES[state.world].slice(0, 6) : [], placed:endless ? Object.values(endless.dreamsPlaced || {}).map(d => d.name + ' [' + d.from + ']') : [], log:endless ? endless.log.slice(-5) : []}}, '*');
   }catch(err){ console.warn('ctl', err); }
 });
 // hooks for the tester (headless checks) and for debugging; not used by the game itself
