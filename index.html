@@ -168,7 +168,7 @@ body.paused #joy, body.paused #jumpBtn{ display:none; }
 
 <div id="corner">
   <canvas id="minimap" aria-label="Minimap"></canvas>
-  <div class="btns"><button class="hbtn" id="aiBtn" title="AI reality mode (R)">AI</button><button class="hbtn" id="lookBtn" title="Realm look (L)">Look</button><button class="hbtn" id="shopBtn" style="display:none">Shop</button><button class="hbtn" id="mapBtn">Warp</button><button class="hbtn" id="helpBtn" aria-label="Avatar and controls">?</button></div>
+  <div class="btns"><button class="hbtn" id="aiBtn" title="AI reality mode (R)">AI</button><button class="hbtn" id="lookBtn" title="Realm look (L)">Look</button><button class="hbtn" id="sndBtn" title="Sound on/off (N)">Sound</button><button class="hbtn" id="shopBtn" style="display:none">Shop</button><button class="hbtn" id="mapBtn">Warp</button><button class="hbtn" id="helpBtn" aria-label="Avatar and controls">?</button></div>
 </div>
 
 <div id="intro" class="overlay" role="dialog" aria-labelledby="introTitle">
@@ -2166,12 +2166,12 @@ const state = {
   name: typeof sv.name === 'string' ? sv.name : '', color: typeof sv.color === 'string' ? sv.color : '#1f2a44',
   visor: typeof sv.visor === 'string' ? sv.visor : '#5ce1e6', xp: num(sv.xp, 0), credits: num(sv.credits, 20),
   won: !!sv.won, world: 'hub', started: false,
-  look: typeof sv.look === 'string' ? sv.look.slice(0, 300) : '', recipe: null, owned: new Set(arr(sv.owned))
+  look: typeof sv.look === 'string' ? sv.look.slice(0, 300) : '', recipe: null, owned: new Set(arr(sv.owned)), mute: !!sv.mute
 };
 // state.recipe is filled in once the recipe schema below is defined (see loadRecipe)
 function persist(){
   try{ localStorage.setItem(SAVE_KEY, JSON.stringify({coins:[...state.coins], shards:[...state.shards], visited:[...state.visited],
-    name:state.name, color:state.color, visor:state.visor, xp:state.xp, credits:state.credits, won:state.won, look:state.look, recipe:state.recipe, owned:[...state.owned]})); }catch(e){}
+    name:state.name, color:state.color, visor:state.visor, xp:state.xp, credits:state.credits, won:state.won, look:state.look, recipe:state.recipe, owned:[...state.owned], mute:state.mute})); }catch(e){}
 }
 function rng(seed){ return function(){ seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
 function makeNoise(seed){
@@ -3479,6 +3479,7 @@ function buildWorld(key){
   applyPhotos(key); autoReal(key);
   if(typeof aiPrompt === 'function') aiPrompt();
   $('#worldName').textContent = W.name;
+  if(snd.ctx) ambience(key);
 }
 
 /* ================= HUD ================= */
@@ -3497,7 +3498,7 @@ function refreshHud(){
 function bump(){ const el = $('#statPanel'); el.classList.remove('bump'); void el.offsetWidth; el.classList.add('bump'); }
 function reward(xp, credits){
   const before = lvlOf(state.xp); state.xp += xp; state.credits += credits; persist(); refreshHud(); bump();
-  const after = lvlOf(state.xp); if(after > before){ state.hp += 5 * (after - before); hpHud(); setTimeout(() => toast('Level ' + after + ' reached'), 700); }
+  const after = lvlOf(state.xp); if(after > before){ state.hp += 5 * (after - before); hpHud(); setTimeout(() => { toast('Level ' + after + ' reached'); sfx('level'); }, 700); }
 }
 
 /* ================= health (blueprint 5): HP, damage, zeroing out ================= */
@@ -3512,7 +3513,7 @@ function hpHud(){
 }
 function hurt(n, why){
   if(!(n > 0) || zeroing || traveling || !WORLDS[state.world].rules.danger) return 0;
-  n = Math.round(n); state.hp = Math.max(0, state.hp - n); hpHud();
+  n = Math.round(n); state.hp = Math.max(0, state.hp - n); hpHud(); sfx('hit');
   const el = $('#idPanel'); el.classList.remove('hurt'); void el.offsetWidth; el.classList.add('hurt');
   const fx = $('#hurtFx'); fx.classList.add('on'); clearTimeout(hurtFxT); hurtFxT = setTimeout(() => fx.classList.remove('on'), 90);
   if(state.hp <= 0) zeroOut(why);
@@ -3574,6 +3575,7 @@ function updateBurst(dt){
 // Goal 17 hook: when the player holds The Second Breath, consume it here, refill HP, say so, and return true to cancel this death
 function trySecondBreath(why){ return false; }
 function zeroOut(why){
+  sfx('zero');
   if(zeroing) return;
   if(trySecondBreath(why)) return;
   zeroing = true;
@@ -3672,7 +3674,7 @@ function shopAction(it){
   const owned = state.owned.has(it.id);
   if(!owned){
     if(state.credits < it.price){ toast('Not enough credits. Coins turn into credits.'); return; }
-    state.credits -= it.price; state.owned.add(it.id); toast('Bought: ' + it.name + ' for ₵' + it.price, 2600); reward(10, 0);
+    state.credits -= it.price; state.owned.add(it.id); toast('Bought: ' + it.name + ' for ₵' + it.price, 2600); reward(10, 0); sfx('buy');
   }
   if(it.kind === 'feature'){ const f = state.recipe.features, i = f.indexOf(it.id); if(owned && i >= 0) f.splice(i, 1); else if(i < 0) f.push(it.id); }
   else { state.recipe.material = (owned && state.recipe.material === it.value) ? (state.look ? parseDescription(state.look).material : 'plate') : it.value; }
@@ -3741,6 +3743,7 @@ window.addEventListener('keydown', e => {
   if(!warpEl.classList.contains('hidden')){ if(e.code === 'Escape' || e.code === 'KeyM') closeWarp(); return; }
   if(!shopEl.classList.contains('hidden')){ if(e.code === 'Escape' || e.code === 'KeyE') closeShop(); return; }
   if(e.code === 'KeyE'){ if(shopNear) openShop(); return; }
+  if(e.code === 'KeyN'){ setMute(snd.on); return; }
   if(e.code === 'Escape'){ openIntro(); return; }
   if(e.code === 'KeyM'){ openWarp(); return; }
   if(e.code === 'KeyR'){ aiStart(); return; }
@@ -3780,7 +3783,7 @@ let traveling = false, portalCool = 0;
 const fadeEl = $('#fade');
 function travel(to, opts){
   if(traveling) return; traveling = true; opts = opts || {};
-  const from = state.world; fadeEl.classList.add('on');
+  const from = state.world; fadeEl.classList.add('on'); sfx('warp');
   setTimeout(() => {
     buildWorld(to);
     if(opts.spawn || (to === 'hub' && !portals.some(q => q.to === from))){ p.x = 0; p.z = 14; cam.yaw = 0; }
@@ -4163,6 +4166,100 @@ function setupPost(){
 }
 setupPost();
 
+/* ================= sound: everything is synthesised, no files ================= */
+const snd = { ctx:null, master:null, amb:null, nodes:[], timers:[], on:!sv.mute, stepT:0, world:null };
+function audioInit(){
+  if(snd.ctx) return;
+  try{
+    const AC = window.AudioContext || window.webkitAudioContext; if(!AC) return;
+    snd.ctx = new AC(); snd.master = snd.ctx.createGain(); snd.master.gain.value = snd.on ? 0.8 : 0; snd.master.connect(snd.ctx.destination);
+    snd.amb = snd.ctx.createGain(); snd.amb.gain.value = 0.55; snd.amb.connect(snd.master);
+    ambience(state.world);
+  }catch(e){ snd.ctx = null; }
+  if(snd.ctx && snd.ctx.state === 'suspended') snd.ctx.resume().catch(() => {});
+}
+function noiseBuf(kind, sec){
+  const c = snd.ctx, n = Math.floor(c.sampleRate * sec), b = c.createBuffer(1, n, c.sampleRate), d = b.getChannelData(0); let last = 0;
+  for(let i = 0; i < n; i++){ const w = Math.random() * 2 - 1; if(kind === 'brown'){ last = (last + 0.02 * w) / 1.02; d[i] = last * 3.5; } else d[i] = w; }
+  return b;
+}
+let brownBuf = null, whiteBuf = null;
+const bufs = () => { if(!brownBuf){ brownBuf = noiseBuf('brown', 4); whiteBuf = noiseBuf('white', 1); } return {brownBuf, whiteBuf}; };
+function ambStop(){ snd.nodes.forEach(n => { try{ n.stop ? n.stop() : n.disconnect(); }catch(e){} }); snd.nodes = []; snd.timers.forEach(clearTimeout); snd.timers = []; }
+function wind(cut, gain, rate, depth){
+  const c = snd.ctx, src = c.createBufferSource(); src.buffer = bufs().brownBuf; src.loop = true;
+  const f = c.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = cut; f.Q.value = 0.6;
+  const g = c.createGain(); g.gain.value = gain;
+  const lfo = c.createOscillator(), lg = c.createGain(); lfo.frequency.value = rate; lg.gain.value = gain * depth; lfo.connect(lg); lg.connect(g.gain);
+  src.connect(f); f.connect(g); g.connect(snd.amb); src.start(); lfo.start(); snd.nodes.push(src, lfo, g);
+}
+function hum(freqs, cut, gain, trem){
+  const c = snd.ctx, f = c.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = cut; const g = c.createGain(); g.gain.value = gain; f.connect(g); g.connect(snd.amb);
+  freqs.forEach(fr => { const o = c.createOscillator(); o.type = 'sawtooth'; o.frequency.value = fr; o.detune.value = (Math.random() - 0.5) * 12; o.connect(f); o.start(); snd.nodes.push(o); });
+  if(trem){ const lfo = c.createOscillator(), lg = c.createGain(); lfo.frequency.value = trem; lg.gain.value = gain * 0.4; lfo.connect(lg); lg.connect(g.gain); lfo.start(); snd.nodes.push(lfo); }
+  snd.nodes.push(g);
+}
+function crickets(){
+  const c = snd.ctx, o = c.createOscillator(); o.type = 'sine'; o.frequency.value = 4300; const g = c.createGain(); g.gain.value = 0;
+  const lfo = c.createOscillator(), lg = c.createGain(); lfo.type = 'square'; lfo.frequency.value = 17; lg.gain.value = 0.012; lfo.connect(lg); lg.connect(g.gain);
+  o.connect(g); g.connect(snd.amb); o.start(); lfo.start(); snd.nodes.push(o, lfo, g);
+  const gate = () => { if(snd.nodes.indexOf(g) < 0) return; const t = c.currentTime; g.gain.cancelScheduledValues(t); g.gain.setTargetAtTime(0.012, t, 0.3); g.gain.setTargetAtTime(0, t + 1.5 + Math.random() * 3, 0.4); snd.timers.push(setTimeout(gate, 3000 + Math.random() * 5000)); };
+  gate();
+}
+function chirps(){
+  const c = snd.ctx;
+  const one = () => { if(state.world !== 'sky' || !snd.ctx) return; const t = c.currentTime, n = 2 + Math.floor(Math.random() * 3), base = 1800 + Math.random() * 1400;
+    for(let i = 0; i < n; i++){ const o = c.createOscillator(), g = c.createGain(); o.type = 'sine'; const t0 = t + i * 0.16; o.frequency.setValueAtTime(base, t0); o.frequency.exponentialRampToValueAtTime(base * 1.5, t0 + 0.06); o.frequency.exponentialRampToValueAtTime(base * 0.9, t0 + 0.13);
+      g.gain.setValueAtTime(0.0001, t0); g.gain.linearRampToValueAtTime(0.05, t0 + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.14); o.connect(g); g.connect(snd.amb); o.start(t0); o.stop(t0 + 0.16); }
+    snd.timers.push(setTimeout(one, 2500 + Math.random() * 6000)); };
+  snd.timers.push(setTimeout(one, 1500));
+}
+function ambience(key){
+  if(!snd.ctx) return; ambStop(); snd.world = key;
+  if(key === 'hub'){ wind(160, 0.35, 0.07, 0.4); hum([55, 82.5], 220, 0.025, 0.3); }
+  else if(key === 'dunes'){ wind(520, 0.5, 0.11, 0.6); wind(1400, 0.08, 0.23, 0.9); }
+  else if(key === 'grid'){ hum([55, 110, 165], 320, 0.05, 0.5); wind(90, 0.15, 0.05, 0.3); }
+  else if(key === 'grove'){ wind(260, 0.22, 0.09, 0.5); crickets(); }
+  else if(key === 'sky'){ wind(900, 0.3, 0.13, 0.7); chirps(); }
+  else wind(300, 0.3, 0.1, 0.5);
+}
+function tone(type, f0, f1, dur, gain, t0, dest){
+  const c = snd.ctx, o = c.createOscillator(), g = c.createGain(); t0 = t0 || c.currentTime; o.type = type;
+  o.frequency.setValueAtTime(f0, t0); if(f1 && f1 !== f0) o.frequency.exponentialRampToValueAtTime(f1, t0 + dur * 0.8);
+  g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(gain, t0 + 0.012); g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+  o.connect(g); g.connect(dest || snd.master); o.start(t0); o.stop(t0 + dur + 0.05);
+}
+function noiseHit(cut, q, dur, gain, t0, sweepTo){
+  const c = snd.ctx, src = c.createBufferSource(); src.buffer = bufs().whiteBuf; t0 = t0 || c.currentTime;
+  const f = c.createBiquadFilter(); f.type = 'bandpass'; f.frequency.setValueAtTime(cut, t0); if(sweepTo) f.frequency.exponentialRampToValueAtTime(sweepTo, t0 + dur); f.Q.value = q;
+  const g = c.createGain(); g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(gain, t0 + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+  src.connect(f); f.connect(g); g.connect(snd.master); src.start(t0); src.stop(t0 + dur + 0.05);
+}
+function sfx(name){
+  if(!snd.ctx || !snd.on) return;
+  const t = snd.ctx.currentTime, w = state.world;
+  try{
+    switch(name){
+      case 'coin': tone('sine', 880, 1320, 0.16, 0.18); tone('sine', 1760, 1760, 0.1, 0.05, t + 0.05); break;
+      case 'shard': [523, 659, 784, 1047].forEach((f, i) => tone('triangle', f, f, 0.9, 0.12, t + i * 0.07)); break;
+      case 'win': [523, 659, 784, 1047, 1319, 1568].forEach((f, i) => tone('triangle', f, f, 0.7, 0.12, t + i * 0.11)); break;
+      case 'level': [660, 880, 1100, 1320].forEach((f, i) => tone('square', f, f, 0.12, 0.05, t + i * 0.09)); break;
+      case 'buy': tone('square', 660, 660, 0.07, 0.06); tone('square', 990, 990, 0.09, 0.06, t + 0.08); break;
+      case 'jump': noiseHit(700, 1.2, 0.09, 0.08); break;
+      case 'boost': noiseHit(400, 1.5, 0.38, 0.16, t, 2200); tone('sawtooth', 120, 380, 0.3, 0.05); break;
+      case 'warp': tone('sine', 220, 1760, 0.5, 0.14); noiseHit(600, 0.7, 0.55, 0.12, t, 4000); break;
+      case 'hit': tone('sine', 140, 55, 0.22, 0.28); noiseHit(900, 0.8, 0.12, 0.14); break;
+      case 'zero': tone('sawtooth', 600, 70, 0.9, 0.16); noiseHit(300, 0.8, 0.6, 0.12, t, 60); break;
+      case 'ui': tone('square', 1200, 1200, 0.04, 0.03); break;
+      case 'step': { const soft = w === 'dunes' || w === 'sky' || w === 'grove'; noiseHit(soft ? 340 : w === 'grid' ? 2100 : 800, soft ? 0.7 : 2.5, soft ? 0.07 : 0.045, soft ? 0.045 : 0.035); break; }
+    }
+  }catch(e){}
+}
+function setMute(m){ snd.on = !m; state.mute = m; persist(); if(!snd.ctx && !m) audioInit(); if(snd.master) snd.master.gain.setTargetAtTime(m ? 0 : 0.8, snd.ctx.currentTime, 0.05); $('#sndBtn').textContent = m ? 'Muted' : 'Sound'; $('#sndBtn').classList.toggle('on', !m); }
+$('#sndBtn').addEventListener('click', () => setMute(snd.on));
+$('#sndBtn').textContent = snd.on ? 'Sound' : 'Muted'; $('#sndBtn').classList.toggle('on', snd.on);
+window.addEventListener('pointerdown', audioInit, {once:true, capture:true}); window.addEventListener('keydown', audioInit, {once:true, capture:true});
+
 /* ================= loop ================= */
 const _t0 = new V3(), _t1 = new V3();
 function camTarget(){
@@ -4198,8 +4295,8 @@ function update(dt, time){
   p.x = nx; p.z = nz;
   jumpBuffer -= dt;
   if(jumpBuffer > 0 && !zeroing){
-    if(p.grounded){ p.vy = 8.6; p.grounded = false; p.airJumps = 1; jumpBuffer = 0; }
-    else if(p.airJumps > 0){ if(WORLDS[state.world].rules.tech){ p.vy = 8.4; p.airJumps = 0; jumpBuffer = 0; p.flameT = 0.45; } else { p.airJumps = 0; jumpBuffer = 0; toast('No tech works in ' + WORLDS[state.world].name + ': the boost is dead here', 2200); } }
+    if(p.grounded){ p.vy = 8.6; p.grounded = false; p.airJumps = 1; jumpBuffer = 0; sfx('jump'); }
+    else if(p.airJumps > 0){ if(WORLDS[state.world].rules.tech){ p.vy = 8.4; p.airJumps = 0; jumpBuffer = 0; p.flameT = 0.45; sfx('boost'); } else { p.airJumps = 0; jumpBuffer = 0; toast('No tech works in ' + WORLDS[state.world].name + ': the boost is dead here', 2200); } }
   }
   const wasGrounded = p.grounded;
   p.vy -= 24 * dt; p.y += p.vy * dt;
@@ -4255,7 +4352,7 @@ function update(dt, time){
   for(let i = coins.length - 1; i >= 0; i--){
     const k = coins[i]; k.g.rotation.y += dt * 2.4; k.g.children[0].position.y = Math.sin(time * 2 + k.phase) * 0.12;
     if(Math.hypot(k.g.position.x - px, k.g.position.y - py, k.g.position.z - pz) < 1.2){
-      world.remove(k.g); coins.splice(i, 1); state.coins.add(k.id); reward(10, 5);
+      world.remove(k.g); coins.splice(i, 1); state.coins.add(k.id); reward(10, 5); sfx('coin');
       if(state.coins.size === 60) toast('All 60 coins collected', 3500);
       else if(coins.length === 0) toast('Every coin in ' + WORLDS[state.world].name + ' found');
     }
@@ -4263,13 +4360,14 @@ function update(dt, time){
   if(shardObj){
     const s = shardObj; s.m.rotation.y += dt * 1.5; s.m.position.y = s.gl.position.y = s.base + Math.sin(time * 2) * 0.2;
     if(Math.hypot(s.m.position.x - px, s.m.position.y - py, s.m.position.z - pz) < 1.6){
-      [s.m, s.beam, s.l, s.gl].forEach(o => world.remove(o)); state.shards.add(s.id); shardObj = null; reward(150, 50);
+      [s.m, s.beam, s.l, s.gl].forEach(o => world.remove(o)); state.shards.add(s.id); shardObj = null; reward(150, 50); sfx('shard');
       toast(state.shards.size < 3 ? 'Shard found. ' + state.shards.size + ' of 3.   +150 XP' : 'All three shards found. The vault in the Hub is open.', 4200);
     }
   }
   if(state.world === 'hub' && state.shards.size >= 3 && !state.won && Math.hypot(p.x, p.z) < 2.8){
-    state.won = true; reward(500, 200); setHalo(); toast('You opened the vault. First to crack the Hub.   +500 XP', 5000);
+    state.won = true; reward(500, 200); sfx('win'); setHalo(); toast('You opened the vault. First to crack the Hub.   +500 XP', 5000);
   }
+  if(playing && p.grounded && p.speed > 0.6){ snd.stepT -= dt; if(snd.stepT <= 0){ sfx('step'); snd.stepT = p.speed > 7 ? 0.27 : 0.42; } } else snd.stepT = 0.1;
   shopProximity();
   hurtCool -= dt; updateHazards(time); updateBurst(dt); checkBundles();
   if(!WORLDS[state.world].rules.danger && !zeroing && state.hp < maxHp()){ state.hp = Math.min(maxHp(), state.hp + 12 * dt); hpHud(); }
@@ -4320,7 +4418,7 @@ ready.then(() => new Promise(res => setTimeout(res, 60))).then(() => {
   $('#nameInput').focus();
 }).catch(err => { const ld = $('#loading'); if(ld) ld.textContent = 'Could not start: ' + err.message; });
 // hooks for the tester (headless checks) and for debugging; not used by the game itself
-window.__hub = { state, p, cam, post, stats, WORLDS, scene, renderer, camera, sunLight, hemi, gl:GL_INFO, softwareGL:SOFTWARE_GL, travel, buildWorld, startGame, setPaused, degrade, parseDescription, makeFromWords, rebuildPlayer, cleanRecipe, get me(){ return me; }, freezeQuality(){ warm = 1e9; }, get qLevel(){ return qLevel; }, get world(){ return state.world; }, get envRT(){ return envRT; },
+window.__hub = { state, p, cam, post, stats, WORLDS, scene, renderer, camera, sunLight, hemi, gl:GL_INFO, softwareGL:SOFTWARE_GL, travel, buildWorld, startGame, setPaused, degrade, parseDescription, makeFromWords, rebuildPlayer, cleanRecipe, snd, sfx, setMute, get me(){ return me; }, freezeQuality(){ warm = 1e9; }, get qLevel(){ return qLevel; }, get world(){ return state.world; }, get envRT(){ return envRT; },
   damage(n){ return hurt(n, 'test'); }, get hazards(){ return hazards.map(h => ({x:h.x, z:h.z, L:h.L})); },
   get bundles(){ return bundles.map(b => ({id:b.id, world:b.world, x:b.x, y:b.y, z:b.z, credits:b.credits, items:b.items.map(i => Object.assign({}, i)), why:b.why})); }, get zeroing(){ return zeroing; }, get hp(){ return state.hp; }, get maxHp(){ return maxHp(); }, get level(){ return lvlOf(state.xp); } };
 })();
