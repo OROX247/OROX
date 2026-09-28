@@ -348,9 +348,31 @@ const texNoise = makeNoise(5);
 const fDetail = tileField(256, texNoise, 0.045, 5);
 const detailTex = grayTex(fDetail, 256, 0.68, 1.0);
 const detailNormal = normalTex(fDetail, 256, 6);
-const fSand = new Float32Array(256 * 256);
-for(let y = 0; y < 256; y++) for(let x = 0; x < 256; x++){ const i = y * 256 + x; fSand[i] = 0.5 + 0.5 * Math.sin((x + y * 0.25 + fDetail[i] * 60) / 256 * TAU * 9) * 0.8 + fDetail[i] * 0.2; }
-const sandNormal = normalTex(fSand, 256, 4);
+// Glass Dunes sand: fine asymmetric wind ripples (gentle windward side, steep lee side) plus grain speckle.
+// Seeded and tileable, built once on first visit and kept (shared), so the ground looks the same every visit.
+let sandTexCache = null;
+function sandTextures(){
+  if(sandTexCache) return sandTexCache;
+  const S = 512, q = rng(2301), f = new Float32Array(S * S), px = new Uint8ClampedArray(S * S * 4);
+  const at = (i, j) => fDetail[(j & 255) * 256 + (i & 255)];
+  const D = (x, y) => { const fx = x / 2, fy = y / 2, x0 = Math.floor(fx), y0 = Math.floor(fy), tx = fx - x0, ty = fy - y0;
+    return (at(x0, y0) * (1 - tx) + at(x0 + 1, y0) * tx) * (1 - ty) + (at(x0, y0 + 1) * (1 - tx) + at(x0 + 1, y0 + 1) * tx) * ty; };
+  for(let y = 0; y < S; y++) for(let x = 0; x < S; x++){
+    const i = y * S + x, d = D(x, y), d2 = D(x * 2 + 97, y * 2 + 41);
+    const ph = (x * 22 + y * 5) / S + d * 3, t = ph - Math.floor(ph);   // 22 x 5 whole cycles per tile keeps it seamless
+    let h = t < 0.75 ? t / 0.75 : (1 - t) / 0.25; h = h * h * (3 - 2 * h);
+    const amp = 0.3 + 0.7 * smooth(0.25, 0.75, d2), g = q();
+    f[i] = h * amp + d * 0.5 + (g - 0.5) * 0.03;
+    let v = 0.9 + (q() - 0.5) * 0.13 + (h - 0.5) * 0.05 * amp + (d - 0.5) * 0.08, cr = 1, cg = 0.965, cb = 0.915;
+    if(g < 0.022){ v *= 0.55 + g * 10; cr = 0.95; cg = 0.86; cb = 0.8; }          // dark mineral grains
+    else if(g > 0.988){ v = Math.min(1, v * 1.1); cr = 1; cg = 0.99; cb = 0.97; }  // bright quartz grains
+    const k = i * 4; px[k] = v * cr * 255; px[k+1] = v * cg * 255; px[k+2] = v * cb * 255; px[k+3] = 255;
+  }
+  const map = canvasTex(S, S, x => { const img = x.createImageData(S, S); img.data.set(px); x.putImageData(img, 0, 0); });
+  const normal = normalTex(f, S, 2.5);
+  SHARED_TEX.add(map); SHARED_TEX.add(normal);
+  return (sandTexCache = {map, normal});
+}
 const waterNormal = normalTex(tileField(256, makeNoise(9), 0.03, 4), 256, 7); waterNormal.repeat.set(3, 3);
 const glowTex = canvasTex(128, 128, x => {
   const g = x.createRadialGradient(64, 64, 0, 64, 64, 64);
@@ -358,7 +380,7 @@ const glowTex = canvasTex(128, 128, x => {
   x.fillStyle = g; x.fillRect(0, 0, 128, 128);
 });
 glowTex.wrapS = glowTex.wrapT = THREE.ClampToEdgeWrapping;
-const SHARED_TEX = new Set([detailTex, detailNormal, sandNormal, waterNormal, glowTex]);
+const SHARED_TEX = new Set([detailTex, detailNormal, waterNormal, glowTex]);
 
 /* ================= materials & helpers ================= */
 const std = (c, o) => new THREE.MeshStandardMaterial(Object.assign({color:C(c), roughness:0.8, metalness:0}, o || {}));
@@ -650,7 +672,7 @@ function buildTerrain(o){
   }
   geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
   const ns = o.ns || 0.9;
-  const mat = std(0xffffff, {vertexColors:true, map:detailTex, normalMap:o.normalMap || detailNormal, normalScale:new V2(ns, ns), roughness:o.rough == null ? 0.95 : o.rough});
+  const mat = std(0xffffff, {vertexColors:true, map:o.map || detailTex, normalMap:o.normalMap || detailNormal, normalScale:new V2(ns, ns), roughness:o.rough == null ? 0.95 : o.rough});
   if(o.slot !== false) reg(o.slot || 'ground', {mat, kind:'terrain'});
   const m = new THREE.Mesh(geo, mat); m.receiveShadow = true; world.add(m); return m;
 }
@@ -876,7 +898,14 @@ BUILD.hub = (r, n) => {
 };
 
 BUILD.dunes = (r, n) => {
-  buildTerrain({maxR:900, normalMap:sandNormal, ns:0.7, rough:0.9, color:(x, y, z, sl) => { const v = n.fbm(x * 0.03, z * 0.03, 3) * 0.5 + 0.5; let c = mixA(hexArr(0xe8c28c), hexArr(0xd4a468), clamp(v * 0.6 + (1 - sl) * 3, 0, 1)); return mixA(c, hexArr(0xb07a52), smooth(0.7, 0.5, sl)); }});
+  const sand = sandTextures();
+  buildTerrain({maxR:900, map:sand.map, normalMap:sand.normal, ns:0.85, rough:0.96, color:(x, y, z, sl) => {
+    const v = n.fbm(x * 0.03, z * 0.03, 3) * 0.5 + 0.5, big = n.fbm(x * 0.004 + 40, z * 0.004 - 17, 3) * 0.5 + 0.5;
+    let c = mixA(hexArr(0xe4c08e), hexArr(0xd2a370), clamp(v * 0.7 + big * 0.5 - 0.2, 0, 1)); // warm golden sand, soft patches
+    c = mixA(c, hexArr(0xeed6ac), smooth(0.97, 1.0, sl) * 0.35 * big);                        // pale wind-bleached flats
+    c = mixA(c, hexArr(0xc6925e), smooth(0.98, 0.85, sl) * 0.6);                              // slip faces a little deeper
+    return mixA(c, hexArr(0xa9744e), smooth(0.7, 0.5, sl));                                   // very steep: bare, reddish
+  }});
   const sandstone = reg('rock', {mat:std(0xb9784a, {roughness:0.9, map:detailTex, normalMap:detailNormal}), kind:'pillar'});
   const cx = 22, cz = 16;
   for(let i = 0; i < 7; i++){
