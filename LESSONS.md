@@ -7,3 +7,5 @@
 - Testing: the game script is wrapped in an IIFE, so page.evaluate cannot see travel/state/p. Test an instrumented copy in the scratchpad (add `window.__ev = s => eval(s);` before the final `})();`); never edit index.html for tests.
 - Testing: in headless Chromium with SwiftShader, scene.environment (the PMREM env map) turns every MeshStandardMaterial black, in every commit. Set scene.environment = null before test renders; this is a test-only workaround, not a game bug.
 - Testing: SwiftShader runs at about 1-2 fps, so degrade() lowers quality mid-test and the frame loop can lag behind travel(). Set fSkip = 1e9 to freeze quality, and wait for frames before comparing screenshots, or the "same" view will look different.
+- Procedural tiling textures: every sine/stripe must complete a whole number of cycles across the tile in both axes (e.g. phase (22x + 5y)/S), or a seam shows. Warp them only with an already-tileable field.
+- A realm's fixed look breaks if anything in its build uses Math.random (rock tints did). Use rng(seed) for anything that is drawn.
