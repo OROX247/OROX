@@ -2977,6 +2977,7 @@ function withDetailNormal(mat, tex, rep, amt, dustHex, tri){
 	  normal = normalize( acc ); }`)
       .replace('#include <map_fragment>', 'vec4 texelColor = mapTexelToLinear( triTex( map, 1.0 ) ); diffuseColor *= texelColor;')
       .replace('#include <roughnessmap_fragment>', 'float roughnessFactor = roughness * triTex( roughnessMap, 1.0 ).g;')
+      .replace('#include <aomap_fragment>', THREE.ShaderChunk.aomap_fragment.replace('texture2D( aoMap, vUv2 )', 'triTex( aoMap, 1.0 )'))
     : sh.fragmentShader.replace('#include <normal_fragment_maps>',
       THREE.ShaderChunk.normal_fragment_maps.replace('mapN.xy *= normalScale;', 'mapN.xy *= normalScale;\n\tvec3 dtN = texture2D( detailNormalMap, vUv * detailRep ).xyz * 2.0 - 1.0;\n\tmapN = normalize( vec3( mapN.xy + dtN.xy * detailAmt, mapN.z ) );'));
     if(dustHex != null){
@@ -3749,7 +3750,7 @@ function reg(slot, e){ (slotMats[slot] = slotMats[slot] || []).push(e); return e
 function clearWorld(){
   if(!world) return;
   scene.remove(world);
-  const keys = ['map','normalMap','emissiveMap','roughnessMap','alphaMap'];
+  const keys = ['map','normalMap','emissiveMap','roughnessMap','alphaMap','aoMap'];
   world.traverse(o => {
     if(o.geometry) o.geometry.dispose();
     if(o.material){ (Array.isArray(o.material) ? o.material : [o.material]).forEach(m => {
@@ -6733,11 +6734,18 @@ async function makeSeamless(blob){
 }
 async function texFromBlob(entry){
   if(entry && entry.diff){
-    const d = await createImageBitmap(entry.diff), map = canvasTex(1024, 1024, x => x.drawImage(d, 0, 0, 1024, 1024));
-    let normal;
-    if(entry.nor){ const n = await createImageBitmap(entry.nor); normal = canvasTex(1024, 1024, x => x.drawImage(n, 0, 0, 1024, 1024), false); }
+    // Poly Haven entries: 2k diffuse + normal, and roughness and ambient occlusion packed into one map (R = AO for aoMap, G = roughness for roughnessMap)
+    const d = await createImageBitmap(entry.diff), N = Math.min(2048, Math.max(1024, d.width)), map = canvasTex(N, N, x => x.drawImage(d, 0, 0, N, N));
+    let normal, arm = null, rough = false, ao = false;
+    if(entry.nor){ const n = await createImageBitmap(entry.nor); normal = canvasTex(N, N, x => x.drawImage(n, 0, 0, N, N), false); }
     else normal = (await texFromBlob(entry.diff)).normal;
-    return {map, normal, real:true};
+    if(entry.arm){ const a = await createImageBitmap(entry.arm); arm = canvasTex(N, N, x => x.drawImage(a, 0, 0, N, N), false); rough = ao = true; }
+    else if(entry.rough || entry.ao){
+      const px = async b => { if(!b) return null; const bm = await createImageBitmap(b), c = document.createElement('canvas'); c.width = c.height = N; const x = c.getContext('2d'); x.drawImage(bm, 0, 0, N, N); return x.getImageData(0, 0, N, N).data; };
+      const R = await px(entry.rough), A = await px(entry.ao); rough = !!R; ao = !!A;
+      arm = canvasTex(N, N, x => { const im = x.createImageData(N, N), o = im.data; for(let i = 0; i < o.length; i += 4){ o[i] = A ? A[i] : 255; o[i + 1] = R ? R[i] : 255; o[i + 2] = 0; o[i + 3] = 255; } x.putImageData(im, 0, 0); }, false);
+    }
+    return {map, normal, arm, rough, ao, real:true};
   }
   const blob = entry, bmp = await createImageBitmap(blob);
   const map = canvasTex(1024, 1024, x => x.drawImage(bmp, 0, 0, 1024, 1024));
@@ -6754,18 +6762,26 @@ async function applyPhotos(key){
     if(token !== photoToken || state.world !== key) return;
     if(!blob || !slotMats[name]) continue;
     let t; try{ t = await texFromBlob(blob); }catch(e){ continue; }
-    if(token !== photoToken || state.world !== key){ t.map.dispose(); t.normal.dispose(); return; }
+    const drop = () => { t.map.dispose(); t.normal.dispose(); if(t.arm) t.arm.dispose(); };
+    if(token !== photoToken || state.world !== key){ drop(); return; }
+    const byRep = {}, clones = rep => byRep[rep] || (byRep[rep] = [t.map, t.normal, t.arm].map(x => { if(!x) return null; const c = x.clone(); c.needsUpdate = true; c.repeat.set(rep, rep); return c; }));
+    const touched = new Set();
     slotMats[name].forEach(en => {
-      const m = en.mat, map = t.map.clone(), nor = t.normal.clone(); map.needsUpdate = nor.needsUpdate = true;
-      const rep = en.rep != null ? en.rep : en.kind === 'terrain' ? (t.real ? 1.3 : 0.45) : en.kind === 'plaza' ? (t.real ? 12 : 6) : en.kind === 'rocks' ? 1.5 : 3;
-      map.repeat.set(rep, rep); nor.repeat.set(rep, rep);
+      const m = en.mat, rep = en.rep != null ? en.rep : en.kind === 'terrain' ? (t.real ? 1.3 : 0.45) : en.kind === 'plaza' ? (t.real ? 12 : 6) : en.kind === 'rocks' ? 1.5 : 3;
+      const [map, nor, arm] = clones(rep);   // one GPU copy per repeat, shared by every material that tiles the same
       m.map = map; m.normalMap = nor; m.normalScale.set(1, 1); m.color.setRGB(1, 1, 1);
       if(en.kind === 'terrain'){ m.vertexColors = false; m.roughness = 0.95; }
       if(en.kind === 'path'){ m.roughnessMap = null; m.roughness = 0.75; }
+      if(arm){
+        if(t.rough){ m.roughnessMap = arm; m.roughness = 1; }
+        if(t.ao){ m.aoMap = arm; m.aoMapIntensity = 1; touched.add(m); }
+      }
       if(en.kind === 'rocks' && en.mesh){ const g = new THREE.Color(), q = rng(WORLDS[key].seed * 131 + 7); for(let i = 0; i < en.mesh.count; i++){ g.setScalar(0.8 + q() * 0.25); en.mesh.setColorAt(i, g); } en.mesh.instanceColor.needsUpdate = true; }
       m.needsUpdate = true;
     });
-    t.map.dispose(); t.normal.dispose();
+    // aoMap reads the second UV set: give the meshes that now use one a uv2 (the same UVs)
+    if(touched.size) world.traverse(o => { if(o.isMesh && touched.has(o.material) && o.geometry.attributes.uv && !o.geometry.attributes.uv2) o.geometry.setAttribute('uv2', o.geometry.attributes.uv); });
+    drop();
   }
 }
 /* real photo-scanned textures from Poly Haven (CC0, free, no key) */
@@ -6798,36 +6814,53 @@ function phPick(idx, spec){
   }
   return best;
 }
+const PH_RES = '2k';
 async function phFiles(id){
-  let diff = null, nor = null;
+  // 2k diffuse, normal (GL), and the packed AO/rough/metal map ("arm") or, failing that, separate roughness and AO maps; only what the asset lists
+  const base = 'https://dl.polyhaven.org/file/ph-assets/Textures/jpg/' + PH_RES + '/' + id + '/' + id + '_', guess = k => base + k + '_' + PH_RES + '.jpg';
+  const out = {diff:guess('diff'), nor:guess('nor_gl'), arm:null, rough:guess('rough'), ao:null};
   try{
     const r = await fetch('https://api.polyhaven.com/files/' + id);
-    if(r.ok){ const j = await r.json(), pick = k => { const m = j[k], v = m && (m['1k'] || m['2k']); return v && v.jpg && v.jpg.url; }; diff = pick('Diffuse'); nor = pick('nor_gl'); }
+    if(r.ok){
+      const j = await r.json(), pick = k => { const m = j[k], v = m && (m[PH_RES] || m['1k']); return (v && v.jpg && v.jpg.url) || null; };
+      out.diff = pick('Diffuse') || out.diff; out.nor = pick('nor_gl') || out.nor; out.arm = pick('arm'); out.rough = out.arm ? null : pick('Rough'); out.ao = out.arm ? null : pick('AO');
+    }
   }catch(e){}
-  const base = 'https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/' + id + '/' + id;
-  return {diff: diff || base + '_diff_1k.jpg', nor: nor || base + '_nor_gl_1k.jpg'};
+  return out;
 }
 const OFF_KEY = w => 'hub-photos-off-' + w;
 const realBusy = {};
+let phDown = false;   // Poly Haven could not be reached this session (offline or blocked): stay on the built-in textures and do not ask again on every trip
+const phGet = async u => { if(!u) return null; try{ const r = await fetch(u); return r.ok ? await r.blob() : null; }catch(e){ return null; } };
 async function loadReal(key, force){
   const slots = PHOTO_SLOTS[key]; if(!slots || realBusy[key]) return;
+  if(phDown && !force) return;
   realBusy[key] = true;
+  let started = false;
   try{
     const need = [];
-    for(const n in slots){ let have = null; try{ have = await idb.get(key + ':' + n); }catch(e){ return; } if(force || !have) need.push(n); }
+    for(const n in slots){
+      let have = null; try{ have = await idb.get(key + ':' + n); }catch(e){ return; }
+      // cached Poly Haven sets from before 2k (no roughness or AO) are upgraded; AI-made textures are kept as they are
+      if(force || !have || (have.src && /^polyhaven:/.test(have.src) && have.res !== PH_RES)) need.push(n);
+    }
     if(!need.length) return;
-    toast('Loading real textures for ' + WORLDS[key].name + '…', 20000);
     const idx = await phAssets();
+    started = true; toast('Loading real textures for ' + WORLDS[key].name + '…', 20000);
+    let got = 0;
     for(const n of need){
       const id = phPick(idx, PH_WANT[key + ':' + n]); if(!id) continue;
-      const u = await phFiles(id);
-      const dr = await fetch(u.diff); if(!dr.ok) throw new Error('texture download failed (' + dr.status + ')');
-      let nb = null; try{ const nr = await fetch(u.nor); if(nr.ok) nb = await nr.blob(); }catch(e){}
-      await idb.set(key + ':' + n, {diff: await dr.blob(), nor: nb, src:'polyhaven:' + id});
+      const u = await phFiles(id), diff = await phGet(u.diff); if(!diff) continue;
+      const [nor, arm, rough, ao] = await Promise.all([phGet(u.nor), phGet(u.arm), phGet(u.rough), phGet(u.ao)]);
+      await idb.set(key + ':' + n, {diff, nor, arm, rough, ao, src:'polyhaven:' + id, res:PH_RES}); got++;
     }
-    toast('Real textures loaded for ' + WORLDS[key].name, 2500);
-    if(state.world === key) applyPhotos(key);
-  }catch(e){ showError('Could not load real textures: ' + (e && e.message || e)); }
+    if(got){ toast('Real textures loaded for ' + WORLDS[key].name, 2500); if(state.world === key) applyPhotos(key); }
+    else if(started) toast('Real textures are not available right now; ' + WORLDS[key].name + ' keeps its built-in textures.', 3000);
+  }catch(e){
+    // offline, or the network blocks Poly Haven: not an error. Keep the built-in textures (and any cached ones), say so quietly only if the player asked.
+    phDown = true; console.info('Real textures unavailable (' + (e && e.message || e) + '); using the built-in textures.');
+    if(force || started) toast('Real textures could not be reached (offline or blocked), so ' + WORLDS[key].name + ' keeps its built-in textures.', 3500);
+  }
   finally{ realBusy[key] = false; }
 }
 function autoReal(key){ if(isLocal() && PHOTO_SLOTS[key] && !lsGet(OFF_KEY(key))) loadReal(key, false); }
@@ -7404,6 +7437,7 @@ window.__hub = { state, p, cam, post, stats, WORLDS, scene, renderer, camera, su
   get endless(){ return endless && {chunks:endless.chunks.size, dreams:endless.dreams.length, log:endless.log.slice(), source:dreamer.source, placed:Object.keys(endless.dreamsPlaced || {}).length, center:[endless.terrain ? endless.terrain.userData.terrain.cx : 0, endless.terrain ? endless.terrain.userData.terrain.cz : 0]}; }, updateChunks:(all) => updateChunks(all), dreamOffline, get dreamer(){ return {source:dreamer.source, hasSample:!!dreamer.sample, hasKey:!!dreamer.key}; },
   forgeRealm, realmKey, parseRealm, describeRealm, deleteRealm, get realms(){ return realms.map(x => Object.assign({}, x)); }, get waterBody(){ return waterBody && {level:waterBody.level, kind:waterBody.kind}; },
   fare, CAMPUS, get enrolled(){ return state.enrolled; }, set enrolled(v){ state.enrolled = !!v; persist(); }, enroll, get desk(){ return desk && {x:desk.x, z:desk.z}; }, get deskNear(){ return deskNear; }, get boxes(){ return boxes.length; }, boxOut, G:(x, z) => G(x, z), get portals(){ return portals.map(q => ({to:q.to, x:q.x, z:q.z})); }, get coins(){ return coins.map(k => ({id:k.id, x:k.g.position.x, y:k.g.position.y, z:k.g.position.z})); },
+  get phDown(){ return phDown; }, texInfo(){ const o = {}; for(const k in slotMats) o[k] = slotMats[k].map(en => ({kind:en.kind, map:en.mat.map && en.mat.map.image && en.mat.map.image.width, rough:!!en.mat.roughnessMap, ao:!!en.mat.aoMap, real:!!(en.mat.aoMap || (en.mat.map && en.mat.map.image && en.mat.map.image.width >= 2048))})); return o; }, idb,
   get npcs(){ return npcs.map(nn => ({name:nn.name, x:nn.x, z:nn.z, line:nn.line})); }, get colliders(){ return colliders.map(c => Object.assign({}, c)); } };
 })();
 </script>
