@@ -43,6 +43,16 @@ html,body{ height:100%; margin:0; overflow:hidden; background:#07061a; color:var
 .lvl{ margin-left:auto; color:var(--cyan); font-weight:600; font-size:14px; white-space:nowrap; }
 .xpbar{ height:5px; margin-top:6px; background:rgba(255,255,255,.14); }
 .xpbar i{ display:block; height:100%; width:0; background:linear-gradient(90deg,var(--cyan),var(--pink)); transition:width .4s; }
+.hprow{ display:flex; align-items:center; gap:7px; margin-top:6px; }
+.hpl{ color:var(--muted); font-weight:700; font-size:12px; letter-spacing:.08em; }
+.hpbar{ flex:1; height:7px; background:rgba(255,255,255,.14); }
+.hpbar i{ display:block; height:100%; width:100%; background:linear-gradient(90deg,#9dff6a,var(--cyan)); transition:width .25s; }
+.hpbar.low i{ background:linear-gradient(90deg,#ff3d5a,var(--pink)); }
+#hpNum{ min-width:58px; text-align:right; font-size:12.5px; font-weight:600; white-space:nowrap; }
+#idPanel.hurt{ animation:hurt .4s ease; }
+@keyframes hurt{ 30%{ transform:translateX(4px); box-shadow:inset 0 0 0 2px #ff3d5a; } 60%{ transform:translateX(-3px); } }
+#hurtFx{ position:fixed; inset:0; pointer-events:none; z-index:3; opacity:0; transition:opacity .6s; background:radial-gradient(ellipse at center,rgba(255,40,70,0) 55%,rgba(255,40,70,.5)); }
+#hurtFx.on{ opacity:1; transition:none; }
 .stat{ display:flex; align-items:center; gap:5px; font-weight:600; font-size:15px; }
 .stat .of{ color:var(--muted); font-weight:400; font-size:13px; }
 .cr{ color:var(--gold); font-weight:700; }
@@ -127,7 +137,7 @@ body.paused #joy, body.paused #jumpBtn{ display:none; }
 #knob{ position:absolute; left:50%; top:50%; width:52px; height:52px; margin:-26px 0 0 -26px; border-radius:50%; background:rgba(92,225,230,.55); }
 #jumpBtn{ right:28px; bottom:calc(env(safe-area-inset-bottom,0px) + 44px); width:84px; height:84px; border-radius:50%;
   background:rgba(255,79,163,.8); border:none; color:#fff; font:700 16px 'Chakra Petch','Trebuchet MS',sans-serif; }
-@media (prefers-reduced-motion: reduce){ #toast,#fade,.xpbar i{ transition:none; } #statPanel.bump{ animation:none; } }
+@media (prefers-reduced-motion: reduce){ #toast,#fade,.xpbar i,.hpbar i,#hurtFx{ transition:none; } #statPanel.bump,#idPanel.hurt{ animation:none; } }
 </style>
 </head>
 <body class="paused">
@@ -138,6 +148,7 @@ body.paused #joy, body.paused #jumpBtn{ display:none; }
   <div class="panel" id="idPanel">
     <div class="row"><span id="hudName">Player</span><span class="lvl">Level <b id="hudLvl">1</b></span></div>
     <div class="xpbar"><i id="xpFill"></i></div>
+    <div class="hprow" title="Hit points"><span class="hpl">HP</span><div class="hpbar" id="hpBar"><i id="hpFill"></i></div><b id="hpNum">100 / 100</b></div>
   </div>
   <div class="panel row" id="statPanel">
     <span class="stat" title="Credits"><span class="cr">₵</span><b id="credits">0</b></span>
@@ -210,6 +221,7 @@ body.paused #joy, body.paused #jumpBtn{ display:none; }
 </div>
 <div id="toast" class="panel" role="status"></div>
 <div id="fade"></div>
+<div id="hurtFx"></div>
 <div id="loading" style="position:fixed;inset:0;display:grid;place-items:center;background:#07061a;z-index:20;font-size:18px;color:#b9b2e0">Building worlds…</div>
 <div id="joy"><div id="knob"></div></div>
 <button id="jumpBtn">Jump</button>
@@ -2173,8 +2185,12 @@ function makeNoise(seed){
   function fbm(x, y, o){ let s = 0, a = 0.5, f = 1, n = 0; for(let i = 0; i < (o || 4); i++){ s += a * n2(x * f + i * 17.3, y * f - i * 9.1); n += a; a *= 0.5; f *= 2.03; } return s / n; }
   return {n2, fbm};
 }
-const lvlOf = xp => 1 + Math.floor(Math.sqrt(xp / 60));
+const MAX_LEVEL = 99;
+const lvlOf = xp => Math.min(MAX_LEVEL, 1 + Math.floor(Math.sqrt(xp / 60)));
 const xpAt = l => 60 * (l - 1) * (l - 1);
+/* hit points (blueprint 5): 100 at level 1, +5 per level. HP lives for the session only; it starts full. */
+const maxHp = () => 100 + 5 * (lvlOf(state.xp) - 1);
+state.hp = maxHp();
 
 /* ================= worlds ================= */
 const R = 58;
@@ -3414,7 +3430,8 @@ function refreshHud(){
   const lvl = lvlOf(state.xp), a = xpAt(lvl), b = xpAt(lvl + 1);
   $('#hudName').textContent = state.name || 'Player';
   $('#hudLvl').textContent = lvl;
-  $('#xpFill').style.width = Math.round((state.xp - a) / (b - a) * 100) + '%';
+  $('#xpFill').style.width = (lvl >= MAX_LEVEL ? 100 : Math.round((state.xp - a) / (b - a) * 100)) + '%';
+  hpHud();
   $('#credits').textContent = state.credits;
   $('#coinCount').textContent = state.coins.size;
   document.querySelectorAll('.shard').forEach(el => el.classList.toggle('got', state.shards.has(el.dataset.s)));
@@ -3422,8 +3439,28 @@ function refreshHud(){
 function bump(){ const el = $('#statPanel'); el.classList.remove('bump'); void el.offsetWidth; el.classList.add('bump'); }
 function reward(xp, credits){
   const before = lvlOf(state.xp); state.xp += xp; state.credits += credits; persist(); refreshHud(); bump();
-  const after = lvlOf(state.xp); if(after > before) setTimeout(() => toast('Level ' + after + ' reached'), 700);
+  const after = lvlOf(state.xp); if(after > before){ state.hp += 5 * (after - before); hpHud(); setTimeout(() => toast('Level ' + after + ' reached'), 700); }
 }
+
+/* ================= health (blueprint 5): HP, damage, zeroing out ================= */
+// Damage only lands in realms whose rules say danger. Sources: long falls (any danger realm) and the Neon Grid laser sweepers.
+const FALL_SAFE = 15;            // landing speed (m/s) that does no harm: about a 4.7 m drop; a normal jump plus boost lands at about 12
+let hurtCool = 0, zeroing = false, hurtFxT = 0;
+function hpHud(){
+  const m = maxHp(); state.hp = clamp(state.hp, 0, m);
+  $('#hpFill').style.width = (state.hp / m * 100).toFixed(1) + '%';
+  $('#hpNum').textContent = Math.ceil(state.hp) + ' / ' + m;
+  $('#hpBar').classList.toggle('low', state.hp < m * 0.3);
+}
+function hurt(n, why){
+  if(!(n > 0) || zeroing || traveling || !WORLDS[state.world].rules.danger) return 0;
+  n = Math.round(n); state.hp = Math.max(0, state.hp - n); hpHud();
+  const el = $('#idPanel'); el.classList.remove('hurt'); void el.offsetWidth; el.classList.add('hurt');
+  const fx = $('#hurtFx'); fx.classList.add('on'); clearTimeout(hurtFxT); hurtFxT = setTimeout(() => fx.classList.remove('on'), 90);
+  if(state.hp <= 0) zeroOut(why);
+  return n;
+}
+function zeroOut(why){}
 
 /* ================= intro / customise ================= */
 function swatchSet(el, list, key, apply){
@@ -4029,7 +4066,9 @@ function update(dt, time){
   for(const s of platforms) if(p.vy > 0 && s.bottom > 0.5 && Math.hypot(p.x - s.x, p.z - s.z) < s.r && prevY + 1.85 <= s.bottom + 0.01 && p.y + 1.85 > s.bottom){ p.y = s.bottom - 1.85; p.vy = 0; }
   let ground = G(p.x, p.z);
   for(const s of platforms) if(Math.hypot(p.x - s.x, p.z - s.z) < s.r + 0.2 && prevY >= s.top - 0.05) ground = Math.max(ground, s.top);
-  if(p.y <= ground || (wasGrounded && p.vy <= 0 && p.y - ground < 0.45)){ p.y = ground; p.vy = 0; p.grounded = true; p.airJumps = 1; } else p.grounded = false;
+  if(p.y <= ground || (wasGrounded && p.vy <= 0 && p.y - ground < 0.45)){
+    if(!wasGrounded && -p.vy > FALL_SAFE) hurt((-p.vy - FALL_SAFE) * 4.5, 'fall');
+    p.y = ground; p.vy = 0; p.grounded = true; p.airJumps = 1; } else p.grounded = false;
   if(moving) p.facing = lerpAngle(p.facing, Math.atan2(mx, mz), 1 - Math.exp(-dt * 12));
   me.g.position.set(p.x, p.y, p.z); me.g.rotation.y = p.facing;
   animateAvatar(me, dt, p.speed, p.grounded, time);
@@ -4092,6 +4131,8 @@ function update(dt, time){
     state.won = true; reward(500, 200); setHalo(); toast('You opened the vault. First to crack the Hub.   +500 XP', 5000);
   }
   shopProximity();
+  hurtCool -= dt;
+  if(!WORLDS[state.world].rules.danger && !zeroing && state.hp < maxHp()){ state.hp = Math.min(maxHp(), state.hp + 12 * dt); hpHud(); }
   portalCool -= dt;
   if(playing && portalCool <= 0 && !traveling) for(const q of portals){ if(Math.hypot(p.x - q.x, p.z - q.z) < 1.6 && p.y - G(p.x, p.z) < 2){ travel(q.to); break; } }
 }
@@ -4139,7 +4180,8 @@ ready.then(() => new Promise(res => setTimeout(res, 60))).then(() => {
   $('#nameInput').focus();
 }).catch(err => { const ld = $('#loading'); if(ld) ld.textContent = 'Could not start: ' + err.message; });
 // hooks for the tester (headless checks) and for debugging; not used by the game itself
-window.__hub = { state, p, cam, post, stats, WORLDS, scene, renderer, camera, sunLight, hemi, gl:GL_INFO, softwareGL:SOFTWARE_GL, travel, buildWorld, startGame, setPaused, degrade, parseDescription, makeFromWords, rebuildPlayer, cleanRecipe, get me(){ return me; }, freezeQuality(){ warm = 1e9; }, get qLevel(){ return qLevel; }, get world(){ return state.world; }, get envRT(){ return envRT; } };
+window.__hub = { state, p, cam, post, stats, WORLDS, scene, renderer, camera, sunLight, hemi, gl:GL_INFO, softwareGL:SOFTWARE_GL, travel, buildWorld, startGame, setPaused, degrade, parseDescription, makeFromWords, rebuildPlayer, cleanRecipe, get me(){ return me; }, freezeQuality(){ warm = 1e9; }, get qLevel(){ return qLevel; }, get world(){ return state.world; }, get envRT(){ return envRT; },
+  damage(n){ return hurt(n, 'test'); }, get hp(){ return state.hp; }, get maxHp(){ return maxHp(); }, get level(){ return lvlOf(state.xp); } };
 })();
 </script>
 </body>
