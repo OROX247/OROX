@@ -373,6 +373,52 @@ function sandTextures(){
   SHARED_TEX.add(map); SHARED_TEX.add(normal);
   return (sandTexCache = {map, normal});
 }
+// bilinear, wrapping sample of the 256 detail field (coords in field pixels)
+function detailAt(fx, fy){ const x0 = Math.floor(fx), y0 = Math.floor(fy), tx = fx - x0, ty = fy - y0, at = (i, j) => fDetail[(j & 255) * 256 + (i & 255)];
+  return (at(x0, y0) * (1 - tx) + at(x0 + 1, y0) * tx) * (1 - ty) + (at(x0, y0 + 1) * (1 - tx) + at(x0 + 1, y0 + 1) * tx) * ty; }
+// Glass Dunes sandstone: 1024px seeded, tileable colour + normal + roughness with horizontal strata,
+// fine cross-bedding, soft eroded layers and grain. layer(v) gives the same strata to the geometry.
+let stoneTexCache = null;
+function sandstoneTextures(){
+  if(stoneTexCache) return stoneTexCache;
+  const S = 1024, q = rng(4409), pal = [0xc97a4c, 0xd89a66, 0xe2b888, 0xb8663f, 0xcf8c5a, 0xdca674].map(hexArr);
+  const layers = []; let tot = 0;
+  while(tot < 1){ const th = 0.035 + q() * 0.12; layers.push({v0:tot, th, hard:q(), tint:pal[Math.floor(q() * pal.length)], m:40 + Math.floor(q() * 50), c:Math.floor(q() * 7) - 3}); tot += th; }
+  layers.forEach(l => { l.v0 /= tot; l.th /= tot; });
+  const layer = v => { v -= Math.floor(v); let i = 0; while(i < layers.length - 1 && v >= layers[i + 1].v0) i++; const l = layers[i]; return {l, i, frac:clamp((v - l.v0) / l.th, 0, 1)}; };
+  const f = new Float32Array(S * S), cpx = new Uint8ClampedArray(S * S * 4), rpx = new Uint8ClampedArray(S * S * 4);
+  for(let y = 0; y < S; y++) for(let x = 0; x < S; x++){
+    const i = y * S + x, big = detailAt(x / 4, y / 4), mid = detailAt(x / 2 + 71, y / 2 + 13), g = q();
+    const v = y / S + (detailAt(x / 8 + 30, y / 8) - 0.5) * 0.04, L = layer(v), l = L.l;
+    const soft = 1 - l.hard, cav = soft * Math.sin(Math.PI * L.frac);                             // soft layers erode into grooves
+    const lam = Math.sin(TAU * (l.m * v + l.c * x / S) + mid * 4) * (0.5 + 0.5 * l.hard);          // cross-bedding lines
+    f[i] = -cav * 0.9 + lam * 0.05 + big * 0.5 + mid * 0.25 + (g - 0.5) * 0.04;
+    const k = 0.84 + big * 0.14 + mid * 0.06 + lam * 0.025 + (q() - 0.5) * 0.1 - cav * 0.12;
+    let c = l.tint; if(g < 0.015) c = [0.45, 0.33, 0.27]; else if(g > 0.992) c = [0.97, 0.93, 0.86];
+    const o = i * 4; cpx[o] = c[0] * k * 255; cpx[o+1] = c[1] * k * 255; cpx[o+2] = c[2] * k * 255; cpx[o+3] = 255;
+    const r = clamp(0.8 + soft * 0.12 + (g - 0.5) * 0.12 - big * 0.08, 0.6, 1) * 255; rpx[o] = rpx[o+1] = rpx[o+2] = r; rpx[o+3] = 255;
+  }
+  const put = a => x => { const img = x.createImageData(S, S); img.data.set(a); x.putImageData(img, 0, 0); };
+  const map = canvasTex(S, S, put(cpx)), rough = canvasTex(S, S, put(rpx), false), normal = normalTex(f, S, 5);
+  [map, rough, normal].forEach(t => SHARED_TEX.add(t));
+  return (stoneTexCache = {map, normal, rough, layer});
+}
+// adds a small-tiled second normal map (r128 MeshStandardMaterial has no detail map of its own) and,
+// if dustHex is given, mixes in sand dust from a per-vertex 'dust' attribute, broken up by the texture so edges are not smooth
+function withDetailNormal(mat, tex, rep, amt, dustHex){
+  mat.onBeforeCompile = sh => {
+    sh.uniforms.detailNormalMap = {value:tex}; sh.uniforms.detailRep = {value:rep}; sh.uniforms.detailAmt = {value:amt};
+    let fs = sh.fragmentShader.replace('#include <normal_fragment_maps>',
+      THREE.ShaderChunk.normal_fragment_maps.replace('mapN.xy *= normalScale;', 'mapN.xy *= normalScale;\n\tvec3 dtN = texture2D( detailNormalMap, vUv * detailRep ).xyz * 2.0 - 1.0;\n\tmapN = normalize( vec3( mapN.xy + dtN.xy * detailAmt, mapN.z ) );'));
+    if(dustHex != null){
+      sh.uniforms.dustColor = {value:C(dustHex)};
+      sh.vertexShader = 'attribute float dust;\nvarying float vDust;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n\tvDust = dust;');
+      fs = 'uniform vec3 dustColor;\nvarying float vDust;\n' + fs.replace('#include <color_fragment>', '#include <color_fragment>\n\t{ float dn = texture2D( detailNormalMap, vUv * detailRep * 0.37 ).x; float dm = smoothstep( 0.2, 0.8, vDust * 1.4 - 0.2 + ( dn - 0.5 ) * 0.7 ) * 0.9;\n\t  diffuseColor.rgb = mix( diffuseColor.rgb, dustColor * ( 0.82 + 0.25 * dn ), dm ); }');
+    }
+    sh.fragmentShader = 'uniform sampler2D detailNormalMap;\nuniform float detailRep;\nuniform float detailAmt;\n' + fs;
+  };
+  return mat;
+}
 const waterNormal = normalTex(tileField(256, makeNoise(9), 0.03, 4), 256, 7); waterNormal.repeat.set(3, 3);
 const glowTex = canvasTex(128, 128, x => {
   const g = x.createRadialGradient(64, 64, 0, 64, 64, 64);
@@ -730,10 +776,62 @@ function plantTrees(TG, list, leafHexes, r){
   instanced(TG.trunk, std(TG.trunkHex, {roughness:0.95, map:detailTex}), mats);
   instanced(TG.leaf, std(0xffffff, {vertexColors:true, roughness:0.85}), mats, list.map(() => { const c = C(leafHexes[Math.floor(r() * leafHexes.length)]); c.multiplyScalar(0.8 + r() * 0.4); return c; }));
 }
-function placeRocks(list, hex){
+// average normals of vertices that share a position (UV seams, poles) unless they meet at a hard edge
+function weldNormals(g){
+  const p = g.attributes.position, n = g.attributes.normal, groups = new Map();
+  for(let i = 0; i < p.count; i++){ const k = Math.round(p.getX(i) * 1e4) + ',' + Math.round(p.getY(i) * 1e4) + ',' + Math.round(p.getZ(i) * 1e4); let a = groups.get(k); if(!a) groups.set(k, a = []); a.push(i); }
+  const out = new Float32Array(n.array);
+  groups.forEach(a => { if(a.length < 2) return; a.forEach(i => {
+    let x = 0, y = 0, z = 0; a.forEach(j => { if(n.getX(i) * n.getX(j) + n.getY(i) * n.getY(j) + n.getZ(i) * n.getZ(j) > 0.5){ x += n.getX(j); y += n.getY(j); z += n.getZ(j); } });
+    const l = Math.hypot(x, y, z) || 1; out[i*3] = x / l; out[i*3+1] = y / l; out[i*3+2] = z / l; }); });
+  n.array.set(out); n.needsUpdate = true; return g;
+}
+// sand dust amount per vertex (read by withDetailNormal): settles on ledges and tops (up-facing) and near the ground (low y)
+function dustAttr(g, lowH, layerTint){
+  const p = g.attributes.position, n = g.attributes.normal, d = new Float32Array(p.count), col = new Float32Array(p.count * 3);
+  for(let i = 0; i < p.count; i++){
+    d[i] = clamp(smooth(0.3, 0.85, n.getY(i)) + smooth(lowH, 0, p.getY(i)) * 0.7, 0, 1);
+    const t = layerTint ? layerTint(i) : 1; col[i*3] = col[i*3+1] = col[i*3+2] = t;
+  }
+  g.setAttribute('dust', new THREE.BufferAttribute(d, 1)); g.setAttribute('color', new THREE.BufferAttribute(col, 3)); return g;
+}
+// eroded sandstone column: dense mesh, layered lumps, grooves where the strata are soft, flat top to stand on.
+// o: {seed, y0 (world y of the base), uvs (metres per texture tile), seg, rowsPerM, sc (lump size), bulge, notch, top, bottom, dustH}
+function sandstoneColumn(rad, h, o){
+  const layer = sandstoneTextures().layer, S = o.seg || 48, rows = Math.max(4, Math.round(h * (o.rowsPerM || 8)));
+  const geo = new THREE.CylinderGeometry(1, 1, h, S, rows); geo.translate(0, h / 2, 0);
+  const p = geo.attributes.position, uv = geo.attributes.uv, torso = (rows + 1) * (S + 1), around = Math.max(1, Math.round(TAU * rad / o.uvs)), sd = o.seed, sc = o.sc || 1;
+  for(let i = 0; i < p.count; i++){
+    const x = p.getX(i), y = p.getY(i), z = p.getZ(i), rr = Math.hypot(x, z), cx = rr > 1e-4 ? x / rr : 0, cz = rr > 1e-4 ? z / rr : 0, wy = y + o.y0;
+    const L = layer(wy / o.uvs), rim = smooth(h - (o.rim || 0.3), h, y), prof = ((o.bottom || 1.14) + ((o.top || 0.94) - (o.bottom || 1.14)) * (y / h)) * (1 - 0.12 * rim * rim) + (o.apron || 0) * Math.pow(smooth(h * 0.3, 0, y), 2);
+    const f = 1 + o.bulge * (0.6 * lump(cx * 1.1 + sd, wy * 0.35 / sc, cz * 1.1 - sd) + 0.3 * lump(cx * 2.3 - sd, wy * 0.9 / sc, cz * 2.3 + sd * 0.5) + 0.12 * lump(cx * 5.1 + sd, wy * 2.1 / sc, cz * 5.1)) / 1.5
+                - o.notch * (1 - L.l.hard) * Math.sin(Math.PI * L.frac);
+    const R = rad * prof * f * (rr > 1e-4 ? 1 : 0);
+    p.setXYZ(i, cx * R, y, cz * R);
+    if(i < torso) uv.setXY(i, (i % (S + 1)) / S * around, wy / o.uvs); else uv.setXY(i, cx * R / o.uvs * 0.15, (h + o.y0) / o.uvs - 0.02);   // tops: one layer, not stripes
+  }
+  geo.computeVertexNormals(); weldNormals(geo);
+  return dustAttr(geo, o.dustH || 1, i => { const L = layer((p.getY(i) + o.y0) / o.uvs); return 0.9 + 0.1 * L.l.hard; });
+}
+// weathered sandstone boulder: dense sphere, three layers of lumps, strata grooves, flattened base
+function sandstoneRockGeo(){
+  const layer = sandstoneTextures().layer, g = new THREE.SphereGeometry(1, 56, 36), p = g.attributes.position, uv = g.attributes.uv;
+  for(let i = 0; i < p.count; i++){
+    const x = p.getX(i), y = p.getY(i), z = p.getZ(i);
+    const f = 1 + (0.3 * lump(x * 1.1 + 3, y * 1.1, z * 1.1 - 1) + 0.13 * lump(x * 2.6, y * 2.6 + 2, z * 2.6) + 0.05 * lump(x * 6.3, y * 6.3, z * 6.3 + 4) + 0.02 * lump(x * 13, y * 13 + 1, z * 13)) / 1.5;
+    let Y = y * f * 0.72; const L = layer(Y * 0.5 + 0.3), k = f * (1 - 0.07 * (1 - L.l.hard) * Math.sin(Math.PI * L.frac));
+    if(Y < -0.25) Y = -0.25 + (Y + 0.25) * 0.2;
+    p.setXYZ(i, x * k, Y + 0.22, z * k); uv.setXY(i, uv.getX(i) * 3, Y * 0.5 + 0.3);
+  }
+  g.computeVertexNormals(); weldNormals(g);
+  return dustAttr(g, 0.3);
+}
+function placeRocks(list, hex, o){
+  o = o || {};
+  const q = rng(o.seed || (hex % 100003) + list.length * 131);   // seeded tint: same rocks every visit
   const mats = list.map(t => mat4(t.x, t.y, t.z, t.rx || 0, t.ry || 0, 0, t.s, t.s * (t.sy || 1), t.s));
-  const mat = std(0xffffff, {map:detailTex, normalMap:detailNormal, roughness:0.92});
-  const mesh = instanced(rockGeo(), mat, mats, list.map(() => { const c = C(hex); c.multiplyScalar(0.8 + Math.random() * 0.35); return c; }));
+  const mat = o.mat || std(0xffffff, {map:detailTex, normalMap:detailNormal, roughness:0.92});
+  const mesh = instanced(o.geo || rockGeo(), mat, mats, list.map(() => { const c = C(hex); c.multiplyScalar(0.8 + q() * 0.35); return c; }));
   if(mesh) reg('rock', {mat, mesh, kind:'rocks'});
 }
 
@@ -906,14 +1004,13 @@ BUILD.dunes = (r, n) => {
     c = mixA(c, hexArr(0xc6925e), smooth(0.98, 0.85, sl) * 0.6);                              // slip faces a little deeper
     return mixA(c, hexArr(0xa9744e), smooth(0.7, 0.5, sl));                                   // very steep: bare, reddish
   }});
-  const sandstone = reg('rock', {mat:std(0xb9784a, {roughness:0.9, map:detailTex, normalMap:detailNormal}), kind:'pillar'});
+  const st = sandstoneTextures();
+  const stoneMat = hex => withDetailNormal(std(hex, {map:st.map, normalMap:st.normal, roughnessMap:st.rough, roughness:1, vertexColors:true}), detailNormal, 5, 0.35, 0xc9a577);
+  const sandstone = reg('rock', {mat:stoneMat(0xffffff), kind:'pillar'});
   const cx = 22, cz = 16;
   for(let i = 0; i < 7; i++){
     const a = i * 0.78, rad = i === 6 ? 1.8 : 1.35, top = 1 + i, x = cx + Math.cos(a) * 6, z = cz + Math.sin(a) * 6, h = top + 0.4;
-    const geo = new THREE.CylinderGeometry(rad * 0.94, rad * 1.14, h, 16, Math.max(2, Math.round(h * 2)));
-    const pa = geo.attributes.position;
-    for(let j = 0; j < pa.count; j++){ const px = pa.getX(j), py = pa.getY(j), pz = pa.getZ(j); if(Math.hypot(px, pz) < 0.01) continue; const an = Math.atan2(pz, px), f = 1 + 0.07 * Math.sin(an * 5 + py * 2.3 + i) + 0.04 * Math.sin(an * 11 + py * 5.1); pa.setX(j, px * f); pa.setZ(j, pz * f); }
-    geo.translate(0, h / 2, 0); geo.computeVertexNormals();
+    const geo = sandstoneColumn(rad, h, {seed:i * 1.7 + 0.3, y0:-0.4, uvs:4, seg:64, rowsPerM:10, bulge:0.14, notch:0.09, rim:0.35, dustH:0.9});
     mk(geo, sandstone, x, -0.4, z);
     addPlatform(x, z, rad, top);
   }
@@ -932,13 +1029,12 @@ BUILD.dunes = (r, n) => {
   const rocks = [];
   for(let i = 0; i < 24; i++){ const s = freeSpot(r, 8, 55, 2); if(!s) continue; const k = 0.5 + r() * 1.1; rocks.push({x:s[0], y:G(s[0], s[1]) - 0.1, z:s[1], s:k, ry:r() * TAU}); colliders.push({x:s[0], z:s[1], r:k * 0.85}); }
   for(let i = 0; i < 40; i++){ const a = r() * TAU, d = 62 + r() * 120, x = Math.cos(a) * d, z = Math.sin(a) * d; rocks.push({x, y:G(x, z) - 0.3, z, s:1 + r() * 3, ry:r() * TAU}); }
-  placeRocks(rocks, 0xa8704a);
-  const mesaM = reg('rock', {mat:std(0xa55f3c, {roughness:0.95, map:detailTex, normalMap:detailNormal}), kind:'pillar'});
+  placeRocks(rocks, 0xf4ebe2, {seed:2311, geo:sandstoneRockGeo(), mat:stoneMat(0xffffff)});
+  const mesaM = reg('rock', {mat:stoneMat(0xe6cfc0), kind:'pillar'});
   for(let i = 0; i < 14; i++){
-    const a = r() * TAU, d = 170 + r() * 240, x = Math.cos(a) * d, z = Math.sin(a) * d, h = 25 + r() * 55, w = 20 + r() * 40;
-    const geo = new THREE.CylinderGeometry(w * 0.8, w, h, 20, 8); const pa = geo.attributes.position;
-    for(let j = 0; j < pa.count; j++){ const px = pa.getX(j), py = pa.getY(j), pz = pa.getZ(j); if(Math.hypot(px, pz) < 0.01) continue; const an = Math.atan2(pz, px), f = 1 + 0.1 * Math.sin(an * 4 + i) + 0.06 * Math.sin(an * 9 + py * 0.3); pa.setX(j, px * f); pa.setZ(j, pz * f); }
-    geo.computeVertexNormals(); const m = mk(geo, mesaM, x, G(x, z) + h / 2 - 3, z); m.castShadow = false;
+    const a = r() * TAU, d = 170 + r() * 240, x = Math.cos(a) * d, z = Math.sin(a) * d, h = 25 + r() * 55, w = 20 + r() * 40, y0 = G(x, z) - 3;
+    const geo = sandstoneColumn(w, h, {seed:i * 2.3 + 1.1, y0, uvs:14, seg:72, rowsPerM:0.9, sc:6, bulge:0.16, notch:0.05, top:0.8, bottom:1, apron:0.45, rim:3, dustH:6});
+    const m = mk(geo, mesaM, x, y0, z); m.castShadow = false;
   }
   const bush = merge([0, 1, 2, 3].map(i => { const g = new THREE.SphereGeometry(0.35 + i * 0.05, 8, 6); displace(g, 0.35, 3); g.translate(Math.cos(i * 1.7) * 0.3, 0.25 + i * 0.05, Math.sin(i * 1.7) * 0.3); return g; }));
   const bm = []; for(let i = 0; i < 70; i++){ const s = freeSpot(r, 6, 56, 1); if(!s) continue; bm.push(mat4(s[0], G(s[0], s[1]) - 0.05, s[1], 0, r() * TAU, 0, 0.6 + r() * 0.8)); }
@@ -1465,7 +1561,7 @@ async function applyPhotos(key){
       map.repeat.set(rep, rep); nor.repeat.set(rep, rep);
       m.map = map; m.normalMap = nor; m.normalScale.set(1, 1); m.color.setRGB(1, 1, 1);
       if(en.kind === 'terrain'){ m.vertexColors = false; m.roughness = 0.95; }
-      if(en.kind === 'rocks' && en.mesh){ const g = new THREE.Color(); for(let i = 0; i < en.mesh.count; i++){ g.setScalar(0.8 + Math.random() * 0.25); en.mesh.setColorAt(i, g); } en.mesh.instanceColor.needsUpdate = true; }
+      if(en.kind === 'rocks' && en.mesh){ const g = new THREE.Color(), q = rng(WORLDS[key].seed * 131 + 7); for(let i = 0; i < en.mesh.count; i++){ g.setScalar(0.8 + q() * 0.25); en.mesh.setColorAt(i, g); } en.mesh.instanceColor.needsUpdate = true; }
       m.needsUpdate = true;
     });
     t.map.dispose(); t.normal.dispose();
