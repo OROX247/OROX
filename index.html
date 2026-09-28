@@ -188,7 +188,7 @@ body.paused #joy, body.paused #jumpBtn{ display:none; }
 
 <div id="corner">
   <canvas id="minimap" aria-label="Minimap"></canvas>
-  <div class="btns"><button class="hbtn" id="aiBtn" title="AI reality mode (R)">AI</button><button class="hbtn" id="lookBtn" title="Realm look (L)">Look</button><button class="hbtn" id="rideBtn" style="display:none">Ride</button><button class="hbtn" id="sndBtn" title="Sound on/off (N)">Sound</button><button class="hbtn" id="shopBtn" style="display:none">Shop</button><button class="hbtn" id="vendBtn" style="display:none">Vend</button><button class="hbtn" id="invBtn" title="Inventory (I)">Bag</button><button class="hbtn" id="mapBtn">Warp</button><button class="hbtn" id="helpBtn" aria-label="Avatar and controls">?</button></div>
+  <div class="btns"><button class="hbtn" id="aiBtn" title="AI reality mode (R)">AI</button><button class="hbtn" id="lookBtn" title="Realm look (L)">Look</button><button class="hbtn" id="rideBtn" style="display:none">Ride</button><button class="hbtn" id="sndBtn" title="Sound on/off (N)">Sound</button><button class="hbtn" id="shopBtn" style="display:none">Shop</button><button class="hbtn" id="vendBtn" style="display:none">Vend</button><button class="hbtn" id="enrolBtn" style="display:none">Enrol</button><button class="hbtn" id="invBtn" title="Inventory (I)">Bag</button><button class="hbtn" id="mapBtn">Warp</button><button class="hbtn" id="helpBtn" aria-label="Avatar and controls">?</button></div>
 </div>
 
 <div id="intro" class="overlay" role="dialog" aria-labelledby="introTitle">
@@ -3119,11 +3119,11 @@ function setHalo(){
   halo.rotation.x = Math.PI / 2; halo.position.y = 1.9; halo.layers.set(1); me.g.add(halo);
 }
 
-const p = { x:0, y:0, z:14, vy:0, grounded:true, airJumps:1, facing:Math.PI, flameT:0, speed:0 };
+const p = { x:0, y:0, z:14, vy:0, grounded:true, airJumps:1, facing:Math.PI, flameT:0, speed:0, zeroG:false, vx:0, vz:0, zgIdle:0 };
 const cam = { yaw:0, pitch:0.28, dist:5.5 };
 
 /* ================= world state ================= */
-let colliders = [], platforms = [], coins = [], portals = [], spinners = [], npcs = [], shardObj = null, vault = null, gridSun = null, fireflies = null, shopKiosk = null;
+let boxes = [], desk = null, gym = null, floaters = [], colliders = [], platforms = [], coins = [], portals = [], spinners = [], npcs = [], shardObj = null, vault = null, gridSun = null, fireflies = null, shopKiosk = null;
 let hf = () => 0, G = () => 0, grassMeshes = [], qLevel = 0, slotMats = {}, hazards = [], burst = null, pickups = [], vendor = null;
 function reg(slot, e){ (slotMats[slot] = slotMats[slot] || []).push(e); return e.mat; }
 
@@ -3377,6 +3377,7 @@ function freeSpot(r, minR, maxR, clear){
     if(ok) for(const q of portals) if(Math.hypot(x - q.x, z - q.z) < 6){ ok = false; break; }
     if(ok) for(const c of colliders) if(Math.hypot(x - c.x, z - c.z) < c.r + clear){ ok = false; break; }
     if(ok) for(const s of platforms) if(Math.hypot(x - s.x, z - s.z) < s.r + 2.5){ ok = false; break; }
+    if(ok) for(const b of boxes) if(b.y0 < 2 && boxOut(x, z, b, clear)){ ok = false; break; }
     if(ok) return [x, z];
   }
   return null;
@@ -3400,6 +3401,52 @@ function addShard(id, x, y, z){
   shardObj = {id, m, beam, l, gl, base:y};
 }
 function addPlatform(x, z, rad, top, mesh, bottom){ platforms.push({x, z, r:rad, top, bottom:bottom || 0}); return mesh; }
+/* solid boxes (Goal 8): walls and furniture, turned only about y. The local x axis points along (c, s) in world x/z.
+   The player is pushed out where heights overlap (or always, for full:true furniture, so nobody lands inside a desk); cam:false boxes do not stop the camera. */
+function addBox(x, z, hx, hz, y0, y1, o){ const a = (o && o.a) || 0, b = Object.assign({x, z, hx, hz, y0, y1, c:Math.cos(a), s:Math.sin(a)}, o || {}); boxes.push(b); return b; }
+const aabb = (x0, x1, y0, y1, z0, z1, o) => addBox((x0 + x1) / 2, (z0 + z1) / 2, (x1 - x0) / 2, (z1 - z0) / 2, y0, y1, o);
+// the nearest point outside box b grown by m, or null when (px, pz) is already outside
+function boxOut(px, pz, b, m){
+  const dx = px - b.x, dz = pz - b.z, lx = dx * b.c + dz * b.s, lz = -dx * b.s + dz * b.c, ex = b.hx + m, ez = b.hz + m;
+  if(Math.abs(lx) >= ex || Math.abs(lz) >= ez) return null;
+  let nx = lx, nz = lz; if(ex - Math.abs(lx) < ez - Math.abs(lz)) nx = (lx < 0 ? -1 : 1) * ex; else nz = (lz < 0 ? -1 : 1) * ez;
+  return [b.x + nx * b.c - nz * b.s, b.z + nx * b.s + nz * b.c];
+}
+// where the segment o -> o + d first enters box b grown by m, as a fraction 0..1 (1 = never; a start inside the box is ignored)
+function rayBoxT(ox, oy, oz, dx, dy, dz, b, m){
+  const rx = ox - b.x, rz = oz - b.z, lox = rx * b.c + rz * b.s, loz = -rx * b.s + rz * b.c, ldx = dx * b.c + dz * b.s, ldz = -dx * b.s + dz * b.c;
+  let t0 = 0, t1 = 1;
+  const slab = (o, d, lo, hi) => { if(Math.abs(d) < 1e-9) return o > lo && o < hi; let a = (lo - o) / d, c = (hi - o) / d; if(a > c){ const t = a; a = c; c = t; } if(a > t0) t0 = a; if(c < t1) t1 = c; return t0 <= t1; };
+  if(!slab(lox, ldx, -b.hx - m, b.hx + m) || !slab(oy, dy, b.y0 - m, b.y1 + m) || !slab(loz, ldz, -b.hz - m, b.hz + m)) return 1;
+  return t0 > 0 ? t0 : 1;
+}
+// merged axis-aligned boxes [x0, x1, y0, y1, z0, z1] with world-space UVs (one texture tile per `tile` metres), so every wall shares one material and one draw call
+function boxGeo(list, tile){
+  const pos = [], nor = [], uv = [], idx = [];
+  const face = (cs, n, f) => { const b = pos.length / 3; cs.forEach(c => { pos.push(c[0], c[1], c[2]); nor.push(n[0], n[1], n[2]); const t = f(c); uv.push(t[0] / tile, t[1] / tile); }); idx.push(b, b + 1, b + 2, b, b + 2, b + 3); };
+  list.forEach(([x0, x1, y0, y1, z0, z1]) => {
+    face([[x1, y0, z1], [x1, y0, z0], [x1, y1, z0], [x1, y1, z1]], [1, 0, 0], c => [-c[2], c[1]]);
+    face([[x0, y0, z0], [x0, y0, z1], [x0, y1, z1], [x0, y1, z0]], [-1, 0, 0], c => [c[2], c[1]]);
+    face([[x0, y0, z1], [x1, y0, z1], [x1, y1, z1], [x0, y1, z1]], [0, 0, 1], c => [c[0], c[1]]);
+    face([[x1, y0, z0], [x0, y0, z0], [x0, y1, z0], [x1, y1, z0]], [0, 0, -1], c => [-c[0], c[1]]);
+    face([[x0, y1, z1], [x1, y1, z1], [x1, y1, z0], [x0, y1, z0]], [0, 1, 0], c => [c[0], -c[2]]);
+    face([[x0, y0, z0], [x1, y0, z0], [x1, y0, z1], [x0, y0, z1]], [0, -1, 0], c => [c[0], c[2]]);
+  });
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); g.setIndex(idx);
+  return g;
+}
+// pull the camera in front of any wall between it and the player (never through a wall, never above a roof)
+function clipCamera(){
+  if(!boxes.length || cam.view === 2) return;
+  const ox = _t1.x, oy = _t1.y, oz = _t1.z, dx = camera.position.x - ox, dy = camera.position.y - oy, dz = camera.position.z - oz;
+  let t = 1; for(const b of boxes) if(b.cam !== false){ const k = rayBoxT(ox, oy, oz, dx, dy, dz, b, 0.3); if(k < t) t = k; }
+  if(t < 1){ const k = Math.max(0, t - 0.02); camera.position.set(ox + dx * k, oy + dy * k, oz + dz * k); }
+  // pressed right up behind the avatar (a wall behind you), hide it rather than fill the screen with the back of its head
+  const close = t < 1 && Math.hypot(dx, dy, dz) * t < 1.1;
+  if(close !== camHid && !zeroing){ camHid = close; me.g.visible = !close; }
+}
+let camHid = false, zgHinted = false;
 
 /* ================= Campus layout (Goal 8) ================= */
 // fixed plan in metres: the marble hall (walk-in, hall + classroom), the zero-g gym dome, the east woods with a clearing kept empty for The Hollow, and the walkways
@@ -3740,7 +3787,7 @@ function stoneSet(o){
     const u = x / N, v = y / N, c = cell(u, v), j = smooth(J * 0.35, J, c.e), t = samp(F, u, v), t2 = samp(F2, u, v);
     const base = o.base[o.checker ? (Math.floor(u * o.cols) + Math.floor(v * o.rows)) % o.base.length : Math.floor(c.r * o.base.length)];
     let vv = 0;
-    if(o.vein){ const d = DIRS[Math.floor(c.r * 97) % DIRS.length], ph = TAU * (d[0] * u + d[1] * v) + 7 * t + c.r * 40, w = 1 - Math.abs(Math.sin(ph)); vv = (Math.pow(w, 16) * 0.85 + Math.pow(w, 5) * 0.12) * o.vein; }
+    if(o.vein){ const D = o.dirs || DIRS, d = D[Math.floor(c.r * 97) % D.length], ph = TAU * (d[0] * u + d[1] * v) + 7 * t + c.r * 40, w = 1 - Math.abs(Math.sin(ph)); vv = (Math.pow(w, 16) * 0.85 + Math.pow(w, 5) * 0.12) * o.vein; }
     const g = (hash(y * N + x + o.seed * 131) - 0.5) * (o.grain || 0.03) + (t2 - 0.5) * (o.cloud || 0.08) + (c.r - 0.5) * (o.tint || 0.05);
     const k = (y * N + x) * 4, dark = lerp(o.jointDark || 0.5, 1, j);
     for(let q = 0; q < 3; q++) col[k + q] = ((base[q] + g) * (1 - vv) + o.veinCol[q] * vv) * dark * 255;
@@ -3764,6 +3811,8 @@ function campusTextures(){
     // wall blocks: 1.5 x 0.75 m cream marble ashlar in a running bond (tile 6 m)
     wall:stoneSet({seed:307, size:6, cols:4, rows:8, bond:true, base:n([0xf1ece2, 0xebe4d8, 0xf4f0e8]), vein:0.3, veinCol:hexArr(0x9c948a), joint:0.006, jointDark:0.72, rough:0.38, grain:0.025, cloud:0.07, tint:0.04, bump:0.03, nStrength:7}),
     // walkway pavers: 1 x 0.5 m pale granite in a running bond (tile 4 m)
+    // classroom floor and desks: 2 m x 20 cm oak planks, grain along the plank (tile 4 m)
+    wood:stoneSet({seed:331, size:4, cols:2, rows:20, bond:true, base:n([0xa9784a, 0x9a6b40, 0xb58556, 0x8f6239]), vein:0.35, veinCol:hexArr(0x5a3a20), dirs:[[0, 60], [0, 52], [1, 70]], joint:0.003, jointDark:0.55, rough:0.5, grain:0.03, cloud:0.1, tint:0.08, bump:0.02, nStrength:5}),
     pave:stoneSet({seed:313, size:4, cols:4, rows:8, bond:true, base:n([0xd3ccbf, 0xc9c1b3, 0xdcd6ca]), vein:0, veinCol:[0, 0, 0], joint:0.008, jointDark:0.5, rough:0.72, grain:0.16, cloud:0.07, tint:0.06, bump:0.08, nStrength:8})
   };
   return campusTexCache;
@@ -3789,6 +3838,189 @@ function pathGeo(lines, tile){
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); g.setIndex(idx); g.computeVertexNormals();
   return g;
 }
+// a fluted marble column with base and capital (Lathe with 120 sides so the 20 flutes stay round)
+function columnGeo(h){
+  const pts = [[0.001, 0], [0.64, 0], [0.64, 0.2], [0.56, 0.28], [0.52, 0.4], [0.45, 0.48], [0.42, 0.56], [0.4, h * 0.5], [0.365, h - 0.78], [0.4, h - 0.66], [0.47, h - 0.54], [0.55, h - 0.42], [0.64, h - 0.34], [0.64, h], [0.001, h]];
+  const g = new THREE.LatheGeometry(pts.map(a => new V2(a[0], a[1])), 120), pa = g.attributes.position;
+  for(let i = 0; i < pa.count; i++){ const x = pa.getX(i), y = pa.getY(i), z = pa.getZ(i); if(y < 0.6 || y > h - 0.8) continue; const f = 1 - 0.045 * Math.pow(0.5 + 0.5 * Math.cos(Math.atan2(x, z) * 20), 2); pa.setX(i, x * f); pa.setZ(i, z * f); }
+  g.computeVertexNormals(); return weldNormals(g);
+}
+// big printed signs (crest, lesson board, frieze lettering) are canvas textures on planes
+function signTex(w, h, draw){ const t = canvasTex(w, h, draw); t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping; return t; }
+const CAMPUS_FONT = '"Chakra Petch","Trebuchet MS",sans-serif';
+function buildHall(T){
+  const H = CAMPUS.hall, t = H.wall, Y0 = -0.6, Y1 = H.h, S = H.split, vis = [], sol = [];
+  const DOOR = {a0:-2.2, a1:2.2, y0:Y0, y1:5}, IDOOR = {a0:-1.6, a1:1.6, y0:Y0, y1:3.6};
+  const WIN = [[8.4, 10.6], [12.4, 14.6], [18.6, 20.8], [22.4, 24.6]].map(w => ({a0:w[0], a1:w[1], y0:1.3, y1:5.4, win:true}));
+  // a wall along x (z fixed between f0..f1) or along z (x fixed), with openings; windows are open to the eye but solid to walk into
+  const wall = (axis, f0, f1, a0, a1, holes) => {
+    const add = (list, b0, b1, y0, y1) => { if(b1 - b0 > 1e-3 && y1 - y0 > 1e-3) list.push(axis === 'x' ? [b0, b1, y0, y1, f0, f1] : [f0, f1, y0, y1, b0, b1]); };
+    [[vis, holes], [sol, holes.filter(q => !q.win)]].forEach(([list, hs]) => {
+      let a = a0; hs.slice().sort((u, v) => u.a0 - v.a0).forEach(q => { add(list, a, q.a0, Y0, Y1); add(list, q.a0, q.a1, Y0, q.y0); add(list, q.a0, q.a1, q.y1, Y1); a = q.a1; });
+      add(list, a, a1, Y0, Y1);
+    });
+  };
+  wall('x', H.z0, H.z0 + t, H.x0, H.x1, [DOOR]);              // south front, with the main door
+  wall('x', H.z1 - t, H.z1, H.x0, H.x1, []);                  // north
+  wall('z', H.x0, H.x0 + t, H.z0 + t, H.z1 - t, WIN);         // west
+  wall('z', H.x1 - t, H.x1, H.z0 + t, H.z1 - t, WIN);         // east: the morning sun comes through these
+  wall('x', S, S + t, H.x0 + t, H.x1 - t, [IDOOR]);           // marble hall | classroom
+  sol.forEach(b => aabb(b[0], b[1], b[2], b[3], b[4], b[5]));
+  // roof slab over hall and portico, with a skylight over the hall; the camera and colliders see one solid slab
+  const rx0 = H.x0 - 0.4, rx1 = H.x1 + 0.4, rz0 = H.z0 - 4.2, rz1 = H.z1 + 0.4, ry0 = Y1, ry1 = Y1 + 0.6, sk = {x0:-5, x1:5, z0:8.6, z1:14.2};
+  vis.push([rx0, rx1, ry0, ry1, rz0, sk.z0], [rx0, rx1, ry0, ry1, sk.z1, rz1], [rx0, sk.x0, ry0, ry1, sk.z0, sk.z1], [sk.x1, rx1, ry0, ry1, sk.z0, sk.z1]);
+  vis.push([rx0 - 0.15, rx1 + 0.15, ry1, ry1 + 0.35, rz0 - 0.15, rz0 + 0.5], [rx0 - 0.15, rx1 + 0.15, ry1, ry1 + 0.35, rz1 - 0.5, rz1 + 0.15], [rx0 - 0.15, rx0 + 0.5, ry1, ry1 + 0.35, rz0, rz1], [rx1 - 0.5, rx1 + 0.15, ry1, ry1 + 0.35, rz0, rz1]);   // parapet
+  aabb(rx0, rx1, ry0, ry1 + 0.35, rz0, rz1, {map:false});
+  vis.push([-12.4, 12.4, 6.7, Y1, H.z0 - 3.6, H.z0 - 1.6]);   // architrave over the portico columns
+  aabb(-12.4, 12.4, 6.7, Y1, H.z0 - 3.6, H.z0 - 1.6, {map:false});
+  const wallM = std(0xffffff, {map:T.wall.map, normalMap:T.wall.normal, roughnessMap:T.wall.rough, roughness:1});
+  mk(boxGeo(vis, 6), wallM);
+  // pediment over the portico
+  { const sh = new THREE.Shape(); sh.moveTo(-12.8, 0); sh.lineTo(12.8, 0); sh.lineTo(0, 2.6); sh.lineTo(-12.8, 0);
+    const pg = new THREE.ExtrudeGeometry(sh, {depth:4.9, bevelEnabled:false}), uv = pg.attributes.uv; for(let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) / 6, uv.getY(i) / 6);
+    mk(pg, wallM, 0, ry1 + 0.35, rz0 - 0.15); }
+  // floors: polished marble in the hall, portico and door sills; oak in the classroom (walkable ground there is G = 0; the tops sit just above it)
+  const fl = 0.025;
+  mk(boxGeo([[H.x0 + t, H.x1 - t, -0.3, fl, H.z0 + t, S], [H.x0 - 0.3, H.x1 + 0.3, -0.3, fl, H.z0 - 4.4, H.z0], [DOOR.a0, DOOR.a1, -0.3, fl, H.z0, H.z0 + t], [IDOOR.a0, IDOOR.a1, -0.3, fl, S, S + t]], 6),
+    std(0xffffff, {map:T.floor.map, normalMap:T.floor.normal, normalScale:new V2(0.5, 0.5), roughnessMap:T.floor.rough, roughness:1, envMapIntensity:0.8})).castShadow = false;
+  const woodM = std(0xffffff, {map:T.wood.map, normalMap:T.wood.normal, normalScale:new V2(0.6, 0.6), roughnessMap:T.wood.rough, roughness:1});
+  const wood = [[H.x0 + t, H.x1 - t, -0.3, fl, S + t, H.z1 - t]];
+  // columns: six across the portico, six along the hall
+  const cg = columnGeo(6.7), cm = [];
+  [-11, -7.2, -3.4, 3.4, 7.2, 11].forEach(x => { cm.push(mat4(x, 0, H.z0 - 2.6, 0, 0, 0, 1)); colliders.push({x, z:H.z0 - 2.6, r:0.62}); });
+  [-10.3, 10.3].forEach(x => [7.9, 11.5, 15.1].forEach(z => { cm.push(mat4(x, 0, z, 0, 0, 0, 0.9, Y1 / 6.7, 0.9)); colliders.push({x, z, r:0.56}); }));
+  instanced(cg, std(0xf4f0e8, {roughness:0.3, normalMap:detailNormal, normalScale:new V2(0.12, 0.12)}), cm);
+  // bronze trim: door frames, window frames and mullions
+  const trim = [];
+  const frameZ = (x0, x1, y1, z0, z1) => trim.push([x0 - 0.3, x0, -0.1, y1 + 0.3, z0 - 0.08, z1 + 0.08], [x1, x1 + 0.3, -0.1, y1 + 0.3, z0 - 0.08, z1 + 0.08], [x0 - 0.3, x1 + 0.3, y1, y1 + 0.3, z0 - 0.08, z1 + 0.08]);
+  frameZ(DOOR.a0, DOOR.a1, DOOR.y1, H.z0, H.z0 + t); frameZ(IDOOR.a0, IDOOR.a1, IDOOR.y1, S, S + t);
+  const glass = [];
+  [[H.x0, H.x0 + t], [H.x1 - t, H.x1]].forEach(([x0, x1]) => WIN.forEach(w => {
+    const xm = (x0 + x1) / 2, a = w.a0, b = w.a1, m = (a + b) / 2;
+    trim.push([x0 - 0.06, x1 + 0.06, w.y0 - 0.12, w.y0, a - 0.1, b + 0.1], [x0 - 0.06, x1 + 0.06, w.y1, w.y1 + 0.1, a - 0.1, b + 0.1], [x0 - 0.04, x1 + 0.04, w.y0, w.y1, a - 0.08, a], [x0 - 0.04, x1 + 0.04, w.y0, w.y1, b, b + 0.08],
+      [xm - 0.05, xm + 0.05, w.y0, w.y1, m - 0.04, m + 0.04], [xm - 0.05, xm + 0.05, 3.9, 3.98, a, b]);
+    glass.push([xm - 0.01, xm + 0.01, w.y0, w.y1, a, b]);
+  }));
+  glass.push([sk.x0, sk.x1, ry1 - 0.12, ry1 - 0.1, sk.z0, sk.z1]);
+  [-2.5, 0, 2.5].forEach(x => trim.push([x - 0.06, x + 0.06, ry1 - 0.2, ry1 - 0.08, sk.z0, sk.z1]));   // skylight glazing bars
+  // enrolment desk (the Campus front office), facing the hall aisle
+  const dx0 = 7.15, dx1 = 8.45, dz0 = 9.8, dz1 = 13.2;
+  trim.push([dx0, dx1, 0, 0.1, dz0, dz1]);
+  const deskBody = [[dx0 + 0.08, dx1 - 0.08, 0.1, 1.05, dz0 + 0.08, dz1 - 0.08]];
+  mk(boxGeo(trim, 2), std(0x7a5530, {metalness:0.85, roughness:0.32, map:detailTex}));
+  const gm = mk(boxGeo(glass, 2), std(0xcfe6f2, {roughness:0.04, metalness:0.1, transparent:true, opacity:0.22, envMapIntensity:1.5, depthWrite:false, side:THREE.DoubleSide}));
+  gm.castShadow = false; gm.receiveShadow = false; gm.renderOrder = 2;
+  // classroom: 3 rows of 4 oak desks with chairs, facing the lesson board on the north wall, and a lectern
+  const chairs = [];
+  [19.2, 21.3, 23.4].forEach(z => [-8.2, -4.4, 4.4, 8.2].forEach(x => {
+    wood.push([x - 0.7, x + 0.7, 0.72, 0.78, z - 0.35, z + 0.35]);
+    [[-0.62, -0.28], [0.62, -0.28], [-0.62, 0.28], [0.62, 0.28]].forEach(k => chairs.push([x + k[0] - 0.03, x + k[0] + 0.03, 0, 0.72, z + k[1] - 0.03, z + k[1] + 0.03]));
+    const cz = z - 0.78;
+    chairs.push([x - 0.24, x + 0.24, 0.44, 0.49, cz - 0.22, cz + 0.22], [x - 0.24, x + 0.24, 0.49, 0.95, cz - 0.24, cz - 0.2]);
+    [[-0.2, -0.18], [0.2, -0.18], [-0.2, 0.18], [0.2, 0.18]].forEach(k => chairs.push([x + k[0] - 0.02, x + k[0] + 0.02, 0, 0.44, cz + k[1] - 0.02, cz + k[1] + 0.02]));
+    aabb(x - 0.72, x + 0.72, 0, 1, cz - 0.28, z + 0.37, {full:true, cam:false});
+  }));
+  wood.push([7.2, 8.2, 0.03, 1.15, 24.1, 24.7], [7.1, 8.3, 1.15, 1.2, 23.95, 24.8]);   // lectern
+  aabb(7.1, 8.3, 0, 1.2, 23.95, 24.8, {full:true, cam:false});
+  mk(boxGeo(wood, 4), woodM);
+  mk(boxGeo(chairs, 2), std(0x2a3a5c, {roughness:0.45, metalness:0.3}));
+  mk(boxGeo(deskBody, 2), std(0x1d2c4a, {roughness:0.5, metalness:0.2, map:detailTex}));
+  mk(boxGeo([[dx0 - 0.05, dx1 + 0.05, 1.05, 1.11, dz0 - 0.06, dz1 + 0.06]], 6), std(0xffffff, {map:T.floor.map, roughnessMap:T.floor.rough, roughness:1}));
+  mk(boxGeo([[dx0 + 0.02, dx0 + 0.07, 0.55, 0.64, dz0 + 0.25, dz1 - 0.25]], 2), glowM(0x7fd0ff, 2.2)).castShadow = false;
+  aabb(dx0, dx1 + 1.3, 0, 1.2, dz0, dz1, {full:true, cam:false});
+  desk = {x:(dx0 + dx1) / 2 - 0.4, z:(dz0 + dz1) / 2};
+  { const dl = label('Enrolment · E', {small:true, edge:'#7fd0ff', fg:'#7fd0ff'}); dl.position.set(dx0 + 0.6, 2.35, (dz0 + dz1) / 2); world.add(dl); }
+  { const clerk = makeAvatar({recipe:parseDescription('a tall clerk in a navy suit with a white visor'), name:'Clerk Tamsin'}); clerk.g.position.set(dx1 + 0.75, 0, (dz0 + dz1) / 2); clerk.g.rotation.y = -Math.PI / 2; world.add(clerk.g); }
+  // ceiling light panels (emissive, no point lights)
+  const lamps = [];
+  [-9.3, 9.3].forEach(x => [9.2, 13.8].forEach(z => lamps.push([x - 0.5, x + 0.5, Y1 - 0.08, Y1, z - 1.1, z + 1.1])));
+  [-6.3, 0, 6.3].forEach(x => [19.6, 23].forEach(z => lamps.push([x - 1.1, x + 1.1, Y1 - 0.08, Y1, z - 0.45, z + 0.45])));
+  const lm = mk(boxGeo(lamps, 2), glowM(0xfff2dc, 1.5)); lm.castShadow = false;
+  // the Campus crest over the classroom door, and the lesson board in the classroom
+  const crest = signTex(1024, 384, (x, w, h) => {
+    x.fillStyle = '#1d2c4a'; x.fillRect(0, 0, w, h); x.strokeStyle = '#c9a25a'; x.lineWidth = 10; x.strokeRect(14, 14, w - 28, h - 28);
+    x.strokeStyle = '#c9a25a'; x.lineWidth = 9; x.beginPath(); x.arc(170, h / 2, 96, 0, TAU); x.stroke(); x.beginPath(); x.ellipse(170, h / 2, 140, 44, -0.35, 0, TAU); x.stroke();
+    x.fillStyle = '#7fd0ff'; x.beginPath(); x.arc(170 + 132 * Math.cos(-0.9), h / 2 + 44 * Math.sin(-0.9) - 18, 14, 0, TAU); x.fill();
+    x.fillStyle = '#f3efe6'; x.textAlign = 'left'; x.font = '700 120px ' + CAMPUS_FONT; x.fillText('CAMPUS', 330, 200);
+    x.fillStyle = '#c9a25a'; x.font = '600 40px ' + CAMPUS_FONT; x.fillText('SECTOR ONE · LEARN THE WAY OUT', 334, 272);
+  });
+  const cr = new THREE.Mesh(new THREE.PlaneGeometry(7.2, 2.7), std(0xffffff, {map:crest, roughness:0.75})); cr.position.set(0, 5.3, S - 0.03); cr.rotation.y = Math.PI; cr.receiveShadow = true; world.add(cr);
+  const board = signTex(1024, 512, (x, w, h) => {
+    x.fillStyle = '#1f3a33'; x.fillRect(0, 0, w, h);
+    for(let i = 0; i < 2500; i++){ const q = (i * 2654435761 >>> 0) / 4294967296, q2 = (i * 40503 % 1000) / 1000; x.fillStyle = 'rgba(255,255,255,0.025)'; x.fillRect(q * w, q2 * h, 3, 2); }
+    x.fillStyle = '#eef3ee'; x.font = '700 50px ' + CAMPUS_FONT; x.fillText('ORBITAL MATHS · LESSON 4', 48, 84);
+    x.font = '400 34px ' + CAMPUS_FONT; x.fillText('Why a warp costs more the further you go', 48, 140);
+    x.strokeStyle = '#eef3ee'; x.lineWidth = 4; x.beginPath(); x.ellipse(760, 320, 190, 110, 0.2, 0, TAU); x.stroke();
+    x.fillStyle = '#ffd166'; x.beginPath(); x.arc(700, 320, 26, 0, TAU); x.fill(); x.fillStyle = '#7fd0ff'; x.beginPath(); x.arc(930, 290, 14, 0, TAU); x.fill();
+    x.fillStyle = '#eef3ee'; x.font = '400 34px ' + CAMPUS_FONT; ['same sector ........ 10', 'one sector away .... 25', 'two away ........... 60', 'three away ........ 120'].forEach((l, i) => x.fillText(l, 48, 230 + i * 58));
+    x.font = '400 28px ' + CAMPUS_FONT; x.fillText('Enrolled students warp here free.', 48, 470);
+  });
+  const bd = new THREE.Mesh(new THREE.PlaneGeometry(9, 4.5), std(0xffffff, {map:board, roughness:0.9})); bd.position.set(0, 3.1, H.z1 - t - 0.03); bd.rotation.y = Math.PI; bd.receiveShadow = true; world.add(bd);
+  mk(boxGeo([[-4.7, 4.7, 0.75, 0.85, H.z1 - t - 0.2, H.z1 - t], [-4.7, 4.7, 5.35, 5.45, H.z1 - t - 0.1, H.z1 - t], [-4.7, -4.5, 0.85, 5.35, H.z1 - t - 0.1, H.z1 - t], [4.5, 4.7, 0.85, 5.35, H.z1 - t - 0.1, H.z1 - t]], 4), woodM);
+  // frieze lettering on the architrave
+  const fz = signTex(2048, 128, (x, w, h) => { x.clearRect(0, 0, w, h); x.fillStyle = '#6f6a62'; x.font = '700 84px ' + CAMPUS_FONT; x.textAlign = 'center'; x.fillText('C A M P U S   ·   H A L L   O F   F I R S T   S T E P S', w / 2, 96); });
+  const fr = new THREE.Mesh(new THREE.PlaneGeometry(20, 1.25), std(0xffffff, {map:fz, transparent:true, alphaTest:0.4, roughness:0.6})); fr.position.set(0, 7.1, H.z0 - 3.62); fr.rotation.y = Math.PI; world.add(fr);
+  { const l = label('Marble Hall · Classroom', {small:true, edge:'#b6ff7a', fg:'#b6ff7a'}); l.position.set(0, 11.6, H.z0 - 3.6); world.add(l); }
+}
+
+/* the zero-g gym: a marble drum with a glass dome. Inside the drum gravity is off (see update): WASD drifts, Space pushes up, Shift pushes down, walls bounce you. */
+const gymIn = (x, z) => !!gym && Math.hypot(x - gym.x, z - gym.z) < gym.r - 0.25;
+const gymCeil = (x, z) => gym.h + Math.sqrt(Math.max(0, (gym.r - 0.2) * (gym.r - 0.2) - (x - gym.x) * (x - gym.x) - (z - gym.z) * (z - gym.z)));
+function buildGym(T){
+  const g = CAMPUS.gym, D = Math.PI / 2, a = Math.asin(g.doorW / g.r), Ro = g.r + g.t, len = TAU - 2 * a;
+  gym = {x:g.x, z:g.z, r:g.r, h:g.h};
+  const G0 = new THREE.Group(); G0.position.set(g.x, 0, g.z); world.add(G0);
+  const tileUV = (geo, cu, cv) => { const uv = geo.attributes.uv; for(let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * cu, uv.getY(i) * cv); return geo; };
+  const wallM = std(0xffffff, {map:T.wall.map, normalMap:T.wall.normal, roughnessMap:T.wall.rough, roughness:1});
+  const H = g.h + 0.3;
+  // drum: outer and inner faces with the doorway left open, a top rim, and the wall over the door
+  mk(tileUV(new THREE.CylinderGeometry(Ro, Ro, H, 128, 1, true, D + a, len), Ro * len / 6, H / 6), wallM, 0, H / 2 - 0.3, 0, G0);
+  mk(tileUV(new THREE.CylinderGeometry(g.r, g.r, H, 128, 1, true, D + a, len), g.r * len / 6, H / 6), std(0xffffff, {map:T.wall.map, normalMap:T.wall.normal, roughnessMap:T.wall.rough, roughness:1, side:THREE.BackSide}), 0, H / 2 - 0.3, 0, G0);
+  const lh = g.h - g.door;
+  mk(tileUV(new THREE.CylinderGeometry(Ro, Ro, lh, 16, 1, true, D - a, 2 * a), Ro * 2 * a / 6, lh / 6), wallM, 0, g.door + lh / 2, 0, G0);
+  mk(tileUV(new THREE.CylinderGeometry(g.r, g.r, lh, 16, 1, true, D - a, 2 * a), g.r * 2 * a / 6, lh / 6), std(0xffffff, {map:T.wall.map, roughness:0.4, side:THREE.BackSide}), 0, g.door + lh / 2, 0, G0);
+  const rim = mk(new THREE.RingGeometry(g.r - 0.05, Ro + 0.25, 128, 1), std(0xf4f0e8, {roughness:0.35, side:THREE.DoubleSide}), 0, g.h, 0, G0); rim.rotation.x = -Math.PI / 2;
+  const sof = mk(new THREE.RingGeometry(g.r, Ro, 16, 1, -a, 2 * a), std(0xf4f0e8, {roughness:0.4, side:THREE.DoubleSide}), 0, g.door, 0, G0); sof.rotation.x = -Math.PI / 2;
+  // bronze door jambs, and a glowing threshold line: past it, gravity is off
+  const bronze = std(0x7a5530, {metalness:0.85, roughness:0.32, map:detailTex});
+  [-1, 1].forEach(sg => { const th = D + sg * a, j = mk(new THREE.BoxGeometry(0.28, g.door + 0.2, g.t + 0.16), bronze, Math.sin(th) * (g.r + g.t / 2), (g.door + 0.2) / 2 - 0.05, Math.cos(th) * (g.r + g.t / 2), G0); j.rotation.y = th; });
+  { const j = mk(new THREE.BoxGeometry(g.t + 0.16, 0.25, 2 * g.doorW + 0.3), bronze, g.r + g.t / 2, g.door + 0.1, 0, G0); j.castShadow = false; }
+  { const th = mk(new THREE.BoxGeometry(0.12, 0.02, 2 * g.doorW - 0.1), glowM(0x7fd0ff, 2.6), g.r - 0.3, 0.045, 0, G0); th.castShadow = false; }
+  // field emitters: glowing bands low and high on the inner wall
+  [0.35, g.h - 0.35].forEach(y => { const b = mk(new THREE.TorusGeometry(g.r - 0.06, 0.05, 8, 160, len), glowM(0x7fd0ff, 2.2), 0, y, 0, G0); b.rotation.set(Math.PI / 2, 0, a); b.castShadow = false; });
+  // padded floor with court markings
+  const floorTex = signTex(1024, 1024, (x, w) => {
+    const c = w / 2; x.fillStyle = '#23466f'; x.fillRect(0, 0, w, w);
+    const gr = x.createRadialGradient(c, c, 0, c, c, c); gr.addColorStop(0, 'rgba(92,170,230,0.35)'); gr.addColorStop(1, 'rgba(10,20,40,0.25)'); x.fillStyle = gr; x.fillRect(0, 0, w, w);
+    for(let i = 0; i < 9000; i++){ const q = (i * 2654435761 >>> 0) / 4294967296, q2 = ((i * 97 + 13) * 40503 >>> 0) % 10007 / 10007, v = 90 + (i % 5) * 20; x.fillStyle = 'rgba(' + v + ',' + (v + 30) + ',' + (v + 60) + ',0.08)'; x.fillRect(q * w, q2 * w, 2, 2); }
+    x.strokeStyle = 'rgba(240,246,255,0.85)'; x.lineWidth = 8; [0.97, 0.66, 0.3].forEach(k => { x.beginPath(); x.arc(c, c, c * k, 0, TAU); x.stroke(); });
+    x.beginPath(); x.moveTo(c - c * 0.97, c); x.lineTo(c + c * 0.97, c); x.stroke();
+    x.fillStyle = 'rgba(240,246,255,0.9)'; x.font = '700 120px ' + CAMPUS_FONT; x.textAlign = 'center'; x.fillText('0 G', c, c - 40);
+  });
+  const fl = mk(new THREE.CircleGeometry(g.r, 128), std(0xffffff, {map:floorTex, roughness:0.85, normalMap:detailNormal, normalScale:new V2(0.3, 0.3)}), 0, 0.03, 0, G0); fl.rotation.x = -Math.PI / 2; fl.rotation.z = D; fl.castShadow = false;
+  // glass dome with bronze ribs (the ribs throw a lattice of shadow on the floor)
+  const dome = mk(new THREE.SphereGeometry(Ro, 96, 32, 0, TAU, 0, Math.PI / 2), std(0xdfeff8, {roughness:0.05, metalness:0.1, transparent:true, opacity:0.16, envMapIntensity:1.6, depthWrite:false, side:THREE.DoubleSide}), 0, g.h, 0, G0);
+  dome.castShadow = false; dome.receiveShadow = false; dome.renderOrder = 2;
+  const ribs = [];
+  for(let k = 0; k < 8; k++){ const t = new THREE.TorusGeometry(Ro, 0.07, 6, 64, Math.PI); t.rotateY(k * Math.PI / 8); ribs.push(t); }
+  [0.5, 0.9].forEach(lat => { const t = new THREE.TorusGeometry(Ro * Math.cos(lat), 0.06, 6, 128); t.rotateX(Math.PI / 2); t.translate(0, Ro * Math.sin(lat), 0); ribs.push(t); });
+  { const t = new THREE.TorusGeometry(Ro, 0.1, 8, 160); t.rotateX(Math.PI / 2); ribs.push(t); }
+  mk(merge(ribs), std(0x8a6a44, {metalness:0.85, roughness:0.3}), 0, g.h, 0, G0);
+  // floating kit: glowing hoops to fly through and soft balls that drift in place
+  const hoopM = glowM(0xb6ff7a, 1.8), ballM = std(0xff8f5a, {roughness:0.6}), q = rng(907);
+  [[3, 3.2, 1.5, 0.3], [-4, 5.5, -2, 1.2], [1, 8.2, -4.5, 0.7], [-2, 2.2, 5, 2], [5.5, 6.5, 3.5, 2.6]].forEach((h, i) => {
+    const o = mk(new THREE.TorusGeometry(1.1, 0.08, 10, 48), hoopM, h[0], h[1], h[2], G0); o.rotation.y = h[3]; o.castShadow = true;
+    floaters.push({o, y:h[1], a:0.18, w:0.5 + i * 0.07, ph:i * 1.9, spin:0});
+  });
+  for(let i = 0; i < 7; i++){ const ang = q() * TAU, d = 2 + q() * 5.5, y = 1.5 + q() * 6.5, o = mk(new THREE.IcosahedronGeometry(0.32 + q() * 0.18, 3), ballM, Math.cos(ang) * d, y, Math.sin(ang) * d, G0); floaters.push({o, y, a:0.35, w:0.4 + q() * 0.4, ph:q() * TAU, spin:0.4}); }
+  { const l = label('Zero-G Gym · gravity off inside', {small:true, edge:'#7fd0ff', fg:'#7fd0ff'}); l.position.set(Ro + 0.8, g.door + 1.6, 0); G0.add(l); }
+  glow(0x7fd0ff, 3.5, Ro + 0.3, 0.6, 0, G0, 0.35);
+  // collision: the drum as 26 straight segments (the doorway left open) plus the wall over the door; tall, so a floating player cannot drift over the top
+  const N = 26, step = len / N, rm = g.r + g.t / 2;
+  for(let k = 0; k < N; k++){ const th = D + a + step * (k + 0.5); addBox(g.x + Math.sin(th) * rm, g.z + Math.cos(th) * rm, rm * step / 2 + 0.06, g.t / 2, -1, g.h + g.r, {a:-th}); }
+  addBox(g.x + rm, g.z, g.doorW + 0.3, g.t / 2, g.door, g.h + g.r, {a:-D});
+}
+
 BUILD.campus = (r, n) => {
   const T = campusTextures(), W = CAMPUS.woods.x0;
   buildTerrain({maxR:900, color:(x, y, z, sl) => {
@@ -3801,6 +4033,7 @@ BUILD.campus = (r, n) => {
   const pm = std(0xffffff, {map:T.pave.map, normalMap:T.pave.normal, roughnessMap:T.pave.rough, roughness:1});
   reg('plaza', {mat:pm, kind:'path', rep:1.6});
   const pmesh = new THREE.Mesh(pathGeo(CAMPUS.paths, 4), pm); pmesh.receiveShadow = true; world.add(pmesh);
+  buildHall(T); buildGym(T);
   makeGrass(Math.round(46000 * Q), 2, 57, [0x5f9636, 0x6ca23f, 0x7aae4a, 0x588c32], [0.16, 0.36], (x, z) => campusBuilt(x, z, 0.25));   // mown: short, dense, bright
 };
 
@@ -3859,7 +4092,8 @@ function buildWorld(key){
   clearWorld();
   const W = WORLDS[key]; state.world = key;
   world = new THREE.Group(); scene.add(world);
-  grassMeshes = []; slotMats = {}; colliders = []; platforms = []; coins = []; portals = []; spinners = []; npcs = []; shardObj = null; vault = null; gridSun = null; fireflies = null; shopKiosk = null; vendor = null; hazards = []; burst = null; pickups = []; bike.g = null; bike.riding = false; bike.near = false; engineStop(); $('#rideBtn').style.display = 'none'; trial.active = false; trial.rings = []; trial.pad = null; trial.padPos = null; $('#trialPanel').style.display = 'none';
+  if(camHid){ camHid = false; if(!zeroing) me.g.visible = true; }
+  grassMeshes = []; slotMats = {}; boxes = []; desk = null; gym = null; floaters = []; p.zeroG = false; colliders = []; platforms = []; coins = []; portals = []; spinners = []; npcs = []; shardObj = null; vault = null; gridSun = null; fireflies = null; shopKiosk = null; vendor = null; hazards = []; burst = null; pickups = []; bike.g = null; bike.riding = false; bike.near = false; engineStop(); $('#rideBtn').style.display = 'none'; trial.active = false; trial.rings = []; trial.pad = null; trial.padPos = null; $('#trialPanel').style.display = 'none';
   const r = rng(W.seed), noise = makeNoise(W.seed * 7 + 1);
   applyLook(W);
   const pads = W.portals.map(q => ({x:q.x, z:q.z, r:4})).concat(W.pads || []);
@@ -4408,8 +4642,8 @@ function openWarp(){
   const list = $('#warpList'); list.innerHTML = '';
   WORLD_ORDER.forEach(k => {
     const b = document.createElement('button'); b.className = 'warp-item'; b.style.setProperty('--c', hexStr(PORTAL_COLORS[k]));
-    const here = k === state.world, cost = fare(state.world, k);
-    b.innerHTML = '<span>' + WORLDS[k].name + '<br><small>Sector ' + WORLDS[k].sector + ' · ' + rulesText(WORLDS[k]) + (bundles.some(bb => bb.world === k) ? ' · your bundle' : '') + '</small></span><small>' + (here ? 'You are here' : cost ? '₵ ' + cost : 'Free') + '</small>';
+    const here = k === state.world, cost = fare(state.world, k), enr = !cost && k !== 'hub' && state.enrolled && (k === 'campus' || state.world === 'campus');
+    b.innerHTML = '<span>' + WORLDS[k].name + '<br><small>Sector ' + WORLDS[k].sector + ' · ' + rulesText(WORLDS[k]) + (bundles.some(bb => bb.world === k) ? ' · your bundle' : '') + '</small></span><small>' + (here ? 'You are here' : cost ? '₵ ' + cost : enr ? 'Free · enrolled' : 'Free') + '</small>';
     if(here) b.disabled = true;
     b.addEventListener('click', () => {
       if(state.credits < cost){ toast('Not enough credits. Collect coins to earn more.'); return; }
@@ -4543,6 +4777,21 @@ function vendProximity(){
   if(near !== vendNear){ vendNear = near; $('#vendBtn').style.display = near ? '' : 'none'; if(near && !vendHinted && playing){ vendHinted = true; toast('Vending terminal: press E (or tap Vend) for health kits and fuel cells', 3000); } }
 }
 
+/* ================= Campus enrolment (Goal 8): enrol once at the desk in the marble hall; warps to and from Campus are then free (fare()) ================= */
+let deskNear = false;
+function enroll(){
+  if(state.enrolled){ toast('You are enrolled at Campus. Warps to and from Campus are free.', 3000); return false; }
+  state.enrolled = true; persist(); sfx('level'); reward(20, 0);
+  $('#enrolBtn').textContent = 'Enrolled';
+  toast('Enrolled at Campus. Warps to and from Campus are now free.   +20 XP', 3600); return true;
+}
+$('#enrolBtn').addEventListener('click', enroll);
+function deskProximity(){
+  const near = !!(desk && !bike.riding && Math.hypot(p.x - desk.x, p.z - desk.z) < 2.8);
+  if(near !== deskNear){ deskNear = near; const b = $('#enrolBtn'); b.style.display = near ? '' : 'none'; b.textContent = state.enrolled ? 'Enrolled' : 'Enrol';
+    if(near && playing) toast(state.enrolled ? 'Clerk Tamsin: you are on the roll. Warps to and from Campus cost nothing.' : 'Clerk Tamsin: enrol here (E or tap Enrol) and every warp to and from Campus is free.', 3200); }
+}
+
 /* ================= input ================= */
 let jumpBuffer = 0;
 window.addEventListener('keydown', e => {
@@ -4553,7 +4802,7 @@ window.addEventListener('keydown', e => {
   if(!invEl.classList.contains('hidden')){ if(e.code === 'Escape' || e.code === 'KeyI') closeInventory(); return; }
   if(!vendEl.classList.contains('hidden')){ if(e.code === 'Escape' || e.code === 'KeyE') closeVendor(); return; }
   if(e.code === 'KeyI'){ openInventory(); return; }
-  if(e.code === 'KeyE'){ if(bike.riding) dismountBike(); else if(bike.near) mountBike(); else if(shopNear) openShop(); else if(vendNear) openVendor(); return; }
+  if(e.code === 'KeyE'){ if(bike.riding) dismountBike(); else if(bike.near) mountBike(); else if(shopNear) openShop(); else if(vendNear) openVendor(); else if(deskNear) enroll(); return; }
   if(e.code === 'KeyN'){ setMute(snd.on); return; }
   if(e.code === 'KeyV'){ cycleView(); return; }
   if(e.code === 'KeyC'){ setCine(!post.cine); return; }
@@ -4628,6 +4877,7 @@ function drawMap(){
   mx2.clearRect(0, 0, w, w); mx2.save(); mx2.beginPath(); mx2.arc(c, c, c - 1, 0, TAU); mx2.clip();
   mx2.fillStyle = 'rgba(14,12,40,0.78)'; mx2.fillRect(0, 0, w, w);
   let o = T(0, 0); mx2.strokeStyle = 'rgba(92,225,230,0.5)'; mx2.lineWidth = 1.5 * sc; mx2.beginPath(); mx2.arc(o[0], o[1], R * sc, 0, TAU); mx2.stroke();
+  mx2.fillStyle = 'rgba(255,255,255,0.3)'; boxes.forEach(b => { if(b.y0 > 1.9 || b.map === false) return; mx2.beginPath(); [[-1, -1], [1, -1], [1, 1], [-1, 1]].forEach((k, i) => { const lx = k[0] * b.hx, lz = k[1] * b.hz; o = T(b.x + lx * b.c - lz * b.s, b.z + lx * b.s + lz * b.c); if(i) mx2.lineTo(o[0], o[1]); else mx2.moveTo(o[0], o[1]); }); mx2.fill(); });
   mx2.fillStyle = 'rgba(255,255,255,0.14)'; platforms.forEach(s => { o = T(s.x, s.z); mx2.beginPath(); mx2.arc(o[0], o[1], s.r * sc, 0, TAU); mx2.fill(); });
   portals.forEach(q => { o = T(q.x, q.z); mx2.strokeStyle = hexStr(PORTAL_COLORS[q.to]); mx2.lineWidth = 2.5; mx2.beginPath(); mx2.arc(o[0], o[1], 2.2 * sc, 0, TAU); mx2.stroke(); });
   mx2.fillStyle = '#ffd166'; coins.forEach(k => { o = T(k.g.position.x, k.g.position.z); mx2.beginPath(); mx2.arc(o[0], o[1], Math.max(2, 0.6 * sc), 0, TAU); mx2.fill(); });
@@ -5131,20 +5381,48 @@ function update(dt, time){
   const target = moving ? (running ? 9.5 : 5) * Math.min(1, mag) : 0;
   p.speed += (target - p.speed) * (1 - Math.exp(-dt * 10));
   const prevY = p.y, dirx = moving ? mx / mag : Math.sin(p.facing), dirz = moving ? mz / mag : Math.cos(p.facing);
-  let nx = p.x + dirx * p.speed * dt, nz = p.z + dirz * p.speed * dt;
+  // zero-g gym (Goal 8): inside the drum there is no gravity. The avatar keeps its momentum, WASD thrusts, Space pushes up, Shift pushes down,
+  // walls, floor and dome bounce it softly. Stepping out of the drum hands it straight back to normal walking and gravity.
+  const zg = gymIn(p.x, p.z);
+  if(zg !== !!p.zeroG){ p.zeroG = zg;
+    if(zg){ p.vx = dirx * p.speed * 0.6; p.vz = dirz * p.speed * 0.6; p.zgIdle = 0; if(!zgHinted && playing){ zgHinted = true; toast('Zero-G Gym: gravity is off. Space pushes up, Shift pushes down, WASD drifts.', 3600); } }
+    else p.speed = Math.min(9.5, Math.hypot(p.vx, p.vz)); }
+  let nx, nz;
+  if(p.zeroG){
+    const live = playing && !traveling && !zeroing;
+    p.vx += mx * 6 * dt; p.vz += mz * 6 * dt;
+    if(live && keys.Space) p.vy += 6 * dt;
+    if(live && (keys.ShiftLeft || keys.ShiftRight)) p.vy -= 6 * dt;
+    if(jumpBuffer > 0){ p.vy += 2.4; jumpBuffer = 0; sfx('jump'); }   // a tap is a push-off (also the touch Jump button)
+    // touch screens have no Shift: after 3 idle seconds a faint floor field settles the avatar down so nobody is ever stuck up high
+    if(COARSE && !moving){ p.zgIdle += dt; if(p.zgIdle > 3) p.vy -= 0.8 * dt; } else p.zgIdle = 0;
+    const k = Math.exp(-dt * 0.3); p.vx *= k; p.vz *= k; p.vy *= k;
+    const sp = Math.hypot(p.vx, p.vy, p.vz); if(sp > 7){ p.vx *= 7 / sp; p.vy *= 7 / sp; p.vz *= 7 / sp; }
+    nx = p.x + p.vx * dt; nz = p.z + p.vz * dt; p.speed = Math.hypot(p.vx, p.vz);
+  } else { nx = p.x + dirx * p.speed * dt; nz = p.z + dirz * p.speed * dt; }
+  const ix = nx, iz = nz;
   const push = (cx, cz, m) => { const dx = nx - cx, dz = nz - cz, d = Math.hypot(dx, dz); if(d < m && d > 1e-4){ nx = cx + dx / d * m; nz = cz + dz / d * m; } };
   const gHere = G(p.x, p.z);
   for(const c of colliders) if(p.y - gHere < 10) push(c.x, c.z, c.r + 0.35);
   for(const s of platforms) if(p.y < s.top - 0.35 && p.y + 1.85 > s.bottom) push(s.x, s.z, s.r + 0.35);
   for(const nn of npcs) push(nn.x, nn.z, nn.av.rad);
+  for(const b of boxes) if(b.full || (p.y < b.y1 && p.y + 1.85 > b.y0)){ const q = boxOut(nx, nz, b, 0.35); if(q){ nx = q[0]; nz = q[1]; } }
   const dr = Math.hypot(nx, nz), lim = R - 1.5; if(dr > lim){ nx *= lim / dr; nz *= lim / dr; }
+  if(p.zeroG){ const ddx = nx - ix, ddz = nz - iz, dl = Math.hypot(ddx, ddz); if(dl > 1e-5){ const ux = ddx / dl, uz = ddz / dl, vn = p.vx * ux + p.vz * uz; if(vn < 0){ p.vx -= 1.6 * vn * ux; p.vz -= 1.6 * vn * uz; } } }
   p.x = nx; p.z = nz;
   jumpBuffer -= dt;
+  const wasGrounded = p.grounded;
+  if(p.zeroG){
+    p.y += p.vy * dt;
+    const ground = G(p.x, p.z), ceil = gymCeil(p.x, p.z) - 1.9;
+    if(p.y <= ground){ p.y = ground; if(p.vy < 0) p.vy = -p.vy * 0.35; if(p.vy < 0.4) p.vy = 0; }
+    if(p.y > ceil){ p.y = ceil; if(p.vy > 0) p.vy = -p.vy * 0.5; }
+    p.grounded = p.y - ground < 0.02 && p.vy === 0; p.airJumps = 1;
+  } else {
   if(jumpBuffer > 0 && !zeroing){
     if(p.grounded){ p.vy = 8.6; p.grounded = false; p.airJumps = 1; jumpBuffer = 0; sfx('jump'); }
     else if(p.airJumps > 0){ if(WORLDS[state.world].rules.tech){ p.vy = 8.4; p.airJumps = 0; jumpBuffer = 0; p.flameT = 0.45; sfx('boost'); } else { p.airJumps = 0; jumpBuffer = 0; toast('No tech works in ' + WORLDS[state.world].name + ': the boost is dead here', 2200); } }
   }
-  const wasGrounded = p.grounded;
   p.vy -= 24 * dt; p.y += p.vy * dt;
   for(const s of platforms) if(p.vy > 0 && s.bottom > 0.5 && Math.hypot(p.x - s.x, p.z - s.z) < s.r && prevY + 1.85 <= s.bottom + 0.01 && p.y + 1.85 > s.bottom){ p.y = s.bottom - 1.85; p.vy = 0; }
   let ground = G(p.x, p.z);
@@ -5152,6 +5430,7 @@ function update(dt, time){
   if(p.y <= ground || (wasGrounded && p.vy <= 0 && p.y - ground < 0.45)){
     if(!wasGrounded && -p.vy > FALL_SAFE) hurt((-p.vy - FALL_SAFE) * 4.5, 'fall');
     p.y = ground; p.vy = 0; p.grounded = true; p.airJumps = 1; } else p.grounded = false;
+  }
   if(moving) p.facing = lerpAngle(p.facing, Math.atan2(mx, mz), 1 - Math.exp(-dt * 12));
   me.g.position.set(p.x, p.y, p.z); me.g.rotation.y = p.facing;
   animateAvatar(me, dt, p.speed, p.grounded, time);
@@ -5162,6 +5441,12 @@ function update(dt, time){
   if(!playing && !state.started) cam.yaw += dt * 0.1;
   camTarget();
   camera.position.lerp(_t0, 1 - Math.exp(-dt * 10));
+  clipCamera();
+  if(gym && Math.hypot(p.x - gym.x, p.z - gym.z) < gym.r){   // inside the gym the camera stays under the dome
+    const dx = camera.position.x - gym.x, dz = camera.position.z - gym.z, d = Math.hypot(dx, dz), lim = gym.r - 0.5;
+    if(d > lim){ camera.position.x = gym.x + dx / d * lim; camera.position.z = gym.z + dz / d * lim; }
+    const c = gymCeil(camera.position.x, camera.position.z) - 0.5; if(camera.position.y > c) camera.position.y = c;
+  }
   const cg = G(camera.position.x, camera.position.z) + 0.4; if(camera.position.y < cg) camera.position.y = cg;
   camera.lookAt(_t1);
   sky.position.copy(camera.position);
@@ -5170,6 +5455,7 @@ function update(dt, time){
   if(gridSun) gridSun.lookAt(camera.position.x, gridSun.position.y, camera.position.z);
   waterNormal.offset.x += dt * 0.015; waterNormal.offset.y += dt * 0.01;
 
+  for(const f of floaters){ f.o.position.y = f.y + Math.sin(time * f.w + f.ph) * f.a; f.o.rotation.x += dt * f.spin; f.o.rotation.z += dt * f.w * 0.2; }
   for(const q of portals){ const d = Math.hypot(camera.position.x - q.x, camera.position.y - q.y, camera.position.z - q.z); q.gl.material.opacity = 0.35 * smooth(2.5, 7, d); q.disc.material.uniforms.fade.value = smooth(1.2, 3.5, d); }
   spinners.forEach(s => { s.o.rotation.y += dt * 0.9; if(s.bob) s.o.position.y = s.bob + Math.sin(time * 1.3) * 0.25; });
   if(fireflies){
@@ -5188,6 +5474,7 @@ function update(dt, time){
         let blocked = Math.hypot(ax - p.x, az - p.z) < 0.9;
         if(!blocked) for(const c of colliders) if(Math.hypot(ax - c.x, az - c.z) < c.r + 0.4){ blocked = true; break; }
         if(!blocked) for(const s of platforms) if(s.bottom < 1.9 && Math.hypot(ax - s.x, az - s.z) < s.r + 0.4){ blocked = true; break; }
+        if(!blocked) for(const b of boxes) if(b.y0 < 1.9 && boxOut(ax, az, b, 0.4)){ blocked = true; break; }
         if(blocked){ pickTarget(nn); nn.wait = 0.4; sp = 0; }
         else { nn.x = ax; nn.z = az; nn.facing = lerpAngle(nn.facing, Math.atan2(dx, dz), 1 - Math.exp(-dt * 6)); }
       }
@@ -5216,7 +5503,7 @@ function update(dt, time){
     state.won = true; reward(500, 200); sfx('win'); setHalo(); toast('You opened the vault. First to crack the Hub.   +500 XP', 5000);
   }
   if(playing && p.grounded && p.speed > 0.6){ snd.stepT -= dt; if(snd.stepT <= 0){ sfx('step'); snd.stepT = p.speed > 7 ? 0.27 : 0.42; } } else snd.stepT = 0.1;
-  shopProximity(); bikeProximity(); vendProximity(); trialUpdate(dt, time);
+  shopProximity(); bikeProximity(); vendProximity(); deskProximity(); trialUpdate(dt, time);
   updatePickups(dt, time); hurtCool -= dt; simTime += dt; updateHazards(simTime); updateBurst(dt); checkBundles();
   if(!WORLDS[state.world].rules.danger && !zeroing && state.hp < maxHp()){ state.hp = Math.min(maxHp(), state.hp + 12 * dt); hpHud(); }
   portalCool -= dt;
@@ -5274,7 +5561,8 @@ window.__hub = { state, p, cam, post, stats, WORLDS, scene, renderer, camera, su
   get pickups(){ return pickups.map(q => ({pid:q.pid, id:q.id, x:q.x, y:q.y, z:q.z})); }, get shopKiosk(){ return shopKiosk && {x:shopKiosk.x, z:shopKiosk.z}; }, get simTime(){ return simTime; },
   VEND, get vendor(){ return vendor && {world:vendor.world, x:vendor.x, z:vendor.z}; }, get vendors(){ return JSON.parse(JSON.stringify(vendorsSeen)); }, get vendNear(){ return vendNear; }, openVendor, closeVendor, buyVend,
   get fuel(){ return state.fuel; }, set fuel(v){ state.fuel = clamp(+v || 0, 0, FUEL_MAX); fuelShown = -1; fuelHud(); }, FUEL_MAX,
-  fare, CAMPUS, get portals(){ return portals.map(q => ({to:q.to, x:q.x, z:q.z})); }, get coins(){ return coins.map(k => ({id:k.id, x:k.g.position.x, y:k.g.position.y, z:k.g.position.z})); },
+  get inGym(){ return !!p.zeroG; }, get gym(){ return gym && {x:gym.x, z:gym.z, r:gym.r, h:gym.h}; }, gymIn:(x, z) => gymIn(x, z),
+  fare, CAMPUS, get enrolled(){ return state.enrolled; }, set enrolled(v){ state.enrolled = !!v; persist(); }, enroll, get desk(){ return desk && {x:desk.x, z:desk.z}; }, get deskNear(){ return deskNear; }, get boxes(){ return boxes.length; }, boxOut, G:(x, z) => G(x, z), get portals(){ return portals.map(q => ({to:q.to, x:q.x, z:q.z})); }, get coins(){ return coins.map(k => ({id:k.id, x:k.g.position.x, y:k.g.position.y, z:k.g.position.z})); },
   get npcs(){ return npcs.map(nn => ({name:nn.name, x:nn.x, z:nn.z, line:nn.line})); }, get colliders(){ return colliders.map(c => Object.assign({}, c)); } };
 })();
 </script>
