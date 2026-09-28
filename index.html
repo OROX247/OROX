@@ -200,7 +200,7 @@ body.paused #joy, body.paused #jumpBtn{ display:none; }
     <p class="lede" id="avatarState">Any species, size or style. Watch it appear on the left.</p>
     <div class="swatch-row"><span>Suit</span><span class="swatches" id="suitSw"></span></div>
     <div class="swatch-row"><span>Glow</span><span class="swatches" id="visorSw"></span></div>
-    <p class="controls mouse-only">WASD to move, Shift to run, Space to jump and Space again mid-air to boost. Drag to look, scroll to zoom. M warp, E ride / shop, I inventory, V camera, N sound, Esc this panel.</p>
+    <p class="controls mouse-only">WASD to move, Shift to run, Space to jump and Space again mid-air to boost. Drag to look, scroll to zoom. M warp, E ride / shop, I inventory, V camera, C cinematic, N sound, Esc this panel.</p>
     <p class="controls touch-only">Left stick to move, Jump twice to boost, drag anywhere else to look. Warp is top right.</p>
     <button class="start" id="startBtn">Enter the Hub</button>
   </div>
@@ -2154,6 +2154,207 @@ gl_FragColor = LinearTosRGB( tex ); // optional: LinearToGamma( tex, float( GAMM
 };
 THREE.GammaCorrectionShader = GammaCorrectionShader;
 } )();
+/* Vendored from three.js r128 examples/js (MIT): BokehShader.js, BokehPass.js (depth of field). Do not edit. */
+( function () {
+const BokehShader = {
+defines: {
+'DEPTH_PACKING': 1,
+'PERSPECTIVE_CAMERA': 1
+},
+uniforms: {
+'tColor': {
+value: null
+},
+'tDepth': {
+value: null
+},
+'focus': {
+value: 1.0
+},
+'aspect': {
+value: 1.0
+},
+'aperture': {
+value: 0.025
+},
+'maxblur': {
+value: 0.01
+},
+'nearClip': {
+value: 1.0
+},
+'farClip': {
+value: 1000.0
+}
+},
+vertexShader:
+/* glsl */
+`
+varying vec2 vUv;
+void main() {
+vUv = uv;
+gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );
+}`,
+fragmentShader:
+/* glsl */
+`
+#include <common>
+varying vec2 vUv;
+uniform sampler2D tColor;
+uniform sampler2D tDepth;
+uniform float maxblur; // max blur amount
+uniform float aperture; // aperture - bigger values for shallower depth of field
+uniform float nearClip;
+uniform float farClip;
+uniform float focus;
+uniform float aspect;
+#include <packing>
+float getDepth( const in vec2 screenPosition ) {
+#if DEPTH_PACKING == 1
+return unpackRGBAToDepth( texture2D( tDepth, screenPosition ) );
+#else
+return texture2D( tDepth, screenPosition ).x;
+#endif
+}
+float getViewZ( const in float depth ) {
+#if PERSPECTIVE_CAMERA == 1
+return perspectiveDepthToViewZ( depth, nearClip, farClip );
+#else
+return orthographicDepthToViewZ( depth, nearClip, farClip );
+#endif
+}
+void main() {
+vec2 aspectcorrect = vec2( 1.0, aspect );
+float viewZ = getViewZ( getDepth( vUv ) );
+float factor = ( focus + viewZ ); // viewZ is <= 0, so this is a difference equation
+vec2 dofblur = vec2 ( clamp( factor * aperture, -maxblur, maxblur ) );
+vec2 dofblur9 = dofblur * 0.9;
+vec2 dofblur7 = dofblur * 0.7;
+vec2 dofblur4 = dofblur * 0.4;
+vec4 col = vec4( 0.0 );
+col += texture2D( tColor, vUv.xy );
+col += texture2D( tColor, vUv.xy + ( vec2(  0.0,   0.4  ) * aspectcorrect ) * dofblur );
+col += texture2D( tColor, vUv.xy + ( vec2(  0.15,  0.37 ) * aspectcorrect ) * dofblur );
+col += texture2D( tColor, vUv.xy + ( vec2(  0.29,  0.29 ) * aspectcorrect ) * dofblur );
+col += texture2D( tColor, vUv.xy + ( vec2( -0.37,  0.15 ) * aspectcorrect ) * dofblur );
+col += texture2D( tColor, vUv.xy + ( vec2(  0.40,  0.0  ) * aspectcorrect ) * dofblur );
+col += texture2D( tColor, vUv.xy + ( vec2(  0.37, -0.15 ) * aspectcorrect ) * dofblur );
+col += texture2D( tColor, vUv.xy + ( vec2(  0.29, -0.29 ) * aspectcorrect ) * dofblur );
+col += texture2D( tColor, vUv.xy + ( vec2( -0.15, -0.37 ) * aspectcorrect ) * dofblur );
+col += texture2D( tColor, vUv.xy + ( vec2(  0.0,  -0.4  ) * aspectcorrect ) * dofblur );
+col += texture2D( tColor, vUv.xy + ( vec2( -0.15,  0.37 ) * aspectcorrect ) * dofblur );
+col += texture2D( tColor, vUv.xy + ( vec2( -0.29,  0.29 ) * aspectcorrect ) * dofblur );
+col += texture2D( tColor, vUv.xy + ( vec2(  0.37,  0.15 ) * aspectcorrect ) * dofblur );
+col += texture2D( tColor, vUv.xy + ( vec2( -0.4,   0.0  ) * aspectcorrect ) * dofblur );
+col += texture2D( tColor, vUv.xy + ( vec2( -0.37, -0.15 ) * aspectcorrect ) * dofblur );
+col += texture2D( tColor, vUv.xy + ( vec2( -0.29, -0.29 ) * aspectcorrect ) * dofblur );
+col += texture2D( tColor, vUv.xy + ( vec2(  0.15, -0.37 ) * aspectcorrect ) * dofblur );
+col += texture2D( tColor, vUv.xy + ( vec2(  0.15,  0.37 ) * aspectcorrect ) * dofblur9 );
+col += texture2D( tColor, vUv.xy + ( vec2( -0.37,  0.15 ) * aspectcorrect ) * dofblur9 );
+col += texture2D( tColor, vUv.xy + ( vec2(  0.37, -0.15 ) * aspectcorrect ) * dofblur9 );
+col += texture2D( tColor, vUv.xy + ( vec2( -0.15, -0.37 ) * aspectcorrect ) * dofblur9 );
+col += texture2D( tColor, vUv.xy + ( vec2( -0.15,  0.37 ) * aspectcorrect ) * dofblur9 );
+col += texture2D( tColor, vUv.xy + ( vec2(  0.37,  0.15 ) * aspectcorrect ) * dofblur9 );
+col += texture2D( tColor, vUv.xy + ( vec2( -0.37, -0.15 ) * aspectcorrect ) * dofblur9 );
+col += texture2D( tColor, vUv.xy + ( vec2(  0.15, -0.37 ) * aspectcorrect ) * dofblur9 );
+col += texture2D( tColor, vUv.xy + ( vec2(  0.29,  0.29 ) * aspectcorrect ) * dofblur7 );
+col += texture2D( tColor, vUv.xy + ( vec2(  0.40,  0.0  ) * aspectcorrect ) * dofblur7 );
+col += texture2D( tColor, vUv.xy + ( vec2(  0.29, -0.29 ) * aspectcorrect ) * dofblur7 );
+col += texture2D( tColor, vUv.xy + ( vec2(  0.0,  -0.4  ) * aspectcorrect ) * dofblur7 );
+col += texture2D( tColor, vUv.xy + ( vec2( -0.29,  0.29 ) * aspectcorrect ) * dofblur7 );
+col += texture2D( tColor, vUv.xy + ( vec2( -0.4,   0.0  ) * aspectcorrect ) * dofblur7 );
+col += texture2D( tColor, vUv.xy + ( vec2( -0.29, -0.29 ) * aspectcorrect ) * dofblur7 );
+col += texture2D( tColor, vUv.xy + ( vec2(  0.0,   0.4  ) * aspectcorrect ) * dofblur7 );
+col += texture2D( tColor, vUv.xy + ( vec2(  0.29,  0.29 ) * aspectcorrect ) * dofblur4 );
+col += texture2D( tColor, vUv.xy + ( vec2(  0.4,   0.0  ) * aspectcorrect ) * dofblur4 );
+col += texture2D( tColor, vUv.xy + ( vec2(  0.29, -0.29 ) * aspectcorrect ) * dofblur4 );
+col += texture2D( tColor, vUv.xy + ( vec2(  0.0,  -0.4  ) * aspectcorrect ) * dofblur4 );
+col += texture2D( tColor, vUv.xy + ( vec2( -0.29,  0.29 ) * aspectcorrect ) * dofblur4 );
+col += texture2D( tColor, vUv.xy + ( vec2( -0.4,   0.0  ) * aspectcorrect ) * dofblur4 );
+col += texture2D( tColor, vUv.xy + ( vec2( -0.29, -0.29 ) * aspectcorrect ) * dofblur4 );
+col += texture2D( tColor, vUv.xy + ( vec2(  0.0,   0.4  ) * aspectcorrect ) * dofblur4 );
+gl_FragColor = col / 41.0;
+gl_FragColor.a = 1.0;
+}`
+};
+THREE.BokehShader = BokehShader;
+} )();
+( function () {
+class BokehPass extends THREE.Pass {
+constructor( scene, camera, params ) {
+super();
+this.scene = scene;
+this.camera = camera;
+const focus = params.focus !== undefined ? params.focus : 1.0;
+const aspect = params.aspect !== undefined ? params.aspect : camera.aspect;
+const aperture = params.aperture !== undefined ? params.aperture : 0.025;
+const maxblur = params.maxblur !== undefined ? params.maxblur : 1.0; // render targets
+const width = params.width || window.innerWidth || 1;
+const height = params.height || window.innerHeight || 1;
+this.renderTargetDepth = new THREE.WebGLRenderTarget( width, height, {
+minFilter: THREE.NearestFilter,
+magFilter: THREE.NearestFilter
+} );
+this.renderTargetDepth.texture.name = 'BokehPass.depth'; // depth material
+this.materialDepth = new THREE.MeshDepthMaterial();
+this.materialDepth.depthPacking = THREE.RGBADepthPacking;
+this.materialDepth.blending = THREE.NoBlending; // bokeh material
+if ( THREE.BokehShader === undefined ) {
+console.error( 'THREE.BokehPass relies on THREE.BokehShader' );
+}
+const bokehShader = THREE.BokehShader;
+const bokehUniforms = THREE.UniformsUtils.clone( bokehShader.uniforms );
+bokehUniforms[ 'tDepth' ].value = this.renderTargetDepth.texture;
+bokehUniforms[ 'focus' ].value = focus;
+bokehUniforms[ 'aspect' ].value = aspect;
+bokehUniforms[ 'aperture' ].value = aperture;
+bokehUniforms[ 'maxblur' ].value = maxblur;
+bokehUniforms[ 'nearClip' ].value = camera.near;
+bokehUniforms[ 'farClip' ].value = camera.far;
+this.materialBokeh = new THREE.ShaderMaterial( {
+defines: Object.assign( {}, bokehShader.defines ),
+uniforms: bokehUniforms,
+vertexShader: bokehShader.vertexShader,
+fragmentShader: bokehShader.fragmentShader
+} );
+this.uniforms = bokehUniforms;
+this.needsSwap = false;
+this.fsQuad = new THREE.FullScreenQuad( this.materialBokeh );
+this._oldClearColor = new THREE.Color();
+}
+render( renderer, writeBuffer, readBuffer
+/*, deltaTime, maskActive*/
+) {
+// Render depth into texture
+this.scene.overrideMaterial = this.materialDepth;
+renderer.getClearColor( this._oldClearColor );
+const oldClearAlpha = renderer.getClearAlpha();
+const oldAutoClear = renderer.autoClear;
+renderer.autoClear = false;
+renderer.setClearColor( 0xffffff );
+renderer.setClearAlpha( 1.0 );
+renderer.setRenderTarget( this.renderTargetDepth );
+renderer.clear();
+renderer.render( this.scene, this.camera ); // Render bokeh composite
+this.uniforms[ 'tColor' ].value = readBuffer.texture;
+this.uniforms[ 'nearClip' ].value = this.camera.near;
+this.uniforms[ 'farClip' ].value = this.camera.far;
+if ( this.renderToScreen ) {
+renderer.setRenderTarget( null );
+this.fsQuad.render( renderer );
+} else {
+renderer.setRenderTarget( writeBuffer );
+renderer.clear();
+this.fsQuad.render( renderer );
+}
+this.scene.overrideMaterial = null;
+renderer.setClearColor( this._oldClearColor );
+renderer.setClearAlpha( oldClearAlpha );
+renderer.autoClear = oldAutoClear;
+}
+}
+THREE.BokehPass = BokehPass;
+} )();
 </script>
 <script>
 (function(){
@@ -2993,36 +3194,84 @@ function makeGrass(count, rMin, rMax, hexes, hr, skip){
     mats.push(mat4(x, G(x, z) - 0.03, z, (r() - 0.5) * 0.2, r() * TAU, (r() - 0.5) * 0.2, 0.9 + r() * 0.6, h, 0.9 + r() * 0.6));
     const c = C(hexes[Math.floor(r() * hexes.length)]); c.multiplyScalar(0.8 + r() * 0.45); cols.push(c);
   }
-  const gm = instanced(geo, mat, mats, cols, false); if(gm){ gm.userData.noAO = true; gm.customDepthMaterial = new THREE.MeshDepthMaterial({depthPacking:THREE.RGBADepthPacking, map:grassTexture(), alphaTest:0.45}); grassMeshes.push(gm); gm.visible = qLevel < 4 && aiVid.style.display !== 'block'; } return gm;
+  const gm = instanced(geo, mat, mats, cols, false); if(gm){ gm.userData.noAO = true; gm.customDepthMaterial = new THREE.MeshDepthMaterial({depthPacking:THREE.RGBADepthPacking, map:grassTexture(), alphaTest:0.45}); grassMeshes.push(gm); gm.visible = qLevel < 5 && aiVid.style.display !== 'block'; } return gm;
 }
 
+let leafTexCache = {};
+function leafTexture(kind){
+  // white leaf clusters (or needle boughs) on a transparent card; the instance colour tints them per realm
+  if(leafTexCache[kind]) return leafTexCache[kind];
+  const t = canvasTex(256, 256, (x, w, h) => {
+    x.clearRect(0, 0, w, h); const q = rng(kind === 'needle' ? 41 : 43);
+    if(kind === 'needle'){
+      for(let i = 0; i < 110; i++){ const cx = 128 + (q() - 0.5) * 30, cy = 24 + q() * 30, an = (q() - 0.5) * 2.4, L = 80 + q() * 110, v = Math.round(140 + q() * 115);
+        x.strokeStyle = 'rgb(' + v + ',' + v + ',' + v + ')'; x.lineWidth = 2.5 + q() * 3; x.lineCap = 'round'; x.beginPath(); x.moveTo(cx, cy); x.lineTo(cx + Math.sin(an) * L, cy + Math.cos(an) * L); x.stroke(); }
+    } else {
+      for(let i = 0; i < 30; i++){ const cx = 28 + q() * 200, cy = 28 + q() * 200, rx = 15 + q() * 24, ry = rx * (0.45 + q() * 0.4), rot = q() * Math.PI, v = Math.round(120 + q() * 135);
+        const g = x.createRadialGradient(cx, cy, 1, cx, cy, rx); g.addColorStop(0, 'rgb(' + v + ',' + v + ',' + v + ')'); g.addColorStop(1, 'rgb(' + Math.round(v * 0.62) + ',' + Math.round(v * 0.7) + ',' + Math.round(v * 0.55) + ')');
+        x.fillStyle = g; x.beginPath(); x.ellipse(cx, cy, rx, ry, rot, 0, TAU); x.fill();
+        x.strokeStyle = 'rgba(70,80,60,0.5)'; x.lineWidth = 1.2; x.beginPath(); x.moveTo(cx - Math.cos(rot) * rx, cy - Math.sin(rot) * rx); x.lineTo(cx + Math.cos(rot) * rx, cy + Math.sin(rot) * rx); x.stroke(); }
+    }
+  });
+  t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping; t.anisotropy = MAX_ANISO; SHARED_TEX.add(t); leafTexCache[kind] = t; return t;
+}
+function cardsGeo(cards){
+  // a merged geometry of textured quads; each card faces along its own normal and is spun by rot around it
+  const n = cards.length, pos = new Float32Array(n * 12), nor = new Float32Array(n * 12), uv = new Float32Array(n * 8), col = new Float32Array(n * 12), idx = new Uint32Array(n * 6);
+  const N = new V3(), U = new V3(), W = new V3(), tmp = new V3(), u2 = new V3(), v2 = new V3();
+  cards.forEach((c, i) => {
+    N.set(c.nx, c.ny, c.nz).normalize(); tmp.set(0, 1, 0); if(Math.abs(N.y) > 0.9) tmp.set(1, 0, 0);
+    U.crossVectors(tmp, N).normalize(); W.crossVectors(N, U).normalize();
+    const ca = Math.cos(c.rot || 0), sa = Math.sin(c.rot || 0);
+    u2.copy(U).multiplyScalar(ca).addScaledVector(W, sa); v2.copy(W).multiplyScalar(ca).addScaledVector(U, -sa);
+    const h = c.s / 2, corners = [[-h, -h], [h, -h], [h, h], [-h, h]];
+    corners.forEach((k, j) => { const o = i * 12 + j * 3;
+      pos[o] = c.x + u2.x * k[0] + v2.x * k[1]; pos[o + 1] = c.y + u2.y * k[0] + v2.y * k[1]; pos[o + 2] = c.z + u2.z * k[0] + v2.z * k[1];
+      nor[o] = N.x; nor[o + 1] = N.y; nor[o + 2] = N.z; col[o] = c.c; col[o + 1] = c.c * 1.02; col[o + 2] = c.c * 0.94; });
+    uv.set([0, 0, 1, 0, 1, 1, 0, 1], i * 8); idx.set([i * 4, i * 4 + 1, i * 4 + 2, i * 4, i * 4 + 2, i * 4 + 3], i * 6);
+  });
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(pos, 3)); g.setAttribute('normal', new THREE.BufferAttribute(nor, 3)); g.setAttribute('uv', new THREE.BufferAttribute(uv, 2)); g.setAttribute('color', new THREE.BufferAttribute(col, 3)); g.setIndex(new THREE.BufferAttribute(idx, 1));
+  return g;
+}
 function treeGeos(){
-  const trunk = new THREE.CylinderGeometry(0.13, 0.26, 3.4, 8, 6); trunk.translate(0, 1.7, 0);
+  // trunk with a slight lean, three branches, and a canopy of leaf cards around six blob centres
+  const parts = [];
+  const trunk = new THREE.CylinderGeometry(0.13, 0.28, 3.4, 9, 6); trunk.translate(0, 1.7, 0);
   { const p = trunk.attributes.position; for(let i = 0; i < p.count; i++){ const y = p.getY(i); p.setX(i, p.getX(i) + Math.sin(y * 0.9) * 0.12 * (y / 3.4)); } trunk.computeVertexNormals(); }
+  parts.push(trunk);
+  [[0.9, 3.4, 0.3], [-0.8, 3.5, -0.4], [0.5, 4.3, 0.8]].forEach(b => { const br = new THREE.CylinderGeometry(0.05, 0.1, 1.6, 6); br.translate(0, 0.8, 0); const m = new THREE.Object3D(); m.position.set(0, 3.0, 0); m.lookAt(b[0], b[1], b[2]); m.rotateX(Math.PI / 2); m.updateMatrix(); br.applyMatrix4(m.matrix); parts.push(br); });
+  const trunkAll = merge(parts);
   const blobs = [[0,3.9,0,1.5],[0.9,3.4,0.3,1.05],[-0.8,3.5,-0.4,1.1],[0.2,4.7,-0.3,1.1],[-0.3,3.2,0.8,0.95],[0.5,4.3,0.8,0.9]];
-  const leaf = merge(blobs.map((b, i) => { const g = new THREE.SphereGeometry(b[3], 14, 10); displace(g, 0.24, 1.6 + i * 0.3); g.translate(b[0], b[1], b[2]); return g; }));
-  const p = leaf.attributes.position, c = leaf.attributes.color;
-  for(let i = 0; i < p.count; i++){ const k = 0.5 + 0.5 * smooth(2.4, 5.4, p.getY(i)); c.setXYZ(i, k, k * 1.02, k * 0.94); }
-  return {trunk, leaf, trunkHex:0x5a4636};
+  const q = rng(99), cards = [];
+  blobs.forEach(b => { const n = Math.round(15 * b[3]); for(let i = 0; i < n; i++){
+    const th = Math.acos(1 - 2 * q()), ph = q() * TAU, nx = Math.sin(th) * Math.cos(ph), ny = Math.cos(th), nz = Math.sin(th) * Math.sin(ph), rr = b[3] * (0.75 + q() * 0.3), y = b[1] + ny * rr;
+    cards.push({x:b[0] + nx * rr, y, z:b[2] + nz * rr, nx, ny:ny + 0.3, nz, s:1.05 + q() * 0.75, rot:q() * TAU, c:(0.42 + 0.58 * smooth(2.3, 5.6, y)) * (0.75 + 0.25 * q())}); } });
+  return {trunk:trunkAll, leaf:cardsGeo(cards), trunkHex:0x5a4636, tex:leafTexture('leaf')};
 }
 function pineGeos(){
-  const trunk = new THREE.CylinderGeometry(0.1, 0.22, 2.6, 7, 2); trunk.translate(0, 1.3, 0);
-  const parts = [];
-  for(let k = 0; k < 5; k++){
-    const rad = 1.75 - k * 0.3, h = 1.9 - k * 0.12, g = new THREE.ConeGeometry(rad, h, 11, 2);
-    const p = g.attributes.position;
-    for(let i = 0; i < p.count; i++){ const x = p.getX(i), y = p.getY(i), z = p.getZ(i); const f = 1 + 0.14 * lump(x * 2, y * 2 + k, z * 2) / 1.5; p.setXYZ(i, x * f, y, z * f); }
-    g.computeVertexNormals(); g.translate(0, 1.2 + k * 0.95 + h / 2, 0); parts.push(g);
+  const trunk = new THREE.CylinderGeometry(0.1, 0.24, 6.2, 7, 2); trunk.translate(0, 3.1, 0);
+  const q = rng(77), cards = [];
+  for(let k = 0; k < 7; k++){
+    const rad = 1.8 - k * 0.22, y0 = 1.25 + k * 0.8, n = 8 + Math.round(rad * 4);
+    for(let i = 0; i < n; i++){ const a = i / n * TAU + (q() - 0.5) * 0.5, r0 = rad * (0.3 + q() * 0.7), x = Math.cos(a) * r0, z = Math.sin(a) * r0;
+      cards.push({x, y:y0 + 0.35 - r0 * 0.3, z, nx:Math.cos(a) * 0.85, ny:0.5, nz:Math.sin(a) * 0.85, s:0.95 + q() * 0.7, rot:(q() - 0.5) * 0.9, c:0.4 + 0.45 * clamp(r0 / 1.7, 0, 1) + 0.15 * (k / 6)}); }
   }
-  const leaf = merge(parts), p = leaf.attributes.position, c = leaf.attributes.color;
-  for(let i = 0; i < p.count; i++){ const rad = Math.hypot(p.getX(i), p.getZ(i)), k = 0.45 + 0.4 * clamp(rad / 1.6, 0, 1) + 0.15 * smooth(2, 6, p.getY(i)); c.setXYZ(i, k, k, k); }
-  return {trunk, leaf, trunkHex:0x3b2c22};
+  cards.push({x:0, y:6.7, z:0, nx:0.2, ny:1, nz:0, s:0.9, rot:0, c:0.95});
+  return {trunk, leaf:cardsGeo(cards), trunkHex:0x3b2c22, tex:leafTexture('needle')};
 }
 function rockGeo(){ const g = new THREE.SphereGeometry(1, 16, 12); displace(g, 0.3, 1.2); g.scale(1, 0.62, 1); g.computeVertexNormals(); g.translate(0, 0.22, 0); return g; }
 function plantTrees(TG, list, leafHexes, r){
   const mats = list.map(t => mat4(t.x, t.y, t.z, 0, t.ry, 0, t.s, t.s, t.s));
   instanced(TG.trunk, std(TG.trunkHex, {roughness:0.95, map:detailTex}), mats);
-  instanced(TG.leaf, std(0xffffff, {vertexColors:true, roughness:0.88, normalMap:detailNormal, normalScale:new V2(1.4, 1.4)}), mats, list.map(() => { const c = C(leafHexes[Math.floor(r() * leafHexes.length)]); c.multiplyScalar(0.8 + r() * 0.4); return c; }));
+  const leafM = std(0xffffff, {vertexColors:true, roughness:0.85, map:TG.tex, alphaTest:0.5, side:THREE.DoubleSide});
+  leafM.onBeforeCompile = sh => {
+    sh.uniforms.time = uTime;
+    sh.vertexShader = 'uniform float time;\n' + sh.vertexShader.replace('#include <begin_vertex>',
+      '#include <begin_vertex>\n vec4 lip = instanceMatrix[3]; float lw = sin(time * 1.3 + lip.x * 0.4 + lip.z * 0.3 + position.y * 0.5) * 0.06;\n transformed.x += lw * smoothstep(1.5, 4.0, position.y); transformed.z += lw * 0.6 * smoothstep(1.5, 4.0, position.y);');
+  };
+  const lm = instanced(TG.leaf, leafM, mats, list.map(() => { const c = C(leafHexes[Math.floor(r() * leafHexes.length)]); c.multiplyScalar(0.8 + r() * 0.4); return c; }));
+  if(lm){ lm.userData.noAO = true; lm.customDepthMaterial = new THREE.MeshDepthMaterial({depthPacking:THREE.RGBADepthPacking, map:TG.tex, alphaTest:0.5}); }
 }
 // average normals of vertices that share a position (UV seams, poles) unless they meet at a hard edge
 function weldNormals(g){
@@ -4059,6 +4308,7 @@ window.addEventListener('keydown', e => {
   if(e.code === 'KeyE'){ if(bike.riding) dismountBike(); else if(bike.near) mountBike(); else if(shopNear) openShop(); return; }
   if(e.code === 'KeyN'){ setMute(snd.on); return; }
   if(e.code === 'KeyV'){ cycleView(); return; }
+  if(e.code === 'KeyC'){ setCine(!post.cine); return; }
   if(e.code === 'Escape'){ openIntro(); return; }
   if(e.code === 'KeyM'){ openWarp(); return; }
   if(e.code === 'KeyR'){ aiStart(); return; }
@@ -4088,6 +4338,7 @@ function setView(i){
   me.g.visible = i !== 2; toast(v.name, 1200);
 }
 function cycleView(){ setView((cam.view + 1) % VIEWS.length); }
+function setCine(on){ post.cine = on; if(post.on){ if(post.dof) post.dof.enabled = on && qLevel < 1 && !COARSE; post.grade.uniforms.grain.value = on ? 0.035 : 0; post.grade.uniforms.chroma.value = on ? 0.0011 : 0; } toast(on ? 'Cinematic: depth of field, grain and lens colour on' : 'Cinematic off', 1600); }
 cam.view = 0;
 const joy = {x:0, y:0}, joyEl = $('#joy'), knob = $('#knob'); let joyId = null;
 function joyMove(e){
@@ -4211,7 +4462,7 @@ $('#lookReset').addEventListener('click', () => { lsSet(PROMPT_KEY(state.world),
 function aiLite(on){
   // the AI repaints every detail anyway, so skip the costly ones while it runs
   setPixelRatio(on ? 1 : basePixelRatio());
-  grassMeshes.forEach(g => { g.visible = !on && qLevel < 4; });
+  grassMeshes.forEach(g => { g.visible = !on && qLevel < 5; });
 }
 function aiStop(msg){
   ai.on = false;
@@ -4452,13 +4703,19 @@ $('#texClear').addEventListener('click', clearPhotos);
 /* ================= picture quality: post-processing ================= */
 // Chain: scene (4x MSAA) -> ambient occlusion (half-res, multiplied in) -> bloom on glows only -> gamma -> grade (vignette, a touch of saturation) -> SMAA edges.
 // Everything here is optional: if the vendored passes are missing or WebGL cannot do it, the game renders the plain way.
-const post = { on:false, msaa:false, composer:null, ssao:null, bloom:null, gamma:null, grade:null, smaa:null };
-const basePixelRatio = () => qLevel >= 5 ? 1 : Math.min(window.devicePixelRatio || 1, COARSE ? 1.5 : 2);
+const post = { on:false, msaa:false, composer:null, ssao:null, bloom:null, dof:null, gamma:null, grade:null, smaa:null, cine:true };
+const basePixelRatio = () => qLevel >= 6 ? 1 : Math.min(window.devicePixelRatio || 1, COARSE ? 1.5 : 2);
 function setPixelRatio(x){ renderer.setPixelRatio(x); if(post.on) post.composer.setPixelRatio(x); }
 const GRADE_SHADER = {
-  uniforms:{ tDiffuse:{value:null}, vignette:{value:0.24}, saturation:{value:1.06}, contrast:{value:1.03} },
+  uniforms:{ tDiffuse:{value:null}, vignette:{value:0.24}, saturation:{value:1.06}, contrast:{value:1.04}, grain:{value:0.035}, chroma:{value:0.0011}, time:uTime },
   vertexShader:'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
-  fragmentShader:'uniform sampler2D tDiffuse; uniform float vignette, saturation, contrast; varying vec2 vUv; void main(){ vec4 c = texture2D(tDiffuse, vUv); float l = dot(c.rgb, vec3(0.2126, 0.7152, 0.0722)); c.rgb = mix(vec3(l), c.rgb, saturation); c.rgb = (c.rgb - 0.5) * contrast + 0.5; float d = distance(vUv, vec2(0.5)); c.rgb *= 1.0 - smoothstep(0.5, 1.05, d) * vignette; gl_FragColor = c; }'
+  fragmentShader:'uniform sampler2D tDiffuse; uniform float vignette, saturation, contrast, grain, chroma, time; varying vec2 vUv;' +
+    ' float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7)) + time * 7.0) * 43758.5453); }' +
+    ' void main(){ vec2 d2 = vUv - 0.5; float d = length(d2); vec2 off = d2 * d * chroma * 8.0;' +
+    '  vec4 c = texture2D(tDiffuse, vUv); c.r = texture2D(tDiffuse, vUv + off).r; c.b = texture2D(tDiffuse, vUv - off).b;' +
+    '  float l = dot(c.rgb, vec3(0.2126, 0.7152, 0.0722)); c.rgb = mix(vec3(l), c.rgb, saturation); c.rgb = (c.rgb - 0.5) * contrast + 0.5;' +
+    '  c.rgb += (hash(vUv * 1000.0) - 0.5) * grain * (1.0 - l * 0.6);' +
+    '  c.rgb *= 1.0 - smoothstep(0.5, 1.05, d) * vignette; gl_FragColor = c; }'
 };
 function setupPost(){
   if(!(THREE.EffectComposer && THREE.RenderPass && THREE.ShaderPass && THREE.SMAAPass && THREE.SSAOPass && THREE.UnrealBloomPass && THREE.GammaCorrectionShader)) return;
@@ -4487,10 +4744,13 @@ function setupPost(){
     };
     composer.addPass(ssao);
     const bloom = new THREE.UnrealBloomPass(new V2(w, h), 0.28, 0.5, 0.92); composer.addPass(bloom);
+    // gentle depth of field: focus rides on the camera distance, far things soften like a real lens
+    let dof = null;
+    if(THREE.BokehPass){ dof = new THREE.BokehPass(scene, camera, {focus:cam.dist, aperture:0.00022, maxblur:0.007, width:Math.round(w * pr), height:Math.round(h * pr)}); dof.needsSwap = true; dof.enabled = !COARSE; composer.addPass(dof); }
     const gamma = new THREE.ShaderPass(THREE.GammaCorrectionShader); composer.addPass(gamma);
     const grade = new THREE.ShaderPass(GRADE_SHADER); composer.addPass(grade);
     const smaa = new THREE.SMAAPass(w * pr, h * pr); composer.addPass(smaa);
-    Object.assign(post, {on:true, composer, ssao, bloom, gamma, grade, smaa});
+    Object.assign(post, {on:true, composer, ssao, bloom, dof, gamma, grade, smaa});
   }catch(e){ post.on = false; console.warn('Post-processing is off: ' + (e && e.message || e)); }
 }
 setupPost();
@@ -4711,14 +4971,15 @@ const clock = new THREE.Clock();
 let fAcc = 0, fN = 0, warm = 2.5;
 const stats = {ms:16.7, fps:60, frames:0};
 /* quality ladder: effects go first, sharpness last. It never disables shadows and never drops below pixel ratio 1. */
-const Q_MAX = 5;
+const Q_MAX = 6;
 function degrade(){
   qLevel++;
-  if(qLevel === 1 && post.on) post.ssao.enabled = false;
-  else if(qLevel === 2 && post.on) post.bloom.enabled = false;
-  else if(qLevel === 3){ sunLight.shadow.mapSize.set(SHADOW_RES / 2, SHADOW_RES / 2); if(sunLight.shadow.map){ sunLight.shadow.map.dispose(); sunLight.shadow.map = null; } }
-  else if(qLevel === 4) grassMeshes.forEach(g => { g.visible = false; });
-  else if(qLevel === 5) setPixelRatio(basePixelRatio());
+  if(qLevel === 1 && post.on){ if(post.dof) post.dof.enabled = false; }
+  else if(qLevel === 2 && post.on) post.ssao.enabled = false;
+  else if(qLevel === 3 && post.on) post.bloom.enabled = false;
+  else if(qLevel === 4){ sunLight.shadow.mapSize.set(SHADOW_RES / 2, SHADOW_RES / 2); if(sunLight.shadow.map){ sunLight.shadow.map.dispose(); sunLight.shadow.map = null; } }
+  else if(qLevel === 5) grassMeshes.forEach(g => { g.visible = false; });
+  else if(qLevel === 6) setPixelRatio(basePixelRatio());
   toast('Quality step ' + qLevel + ' of ' + Q_MAX + ' (keeping the frame rate up)', 2000);
 }
 function frame(){
@@ -4735,7 +4996,7 @@ function frame(){
     if(showing){ camera.layers.set(1); renderer.setClearAlpha(0); renderer.render(scene, camera); renderer.setClearAlpha(1); }
     else { camera.layers.enable(1); renderer.render(scene, camera); }
     camera.layers.set(0); camera.layers.enable(1);
-  } else if(post.on) post.composer.render();
+  } else if(post.on){ if(post.dof && post.dof.enabled){ post.dof.uniforms.focus.value = camera.position.distanceTo(_t1); } post.composer.render(); }
   else renderer.render(scene, camera);
   drawMap();
   requestAnimationFrame(frame);
