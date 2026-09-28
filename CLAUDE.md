@@ -19,3 +19,6 @@ The long-term target is a universe with the same structure, systems, rules and f
 - If two attempts at something fail, stop and write what happened in LESSONS.md for the owner.
 - Work the roadmap in UNIVERSE-BLUEPRINT.md section 12 in order. Each numbered goal has a "done means" line; the tester checks that line before the goal counts.
 - When a phase finishes, give the owner a short summary of what changed and what is next.
+
+## The Unreal version
+`hub-unreal/` is the photoreal rebuild in Unreal Engine 5 (see UNREAL-PLAN.md). It has its own CLAUDE.md and LESSONS.md and runs on the owner's computer, not in the cloud. This browser game and the Unreal project share UNIVERSE-BLUEPRINT.md; a gameplay decision made in one applies to the other.
