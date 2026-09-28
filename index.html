@@ -48,7 +48,9 @@ html,body{ height:100%; margin:0; overflow:hidden; background:#07061a; color:var
 .hpbar{ flex:1; height:7px; background:rgba(255,255,255,.14); }
 .hpbar i{ display:block; height:100%; width:100%; background:linear-gradient(90deg,#9dff6a,var(--cyan)); transition:width .25s; }
 .hpbar.low i{ background:linear-gradient(90deg,#ff3d5a,var(--pink)); }
-#hpNum{ min-width:58px; text-align:right; font-size:12.5px; font-weight:600; white-space:nowrap; }
+#fuelRow[hidden]{ display:none; }
+.fuelbar i{ background:linear-gradient(90deg,#ffb020,#ffd166); } .fuelbar.low i{ background:linear-gradient(90deg,#ff3d5a,#ffb020); }
+#hpNum,#fuelNum{ min-width:58px; text-align:right; font-size:12.5px; font-weight:600; white-space:nowrap; }
 #idPanel.hurt{ animation:hurt .4s ease; }
 @keyframes hurt{ 30%{ transform:translateX(4px); box-shadow:inset 0 0 0 2px #ff3d5a; } 60%{ transform:translateX(-3px); } }
 #hurtFx{ position:fixed; inset:0; pointer-events:none; z-index:3; opacity:0; transition:opacity .6s; background:radial-gradient(ellipse at center,rgba(255,40,70,0) 55%,rgba(255,40,70,.5)); }
@@ -171,6 +173,7 @@ body.paused #joy, body.paused #jumpBtn{ display:none; }
     <div class="row"><span id="hudName">Player</span><span class="lvl">Level <b id="hudLvl">1</b></span></div>
     <div class="xpbar"><i id="xpFill"></i></div>
     <div class="hprow" title="Hit points"><span class="hpl">HP</span><div class="hpbar" id="hpBar"><i id="hpFill"></i></div><b id="hpNum">100 / 100</b></div>
+    <div class="hprow" id="fuelRow" title="Hoverbike fuel" hidden><span class="hpl">FUEL</span><div class="hpbar fuelbar" id="fuelBar"><i id="fuelFill"></i></div><b id="fuelNum">100%</b></div>
   </div>
   <div class="panel row" id="statPanel">
     <span class="stat" title="Credits"><span class="cr">₵</span><b id="credits">0</b></span>
@@ -2395,12 +2398,13 @@ const state = {
   visor: typeof sv.visor === 'string' ? sv.visor : '#5ce1e6', xp: num(sv.xp, 0), credits: num(sv.credits, 20),
   won: !!sv.won, world: 'hub', started: false,
   look: typeof sv.look === 'string' ? sv.look.slice(0, 300) : '', recipe: null, owned: new Set(arr(sv.owned)), mute: !!sv.mute, best: (sv.best && typeof sv.best === 'object') ? sv.best : {},
-  inv: (sv.inv && typeof sv.inv === 'object' && !Array.isArray(sv.inv)) ? sv.inv : {}, picked: new Set(arr(sv.picked))   // inv is cleaned once ITEMS exists (cleanInv)
+  inv: (sv.inv && typeof sv.inv === 'object' && !Array.isArray(sv.inv)) ? sv.inv : {}, picked: new Set(arr(sv.picked)),   // inv is cleaned once ITEMS exists (cleanInv)
+  fuel: Math.min(100, Math.max(0, num(sv.fuel, 100)))   // the hoverbike tank, 0-100 (FUEL_MAX), shared by the bike in every realm
 };
 // state.recipe is filled in once the recipe schema below is defined (see loadRecipe)
 function persist(){
   try{ localStorage.setItem(SAVE_KEY, JSON.stringify({coins:[...state.coins], shards:[...state.shards], visited:[...state.visited],
-    name:state.name, color:state.color, visor:state.visor, xp:state.xp, credits:state.credits, won:state.won, look:state.look, recipe:state.recipe, owned:[...state.owned], mute:state.mute, best:state.best, inv:state.inv, picked:[...state.picked]})); }catch(e){}
+    name:state.name, color:state.color, visor:state.visor, xp:state.xp, credits:state.credits, won:state.won, look:state.look, recipe:state.recipe, owned:[...state.owned], mute:state.mute, best:state.best, inv:state.inv, picked:[...state.picked], fuel:Math.round(state.fuel * 10) / 10})); }catch(e){}
 }
 function rng(seed){ return function(){ seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
 function makeNoise(seed){
@@ -3940,6 +3944,15 @@ $('#helpBtn').addEventListener('click', openIntro);
 
 /* ================= hoverbike (blueprint section 4: vehicles) ================= */
 const bike = { g:null, label:null, x:0, z:0, y:0, vy:0, heading:0, speed:0, lean:0, riding:false, near:false, engine:null };
+/* fuel (blueprint 4: the bike costs fuel per second). One tank, state.fuel (0..FUEL_MAX), saved, shared by the bike in every realm.
+   Riding burns FUEL_IDLE per second plus up to about FUEL_RUN more at full speed; an empty tank coasts (no throttle, boost or hop). A fuel cell (ITEMS) refills it. */
+const FUEL_MAX = 100, FUEL_IDLE = 0.3, FUEL_RUN = 0.9;
+let fuelShown = -1, fuelRowOn = null, fuelWarned = false;
+function fuelHud(){
+  const show = !!(bike.riding || bike.near); if(show !== fuelRowOn){ fuelRowOn = show; $('#fuelRow').hidden = !show; }
+  const pct = Math.ceil(state.fuel / FUEL_MAX * 100);
+  if(pct !== fuelShown){ fuelShown = pct; $('#fuelFill').style.width = pct + '%'; $('#fuelNum').textContent = pct + '%'; $('#fuelBar').classList.toggle('low', pct < 20); }
+}
 function buildBike(x, z){
   const g = new THREE.Group(); g.position.set(x, G(x, z) + 0.55, z); g.rotation.y = Math.atan2(-x, -z); world.add(g);
   const body = new THREE.MeshPhysicalMaterial({color:C(0x2a2d38), roughness:0.32, metalness:0.75, clearcoat:0.9, clearcoatRoughness:0.1});
@@ -3974,7 +3987,8 @@ function engineStart(){
 function engineStop(){ const e = bike.engine; if(!e) return; bike.engine = null; try{ e.gain.gain.setTargetAtTime(0, snd.ctx.currentTime, 0.12); setTimeout(() => { try{ e.osc.stop(); e.osc2.stop(); }catch(x){} }, 500); }catch(x){} }
 function mountBike(){
   if(!bike.g || bike.riding || zeroing || traveling) return;
-  bike.riding = true; bike.speed = 0; bike.vy = 0; colliders = colliders.filter(c => !c.bike); bike.label.visible = false;
+  if(state.fuel <= 0){ toast('The hoverbike tank is empty. Use a fuel cell from your bag (I); vending terminals sell them.', 3600); return; }
+  fuelWarned = false; bike.riding = true; bike.speed = 0; bike.vy = 0; colliders = colliders.filter(c => !c.bike); bike.label.visible = false;
   cam.yaw = bike.heading + Math.PI; engineStart(); sfx('ui'); toast('W/S throttle, A/D steer, Shift boost, Space hop, E to get off', 3200); $('#rideBtn').textContent = 'Get off';
 }
 function dismountBike(silent){
@@ -3983,12 +3997,18 @@ function dismountBike(silent){
   if(bike.g){ bike.label.visible = true; bike.g.rotation.x = 0; bike.g.rotation.z = 0; colliders.push({x:bike.x, z:bike.z, r:1.1, bike:true}); }
   p.x = bike.x + Math.cos(bike.heading) * 1.5; p.z = bike.z - Math.sin(bike.heading) * 1.5; p.y = G(p.x, p.z); p.vy = 0; p.grounded = true; p.speed = 0;
   if(!silent){ sfx('ui'); $('#rideBtn').textContent = 'Ride'; }
+  persist(); fuelHud();
 }
 function updateBike(dt, time){
   const B = bike; let acc = 0, steer = 0;
   if(playing && !traveling && !zeroing){ if(keys.KeyW || keys.ArrowUp) acc += 1; if(keys.KeyS || keys.ArrowDown) acc -= 1; if(keys.KeyD || keys.ArrowRight) steer -= 1; if(keys.KeyA || keys.ArrowLeft) steer += 1; acc += joy.y; steer -= joy.x; }
   acc = clamp(acc, -1, 1); steer = clamp(steer, -1, 1);
-  const boost = keys.ShiftLeft || keys.ShiftRight, maxS = boost ? 27 : 18;
+  const empty = state.fuel <= 0; if(empty) acc = 0;
+  const boost = !empty && (keys.ShiftLeft || keys.ShiftRight), maxS = boost ? 27 : 18;
+  if(playing && !traveling && !zeroing && !empty){
+    state.fuel = Math.max(0, state.fuel - (FUEL_IDLE + FUEL_RUN * Math.min(Math.abs(B.speed), 27) / 18) * dt);
+    if(state.fuel <= 0 && !fuelWarned){ fuelWarned = true; persist(); toast('Out of fuel. The bike coasts. Use a fuel cell from your bag (I); vending terminals sell them.', 4200); }
+  }
   if(acc > 0) B.speed += 15 * acc * dt; else if(acc < 0) B.speed += 22 * acc * dt;
   B.speed -= B.speed * 0.55 * dt; B.speed = clamp(B.speed, -6, maxS);
   const grip = Math.min(1, Math.abs(B.speed) / 3);
@@ -4003,7 +4023,7 @@ function updateBike(dt, time){
   B.x = nx; B.z = nz;
   let ground = G(B.x, B.z); for(const s of platforms) if(Math.hypot(B.x - s.x, B.z - s.z) < s.r + 0.3 && B.y >= s.top - 0.6) ground = Math.max(ground, s.top);
   const hover = ground + 0.55 + Math.sin(time * 3) * 0.04;
-  jumpBuffer -= dt; if(jumpBuffer > 0 && B.y < hover + 0.25){ B.vy = 7.5; jumpBuffer = 0; sfx('jump'); }
+  jumpBuffer -= dt; if(jumpBuffer > 0 && !empty && B.y < hover + 0.25){ B.vy = 7.5; jumpBuffer = 0; sfx('jump'); }
   B.vy -= 22 * dt; B.y += B.vy * dt;
   if(B.y < hover){ B.y += (hover - B.y) * (1 - Math.exp(-dt * 14)); if(B.vy < 0) B.vy *= 0.2; }
   B.g.position.set(B.x, B.y, B.z); B.g.rotation.set(-clamp(B.speed / 70, -0.14, 0.14), B.heading, B.lean);
@@ -4014,10 +4034,11 @@ function updateBike(dt, time){
   if(halo) halo.rotation.z += dt;
   if(B.engine && snd.ctx){ const sp = Math.abs(B.speed), t = snd.ctx.currentTime; B.engine.osc.frequency.setTargetAtTime(70 + sp * 8, t, 0.05); B.engine.osc2.frequency.setTargetAtTime(35 + sp * 4, t, 0.05); B.engine.gain.gain.setTargetAtTime(0.03 + sp * 0.005, t, 0.05); }
   if(lookId === null && Math.abs(B.speed) > 0.5) cam.yaw = lerpAngle(cam.yaw, B.heading + Math.PI, 1 - Math.exp(-dt * 2.5));
+  fuelHud();
 }
 function bikeProximity(){
   const near = !!(bike.g && !bike.riding && Math.hypot(p.x - bike.x, p.z - bike.z) < 2.8);
-  if(near !== bike.near){ bike.near = near; $('#rideBtn').style.display = (near || bike.riding) ? '' : 'none'; if(near) $('#rideBtn').textContent = 'Ride'; }
+  if(near !== bike.near){ bike.near = near; $('#rideBtn').style.display = (near || bike.riding) ? '' : 'none'; if(near) $('#rideBtn').textContent = 'Ride'; fuelHud(); }
 }
 $('#rideBtn').addEventListener('click', () => { if(bike.riding) dismountBike(); else if(bike.near) mountBike(); });
 
@@ -4150,7 +4171,15 @@ const ITEMS = {
   'glowcap':        {name:'Glowcap Spore', rarity:'common', value:7, shape:'orb', col:0x7dffb0, desc:'A Night Grove mushroom spore, softly lit.'},
   'moonwood-charm': {name:'Moonwood Charm', rarity:'uncommon', value:20, shape:'gem', col:0x9fd0ff, desc:'Carved from a fallen moonwood branch.'},
   'sky-feather':    {name:'Skyglass Feather', rarity:'uncommon', value:16, shape:'gem', col:0xbff4ff, desc:'Shed by something that never lands.'},
-  'stormglass-idol':{name:'Stormglass Idol', rarity:'epic', value:120, shape:'gem', col:0x6a8cff, desc:'Old Sky Isles craft. Nobody knows who made it.'}
+  'stormglass-idol':{name:'Stormglass Idol', rarity:'epic', value:120, shape:'gem', col:0x6a8cff, desc:'Old Sky Isles craft. Nobody knows who made it.'},
+  // consumables (Goal 7), sold by the vending terminal in every realm (VEND). use() returns false when it would be wasted.
+  'health-kit':     {name:'Health Kit', rarity:'common', value:6, shape:'chip', col:0xff5a6e, desc:'Restores 50 HP, up to your maximum.', use(){
+    const m = maxHp(); if(zeroing || state.hp <= 0) return false;
+    if(state.hp >= m){ toast('HP is already full. The kit stays in your bag.', 2200); return false; }
+    const before = state.hp; state.hp = Math.min(m, state.hp + 50); hpHud(); sfx('level'); toast('Health kit used: +' + Math.round(state.hp - before) + ' HP', 2200); return true; }},
+  'fuel-cell':      {name:'Fuel Cell', rarity:'common', value:4, shape:'coil', col:0xffb020, desc:'Fills the hoverbike tank.', use(){
+    if(state.fuel >= FUEL_MAX - 0.5){ toast('The hoverbike tank is already full. The cell stays in your bag.', 2200); return false; }
+    state.fuel = FUEL_MAX; fuelWarned = false; fuelShown = -1; fuelHud(); sfx('boost'); toast('Hoverbike tank refilled', 2200); return true; }}
 };
 // fixed, seeded pickups per realm (placed by addPickups with their own rng, so nothing else moves)
 const LOOT = {
