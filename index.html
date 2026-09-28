@@ -3426,7 +3426,9 @@ function pickTarget(n){ const a = Math.random() * TAU, d = 6 + Math.random() * 4
 function addHazards(key){
   if(key !== 'grid') return;
   const r = rng(WORLDS[key].seed * 31 + 7), L = 6;
-  const pylonM = phys(0x0c0818, {roughness:0.15, metalness:0.5, clearcoat:1}), beamM = new THREE.MeshBasicMaterial({color:C(0xff2d55), toneMapped:false});
+  const pylonM = phys(0x0c0818, {roughness:0.15, metalness:0.5, clearcoat:1});
+  const coreM = new THREE.MeshBasicMaterial({color:C(0xffd0dc), toneMapped:false});
+  const sheathM = new THREE.MeshBasicMaterial({color:C(0xff2d55), transparent:true, opacity:0.55, depthWrite:false, blending:THREE.AdditiveBlending, toneMapped:false});
   const ringM = new THREE.MeshBasicMaterial({color:C(0xff2d55), transparent:true, opacity:0.45, depthWrite:false, toneMapped:false});
   for(let t = 0; t < 40 && hazards.length < 3; t++){
     const s = freeSpot(r, 12, 48, L + 0.6); if(!s) break;
@@ -3436,12 +3438,17 @@ function addHazards(key){
     mk(new THREE.TorusGeometry(0.34, 0.05, 6, 16), glowM(0xff2d55, 3), x, 1.12, z).rotation.x = Math.PI / 2;
     const ring = new THREE.Mesh(new THREE.RingGeometry(L - 0.06, L + 0.06, 128), ringM); ring.rotation.x = -Math.PI / 2; ring.position.set(x, 0.02, z); world.add(ring);
     const g = new THREE.Group(); g.position.set(x, 0.55, z); world.add(g);
-    const beam = new THREE.Mesh(new THREE.BoxGeometry(L - 0.4, 0.07, 0.07), beamM); beam.position.x = 0.4 + (L - 0.4) / 2; g.add(beam);
+    // readable from a distance without point lights: a hot pale core inside a soft additive sheath
+    const bl = L - 0.4, core = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, bl, 10), coreM), sheath = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.13, bl, 16, 1, true), sheathM);
+    [core, sheath].forEach(m => { m.rotation.z = Math.PI / 2; m.position.x = 0.4 + bl / 2; g.add(m); });
+    for(let i = 1; i <= 3; i++) glow(0xff2d55, 0.9, 0.4 + bl * i / 4, 0, 0, g, 0.45);
     glow(0xff2d55, 1.1, L, 0, 0, g, 0.8);
     colliders.push({x, z, r:0.5});
     hazards.push({x, z, L, g, a0:r() * TAU, w:(hazards.length % 2 ? -1 : 1) * (0.9 + r() * 0.4)});
   }
 }
+// hazards run on simulation time (the sum of the same clamped dt the player steps with), so below 20 fps they stay in step with physics
+let simTime = 0;
 function updateHazards(time){
   for(const h of hazards){
     const a = h.a0 + h.w * time; h.g.rotation.y = a;
@@ -4531,7 +4538,7 @@ function update(dt, time){
   }
   if(playing && p.grounded && p.speed > 0.6){ snd.stepT -= dt; if(snd.stepT <= 0){ sfx('step'); snd.stepT = p.speed > 7 ? 0.27 : 0.42; } } else snd.stepT = 0.1;
   shopProximity(); bikeProximity(); trialUpdate(dt, time);
-  hurtCool -= dt; updateHazards(time); updateBurst(dt); checkBundles();
+  hurtCool -= dt; simTime += dt; updateHazards(simTime); updateBurst(dt); checkBundles();
   if(!WORLDS[state.world].rules.danger && !zeroing && state.hp < maxHp()){ state.hp = Math.min(maxHp(), state.hp + 12 * dt); hpHud(); }
   portalCool -= dt;
   if(playing && portalCool <= 0 && !traveling && !zeroing) for(const q of portals){ if(Math.hypot(p.x - q.x, p.z - q.z) < 1.6 && p.y - G(p.x, p.z) < 2){ travel(q.to); break; } }
