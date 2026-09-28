@@ -30,3 +30,4 @@
 - CSS `display:grid` on an id beats the `hidden` attribute. Anything toggled with `el.hidden` needs an explicit `[hidden]{display:none}` rule.
 - Hazards run on `simTime` (sum of the clamped dt), not clock.elapsedTime, so they stay in step with player physics at any frame rate.
 - Testing: the camera sits at player + (sin yaw, cos yaw) * dist and looks at the player, so to frame an object at (qx, qz) from the player use yaw = atan2(p.x - qx, p.z - qz) plus a small offset so the avatar does not hide it.
+- Testing: under SwiftShader, Playwright's page.click on an open panel's buttons (#tabSell, #sellList button) can time out waiting for the element to be stable, even when it is the topmost element. Click through the DOM instead (page.evaluate(() => el.click())). Print intermediate results before any step that can throw, so one timeout does not lose the whole run.
