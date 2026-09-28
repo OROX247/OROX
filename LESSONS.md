@@ -4,3 +4,6 @@
 - Live AI video cannot give solid ground: it repaints every frame and the world swims. Use real textures on real geometry.
 - Newer Decart models report fps as an object ({ideal, max}); read the number before calling captureStream.
 - The published claude.ai link blocks outside services. Anything that calls Decart or Poly Haven must run from the local file.
+- Testing: the game script is wrapped in an IIFE, so page.evaluate cannot see travel/state/p. Test an instrumented copy in the scratchpad (add `window.__ev = s => eval(s);` before the final `})();`); never edit index.html for tests.
+- Testing: in headless Chromium with SwiftShader, scene.environment (the PMREM env map) turns every MeshStandardMaterial black, in every commit. Set scene.environment = null before test renders; this is a test-only workaround, not a game bug.
+- Testing: SwiftShader runs at about 1-2 fps, so degrade() lowers quality mid-test and the frame loop can lag behind travel(). Set fSkip = 1e9 to freeze quality, and wait for frames before comparing screenshots, or the "same" view will look different.
