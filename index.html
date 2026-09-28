@@ -168,7 +168,7 @@ body.paused #joy, body.paused #jumpBtn{ display:none; }
 
 <div id="corner">
   <canvas id="minimap" aria-label="Minimap"></canvas>
-  <div class="btns"><button class="hbtn" id="aiBtn" title="AI reality mode (R)">AI</button><button class="hbtn" id="lookBtn" title="Realm look (L)">Look</button><button class="hbtn" id="sndBtn" title="Sound on/off (N)">Sound</button><button class="hbtn" id="shopBtn" style="display:none">Shop</button><button class="hbtn" id="mapBtn">Warp</button><button class="hbtn" id="helpBtn" aria-label="Avatar and controls">?</button></div>
+  <div class="btns"><button class="hbtn" id="aiBtn" title="AI reality mode (R)">AI</button><button class="hbtn" id="lookBtn" title="Realm look (L)">Look</button><button class="hbtn" id="rideBtn" style="display:none">Ride</button><button class="hbtn" id="sndBtn" title="Sound on/off (N)">Sound</button><button class="hbtn" id="shopBtn" style="display:none">Shop</button><button class="hbtn" id="mapBtn">Warp</button><button class="hbtn" id="helpBtn" aria-label="Avatar and controls">?</button></div>
 </div>
 
 <div id="intro" class="overlay" role="dialog" aria-labelledby="introTitle">
@@ -3175,6 +3175,7 @@ BUILD.hub = (r, n) => {
     const l = label('Outfitters', {edge:'#ffd166', fg:'#ffd166'}); l.position.y = 3.1; k.add(l);
     colliders.push({x:kx, z:kz, r:1.7}); shopKiosk = {x:kx, z:kz};
   }
+  buildBike(-11, 9);
   // lamps
   const lampM = std(0x2a2c34, {metalness:0.8, roughness:0.35}), bulbM = std(0xfff1d6, {emissive:C(0xffd9a0), emissiveIntensity:3});
   const lamps = [];
@@ -3227,6 +3228,7 @@ BUILD.hub = (r, n) => {
 };
 
 BUILD.dunes = (r, n) => {
+  buildBike(7, -19);
   const sand = sandTextures();
   buildTerrain({maxR:900, map:sand.map, normalMap:sand.normal, ns:0.85, rough:0.96, color:(x, y, z, sl) => {
     const v = n.fbm(x * 0.03, z * 0.03, 3) * 0.5 + 0.5, big = n.fbm(x * 0.004 + 40, z * 0.004 - 17, 3) * 0.5 + 0.5;
@@ -3451,7 +3453,7 @@ function buildWorld(key){
   clearWorld();
   const W = WORLDS[key]; state.world = key;
   world = new THREE.Group(); scene.add(world);
-  grassMeshes = []; slotMats = {}; colliders = []; platforms = []; coins = []; portals = []; spinners = []; npcs = []; shardObj = null; vault = null; gridSun = null; fireflies = null; shopKiosk = null; hazards = []; burst = null;
+  grassMeshes = []; slotMats = {}; colliders = []; platforms = []; coins = []; portals = []; spinners = []; npcs = []; shardObj = null; vault = null; gridSun = null; fireflies = null; shopKiosk = null; hazards = []; burst = null; bike.g = null; bike.riding = false; bike.near = false; engineStop(); $('#rideBtn').style.display = 'none';
   const r = rng(W.seed), noise = makeNoise(W.seed * 7 + 1);
   applyLook(W);
   const pads = W.portals.map(q => ({x:q.x, z:q.z, r:4})).concat(W.pads || []);
@@ -3649,6 +3651,89 @@ function openIntro(){ introEl.classList.remove('hidden'); setPaused(true); $('#s
 $('#startBtn').addEventListener('click', startGame);
 $('#helpBtn').addEventListener('click', openIntro);
 
+/* ================= hoverbike (blueprint section 4: vehicles) ================= */
+const bike = { g:null, label:null, x:0, z:0, y:0, vy:0, heading:0, speed:0, lean:0, riding:false, near:false, engine:null };
+function buildBike(x, z){
+  const g = new THREE.Group(); g.position.set(x, G(x, z) + 0.55, z); g.rotation.y = Math.atan2(-x, -z); world.add(g);
+  const body = new THREE.MeshPhysicalMaterial({color:C(0x2a2d38), roughness:0.32, metalness:0.75, clearcoat:0.9, clearcoatRoughness:0.1});
+  const accent = glowM(0x5ce1e6, 2.2), seatM = std(0x17171d, {roughness:0.9}), trimM = new THREE.MeshPhysicalMaterial({color:C(0xd0d4dc), roughness:0.2, metalness:1});
+  const hull = new THREE.SphereGeometry(0.42, 28, 18); displace(hull, 0.05, 2); hull.scale(1, 0.55, 2.2); hull.computeVertexNormals();
+  mk(hull, body, 0, 0, 0, g);
+  mk(new THREE.BoxGeometry(0.5, 0.12, 0.7), seatM, 0, 0.26, -0.2, g);
+  mk(new THREE.CylinderGeometry(0.02, 0.02, 0.9, 8), trimM, 0, 0.42, 0.55, g).rotation.z = Math.PI / 2;
+  mk(new THREE.BoxGeometry(0.16, 0.06, 0.3), accent, 0, 0.2, 0.82, g).castShadow = false;
+  mk(new THREE.BoxGeometry(0.06, 0.04, 1.2), accent, 0, 0.24, -0.1, g).castShadow = false;
+  [[-0.55, 0.35], [0.55, 0.35], [-0.55, -0.6], [0.55, -0.6]].forEach(o => {
+    mk(new THREE.CylinderGeometry(0.28, 0.32, 0.1, 20), body, o[0], -0.2, o[1], g);
+    mk(new THREE.TorusGeometry(0.26, 0.03, 8, 24), accent, o[0], -0.26, o[1], g).rotation.x = Math.PI / 2;
+    glow(0x5ce1e6, 1.4, o[0], -0.34, o[1], g, 0.5);
+  });
+  const l = label('Hoverbike · E to ride', {small:true}); l.position.y = 1.5; g.add(l);
+  Object.assign(bike, {g, label:l, x, z, y:g.position.y, heading:g.rotation.y, speed:0, vy:0, lean:0, riding:false, near:false});
+  colliders.push({x, z, r:1.1, bike:true});
+}
+function ridePose(a){
+  if(a.blob) return;
+  [a.legL, a.legR].forEach(L => { L.hp.rotation.x = -1.15; L.kn.rotation.x = 1.75; L.an.rotation.x = -0.45; });
+  [a.armL, a.armR].forEach(A => { A.sh.rotation.x = -0.95; A.sh.rotation.z = 0; A.el.rotation.x = -0.5; });
+  a.spine.rotation.x = 0.3; a.hips.position.y = 0.72;
+}
+function engineStart(){
+  if(!snd.ctx || !snd.on || bike.engine) return;
+  const c = snd.ctx, osc = c.createOscillator(), osc2 = c.createOscillator(), f = c.createBiquadFilter(), gain = c.createGain();
+  osc.type = 'sawtooth'; osc.frequency.value = 70; osc2.type = 'square'; osc2.frequency.value = 35; f.type = 'lowpass'; f.frequency.value = 420; gain.gain.value = 0.03;
+  osc.connect(f); osc2.connect(f); f.connect(gain); gain.connect(snd.master); osc.start(); osc2.start(); bike.engine = {osc, osc2, gain};
+}
+function engineStop(){ const e = bike.engine; if(!e) return; bike.engine = null; try{ e.gain.gain.setTargetAtTime(0, snd.ctx.currentTime, 0.12); setTimeout(() => { try{ e.osc.stop(); e.osc2.stop(); }catch(x){} }, 500); }catch(x){} }
+function mountBike(){
+  if(!bike.g || bike.riding || zeroing || traveling) return;
+  bike.riding = true; bike.speed = 0; bike.vy = 0; colliders = colliders.filter(c => !c.bike); bike.label.visible = false;
+  cam.yaw = bike.heading + Math.PI; engineStart(); sfx('ui'); toast('W/S throttle, A/D steer, Shift boost, Space hop, E to get off', 3200); $('#rideBtn').textContent = 'Get off';
+}
+function dismountBike(silent){
+  if(!bike.riding) return;
+  bike.riding = false; engineStop(); me.g.rotation.z = 0; me.hips.position.y = me.blob ? 0.62 : 0.95;
+  if(bike.g){ bike.label.visible = true; bike.g.rotation.x = 0; bike.g.rotation.z = 0; colliders.push({x:bike.x, z:bike.z, r:1.1, bike:true}); }
+  p.x = bike.x + Math.cos(bike.heading) * 1.5; p.z = bike.z - Math.sin(bike.heading) * 1.5; p.y = G(p.x, p.z); p.vy = 0; p.grounded = true; p.speed = 0;
+  if(!silent){ sfx('ui'); $('#rideBtn').textContent = 'Ride'; }
+}
+function updateBike(dt, time){
+  const B = bike; let acc = 0, steer = 0;
+  if(playing && !traveling && !zeroing){ if(keys.KeyW || keys.ArrowUp) acc += 1; if(keys.KeyS || keys.ArrowDown) acc -= 1; if(keys.KeyD || keys.ArrowRight) steer -= 1; if(keys.KeyA || keys.ArrowLeft) steer += 1; acc += joy.y; steer -= joy.x; }
+  acc = clamp(acc, -1, 1); steer = clamp(steer, -1, 1);
+  const boost = keys.ShiftLeft || keys.ShiftRight, maxS = boost ? 27 : 18;
+  if(acc > 0) B.speed += 15 * acc * dt; else if(acc < 0) B.speed += 22 * acc * dt;
+  B.speed -= B.speed * 0.55 * dt; B.speed = clamp(B.speed, -6, maxS);
+  const grip = Math.min(1, Math.abs(B.speed) / 3);
+  B.heading += steer * (1.7 + 0.5 * Math.min(1, Math.abs(B.speed) / 12)) * (B.speed < 0 ? -1 : 1) * grip * dt;
+  B.lean += ((-steer * 0.38 * Math.min(1, Math.abs(B.speed) / 8)) - B.lean) * (1 - Math.exp(-dt * 6));
+  let nx = B.x + Math.sin(B.heading) * B.speed * dt, nz = B.z + Math.cos(B.heading) * B.speed * dt;
+  const push = (cx, cz, m) => { const dx = nx - cx, dz = nz - cz, d = Math.hypot(dx, dz); if(d < m && d > 1e-4){ nx = cx + dx / d * m; nz = cz + dz / d * m; if(Math.abs(B.speed) > 6) sfx('hit'); B.speed *= 0.4; } };
+  for(const c of colliders) push(c.x, c.z, c.r + 0.9);
+  for(const s of platforms) if(B.y < s.top + 0.4 && B.y + 1.2 > s.bottom) push(s.x, s.z, s.r + 0.9);
+  for(const nn of npcs) push(nn.x, nn.z, nn.av.rad + 0.6);
+  const dr = Math.hypot(nx, nz), lim = R - 1.5; if(dr > lim){ nx *= lim / dr; nz *= lim / dr; B.speed *= 0.5; }
+  B.x = nx; B.z = nz;
+  let ground = G(B.x, B.z); for(const s of platforms) if(Math.hypot(B.x - s.x, B.z - s.z) < s.r + 0.3 && B.y >= s.top - 0.6) ground = Math.max(ground, s.top);
+  const hover = ground + 0.55 + Math.sin(time * 3) * 0.04;
+  jumpBuffer -= dt; if(jumpBuffer > 0 && B.y < hover + 0.25){ B.vy = 7.5; jumpBuffer = 0; sfx('jump'); }
+  B.vy -= 22 * dt; B.y += B.vy * dt;
+  if(B.y < hover){ B.y += (hover - B.y) * (1 - Math.exp(-dt * 14)); if(B.vy < 0) B.vy *= 0.2; }
+  B.g.position.set(B.x, B.y, B.z); B.g.rotation.set(-clamp(B.speed / 70, -0.14, 0.14), B.heading, B.lean);
+  p.x = B.x; p.z = B.z; p.y = B.y - 0.55; p.vy = 0; p.grounded = true; p.facing = B.heading; p.speed = Math.abs(B.speed);
+  me.g.position.set(B.x, B.y - 0.08, B.z); me.g.rotation.y = B.heading; me.g.rotation.z = B.lean;
+  animateAvatar(me, dt, 0, true, time); ridePose(me);
+  me.flames.forEach(f => { f.visible = false; });
+  if(halo) halo.rotation.z += dt;
+  if(B.engine && snd.ctx){ const sp = Math.abs(B.speed), t = snd.ctx.currentTime; B.engine.osc.frequency.setTargetAtTime(70 + sp * 8, t, 0.05); B.engine.osc2.frequency.setTargetAtTime(35 + sp * 4, t, 0.05); B.engine.gain.gain.setTargetAtTime(0.03 + sp * 0.005, t, 0.05); }
+  if(lookId === null && Math.abs(B.speed) > 0.5) cam.yaw = lerpAngle(cam.yaw, B.heading + Math.PI, 1 - Math.exp(-dt * 2.5));
+}
+function bikeProximity(){
+  const near = !!(bike.g && !bike.riding && Math.hypot(p.x - bike.x, p.z - bike.z) < 2.8);
+  if(near !== bike.near){ bike.near = near; $('#rideBtn').style.display = (near || bike.riding) ? '' : 'none'; if(near) $('#rideBtn').textContent = 'Ride'; }
+}
+$('#rideBtn').addEventListener('click', () => { if(bike.riding) dismountBike(); else if(bike.near) mountBike(); });
+
 /* ================= Outfitters (shop) ================= */
 const SHOP_ITEMS = [
   {id:'cape', name:'Cape', price:30, kind:'feature'}, {id:'hood', name:'Hood', price:20, kind:'feature'}, {id:'wings', name:'Wings', price:60, kind:'feature'}, {id:'halo', name:'Halo', price:40, kind:'feature'},
@@ -3742,7 +3827,7 @@ window.addEventListener('keydown', e => {
   if(!lookEl.classList.contains('hidden')){ if(e.code === 'Escape') closeLook(); return; }
   if(!warpEl.classList.contains('hidden')){ if(e.code === 'Escape' || e.code === 'KeyM') closeWarp(); return; }
   if(!shopEl.classList.contains('hidden')){ if(e.code === 'Escape' || e.code === 'KeyE') closeShop(); return; }
-  if(e.code === 'KeyE'){ if(shopNear) openShop(); return; }
+  if(e.code === 'KeyE'){ if(bike.riding) dismountBike(); else if(bike.near) mountBike(); else if(shopNear) openShop(); return; }
   if(e.code === 'KeyN'){ setMute(snd.on); return; }
   if(e.code === 'Escape'){ openIntro(); return; }
   if(e.code === 'KeyM'){ openWarp(); return; }
@@ -3783,6 +3868,7 @@ let traveling = false, portalCool = 0;
 const fadeEl = $('#fade');
 function travel(to, opts){
   if(traveling) return; traveling = true; opts = opts || {};
+  if(bike.riding) dismountBike(true);
   const from = state.world; fadeEl.classList.add('on'); sfx('warp');
   setTimeout(() => {
     buildWorld(to);
@@ -4272,6 +4358,7 @@ function lerpAngle(a, b, t){ const d = ((b - a + Math.PI) % TAU + TAU) % TAU - M
 
 function update(dt, time){
   uTime.value = time;
+  if(bike.riding) updateBike(dt, time); else {
   let fwd = 0, side = 0;
   if(playing && !traveling && !zeroing){
     if(keys.KeyW || keys.ArrowUp) fwd += 1; if(keys.KeyS || keys.ArrowDown) fwd -= 1;
@@ -4311,6 +4398,7 @@ function update(dt, time){
   animateAvatar(me, dt, p.speed, p.grounded, time);
   p.flameT -= dt; const fl = p.flameT > 0; me.flames.forEach(f => { f.visible = fl; }); if(fl && me.flames.length){ me.flames[0].scale.y = me.flames[2].scale.y = 0.7 + Math.random() * 0.6; }
   if(halo) halo.rotation.z += dt;
+  }
 
   if(!playing && !state.started) cam.yaw += dt * 0.1;
   camTarget();
@@ -4368,7 +4456,7 @@ function update(dt, time){
     state.won = true; reward(500, 200); sfx('win'); setHalo(); toast('You opened the vault. First to crack the Hub.   +500 XP', 5000);
   }
   if(playing && p.grounded && p.speed > 0.6){ snd.stepT -= dt; if(snd.stepT <= 0){ sfx('step'); snd.stepT = p.speed > 7 ? 0.27 : 0.42; } } else snd.stepT = 0.1;
-  shopProximity();
+  shopProximity(); bikeProximity();
   hurtCool -= dt; updateHazards(time); updateBurst(dt); checkBundles();
   if(!WORLDS[state.world].rules.danger && !zeroing && state.hp < maxHp()){ state.hp = Math.min(maxHp(), state.hp + 12 * dt); hpHud(); }
   portalCool -= dt;
@@ -4418,7 +4506,7 @@ ready.then(() => new Promise(res => setTimeout(res, 60))).then(() => {
   $('#nameInput').focus();
 }).catch(err => { const ld = $('#loading'); if(ld) ld.textContent = 'Could not start: ' + err.message; });
 // hooks for the tester (headless checks) and for debugging; not used by the game itself
-window.__hub = { state, p, cam, post, stats, WORLDS, scene, renderer, camera, sunLight, hemi, gl:GL_INFO, softwareGL:SOFTWARE_GL, travel, buildWorld, startGame, setPaused, degrade, parseDescription, makeFromWords, rebuildPlayer, cleanRecipe, snd, sfx, setMute, get me(){ return me; }, freezeQuality(){ warm = 1e9; }, get qLevel(){ return qLevel; }, get world(){ return state.world; }, get envRT(){ return envRT; },
+window.__hub = { state, p, cam, post, stats, WORLDS, scene, renderer, camera, sunLight, hemi, gl:GL_INFO, softwareGL:SOFTWARE_GL, travel, buildWorld, startGame, setPaused, degrade, parseDescription, makeFromWords, rebuildPlayer, cleanRecipe, snd, sfx, setMute, bike, mountBike, dismountBike, keys, update, get me(){ return me; }, freezeQuality(){ warm = 1e9; }, get qLevel(){ return qLevel; }, get world(){ return state.world; }, get envRT(){ return envRT; },
   damage(n){ return hurt(n, 'test'); }, get hazards(){ return hazards.map(h => ({x:h.x, z:h.z, L:h.L})); },
   get bundles(){ return bundles.map(b => ({id:b.id, world:b.world, x:b.x, y:b.y, z:b.z, credits:b.credits, items:b.items.map(i => Object.assign({}, i)), why:b.why})); }, get zeroing(){ return zeroing; }, get hp(){ return state.hp; }, get maxHp(){ return maxHp(); }, get level(){ return lvlOf(state.xp); } };
 })();
