@@ -214,6 +214,22 @@ It is a different product from the game, with real children in it, so five thing
 
 **How it feels.** A child in a poor, crowded place puts on the glasses and is in a bright marble hall with their class. It must feel safe, calm and dependable first, and wondrous second.
 
+## 11c. Presence: two tiers, one universe (the owner's goal)
+
+The owner's words: make it so hard to tell from reality that people wearing the glasses question what is real. That is the target for Hub as a whole. It is honest about hardware: a phone headset running a web page cannot get there, and a strong PC headset running Unreal Engine 5 can come close. So Hub has two tiers that share this blueprint, the same realms, rules, names and gameplay:
+
+- **Hub Browser (index.html).** Reaches every child and every phone (section 11b). Goal: clean, believable and comfortable, never cheap-looking (section 11a). It will read as a very good game, not as reality, and that is fine; its job is to be everywhere.
+- **Hub Unreal (hub-unreal/, UNREAL-PLAN.md).** The flagship where people question reality. Runs on PC-grade VR (a standalone headset on a PC link, or a PC VR headset with a strong graphics card), and later streamed from a server to cheaper headsets where the connection is fast and steady enough. Built with Unreal 5's Lumen lighting, Nanite geometry, photo-scanned assets and realistic people.
+
+**The five presence rules, in order.** Both tiers follow them; the Unreal tier is measured against them.
+1. **Steady frame rate and low lag come first.** Presence breaks the instant the world stutters or trails the head. Hold the headset's full refresh rate (90 fps or more on PC VR, 72 or more on standalone) with no drops, and motion-to-photon lag under 20 ms. If a feature costs frames, it waits. No forced camera motion the player did not cause.
+2. **Light behaves like real light.** Bounced light, soft contact shadows, correct reflections, sensible exposure, real sun and sky. Unreal: Lumen with hardware ray tracing where available. Browser: the best fakes (SSAO, environment maps, fog in-scatter).
+3. **Real-world detail at true scale.** Photo-scanned surfaces and objects, measured sizes (doors about 2.1 m, steps about 17 cm, handrails about 0.9 m, seats about 45 cm), wear and dirt where hands and feet go, nothing floating, nothing repeating in an obvious way. Unreal: Nanite with film-quality scans (Poly Haven and Quixel-style CC0 or licensed libraries only).
+4. **Sound sits in space.** Every sound has a position and the room shapes it: echo in the marble hall, dead air in the forest, wind that moves. Footsteps match the surface. Silence is allowed.
+5. **Your own body and other people.** Hands tracked or held controllers shown as hands; your avatar's body where you look down; other people who move, blink, breathe and turn to look at you, with no dead stares. Unreal: MetaHuman-quality faces for residents.
+
+**Done means (Unreal tier, checked on the owner's hardware).** A first-time visitor spends five minutes in one realm on a PC headset with no frame drops logged, and is then asked "did any part of that feel real?"; the answer is tracked per realm and improved over time. The browser tier's done line stays section 11a's.
+
 ## 12. Roadmap (work in order; every goal is a builder task list checked by the tester)
 
 **Phase 0 (in progress): Glass Dunes looks like a real desert.** Finish the current task list first; it is the first realm to hit the section 11a bar, so do it to that standard.
