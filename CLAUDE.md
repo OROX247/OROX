@@ -7,6 +7,7 @@ The mission behind it: real classrooms in Hub, and Orox glasses for children in 
 ## Fixed decisions (do not change without the owner)
 - Picture quality comes first: full-resolution rendering, anti-aliased edges, soft shadows, ambient occlusion, high-resolution textures (UNIVERSE-BLUEPRINT.md section 11a). Never trade sharpness or frame rate for a feature.
 - Each realm has its own fixed look that does not change between visits.
+- No boundaries: nothing is walled off. Every realm goes on without end past its hand-made core, in its own fixed style, and every star on the star map is a planet you can visit (UNIVERSE-BLUEPRINT.md section 5e). Hand-made cores stay hand-made.
 - The player's avatar can be anything: the player describes it in words and the game builds it (UNIVERSE-BLUEPRINT.md section 5a). It only changes when the player customises it, and describing it is customising it.
 - The ground must be solid and stable like GTA: real 3D geometry and fixed textures, not live AI repainting.
 - Live AI mode (R key, Decart) is an optional filter; avatars are drawn by the game on top of it.

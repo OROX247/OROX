@@ -116,6 +116,19 @@ A forged realm has no edge. The ground disc is re-centred on the player as they 
 
 `vrSetup` shows a VR button when WebXR reports an immersive-vr device. Entering VR puts the camera on a rig standing where the avatar stands (`vr.rig`, local-floor reference space): the left stick walks relative to where you look, the right stick snap-turns 30 degrees, the trigger jumps, the grip or A is E. VR renders without the post chain (two eyes, plain render). The claude.ai link's frame does not allow WebXR; the downloaded file served over https (or opened in a headset browser) does.
 
+## 5e. No boundaries: every realm is endless and every star is a place (the owner's rule)
+
+The owner's words: no boundaries in the game; people must be able to explore anything and everything. Nothing in Hub is walled off.
+
+- **The built-in realms keep their hand-made cores and lose their edges.** Everything inside each realm's current hand-made ring stays exactly as it is (same seed, same look, same placements). Past the ring the realm goes on without end in its own style, built as you walk with the 5c machinery (`recenterTerrain`, 48 m cells, `buildChunk`/`dropChunk`), seeded by position so the same spot always looks the same. Glass Dunes becomes an endless desert of dunes, mesas, pillar fields and buried ruins; Night Grove an endless forest with clearings, streams and old stones; Sky Isles an endless archipelago of floating isles (the gaps are still falls, so the realm's danger rules still bite); Neon Grid an endless grid city of towers and plazas; Campus the school planet's endless rows of identical campuses and woods; Hub Spaceport the port's endless outskirts of pads, hangars and plains. The rim hills that used to wall each realm in become the first landmarks on the way out. Every realm keeps its fixed look, its sky and its rules everywhere.
+- **Every star on the star map is a planet.** The 26 uncharted sectors each hold many stars. Pick any star on the Warp screen and you land on its planet: its land, ground, water, sky, time of day, weather, gravity, size of features and rules (magic, tech, danger) all come from its coordinates, so the same star is the same planet on every visit, for every player. Planets are built with the Worldsmith's building blocks (5b) and are endless like forged realms (5c); the Dreamer names their landmarks. Warp fares follow section 4 by sector distance.
+- **Discovery.** The first time the player lands on a planet it becomes "charted" on their star map under a name the game proposes (the player can rename it); the player's Explorer Log lists every planet charted, the distance walked on each, and every landmark found. Planets never change once seen.
+- **Anything you can see, you can reach.** No invisible walls, no ceilings short of the sky, buildings you can walk into where it makes sense, and a way up every hill. If something truly must stop the player (the Citadel's Bell Jar field), it is a thing in the world with a reason, not an edge.
+
+The fixed rules still hold everywhere: solid real geometry and fixed textures (never AI repainting), the fixed look per place, picture quality and frame rate first (endless cells must not cost frames: cells stream in over several frames and far cells are cheap LODs), and original content only.
+
+**Done means.** Walking or riding 1 km out of any built-in realm never meets an edge or a wall, the hand-made core is unchanged when you return, and the same spot looks the same after leaving and coming back. Picking three different uncharted stars lands on three different planets, each identical on a second visit, each charted in the Explorer Log. Frame time in the endless parts is no worse than in the hand-made cores.
+
 ## 6. Money
 
 - Joining is a one-off tiny fee; after that everything inside costs: teleports, fuel, ammunition, gear, food, clothing, rent for private rooms.
@@ -243,6 +256,8 @@ The owner's words: make it so hard to tell from reality that people wearing the 
 6. Inventory panel (I key) with items, rarity and sale price. Done means: an item can be picked up, seen, and sold at Outfitters.
 7. Outfitters shop on Hub Spaceport and a vending terminal in every realm. Done means: buying a cape changes the avatar and persists; buying a health kit and using it restores HP.
 8. Campus realm in Sector 1: perpetual daytime, a school building, a zero-g gym, a forest, free warps while enrolled. Done means: the portal from the Spaceport works, the gym has no gravity, the realm is `danger:false`.
+8a. **No boundaries, part 1** (section 5e): every built-in realm continues endlessly past its hand-made core in its own style. Done means: 1 km out of any built-in realm meets no edge, the core is unchanged on return, the same spot looks the same after coming back, and frame time holds.
+8b. **No boundaries, part 2** (section 5e): every star on the star map is a planet you can land on, seeded by its coordinates, charted in the Explorer Log on first landing. Done means: three different stars give three different planets, each identical on a second visit and charted in the log.
 
 **Phase 2: the Hunt.**
 9. The Archive on the Spaceport with six memory rooms, the Registrar, and the Ledger book. Done means: every room opens, the Ledger is readable, and one hidden detail per room can be inspected.
