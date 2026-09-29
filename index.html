@@ -6567,7 +6567,9 @@ function travel(to, opts){
   setTimeout(() => {
     buildWorld(to);
     if(opts.spawn || (to === 'hub' && !portals.some(q => q.to === from))){ p.x = 0; p.z = 14; cam.yaw = 0; }
-    else { const back = portals.find(q => q.to === from) || portals[0], d = Math.hypot(back.x, back.z) || 1; p.x = back.x - back.x / d * 4.5; p.z = back.z - back.z / d * 4.5; cam.yaw = Math.atan2(back.x, back.z); }
+    else {   // arrive far enough out that the camera (cam.dist behind you) stands in front of the return portal, not inside its ring looking through the back of it
+      const back = portals.find(q => q.to === from) || portals[0], d = Math.hypot(back.x, back.z) || 1, k = clamp(cam.dist + 2.5, 4.5, 12);
+      p.x = back.x - back.x / d * k; p.z = back.z - back.z / d * k; cam.yaw = Math.atan2(back.x, back.z); }
     p.y = G(p.x, p.z); p.vy = 0; p.facing = cam.yaw + Math.PI; snapCamera(); portalCool = 1;
     fadeEl.classList.remove('on'); traveling = false;
     if(!state.visited.has(to)){ state.visited.add(to); reward(25, 0); toast('New world discovered: ' + WORLDS[to].name + '   +25 XP', 3000); }
