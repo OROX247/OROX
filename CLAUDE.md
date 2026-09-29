@@ -3,6 +3,7 @@ Read this file and LESSONS.md before doing anything. Update LESSONS.md before yo
 ## What we are building
 An OASIS-style virtual universe called Hub, in one file: index.html (three.js r128, no build step). Realms: Hub Spaceport, Glass Dunes, Neon Grid, Night Grove, Sky Isles. Portals link them.
 The long-term target is a universe with the same structure, systems, rules and feel as the OASIS in Ready Player One (book and film), built with Hub's own names and Hub's own invented culture. UNIVERSE-BLUEPRINT.md is the reference for every part of that: the layout, travel, money, avatars, death, quests, the Hunt, the villains, and the phased roadmap. Read it before planning any goal, and take goals from its roadmap in order.
+The mission behind it: real classrooms in Hub, and Orox glasses for children in need so they can go to school (UNIVERSE-BLUEPRINT.md section 11b, Phase 5). Anything that real children will use is safety-first: school- or guardian-made accounts, class-only contact, minimal data, and a qualified child-safety review before it ships.
 ## Fixed decisions (do not change without the owner)
 - Picture quality comes first: full-resolution rendering, anti-aliased edges, soft shadows, ambient occlusion, high-resolution textures (UNIVERSE-BLUEPRINT.md section 11a). Never trade sharpness or frame rate for a feature.
 - Each realm has its own fixed look that does not change between visits.

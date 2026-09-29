@@ -200,6 +200,20 @@ The AI reality mode (R) must keep working on top of the new pipeline: the AI see
 
 **Done means (checked by the tester with 1920x1080 screenshots in every realm, from the local file):** no jagged edges anywhere, soft shadows with no acne, visible occlusion under rocks and at the base of pillars, subtle bloom on glows only, no flat-looking surfaces within ten metres, no popping when walking, no console errors, and a logged frame time under 16.7 ms on the tester's machine at pixel ratio 1 (or the ladder's first step applied automatically). Before/after screenshots are committed under `shots/` so the owner can see the difference.
 
+## 11b. Real School: Hub's mission (the owner's goal)
+
+The owner's words: host real classrooms in Hub and give Orox glasses to children in need so they can go to school. In the book, the school world is what gave poor children a real education; Hub wants that for real, not only as fiction. Campus (goal 8) is the building; this section is everything a real school needs on top of a game.
+
+It is a different product from the game, with real children in it, so five things come first and in this order. None of it starts until the owner unparks multiplayer (CLAUDE.md), and none of it ships to real children until item 2 is reviewed by someone qualified in child safety and privacy law.
+
+1. **Live classes (needs multiplayer).** A teacher and up to 30 students in the same Campus classroom at the same time: avatars in seats, teacher voice to the room, hand-raising, a shared lesson board the teacher controls (slides, drawing, text), and the teacher able to mute, move and bring everyone to one spot. Break-out rooms for group work. Attendance recorded per lesson.
+2. **Child safety, designed in from the start.** Accounts are created by a school or a guardian, never self-sign-up for under-16s. Children can only meet their own class and teachers; no contact from strangers, no open chat, no friend requests from outside the school. Teachers and moderators can see logs; there is a report button in every room. Collect the least data possible, no ads, no selling data, no tracking. Follow the child-privacy law of every country served (for example COPPA in the US, GDPR and the UK Age Appropriate Design Code in Europe). The money and danger systems (credits, zero-out, Meridian) are switched off inside school accounts' lessons.
+3. **Runs on cheap devices and weak internet.** A "School" quality profile for a low-cost Android phone on a slow, patchy connection: small download, cached after first load, works offline for already-downloaded lessons, lower resolution but still clean (sharp edges and readable text come before effects, as in section 11a). Audio-first so a lesson survives when video would not.
+4. **Teachers and lessons.** Hub gives the room; real educators give the school. Work with teachers, schools and curriculum partners; lessons are content they create and own. Tools for them: a lesson builder, a way to bring in their own slides and worksheets, simple homework and marks. Hub's invented-culture rule still applies inside the game world, but lesson content is whatever the teacher teaches.
+5. **Orox glasses.** Start with the cheapest thing that works: a phone headset (a plain lens-and-strap holder) running Hub's existing WebXR mode (section 5d) in the phone's browser, so the only hardware to give out is the headset, plus a phone where the child has none. Every lesson must also work without the glasses, on the phone screen alone, so no child is shut out if the headset breaks. Distribution through charities and schools, who decide which children qualify; Hub does not collect income data about families.
+
+**How it feels.** A child in a poor, crowded place puts on the glasses and is in a bright marble hall with their class. It must feel safe, calm and dependable first, and wondrous second.
+
 ## 12. Roadmap (work in order; every goal is a builder task list checked by the tester)
 
 **Phase 0 (in progress): Glass Dunes looks like a real desert.** Finish the current task list first; it is the first realm to hit the section 11a bar, so do it to that standard.
@@ -232,6 +246,14 @@ The AI reality mode (R) must keep working on top of the new pipeline: the AI see
 21. The Den (private room) with decor.
 
 **Phase 4: polish.** Performance on phones, sound per realm, save slots, accessibility. Multiplayer stays parked until the owner says otherwise.
+
+**Phase 5: Real School (section 11b; starts only when the owner unparks multiplayer, and ships to real children only after a child-safety and privacy review).**
+22. Multiplayer foundation for Campus only: two or more players see each other move in the same classroom. Done means: two browsers join one classroom and see each other's avatars move within half a second.
+23. Live class: teacher role, seats, voice to the room, hand-raising, a shared lesson board the teacher controls, attendance. Done means: a teacher runs a ten-minute lesson for five test students end to end.
+24. School accounts and safety: school- or guardian-created accounts, class-only contact, report button, moderator log, no money or danger systems in lessons. Done means: a student account cannot see, hear or message anyone outside its class, and every report reaches the log.
+25. School quality profile: small first download, offline cache for lessons, runs at 30 fps on a low-cost Android phone with readable text and sharp edges. Done means: the tester's low-end profile loads a lesson under a set size limit and holds 30 fps.
+26. Lesson tools for teachers: lesson builder, import slides and worksheets, homework and marks. Done means: a teacher builds a lesson from their own slides without help.
+27. Orox glasses: phone-headset mode checked on real headsets, with every lesson also working on the phone screen alone. Done means: one lesson completed on a headset and the same lesson completed without one.
 
 ## 13. Sources this file was written from
 
