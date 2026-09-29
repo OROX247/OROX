@@ -3157,7 +3157,34 @@ function instanced(geo, mat, mats, colors, cast){
   m.instanceMatrix.needsUpdate = true; if(m.instanceColor) m.instanceColor.needsUpdate = true;
   m.castShadow = cast !== false; m.receiveShadow = true; m.frustumCulled = false; (buildParent || world).add(m); return m;
 }
-const lump = (x, y, z) => Math.sin(x * 3.1 + 1.7) * Math.sin(y * 2.7 + 0.3) * Math.sin(z * 3.3 + 2.1) + 0.5 * Math.sin(x * 7.3 + y * 5.1) * Math.sin(z * 6.7 + 0.9);
+/* level of detail: a near and a far version of the same prop, measured from the camera's world position (camWorld, so it works on the VR rig too).
+   Hysteresis: switch to far beyond d + h, back to near inside d, so walking back and forth at the line never flickers.
+   lodMesh: two meshes, one visible. lodInstanced: a near and a far InstancedMesh sharing one material; each instance sits in whichever its distance says.
+   Both go into buildParent when a streamed cell is being built; the entry remembers its group (e.grp) so dropChunk takes it out of the list with the cell. */
+let lods = [], lodScale = 1;   // lodScale multiplies every switch distance (a test hook: __hub.lodScale = 1e6 shows everything at full detail)
+function lodMesh(hi, lo, centre, d, h){ lo.visible = false; const e = {kind:'mesh', hi, lo, c:centre, d, h, far:false, grp:hi.parent}; lods.push(e); lodStep(e, camWorld); return e; }
+function lodInstanced(hiGeo, loGeo, mat, mats, cols, d, h, o){
+  o = o || {}; const n = mats.length, grp = buildParent || world;
+  if(!n){ hiGeo.dispose(); loGeo.dispose(); mat.dispose(); return null; }
+  const mk2 = g => { const m = new THREE.InstancedMesh(g, mat, n); m.castShadow = o.cast !== false; m.receiveShadow = true; m.frustumCulled = false; if(o.noAO) m.userData.noAO = true; if(o.depth) m.customDepthMaterial = o.depth;
+    if(cols) m.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(n * 3), 3); grp.add(m); return m; };
+  const e = {kind:'inst', hi:mk2(hiGeo), lo:mk2(loGeo), mats, cols, pos:mats.map(M => new V3().setFromMatrixPosition(M)), d, h, far:new Uint8Array(n), n, grp};
+  lods.push(e); lodStep(e, camWorld); lodFill(e); return e;
+}
+function lodFill(e){
+  let a = 0, b = 0;
+  for(let i = 0; i < e.n; i++){ const f = e.far[i], m = f ? e.lo : e.hi, k = f ? b++ : a++; m.setMatrixAt(k, e.mats[i]); if(e.cols) m.setColorAt(k, e.cols[i]); }
+  e.hi.count = a; e.lo.count = b; e.hi.visible = a > 0; e.lo.visible = b > 0;
+  [e.hi, e.lo].forEach(m => { m.instanceMatrix.needsUpdate = true; if(m.instanceColor) m.instanceColor.needsUpdate = true; });
+}
+function lodStep(e, c){
+  const D = e.d * lodScale, H = e.h * lodScale;
+  if(e.kind === 'mesh'){ const d = c.distanceTo(e.c), f = e.far ? d > D : d > D + H; if(f !== e.far){ e.far = f; e.hi.visible = !f; e.lo.visible = f; } return false; }
+  let ch = false; for(let i = 0; i < e.n; i++){ const d = c.distanceTo(e.pos[i]), f = e.far[i] ? d > D : d > D + H; if(f !== !!e.far[i]){ e.far[i] = f ? 1 : 0; ch = true; } }
+  return ch;
+}
+function updateLods(){ for(const e of lods) if(lodStep(e, camWorld)) lodFill(e); }
+const lump =(x, y, z) => Math.sin(x * 3.1 + 1.7) * Math.sin(y * 2.7 + 0.3) * Math.sin(z * 3.3 + 2.1) + 0.5 * Math.sin(x * 7.3 + y * 5.1) * Math.sin(z * 6.7 + 0.9);
 function displace(g, amt, freq){
   const p = g.attributes.position;
   for(let i = 0; i < p.count; i++){ const x = p.getX(i), y = p.getY(i), z = p.getZ(i), f = 1 + amt * lump(x * freq, y * freq, z * freq) / 1.5; p.setXYZ(i, x * f, y * f, z * f); }
@@ -3927,6 +3954,8 @@ function cardsGeo(cards){
   g.setAttribute('position', new THREE.BufferAttribute(pos, 3)); g.setAttribute('normal', new THREE.BufferAttribute(nor, 3)); g.setAttribute('uv', new THREE.BufferAttribute(uv, 2)); g.setAttribute('color', new THREE.BufferAttribute(col, 3)); g.setIndex(new THREE.BufferAttribute(idx, 1));
   return g;
 }
+// half the cards, each 1.4x wider (about the same leaf area), for the far level of detail
+function lodCards(cards){ return cards.filter((c, i) => i % 2 === 0 || i === cards.length - 1).map(c => Object.assign({}, c, {s:c.s * 1.4})); }
 function treeGeos(){
   // trunk with a slight lean, three branches, and a canopy of leaf cards around six blob centres
   const parts = [];
@@ -3940,7 +3969,10 @@ function treeGeos(){
   blobs.forEach(b => { const n = Math.round(15 * b[3]); for(let i = 0; i < n; i++){
     const th = Math.acos(1 - 2 * q()), ph = q() * TAU, nx = Math.sin(th) * Math.cos(ph), ny = Math.cos(th), nz = Math.sin(th) * Math.sin(ph), rr = b[3] * (0.75 + q() * 0.3), y = b[1] + ny * rr;
     cards.push({x:b[0] + nx * rr, y, z:b[2] + nz * rr, nx, ny:ny + 0.3, nz, s:1.05 + q() * 0.75, rot:q() * TAU, c:(0.42 + 0.58 * smooth(2.3, 5.6, y)) * (0.75 + 0.25 * q())}); } });
-  return {trunk:trunkAll, leaf:cardsGeo(cards), trunkHex:0x5a4636, tex:leafTexture('leaf')};
+  // far version (beyond ~55 m): plain 5-sided trunk, no branches, every other leaf card a little larger so the canopy covers the same area
+  const trunkLo = new THREE.CylinderGeometry(0.13, 0.28, 3.4, 5, 3); trunkLo.translate(0, 1.7, 0);
+  { const p = trunkLo.attributes.position; for(let i = 0; i < p.count; i++){ const y = p.getY(i); p.setX(i, p.getX(i) + Math.sin(y * 0.9) * 0.12 * (y / 3.4)); } trunkLo.computeVertexNormals(); }
+  return {trunk:trunkAll, leaf:cardsGeo(cards), trunkLo, leafLo:cardsGeo(lodCards(cards)), trunkHex:0x5a4636, tex:leafTexture('leaf')};
 }
 function pineGeos(){
   const trunk = new THREE.CylinderGeometry(0.1, 0.24, 6.2, 7, 2); trunk.translate(0, 3.1, 0);
@@ -3951,12 +3983,13 @@ function pineGeos(){
       cards.push({x, y:y0 + 0.35 - r0 * 0.3, z, nx:Math.cos(a) * 0.85, ny:0.5, nz:Math.sin(a) * 0.85, s:0.95 + q() * 0.7, rot:(q() - 0.5) * 0.9, c:0.4 + 0.45 * clamp(r0 / 1.7, 0, 1) + 0.15 * (k / 6)}); }
   }
   cards.push({x:0, y:6.7, z:0, nx:0.2, ny:1, nz:0, s:0.9, rot:0, c:0.95});
-  return {trunk, leaf:cardsGeo(cards), trunkHex:0x3b2c22, bark:'pinebark', tex:leafTexture('needle')};
+  const trunkLo = new THREE.CylinderGeometry(0.1, 0.24, 6.2, 5, 1); trunkLo.translate(0, 3.1, 0);
+  return {trunk, leaf:cardsGeo(cards), trunkLo, leafLo:cardsGeo(lodCards(cards)), trunkHex:0x3b2c22, bark:'pinebark', tex:leafTexture('needle')};
 }
-function rockGeo(){ const g = new THREE.SphereGeometry(1, 16, 12); displace(g, 0.3, 1.2); g.scale(1, 0.62, 1); g.computeVertexNormals(); g.translate(0, 0.22, 0); return g; }
+function rockGeo(lo){ const g = new THREE.SphereGeometry(1, lo ? 10 : 16, lo ? 7 : 12); displace(g, 0.3, 1.2); g.scale(1, 0.62, 1); g.computeVertexNormals(); g.translate(0, 0.22, 0); return g; }
 function plantTrees(TG, list, leafHexes, r){
   const mats = list.map(t => mat4(t.x, t.y, t.z, 0, t.ry, 0, t.s, t.s, t.s));
-  { const bk = surface(TG.bark || 'bark'); instanced(TG.trunk, std(0xffffff, {roughness:0.95, map:bk.map, normalMap:bk.normal, normalScale:new V2(0.9, 0.9)}), mats); }
+  { const bk = surface(TG.bark || 'bark'); lodInstanced(TG.trunk, TG.trunkLo, std(0xffffff, {roughness:0.95, map:bk.map, normalMap:bk.normal, normalScale:new V2(0.9, 0.9)}), mats, null, 55, 8); }
   const leafM = std(0xffffff, {vertexColors:true, roughness:0.8, map:TG.tex, alphaTest:0.5, side:THREE.DoubleSide});
   leafM.onBeforeCompile = sh => {
     sh.uniforms.time = uTime;
@@ -3965,8 +3998,8 @@ function plantTrees(TG, list, leafHexes, r){
       '#include <begin_vertex>\n vec4 lip = instanceMatrix[3]; float lw = sin(time * 1.3 + lip.x * 0.4 + lip.z * 0.3 + position.y * 0.5) * 0.06;\n transformed.x += lw * smoothstep(1.5, 4.0, position.y); transformed.z += lw * 0.6 * smoothstep(1.5, 4.0, position.y);');
   };
   leafM.customProgramCacheKey = () => 'leaf';
-  const lm = instanced(TG.leaf, leafM, mats, list.map(() => { const c = C(leafHexes[Math.floor(r() * leafHexes.length)]); c.multiplyScalar(0.8 + r() * 0.4); return c; }));
-  if(lm){ lm.userData.noAO = true; lm.customDepthMaterial = new THREE.MeshDepthMaterial({depthPacking:THREE.RGBADepthPacking, map:TG.tex, alphaTest:0.5}); }
+  lodInstanced(TG.leaf, TG.leafLo, leafM, mats, list.map(() => { const c = C(leafHexes[Math.floor(r() * leafHexes.length)]); c.multiplyScalar(0.8 + r() * 0.4); return c; }), 55, 8,
+    {noAO:true, depth:new THREE.MeshDepthMaterial({depthPacking:THREE.RGBADepthPacking, map:TG.tex, alphaTest:0.5})});
 }
 // average normals of vertices that share a position (UV seams, poles) unless they meet at a hard edge
 function weldNormals(g){
@@ -4006,8 +4039,8 @@ function sandstoneColumn(rad, h, o){
   return dustAttr(geo, o.dustH || 1, i => { const L = layer((p.getY(i) + o.y0) / o.uvs); return 0.9 + 0.1 * L.l.hard; });
 }
 // weathered sandstone boulder: dense sphere, three layers of lumps, strata grooves, flattened base
-function sandstoneRockGeo(){
-  const layer = sandstoneTextures().layer, g = new THREE.SphereGeometry(1, 56, 36), p = g.attributes.position, uv = g.attributes.uv;
+function sandstoneRockGeo(lo){
+  const layer = sandstoneTextures().layer, g = new THREE.SphereGeometry(1, lo ? 24 : 56, lo ? 16 : 36), p = g.attributes.position, uv = g.attributes.uv;
   for(let i = 0; i < p.count; i++){
     const x = p.getX(i), y = p.getY(i), z = p.getZ(i);
     const f = 1 + (0.3 * lump(x * 1.1 + 3, y * 1.1, z * 1.1 - 1) + 0.13 * lump(x * 2.6, y * 2.6 + 2, z * 2.6) + 0.05 * lump(x * 6.3, y * 6.3, z * 6.3 + 4) + 0.02 * lump(x * 13, y * 13 + 1, z * 13)) / 1.5;
@@ -4024,8 +4057,8 @@ function placeRocks(list, hex, o){
   const mats = list.map(t => mat4(t.x, t.y, t.z, t.rx || 0, t.ry || 0, 0, t.s, t.s * (t.sy || 1), t.s));
   const rs = o.mat ? null : surface(o.surf || 'rock');
   const mat = o.mat || std(0xffffff, {map:rs.map, normalMap:rs.normal, normalScale:new V2(0.8, 0.8), roughness:0.9});
-  const mesh = instanced(o.geo || rockGeo(), mat, mats, list.map(() => { const c = C(hex); c.multiplyScalar(0.8 + q() * 0.35); return c; }));
-  if(mesh) reg('rock', {mat, mesh, kind:'rocks'});
+  const lod = lodInstanced(o.geo || rockGeo(), o.lo || rockGeo(true), mat, mats, list.map(() => { const c = C(hex); c.multiplyScalar(0.8 + q() * 0.35); return c; }), o.lodD || 40, 6);
+  if(lod) reg('rock', {mat, lod, kind:'rocks'});
 }
 
 // ground clutter: pebbles and small weeds scattered where nothing is built, so bare ground never looks bare
@@ -4296,21 +4329,23 @@ BUILD.hub = (r, n) => {
   addClutter(r, {rMin:37.5, rMax:57, pebbles:500, weeds:900, pebbleHex:0xcfc8bc});
   addFlock('bird', 18, {rng:r, x:20, z:-30}); addFlock('bird', 12, {rng:r, x:-40, z:20}); addFlock('butterfly', 10, {rng:r, x:0, z:48}); addShips(r, COARSE ? 2 : 4);
   // skyline: glass towers with real facades (glass strips between spandrels, recessed windows, a few lit), reflecting the sky
-  const skyline = [0, 1, 2].map(v => towerMaterial(v));
+  // baked: every tower part is moved to its place and merged into one mesh per material (5 draw calls instead of ~150); the facade UVs are copied as they are, so the glass looks exactly the same
+  const skyline = [0, 1, 2].map(v => towerMaterial(v)), bins = new Map(), bin = (m, g) => { if(!bins.has(m)) bins.set(m, []); bins.get(m).push(g); };
+  const roofM = std(0x2a2d33, {roughness:0.85, map:surface('concrete').map}), mastM = std(0x4a4d55, {metalness:0.7, roughness:0.4}), M = new THREE.Matrix4();
   for(let i = 0; i < 60 * (COARSE ? 0.6 : 1); i++){
     const a = r() * TAU, d = 120 + r() * 240, x = Math.cos(a) * d, z = Math.sin(a) * d, h = 30 + r() * r() * 150, w = 10 + r() * 16, dp = w * (0.7 + r() * 0.6), y0 = G(x, z) - 2, ry = r() * TAU;
     const T = skyline[i % 3], floors = Math.max(4, Math.round(h / 3.6));
-    const tower = (W, D, H, y, tier) => { const g = new THREE.BoxGeometry(W, H, D); const uv = g.attributes.uv; const fl = Math.max(1, Math.round(H / 3.6));
+    M.makeRotationY(ry).setPosition(x, y0, z);
+    const tower = (W, D, H, y) => { const g = new THREE.BoxGeometry(W, H, D); const uv = g.attributes.uv; const fl = Math.max(1, Math.round(H / 3.6));
       // uv: u = metres around / 4, v = floors (each face of the box gets its own uv island)
       for(let k = 0; k < uv.count; k++){ const face = Math.floor(k / 4); const u = uv.getX(k), vv = uv.getY(k); const span = (face < 2) ? D : (face < 4) ? W : W; uv.setXY(k, u * span / 4, face === 2 || face === 3 ? vv * 0.02 : vv * fl); }
-      const b = mk(g, T, 0, y + H / 2, 0, tier); b.castShadow = false; return b; };
-    const grp = new THREE.Group(); grp.position.set(x, y0, z); grp.rotation.y = ry; world.add(grp);
-    tower(w, dp, h, 0, grp);
-    if(h > 70 && r() < 0.6) tower(w * 0.62, dp * 0.62, h * (0.25 + r() * 0.3), h, grp);                         // set-back upper tier
-    const roofM = std(0x2a2d33, {roughness:0.85, map:surface('concrete').map});
-    mk(new THREE.BoxGeometry(w * 0.3, 2.2, dp * 0.3), roofM, (r() - 0.5) * w * 0.4, h + 1.1, (r() - 0.5) * dp * 0.4, grp).castShadow = false;   // plant room
-    if(h > 110){ mk(new THREE.CylinderGeometry(0.15, 0.25, 14, 6), std(0x4a4d55, {metalness:0.7, roughness:0.4}), 0, h + 7, 0, grp).castShadow = false; glow(0xff4040, 4, 0, h + 14.5, 0, grp, 0.7); }
+      g.translate(0, y + H / 2, 0); bin(T, g.applyMatrix4(M)); };
+    tower(w, dp, h, 0);
+    if(h > 70 && r() < 0.6) tower(w * 0.62, dp * 0.62, h * (0.25 + r() * 0.3), h);                         // set-back upper tier
+    bin(roofM, new THREE.BoxGeometry(w * 0.3, 2.2, dp * 0.3).translate((r() - 0.5) * w * 0.4, h + 1.1, (r() - 0.5) * dp * 0.4).applyMatrix4(M));   // plant room
+    if(h > 110){ bin(mastM, new THREE.CylinderGeometry(0.15, 0.25, 14, 6).translate(0, h + 7, 0).applyMatrix4(M)); glow(0xff4040, 4, x, y0 + h + 14.5, z, world, 0.7); }
   }
+  bins.forEach((list, m) => { mk(merge(list), m).castShadow = false; });
 };
 // a tower facade: glass floors between concrete spandrels, mullions, some lit windows; colour, emissive, normal (recessed glass) and roughness (smooth glass) maps
 let towerCache = {};
@@ -4365,8 +4400,8 @@ BUILD.dunes = (r, n) => {
   const cx = 22, cz = 16;
   for(let i = 0; i < 7; i++){
     const a = i * 0.78, rad = i === 6 ? 1.8 : 1.35, top = 1 + i, x = cx + Math.cos(a) * 6, z = cz + Math.sin(a) * 6, h = top + 0.4;
-    const geo = sandstoneColumn(rad, h, {seed:i * 1.7 + 0.3, y0:-0.4, uvs:4, seg:64, rowsPerM:10, bulge:0.14, notch:0.09, rim:0.35, rimIn:0.05, top:1.02, dustH:0.9});   // top edge ~0.97 rad: the stone reaches out to where the player can stand (r + 0.2)
-    mk(geo, sandstone, x, -0.4, z);
+    const po = {seed:i * 1.7 + 0.3, y0:-0.4, uvs:4, seg:64, rowsPerM:10, bulge:0.14, notch:0.09, rim:0.35, rimIn:0.05, top:1.02, dustH:0.9};   // top edge ~0.97 rad: the stone reaches out to where the player can stand (r + 0.2)
+    lodMesh(mk(sandstoneColumn(rad, h, po), sandstone, x, -0.4, z), mk(sandstoneColumn(rad, h, Object.assign({}, po, {seg:32, rowsPerM:5})), sandstone, x, -0.4, z), new V3(x, h / 2 - 0.4, z), 45, 6);
     addPlatform(x, z, rad, top);
   }
   const last = platforms[6]; addShard('dunes', last.x, last.top + 1.2, last.z);
@@ -4384,14 +4419,15 @@ BUILD.dunes = (r, n) => {
   const rocks = [];
   for(let i = 0; i < 24; i++){ const s = freeSpot(r, 8, 55, 2); if(!s) continue; const k = 0.5 + r() * 1.1; rocks.push({x:s[0], y:G(s[0], s[1]) - 0.1, z:s[1], s:k, ry:r() * TAU}); colliders.push({x:s[0], z:s[1], r:k * 0.85}); }
   for(let i = 0; i < 40; i++){ const a = r() * TAU, d = 62 + r() * 120, x = Math.cos(a) * d, z = Math.sin(a) * d; rocks.push({x, y:G(x, z) - 0.3, z, s:1 + r() * 3, ry:r() * TAU}); }
-  placeRocks(rocks, 0xf4ebe2, {seed:2311, geo:sandstoneRockGeo(), mat:stoneMat(0xffffff, {s:0.5, o:0.19})});   // triplanar: no starburst at the top pole
+  placeRocks(rocks, 0xf4ebe2, {seed:2311, geo:sandstoneRockGeo(), lo:sandstoneRockGeo(true), lodD:32, mat:stoneMat(0xffffff, {s:0.5, o:0.19})});   // triplanar: no starburst at the top pole
   addClutter(r, {rMin:5, rMax:57, pebbles:900, pebbleSurf:'redrock', pebbleHex:0xe0c4a8, weeds:260, weedHexes:[0x8a8a52, 0xa09a5a, 0x7a7a48]});
   addFlock('bird', 7, {rng:r, x:30, z:-40});
   const mesaM = reg('rock', {mat:stoneMat(0xe6cfc0), kind:'pillar'});
   for(let i = 0; i < 14; i++){
     const a = r() * TAU, d = 170 + r() * 240, x = Math.cos(a) * d, z = Math.sin(a) * d, h = 25 + r() * 55, w = 20 + r() * 40, y0 = G(x, z) - 3;
-    const geo = sandstoneColumn(w, h, {seed:i * 2.3 + 1.1, y0, uvs:14, seg:72, rowsPerM:0.9, sc:6, bulge:0.16, notch:0.05, top:0.8, bottom:1, apron:0.45, rim:3, dustH:6});
-    const m = mk(geo, mesaM, x, y0, z); m.castShadow = false;
+    const mo = {seed:i * 2.3 + 1.1, y0, uvs:14, seg:72, rowsPerM:0.9, sc:6, bulge:0.16, notch:0.05, top:0.8, bottom:1, apron:0.45, rim:3, dustH:6};
+    const m = mk(sandstoneColumn(w, h, mo), mesaM, x, y0, z), ml = mk(sandstoneColumn(w, h, Object.assign({}, mo, {seg:36, rowsPerM:0.45})), mesaM, x, y0, z); m.castShadow = ml.castShadow = false;
+    lodMesh(m, ml, new V3(x, y0 + h / 2, z), 260, 25);
   }
   const bush = merge([0, 1, 2, 3].map(i => { const g = new THREE.SphereGeometry(0.35 + i * 0.05, 8, 6); displace(g, 0.35, 3); g.translate(Math.cos(i * 1.7) * 0.3, 0.25 + i * 0.05, Math.sin(i * 1.7) * 0.3); return g; }));
   const bm = []; for(let i = 0; i < 70; i++){ const s = freeSpot(r, 6, 56, 1); if(!s) continue; bm.push(mat4(s[0], G(s[0], s[1]) - 0.05, s[1], 0, r() * TAU, 0, 0.6 + r() * 0.8)); }
@@ -5564,6 +5600,7 @@ function dropChunk(ch){
   if(ch.cols.length) colliders = colliders.filter(c => ch.cols.indexOf(c) < 0);
   if(ch.plats.length) platforms = platforms.filter(c => ch.plats.indexOf(c) < 0);
   if(ch.spins.length) spinners = spinners.filter(c => ch.spins.indexOf(c) < 0);
+  lods = lods.filter(e => e.grp !== ch.g);
   endless.chunks.delete(ch.key);
 }
 let chunkBudget = 0;
@@ -5755,7 +5792,7 @@ function buildWorld(key){
   const W = WORLDS[key]; state.world = key;
   world = new THREE.Group(); scene.add(world);
   if(camHid){ camHid = false; if(!zeroing) me.g.visible = true; }
-  grassMeshes = []; slotMats = {}; boxes = []; desk = null; gym = null; floaters = []; p.zeroG = false; colliders = []; platforms = []; coins = []; portals = []; spinners = []; npcs = []; shardObj = null; vault = null; gridSun = null; fireflies = null; shopKiosk = null; forgeStand = null; vendor = null; hazards = []; burst = null; pickups = []; bike.g = null; bike.riding = false; bike.near = false; engineStop(); $('#rideBtn').style.display = 'none'; trial.active = false; trial.rings = []; trial.pad = null; trial.padPos = null; $('#trialPanel').style.display = 'none';
+  grassMeshes = []; lods = []; slotMats = {}; boxes = []; desk = null; gym = null; floaters = []; p.zeroG = false; colliders = []; platforms = []; coins = []; portals = []; spinners = []; npcs = []; shardObj = null; vault = null; gridSun = null; fireflies = null; shopKiosk = null; forgeStand = null; vendor = null; hazards = []; burst = null; pickups = []; bike.g = null; bike.riding = false; bike.near = false; engineStop(); $('#rideBtn').style.display = 'none'; trial.active = false; trial.rings = []; trial.pad = null; trial.padPos = null; $('#trialPanel').style.display = 'none';
   const r = rng(W.seed), noise = makeNoise(W.seed * 7 + 1);
   waterBody = null; if(weatherFx){ scene.remove(weatherFx.pts); weatherFx.geo.dispose(); weatherFx.pts.material.dispose(); weatherFx = null; } clearSkyProps(); flyers = []; ships = []; endless = null; buildParent = null; chunkAt = null; waterMeshes.forEach(w => { if(w.renderTarget) w.renderTarget.dispose(); }); waterMeshes = [];
   applyLook(W);
@@ -6776,7 +6813,7 @@ async function applyPhotos(key){
         if(t.rough){ m.roughnessMap = arm; m.roughness = 1; }
         if(t.ao){ m.aoMap = arm; m.aoMapIntensity = 1; touched.add(m); }
       }
-      if(en.kind === 'rocks' && en.mesh){ const g = new THREE.Color(), q = rng(WORLDS[key].seed * 131 + 7); for(let i = 0; i < en.mesh.count; i++){ g.setScalar(0.8 + q() * 0.25); en.mesh.setColorAt(i, g); } en.mesh.instanceColor.needsUpdate = true; }
+      if(en.kind === 'rocks' && en.lod){ const q = rng(WORLDS[key].seed * 131 + 7); en.lod.cols.forEach(c => c.setScalar(0.8 + q() * 0.25)); lodFill(en.lod); }
       m.needsUpdate = true;
     });
     // aoMap reads the second UV set: give the meshes that now use one a uv2 (the same UVs)
@@ -7387,6 +7424,7 @@ function frame(){
   stats.ms += (dt * 1000 - stats.ms) * 0.05; stats.fps = 1000 / stats.ms; stats.frames++;
   if(warm > 0) warm -= dt; else if(!document.hidden && !ai.on){ fAcc += dt; fN++; if(fAcc > 2.5){ if(fN / fAcc < 28 && qLevel < Q_MAX) degrade(); fAcc = 0; fN = 0; } }
   update(dt, clock.elapsedTime);
+  updateLods();
   renderer.shadowMap.needsUpdate = true;
   if(ai.on && ai.ctx){
     // the AI only ever sees the world; avatars are drawn by the game on top, so they never change
@@ -7437,6 +7475,8 @@ window.__hub = { state, p, cam, post, stats, WORLDS, scene, renderer, camera, su
   get endless(){ return endless && {chunks:endless.chunks.size, dreams:endless.dreams.length, log:endless.log.slice(), source:dreamer.source, placed:Object.keys(endless.dreamsPlaced || {}).length, center:[endless.terrain ? endless.terrain.userData.terrain.cx : 0, endless.terrain ? endless.terrain.userData.terrain.cz : 0]}; }, updateChunks:(all) => updateChunks(all), dreamOffline, get dreamer(){ return {source:dreamer.source, hasSample:!!dreamer.sample, hasKey:!!dreamer.key}; },
   forgeRealm, realmKey, parseRealm, describeRealm, deleteRealm, get realms(){ return realms.map(x => Object.assign({}, x)); }, get waterBody(){ return waterBody && {level:waterBody.level, kind:waterBody.kind}; },
   fare, CAMPUS, get enrolled(){ return state.enrolled; }, set enrolled(v){ state.enrolled = !!v; persist(); }, enroll, get desk(){ return desk && {x:desk.x, z:desk.z}; }, get deskNear(){ return deskNear; }, get boxes(){ return boxes.length; }, boxOut, G:(x, z) => G(x, z), get portals(){ return portals.map(q => ({to:q.to, x:q.x, z:q.z})); }, get coins(){ return coins.map(k => ({id:k.id, x:k.g.position.x, y:k.g.position.y, z:k.g.position.z})); },
+  get lods(){ return lods.map(e => e.kind === 'mesh' ? {kind:'mesh', d:e.d, h:e.h, far:e.far, at:e.c.toArray().map(v => +v.toFixed(1)), dist:+camWorld.distanceTo(e.c).toFixed(1), triNear:e.hi.geometry.index.count / 3, triFar:e.lo.geometry.index.count / 3}
+    : {kind:'inst', d:e.d, h:e.h, n:e.n, near:e.hi.count, far:e.lo.count, triNear:e.hi.geometry.index.count / 3, triFar:e.lo.geometry.index.count / 3}); }, updateLods, camWorld, frame:() => frame(), get lodScale(){ return lodScale; }, set lodScale(v){ lodScale = +v || 1; updateLods(); },
   get phDown(){ return phDown; }, texInfo(){ const o = {}; for(const k in slotMats) o[k] = slotMats[k].map(en => ({kind:en.kind, map:en.mat.map && en.mat.map.image && en.mat.map.image.width, rough:!!en.mat.roughnessMap, ao:!!en.mat.aoMap, real:!!(en.mat.aoMap || (en.mat.map && en.mat.map.image && en.mat.map.image.width >= 2048))})); return o; }, idb,
   get npcs(){ return npcs.map(nn => ({name:nn.name, x:nn.x, z:nn.z, line:nn.line})); }, get colliders(){ return colliders.map(c => Object.assign({}, c)); } };
 })();
