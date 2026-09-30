@@ -5813,7 +5813,7 @@ function buildChunk(cx, cz){
     if(rec.extras.has('flowers') || rec.surface === 'meadow') addFlowersAt(q, cx, cz);
   } finally { buildParent = null; chunkAt = null; }
   const ch = {key, g, cols:colliders.slice(c0), plats:platforms.slice(p0), spins:spinners.slice(s0), dream:endless.dreamsPlaced && endless.dreamsPlaced[key] || null};
-  endless.chunks.set(key, ch); return ch;
+  endless.chunks.set(key, ch); endless.shadowKey = null; return ch;
 }
 // offline landmark names on a planet: half from the planet's own kinds of building, half from any; never the same name twice on one planet
 function planetDreamOffline(E, q, store){
@@ -5844,7 +5844,7 @@ function dropChunk(ch){
   if(ch.plats.length) platforms = platforms.filter(c => ch.plats.indexOf(c) < 0);
   if(ch.spins.length) spinners = spinners.filter(c => ch.spins.indexOf(c) < 0);
   lods = lods.filter(e => e.grp !== ch.g);
-  endless.chunks.delete(ch.key);
+  endless.chunks.delete(ch.key); endless.shadowKey = null;
 }
 let chunkBudget = 0;
 function updateChunks(all){
@@ -5857,7 +5857,9 @@ function updateChunks(all){
   let made = 0; for(const w of want){ buildChunk(w.cx, w.cz); made++; if(!all && made >= 1) break; }
   for(const ch of [...endless.chunks.values()]){ const [cx, cz] = ch.key.split(',').map(Number); if(Math.max(Math.abs(cx - pcx), Math.abs(cz - pcz)) > CHUNK_KEEP) dropChunk(ch); }
   // the ground disc and the grass follow you
-  const T = endless.terrain; if(T && Math.hypot(p.x - T.userData.terrain.cx, p.z - T.userData.terrain.cz) > 42){ recenterTerrain(T, p.x, p.z); refillGrass(p.x, p.z); }
+  const T = endless.terrain;
+  if(endless.rec.planet){ if(T && !endless.job && !endless.grassJob && Math.hypot(p.x - T.userData.terrain.cx, p.z - T.userData.terrain.cz) > 42) endless.job = reJob(T, Math.round(p.x / 24) * 24, Math.round(p.z / 24) * 24); }   // planets re-centre in slices (planetStream)
+  else if(T && Math.hypot(p.x - T.userData.terrain.cx, p.z - T.userData.terrain.cz) > 42){ recenterTerrain(T, p.x, p.z); refillGrass(p.x, p.z); }
   if(waterBody){ waterBody.mesh.position.x = p.x; waterBody.mesh.position.z = p.z; }
 }
 function refillGrass(cx, cz){
@@ -5870,6 +5872,40 @@ function refillGrass(cx, cz){
     }
     gm.instanceMatrix.needsUpdate = true;
   }
+}
+// planets (Goal 8b) stream like the built-in realms: the ground disc and then the grass are re-centred a few ms a frame, not in one ~90 ms hitch;
+// only the 3x3 cells round the player cast shadows and take part in SSAO, and cells behind the camera beyond one cell are not drawn
+function grassStep(J, until){
+  while(J.m < grassMeshes.length){
+    const gm = grassMeshes[J.m], gr = gm.userData.grass; if(!gr){ J.m++; continue; }
+    if(!J.r){ J.r = rng(Math.floor(J.cx * 7 + J.cz * 13) | 1); J.i = 0; }
+    const r = J.r;
+    while(J.i < gm.count){
+      const a = r() * TAU, d = Math.sqrt(gr.rMin * gr.rMin + r() * (gr.rMax * gr.rMax - gr.rMin * gr.rMin)), x = J.cx + Math.cos(a) * d, z = J.cz + Math.sin(a) * d;
+      const hh = (gr.hr[0] + r() * (gr.hr[1] - gr.hr[0])) * 1.25, s = (gr.skip && gr.skip(x, z)) ? 0 : 1;
+      gm.setMatrixAt(J.i, mat4(x, G(x, z) - 0.03, z, (r() - 0.5) * 0.2, r() * TAU, (r() - 0.5) * 0.2, (0.9 + r() * 0.6) * s, hh * s, (0.9 + r() * 0.6) * s));
+      J.i++; if((J.i & 127) === 0 && performance.now() > until){ gm.instanceMatrix.needsUpdate = true; return false; }
+    }
+    gm.instanceMatrix.needsUpdate = true; J.m++; J.r = null;
+  }
+  return true;
+}
+const _pcFr = new THREE.Frustum(), _pcPm = new THREE.Matrix4(), _pcBox = new THREE.Box3();
+function planetStream(E){
+  const t0 = performance.now(), until = t0 + STREAM_MS;
+  if(E.job){ if(reStep(E.job, until)){ const T = E.job.T; E.job = null; E.grassJob = {cx:T.cx, cz:T.cz, m:0, r:null, i:0}; } }
+  else if(E.grassJob){ if(grassStep(E.grassJob, until)) E.grassJob = null; }
+  const pcx = Math.floor(p.x / CHUNK), pcz = Math.floor(p.z / CHUNK), sk = pcx + ',' + pcz + ',' + E.chunks.size;
+  if(E.shadowKey !== sk){ E.shadowKey = sk; E.cull = null;
+    for(const ch of E.chunks.values()){ const k = ch.key.split(','), near = Math.max(Math.abs(+k[0] - pcx), Math.abs(+k[1] - pcz)) <= 1; ch.cheb1 = near;
+      if(ch.near !== near){ ch.near = near; ch.g.traverse(o => { if(o.userData.cast0 === undefined){ o.userData.cast0 = o.castShadow; o.userData.ao0 = !o.userData.noAO; } o.castShadow = near && o.userData.cast0; o.userData.noAO = !(near && o.userData.ao0); }); } } }
+  const cm = camera.matrixWorld.elements;
+  if(!vr.on && (!E.cull || Math.abs(camWorld.x - E.cull[0]) + Math.abs(camWorld.z - E.cull[1]) > 0.5 || Math.abs(cm[8] - E.cull[2]) + Math.abs(cm[10] - E.cull[3]) > 0.01)){
+    E.cull = [camWorld.x, camWorld.z, cm[8], cm[10]]; _pcFr.setFromProjectionMatrix(_pcPm.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse));
+    for(const ch of E.chunks.values()){ const k = ch.key.split(','), x0 = +k[0] * CHUNK, z0 = +k[1] * CHUNK;
+      if(ch.cheb1){ ch.g.visible = true; continue; }
+      _pcBox.min.set(x0 - 40, -150, z0 - 40); _pcBox.max.set(x0 + CHUNK + 40, 400, z0 + CHUNK + 40); ch.g.visible = _pcFr.intersectsBox(_pcBox); } }
+  const ms = performance.now() - t0; E.stepMs = ms; E.maxMs = Math.max(E.maxMs || 0, ms);
 }
 /* cell-sized versions of the placers */
 function addClutterAt(q, cx, cz, o){
@@ -5977,7 +6013,7 @@ function updateEndless(dt, time){
   planetWalk(dt);
   if(!endless) return;
   if(endless.builtin) updateBuiltin();
-  else { endless.lastMove += dt; if(endless.lastMove > 0.35){ endless.lastMove = 0; updateChunks(false); } }
+  else { endless.lastMove += dt; if(endless.lastMove > 0.35){ endless.lastMove = 0; const t = performance.now(); updateChunks(false); if(endless.rec.planet){ const ms = performance.now() - t; endless.chunkMs = ms; endless.chunkMax = Math.max(endless.chunkMax || 0, ms); } } if(endless.rec.planet) planetStream(endless); }
   for(const ch of endless.chunks.values()){ const d = ch.dream; if(d && !d.found && d.x != null && Math.hypot(p.x - d.x, p.z - d.z) < 26 && playing){ d.found = true; endless.log.push({name:d.name, lore:d.lore, from:d.from}); if(endless.rl){ endless.rl.log = endless.log.slice(-60); saveRealms(); } if(endless.builtin) saveDreams(); if(endless.rec.planet){ saveDreams(); planetLandmark(d); } toast(d.name + ' — ' + d.lore, 6500); sfx('shard'); reward(15, 3); } }
 }
 
@@ -8627,6 +8663,7 @@ Object.assign(window.__hub, {
 Object.defineProperties(window.__hub, {
   landing:{get:() => planetLanding()},
   gravK:{get:() => gravK},
+  planetStream:{get:() => { const E = endless; return E && E.rec && E.rec.planet ? {chunks:E.chunks.size, visible:[...E.chunks.values()].filter(c => c.g.visible).length, shadowCells:[...E.chunks.values()].filter(c => c.near).length, terrainJob:!!E.job, grassJob:!!E.grassJob, stepMs:+(E.stepMs || 0).toFixed(2), maxMs:+(E.maxMs || 0).toFixed(2), chunkMs:+(E.chunkMs || 0).toFixed(2), chunkMax:+(E.chunkMax || 0).toFixed(2), centre:E.terrain ? [E.terrain.userData.terrain.cx, E.terrain.userData.terrain.cz] : null} : null; }},
   explorerLog:{get:() => Object.values(explorer.planets).map(e => ({id:e.id, name:e.name, proposed:e.proposed, sector:e.sector, rules:e.rules, gravity:e.gravity, first:e.first, firstDate:new Date(e.first).toISOString().slice(0, 10), walked:Math.round(e.walked || 0), landmarks:(e.landmarks || []).slice(), visits:e.visits}))}
 });
 })();
