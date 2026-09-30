@@ -3442,6 +3442,7 @@ const RECIPE_DEFAULT = { body:'humanoid', height:1.8, build:'normal', head:'viso
 const R_BODIES = ['humanoid','robot','beast','blob'], R_HEADS = ['helmet','visor','bare','animal','skull','screen'], R_BUILDS = ['slim','normal','heavy','huge'];
 const R_FEATURES = ['ears','snout','horns','tail','wings','cape','hood','backpack','jetpack','sword','staff','antenna','halo','crown','mask','spikes'];
 const R_MATERIALS = ['cloth','matte','plate','chrome','glass','fur','jelly','stone','neon'], R_PATTERNS = ['none','stripes','plates','circuits','camo','checks'], R_EYES = ['visor','dots','wide','slits','one'];
+const R_EARS = ['pointed','round','long','floppy','tufted'];   // ear shape by species (beasts); missing in old saves: heavy builds get round ears
 const BUILD_W = {slim:0.85, normal:1, heavy:1.22, huge:1.45};
 function cleanRecipe(r){
   // anything (parser, AI, an old save) is validated against the schema; bad values fall back to the default
@@ -3454,6 +3455,7 @@ function cleanRecipe(r){
     features:arr(o.features).filter((f, i, a) => R_FEATURES.indexOf(f) >= 0 && a.indexOf(f) === i).slice(0, 12), material:pick(o.material, R_MATERIALS, d.material), pattern:pick(o.pattern, R_PATTERNS, d.pattern),
     colours:{main:hex(cols.main, d.colours.main), second:hex(cols.second, d.colours.second), trim:hex(cols.trim, d.colours.trim), glow},
     eyes:{style:pick(eyes.style, R_EYES, d.eyes.style), glow:hex(eyes.glow, glow)},
+    ear_shape:pick(o.ear_shape, R_EARS, o.build === 'heavy' || o.build === 'huge' ? 'round' : 'pointed'),
     ...(typeof o.voice_line === 'string' && o.voice_line.trim() ? {voice_line:o.voice_line.trim().replace(/\s+/g, ' ').slice(0, 120)} : {}) };
 }
 function describeRecipe(r){
@@ -3480,20 +3482,20 @@ const SPECIES = {
   alien:{head:'bare', material:'jelly', features:['antenna'], colours:{main:'#6fbf5a', second:'#2f9e44', glow:'#9dff6a'}, eyes:{style:'wide', glow:'#17171d'}}, martian:'alien',
   ghost:{body:'blob', material:'jelly', colours:{main:'#eceef2', second:'#eceef2', glow:'#b9bec8'}, eyes:{style:'dots', glow:'#17171d'}}, spirit:'ghost', phantom:'ghost', wraith:'ghost',
   blob:{body:'blob', material:'jelly', colours:{main:'#9dff6a', second:'#2f9e44', glow:'#9dff6a'}, eyes:{style:'one', glow:'#17171d'}}, slime:'blob', jelly:'blob', orb:'blob', ball:'blob', cloud:{body:'blob', material:'jelly', colours:{main:'#eceef2', second:'#dcdde0'}, eyes:{style:'dots'}},
-  fox:{body:'beast', head:'animal', material:'fur', features:['ears','snout','tail'], colours:{main:'#e8772e', second:'#f2efe8', trim:'#17171d'}, eyes:{style:'slits', glow:'#ffb020'}},
-  wolf:{body:'beast', head:'animal', material:'fur', features:['ears','snout','tail'], colours:{main:'#7d8189', second:'#dcdde0', trim:'#17171d'}, eyes:{style:'slits', glow:'#ffb020'}}, werewolf:'wolf', husky:'wolf',
-  dog:{body:'beast', head:'animal', material:'fur', features:['ears','snout','tail'], colours:{main:'#8a5a2a', second:'#d8c8a8', trim:'#17171d'}, eyes:{style:'wide', glow:'#17171d'}}, puppy:'dog',
-  cat:{body:'beast', head:'animal', material:'fur', features:['ears','tail'], colours:{main:'#2a2a30', second:'#dcdde0', trim:'#ff4fa3'}, eyes:{style:'slits', glow:'#9dff6a'}}, kitten:'cat',
-  tiger:{body:'beast', head:'animal', material:'fur', pattern:'stripes', features:['ears','snout','tail'], build:'heavy', colours:{main:'#e8772e', second:'#17171d', trim:'#f2efe8'}, eyes:{style:'slits', glow:'#ffb020'}},
-  lion:{body:'beast', head:'animal', material:'fur', features:['ears','snout','tail','hood'], build:'heavy', colours:{main:'#d4a93a', second:'#8a5a2a', trim:'#5a3d28'}, eyes:{style:'slits', glow:'#ffb020'}},
-  bear:{body:'beast', head:'animal', material:'fur', features:['ears','snout'], build:'huge', colours:{main:'#5a3d28', second:'#8a5a2a'}, eyes:{style:'dots', glow:'#17171d'}}, panda:{body:'beast', head:'animal', material:'fur', features:['ears','snout'], build:'heavy', colours:{main:'#eceef2', second:'#17171d'}, eyes:{style:'dots', glow:'#17171d'}},
-  rabbit:{body:'beast', head:'animal', material:'fur', features:['ears','tail'], height:1.3, colours:{main:'#dcdde0', second:'#f5b58f'}, eyes:{style:'wide', glow:'#c0392b'}}, bunny:'rabbit',
-  deer:{body:'beast', head:'animal', material:'fur', features:['ears','snout','horns','tail'], colours:{main:'#8a5a2a', second:'#d8c8a8'}, eyes:{style:'wide', glow:'#17171d'}}, stag:'deer',
+  fox:{body:'beast', ear_shape:'pointed', head:'animal', material:'fur', features:['ears','snout','tail'], colours:{main:'#e8772e', second:'#f2efe8', trim:'#17171d'}, eyes:{style:'slits', glow:'#ffb020'}},
+  wolf:{body:'beast', ear_shape:'pointed', head:'animal', material:'fur', features:['ears','snout','tail'], colours:{main:'#7d8189', second:'#dcdde0', trim:'#17171d'}, eyes:{style:'slits', glow:'#ffb020'}}, werewolf:'wolf', husky:'wolf',
+  dog:{body:'beast', ear_shape:'floppy', head:'animal', material:'fur', features:['ears','snout','tail'], colours:{main:'#8a5a2a', second:'#d8c8a8', trim:'#17171d'}, eyes:{style:'wide', glow:'#17171d'}}, puppy:'dog',
+  cat:{body:'beast', ear_shape:'pointed', head:'animal', material:'fur', features:['ears','tail'], colours:{main:'#2a2a30', second:'#dcdde0', trim:'#ff4fa3'}, eyes:{style:'slits', glow:'#9dff6a'}}, kitten:'cat',
+  tiger:{body:'beast', ear_shape:'round', head:'animal', material:'fur', pattern:'stripes', features:['ears','snout','tail'], build:'heavy', colours:{main:'#e8772e', second:'#17171d', trim:'#f2efe8'}, eyes:{style:'slits', glow:'#ffb020'}},
+  lion:{body:'beast', ear_shape:'round', head:'animal', material:'fur', features:['ears','snout','tail','hood'], build:'heavy', colours:{main:'#d4a93a', second:'#8a5a2a', trim:'#5a3d28'}, eyes:{style:'slits', glow:'#ffb020'}},
+  bear:{body:'beast', ear_shape:'round', head:'animal', material:'fur', features:['ears','snout'], build:'huge', colours:{main:'#5a3d28', second:'#8a5a2a'}, eyes:{style:'dots', glow:'#17171d'}}, panda:{body:'beast', ear_shape:'round', head:'animal', material:'fur', features:['ears','snout'], build:'heavy', colours:{main:'#eceef2', second:'#17171d'}, eyes:{style:'dots', glow:'#17171d'}},
+  rabbit:{body:'beast', ear_shape:'long', head:'animal', material:'fur', features:['ears','tail'], height:1.3, colours:{main:'#dcdde0', second:'#f5b58f'}, eyes:{style:'wide', glow:'#c0392b'}}, bunny:'rabbit',
+  deer:{body:'beast', ear_shape:'long', head:'animal', material:'fur', features:['ears','snout','horns','tail'], colours:{main:'#8a5a2a', second:'#d8c8a8'}, eyes:{style:'wide', glow:'#17171d'}}, stag:'deer',
   dragon:{body:'beast', head:'animal', material:'plate', pattern:'plates', features:['horns','wings','tail','spikes','snout'], build:'heavy', height:2.2, colours:{main:'#1f8a5a', second:'#d4a93a', trim:'#ff5a2a', glow:'#ff5a2a'}, eyes:{style:'slits', glow:'#ffb020'}}, drake:'dragon', wyvern:'dragon',
   lizard:{body:'beast', head:'animal', material:'plate', pattern:'plates', features:['tail','snout'], colours:{main:'#2f9e44', second:'#9dff6a'}, eyes:{style:'slits', glow:'#ffb020'}}, gecko:'lizard', dinosaur:{body:'beast', head:'animal', material:'plate', pattern:'plates', features:['tail','snout','spikes'], build:'huge', height:2.3, colours:{main:'#3b6a2a', second:'#c8a878'}, eyes:{style:'slits', glow:'#ffb020'}}, raptor:'dinosaur', trex:'dinosaur',
-  bird:{body:'beast', head:'animal', material:'fur', features:['wings','tail'], height:1.4, colours:{main:'#2b6cd6', second:'#ffd166', trim:'#ffb020'}, eyes:{style:'wide', glow:'#17171d'}}, owl:{body:'beast', head:'animal', material:'fur', features:['wings','ears'], height:1.3, build:'heavy', colours:{main:'#8a5a2a', second:'#d8c8a8'}, eyes:{style:'wide', glow:'#ffb020'}}, eagle:'bird', parrot:'bird', penguin:{body:'beast', head:'animal', material:'matte', features:['wings','snout'], height:1.2, build:'heavy', colours:{main:'#17171d', second:'#eceef2', trim:'#ffb020'}, eyes:{style:'dots', glow:'#17171d'}},
-  raccoon:{body:'beast', head:'animal', material:'fur', features:['ears','snout','tail','mask'], colours:{main:'#7d8189', second:'#dcdde0', trim:'#17171d'}, eyes:{style:'wide', glow:'#17171d'}}, otter:{body:'beast', head:'animal', material:'fur', features:['ears','snout','tail'], colours:{main:'#5a3d28', second:'#c8a878'}, eyes:{style:'dots', glow:'#17171d'}},
-  monkey:{body:'beast', head:'animal', material:'fur', features:['ears','tail'], height:1.4, colours:{main:'#5a3d28', second:'#d8c8a8'}, eyes:{style:'wide', glow:'#17171d'}}, ape:{body:'beast', head:'animal', material:'fur', features:['ears'], build:'huge', colours:{main:'#2a2a30', second:'#5a3d28'}, eyes:{style:'dots', glow:'#17171d'}}, gorilla:'ape',
+  bird:{body:'beast', head:'animal', material:'fur', features:['wings','tail'], height:1.4, colours:{main:'#2b6cd6', second:'#ffd166', trim:'#ffb020'}, eyes:{style:'wide', glow:'#17171d'}}, owl:{body:'beast', ear_shape:'tufted', head:'animal', material:'fur', features:['wings','ears'], height:1.3, build:'heavy', colours:{main:'#8a5a2a', second:'#d8c8a8'}, eyes:{style:'wide', glow:'#ffb020'}}, eagle:'bird', parrot:'bird', penguin:{body:'beast', head:'animal', material:'matte', features:['wings','snout'], height:1.2, build:'heavy', colours:{main:'#17171d', second:'#eceef2', trim:'#ffb020'}, eyes:{style:'dots', glow:'#17171d'}},
+  raccoon:{body:'beast', ear_shape:'round', head:'animal', material:'fur', features:['ears','snout','tail','mask'], colours:{main:'#7d8189', second:'#dcdde0', trim:'#17171d'}, eyes:{style:'wide', glow:'#17171d'}}, otter:{body:'beast', ear_shape:'round', head:'animal', material:'fur', features:['ears','snout','tail'], colours:{main:'#5a3d28', second:'#c8a878'}, eyes:{style:'dots', glow:'#17171d'}},
+  monkey:{body:'beast', ear_shape:'round', head:'animal', material:'fur', features:['ears','tail'], height:1.4, colours:{main:'#5a3d28', second:'#d8c8a8'}, eyes:{style:'wide', glow:'#17171d'}}, ape:{body:'beast', ear_shape:'round', head:'animal', material:'fur', features:['ears'], build:'huge', colours:{main:'#2a2a30', second:'#5a3d28'}, eyes:{style:'dots', glow:'#17171d'}}, gorilla:'ape',
   frog:{body:'beast', head:'animal', material:'jelly', features:['snout'], height:1.2, build:'heavy', colours:{main:'#2f9e44', second:'#9dff6a'}, eyes:{style:'wide', glow:'#17171d'}}, toad:'frog', shark:{body:'beast', head:'animal', material:'matte', features:['snout','tail','spikes'], build:'heavy', colours:{main:'#8f97a3', second:'#eceef2'}, eyes:{style:'dots', glow:'#17171d'}},
   pirate:{head:'bare', material:'cloth', features:['sword','cape'], colours:{main:'#2a2a30', second:'#c0392b', trim:'#d4a93a'}, eyes:{style:'dots'}}, viking:{head:'helmet', material:'plate', features:['horns','cape'], build:'heavy', colours:{main:'#5a3d28', second:'#8f97a3', trim:'#d4a93a'}, eyes:{style:'dots'}},
   soldier:{head:'helmet', material:'matte', pattern:'camo', features:['backpack'], colours:{main:'#4a5a3a', second:'#2a2a30'}, eyes:{style:'visor'}}, trooper:'soldier', marine:'soldier',
@@ -3518,7 +3520,7 @@ function parseDescription(text, seed){
   const words = String(text || '').toLowerCase().replace(/[^a-z0-9\s\-']/g, ' ').split(/\s+/).filter(Boolean);
   let r = JSON.parse(JSON.stringify(RECIPE_DEFAULT));
   const merge = (preset) => { if(!preset) return; if(typeof preset === 'string') return merge(SPECIES[preset]);
-    if(preset.body) r.body = preset.body; if(preset.head) r.head = preset.head; if(preset.material) r.material = preset.material; if(preset.pattern) r.pattern = preset.pattern;
+    if(preset.body) r.body = preset.body; if(preset.head) r.head = preset.head; if(preset.material) r.material = preset.material; if(preset.pattern) r.pattern = preset.pattern; if(preset.ear_shape) r.ear_shape = preset.ear_shape;
     if(preset.build) r.build = preset.build; if(preset.height) r.height = preset.height; if(preset.features) preset.features.forEach(f => r.features.indexOf(f) < 0 && r.features.push(f));
     if(preset.colours) Object.assign(r.colours, preset.colours); if(preset.eyes) Object.assign(r.eyes, preset.eyes); if(preset.colours && preset.colours.glow && !(preset.eyes && preset.eyes.glow)) r.eyes.glow = preset.colours.glow; };
   // 1. species and roles set the base look
@@ -3558,6 +3560,7 @@ function parseDescription(text, seed){
     if(/^(narrow|slit|slits|slitted|angry|sharp|cat|snake|reptile)$/.test(w) && /^eyes?$/.test(words[i + 1] || '')) r.eyes.style = 'slits';
     if(/^(dot|dots|small|tiny|beady|bead)$/.test(w) && /^eyes?$/.test(words[i + 1] || '')) r.eyes.style = 'dots';
     if(w === 'faceless' || w === 'noface') r.eyes.style = 'visor';
+    if(/^ears?$/.test(words[i + 1] || '')){ const E = {floppy:'floppy', droopy:'floppy', long:'long', tall:'long', bunny:'long', round:'round', rounded:'round', tufted:'tufted', tufty:'tufted', pointy:'pointed', pointed:'pointed', sharp:'pointed'}[w]; if(E) r.ear_shape = E; }
   });
   if(species === 0 && r.head === 'visor' && r.eyes.style === 'visor' && (r.material === 'fur' || r.material === 'jelly')) r.eyes.style = 'dots';
   if(r.body === 'beast' && r.head === 'visor') r.head = 'animal';
@@ -3566,7 +3569,7 @@ function parseDescription(text, seed){
     const q = rng((seed >>> 0) * 7919 + 17), has = re => words.some(w => re.test(w));
     const dh = (q() - 0.5) * 0.22, pals = Object.keys(COLOUR_WORDS), c1 = pals[Math.floor(q() * pals.length)], c2 = pals[Math.floor(q() * pals.length)], mix = 0.25 + q() * 0.3;
     const eye = R_EYES[1 + Math.floor(q() * 3)], patRoll = q(), pat = R_PATTERNS[1 + Math.floor(q() * 5)], bRoll = q();
-    if(!has(/^(tall|towering|lanky|long|giant|huge|massive|enormous|colossal|short|small|little|mini|compact|tiny|teeny|pocket|micro)$/)) r.height = clamp(r.height + dh, 0.6, 2.4);
+    if(!has(/^(tall|towering|lanky|long|giant|huge|massive|enormous|colossal|short|small|little|mini|compact|tiny|teeny|pocket|micro)$/)) r.height = Math.round(clamp(r.height + dh, 0.6, 2.4) * 100) / 100;
     if(!words.some(w => COLOUR_WORDS[w])){ r.colours.main = mixHex(r.colours.main, COLOUR_WORDS[c1], mix); r.colours.second = mixHex(r.colours.second, COLOUR_WORDS[c2], mix); }
     if(!has(/^eyes?$/) && !has(/^(cyclops|faceless|noface)$/) && species === 0 && r.eyes.style !== 'visor' && r.eyes.style !== 'one') r.eyes.style = eye;
     if(!words.some(w => WORD_PATTERNS[w]) && r.pattern === 'none' && patRoll < 0.3) r.pattern = pat;
@@ -3612,6 +3615,45 @@ function avatarMaterial(kind, hex, map){
     default: return new P({color:c, roughness:0.34, metalness:0.28, clearcoat:0.8, clearcoatRoughness:0.2, map:map || null}); // plate
   }
 }
+/* ---- faces: robot screens with a glowing expression, beast fur fins (one draw call each) ---- */
+const SCREEN_CACHE = {};
+function screenFaceTex(style){
+  // white strokes on black: used as an emissiveMap, so the glow colour comes from the material and one texture serves every colour
+  if(SCREEN_CACHE[style]) return SCREEN_CACHE[style];
+  const t = canvasTex(256, 192, x => {
+    x.fillStyle = '#000'; x.fillRect(0, 0, 256, 192);
+    x.fillStyle = 'rgba(255,255,255,0.07)'; for(let y = 0; y < 192; y += 8) x.fillRect(0, y, 256, 3);   // scanlines (read as a screen up close)
+    x.fillStyle = '#fff'; x.strokeStyle = '#fff'; x.lineCap = 'round'; x.lineWidth = 14;
+    const E = [[82, 78], [174, 78]];
+    if(style === 'dots') E.forEach(e => { x.beginPath(); x.arc(e[0], e[1], 22, 0, TAU); x.fill(); });
+    if(style === 'wide') E.forEach(e => { x.beginPath(); x.arc(e[0], e[1], 34, 0, TAU); x.stroke(); x.beginPath(); x.arc(e[0] + 4, e[1] + 4, 13, 0, TAU); x.fill(); });
+    if(style === 'slits') E.forEach((e, i) => { x.lineWidth = 18; x.beginPath(); x.moveTo(e[0] - 30, e[1] + (i ? 8 : -8)); x.lineTo(e[0] + 30, e[1] + (i ? -8 : 8)); x.stroke(); });
+    if(style === 'one'){ x.lineWidth = 14; x.beginPath(); x.arc(128, 80, 46, 0, TAU); x.stroke(); x.beginPath(); x.arc(128, 80, 20, 0, TAU); x.fill(); }
+    if(style === 'visor'){ x.lineWidth = 30; x.beginPath(); x.moveTo(40, 82); x.lineTo(216, 82); x.stroke(); }
+    // the mouth sets the mood: a smile for round eyes, a level line for slits, an 'o' for wide eyes
+    x.lineWidth = 12;
+    if(style === 'slits'){ x.beginPath(); x.moveTo(96, 146); x.lineTo(160, 146); x.stroke(); }
+    else if(style === 'wide'){ x.beginPath(); x.ellipse(128, 148, 16, 12, 0, 0, TAU); x.stroke(); }
+    else if(style !== 'visor'){ x.beginPath(); x.arc(128, 112, 42, 0.22 * Math.PI, 0.78 * Math.PI); x.stroke(); }
+  }, true);
+  t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping; SCREEN_CACHE[style] = t; SHARED_TEX.add(t); return t;
+}
+function finGeo(list){
+  // list of [cx, cy, cz, nx, ny, nz, dx, dy, dz, len, w]: each fin is a three-sided spike rising from the surface point along d,
+  // shaded with the surface normal n so the fins blend into the head like short fur
+  const pos = [], nor = [], uv = [];
+  list.forEach(f => {
+    const c = new V3(f[0], f[1], f[2]), n = new V3(f[3], f[4], f[5]).normalize(), d = new V3(f[6], f[7], f[8]).normalize();
+    const a = new V3().crossVectors(n, Math.abs(n.y) < 0.9 ? new V3(0, 1, 0) : new V3(1, 0, 0)).normalize(), b = new V3().crossVectors(n, a);
+    const base = [0, 1, 2].map(k => c.clone().addScaledVector(a, Math.cos(k * TAU / 3) * f[10]).addScaledVector(b, Math.sin(k * TAU / 3) * f[10]).addScaledVector(n, -f[10] * 0.5));
+    const tip = c.clone().addScaledVector(d, f[9]);
+    for(let k = 0; k < 3; k++){ [base[k], base[(k + 1) % 3], tip].forEach((v, j) => { pos.push(v.x, v.y, v.z); nor.push(n.x, n.y, n.z); uv.push(j === 2 ? 0.5 : j, j === 2 ? 1 : 0); }); }
+  });
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  return g;
+}
+function recipeSeed(rc){ const t = JSON.stringify([rc.colours, rc.height, rc.build, rc.features]); let h = 2166136261; for(let i = 0; i < t.length; i++) h = Math.imul(h ^ t.charCodeAt(i), 16777619); return h >>> 0; }
 function makeAvatar(o){
   const rc = cleanRecipe(o.recipe), col = rc.colours, S = rc.height / 1.8, W = BUILD_W[rc.build];
   const pat = rc.pattern !== 'none' ? patternTex(rc.pattern, col.main, col.second) : null;
@@ -3647,6 +3689,13 @@ function makeAvatar(o){
       part(new THREE.BoxGeometry(0.2, 0.08, 0.02), trimM, spine, 0, 0.32, 0.17);
       [-1, 1].forEach(s => part(new THREE.BoxGeometry(0.12, 0.1, 0.24), plateM, spine, s * 0.25, 0.5, 0));
       part(new THREE.CylinderGeometry(0.06, 0.07, 0.09, 12), baseM, spine, 0, 0.585, 0);
+      // panel seams (dark grooves) and bolts: two draw calls for the whole body
+      const box = (w, h, d, x, y, z) => new THREE.BoxGeometry(w, h, d).translate(x, y, z);
+      const seams = [box(0.404, 0.008, 0.264, 0, 0.16, 0), box(0.404, 0.008, 0.264, 0, 0.44, 0), box(0.008, 0.13, 0.004, 0, 0.1, 0.131), box(0.004, 0.27, 0.264, 0.2, 0.3, 0), box(0.004, 0.27, 0.264, -0.2, 0.3, 0), box(0.008, 0.5, 0.004, 0.09, 0.3, -0.131), box(0.008, 0.5, 0.004, -0.09, 0.3, -0.131)];
+      part(merge(seams), baseM, spine, 0, 0, 0).userData.noShadow = true;
+      const bolt = (x, y, z, ax) => { const b = new THREE.CylinderGeometry(0.011, 0.011, 0.01, 8); if(ax === 'x') b.rotateZ(Math.PI / 2); else if(ax === 'y'){} else b.rotateX(Math.PI / 2); return b.translate(x, y, z); };
+      const bolts = [bolt(-0.15, 0.47, 0.167), bolt(0.15, 0.47, 0.167), bolt(-0.15, 0.25, 0.167), bolt(0.15, 0.25, 0.167), bolt(-0.16, 0.08, 0.132), bolt(0.16, 0.08, 0.132), bolt(-0.25, 0.555, 0, 'y'), bolt(0.25, 0.555, 0, 'y'), bolt(0.201, 0.22, 0.08, 'x'), bolt(-0.201, 0.22, 0.08, 'x')];
+      part(merge(bolts), avatarMaterial('chrome', '#9aa2ae'), spine, 0, 0, 0).userData.noShadow = true;
     } else {
       const torsoPts = [[0.001,0],[0.15,0.02],[0.142,0.12],[0.158,0.24],[0.188,0.35],[0.198,0.42],[0.172,0.5],[0.1,0.55],[0.001,0.565]].map(a => new V2(a[0], a[1]));
       part(new THREE.LatheGeometry(torsoPts, 28), suitM, spine, 0, 0, 0, 1, 1, beast ? 0.8 : 0.68);
@@ -3697,22 +3746,35 @@ function makeAvatar(o){
   if(blob){ /* the blob is its own head: eyes and features sit on its front and top */ }
   else if(rc.head === 'screen' || robot && rc.head !== 'helmet' && rc.head !== 'visor'){
     part(new THREE.BoxGeometry(0.28, 0.26, 0.26), headM, head, 0, hy, 0);
-    const scr = part(new THREE.BoxGeometry(0.22, 0.16, 0.02), std(0x05030c, {roughness:0.2, emissive:C(rc.eyes.glow), emissiveIntensity:0.25}), head, 0, hy, 0.13);
-    scr.userData.noShadow = true;
+    // the screen shows a glowing face: eyes by eye style and a mouth that sets the mood, bright enough to bloom and read from afar
+    const scr = part(new THREE.PlaneGeometry(0.22, 0.165), std(0x05030c, {roughness:0.18, metalness:0.2, emissive:C(rc.eyes.glow), emissiveMap:screenFaceTex(rc.eyes.style), emissiveIntensity:2.4}), head, 0, hy, 0.1325);
+    scr.userData.noShadow = true; scr.name = 'screen';
+    const box = (w, h, d, x, y, z) => new THREE.BoxGeometry(w, h, d).translate(x, y, z);
+    part(merge([box(0.24, 0.012, 0.012, 0, hy + 0.09, 0.132), box(0.24, 0.012, 0.012, 0, hy - 0.09, 0.132), box(0.012, 0.19, 0.012, 0.117, hy, 0.132), box(0.012, 0.19, 0.012, -0.117, hy, 0.132),
+      box(0.284, 0.006, 0.2, 0, hy + 0.08, -0.03), box(0.006, 0.264, 0.264, 0, hy, 0)]), baseM, head, 0, 0, 0).userData.noShadow = true;
+    const bolt = (x, y, z, rx) => { const b = new THREE.CylinderGeometry(0.01, 0.01, 0.01, 8); if(rx) b.rotateZ(Math.PI / 2); else b.rotateX(Math.PI / 2); return b.translate(x, y, z); };
+    part(merge([bolt(-0.125, hy + 0.11, 0.131), bolt(0.125, hy + 0.11, 0.131), bolt(-0.125, hy - 0.11, 0.131), bolt(0.125, hy - 0.11, 0.131), bolt(0.141, hy + 0.06, 0, 1), bolt(-0.141, hy + 0.06, 0, 1), bolt(0.141, hy - 0.06, 0, 1), bolt(-0.141, hy - 0.06, 0, 1)]),
+      avatarMaterial('chrome', '#9aa2ae'), head, 0, 0, 0).userData.noShadow = true;
   } else {
     part(new THREE.SphereGeometry(hr, 32, 24), headM, head, 0, hy, 0, 0.95, 1.06, 1.03);
     if(rc.head === 'visor' || rc.head === 'helmet') part(new THREE.SphereGeometry(hr * 1.035, 32, 24, Math.PI / 2 - 1.0, 2.0, 0.95, 0.78), visorM, head, 0, hy, 0.004, 0.95, 1.06, 1.03);
     if(rc.head === 'helmet'){ part(new THREE.SphereGeometry(hr * 1.1, 24, 16, 0, TAU, 0, Math.PI / 2), plateM, head, 0, hy + 0.01, 0, 1, 0.9, 1); part(new THREE.BoxGeometry(0.02, 0.1, 0.22), trimM, head, 0, hy + 0.17, -0.02); }
+    if(robot && (rc.head === 'visor' || rc.head === 'helmet') && rc.eyes.style === 'visor'){
+      // a robot's visor carries one glowing scan band at eye level: the whole expression in one bright line
+      const band = part(new THREE.SphereGeometry(hr * 1.05, 32, 3, Math.PI / 2 - 0.85, 1.7, Math.PI / 2 - 0.2, 0.09), eyeM, head, 0, hy, 0.004, 0.95, 1.06, 1.03); band.userData.noShadow = true;
+    }
     if(rc.head === 'skull'){ part(new THREE.BoxGeometry(0.14, 0.06, 0.1), headM, head, 0, hy - 0.11, 0.04); [-1, 1].forEach(s => part(new THREE.SphereGeometry(0.035, 12, 8), baseM, head, s * 0.05, hy + 0.02, hr - 0.02)); }
   }
   if(!blob && (rc.head === 'visor' || rc.head === 'helmet')) part(new THREE.BoxGeometry(0.018, 0.035, 0.2), trimM, head, 0, hy + 0.135, -0.01);
-  if(!(robot || blob || rc.head === 'screen')) [-1, 1].forEach(s => {
+  const animal = !blob && rc.head === 'animal';
+  if(!(robot || blob || rc.head === 'screen' || animal)) [-1, 1].forEach(s => {
     const e = part(new THREE.CylinderGeometry(0.038, 0.038, 0.03, 20), suitM, head, s * (hr - 0.007), hy, 0); e.rotation.z = Math.PI / 2;
     const ring = part(new THREE.TorusGeometry(0.028, 0.006, 6, 20), trimM, head, s * (hr + 0.009), hy, 0); ring.rotation.y = Math.PI / 2;
   });
   // eyes
   const ez = blob ? 0.28 : rc.head === 'screen' ? 0.145 : hr - 0.005, ey = hy + 0.02;
-  const eyeStyle = !blob && (rc.head === 'visor' || rc.head === 'helmet') && rc.eyes.style === 'visor' ? 'none' : rc.eyes.style === 'visor' ? 'dots' : rc.eyes.style;
+  const screenFace = !blob && (rc.head === 'screen' || robot && rc.head !== 'helmet' && rc.head !== 'visor');
+  const eyeStyle = screenFace || !blob && (rc.head === 'visor' || rc.head === 'helmet') && rc.eyes.style === 'visor' ? 'none' : rc.eyes.style === 'visor' ? 'dots' : rc.eyes.style;
   if(eyeStyle === 'dots') [-1, 1].forEach(s => part(new THREE.SphereGeometry(0.018, 10, 8), eyeM, head, s * 0.045, ey, ez).userData.noShadow = true);
   if(eyeStyle === 'wide') [-1, 1].forEach(s => { part(new THREE.SphereGeometry(0.038, 14, 10), std(0xf2efe8, {roughness:0.3}), head, s * 0.05, ey, ez - 0.01).userData.noShadow = true; part(new THREE.SphereGeometry(0.018, 10, 8), eyeM, head, s * 0.05, ey, ez + 0.02).userData.noShadow = true; });
   if(eyeStyle === 'slits') [-1, 1].forEach(s => { const m = part(new THREE.BoxGeometry(0.05, 0.012, 0.01), eyeM, head, s * 0.05, ey, ez); m.rotation.z = -s * 0.25; m.userData.noShadow = true; });
@@ -3721,14 +3783,75 @@ function makeAvatar(o){
   const F = rc.features, has = f => F.indexOf(f) >= 0;
   const clothM = rc.material === 'cloth' || rc.material === 'fur' ? plateM : avatarMaterial('cloth', col.second);
   let cape = null, wings = null, tail = null, ears = [];
-  if(has('ears')){ [-1, 1].forEach(s => { const e = part(new THREE.ConeGeometry(0.045, beast && rc.head === 'animal' ? 0.16 : 0.12, 8), headM, head, s * 0.085, hy + hr + 0.03, -0.01); e.rotation.z = -s * 0.25; ears.push(e); part(new THREE.ConeGeometry(0.02, 0.08, 8), avatarMaterial('matte', col.second), head, s * 0.085, hy + hr + 0.03, 0.012); }); }
-  if(has('snout')){ part(new THREE.SphereGeometry(0.07, 16, 12), avatarMaterial(rc.material === 'plate' ? 'plate' : 'matte', col.second), head, 0, hy - 0.03, hr + 0.03, 1, 0.75, 1.1); part(new THREE.SphereGeometry(0.022, 10, 8), baseM, head, 0, hy - 0.01, hr + 0.1); }
+  const secondM = avatarMaterial(rc.material === 'plate' || rc.material === 'fur' || rc.material === 'jelly' ? rc.material : 'matte', col.second);
+  const innerM = animal ? std(mixHex(col.second, '#e89aa0', 0.45), {roughness:0.85}) : avatarMaterial('matte', col.second);
+  if(has('ears')){
+    if(animal) [-1, 1].forEach(s => {
+      // ears by shape (recipe ear_shape): a flattened outer shell with a lighter inner ear, one group each so they twitch together
+      const sh = rc.ear_shape, eg = new THREE.Group(); head.add(eg);
+      const flat = (geo, m, y, z, sz) => part(geo, m, eg, 0, y, z, 1, 1, sz);
+      if(sh === 'floppy'){ eg.position.set(s * 0.12, hy + hr * 0.55, -0.005); eg.rotation.z = s * 2.5; eg.rotation.y = -s * 0.25;
+        flat(capsule(0.03, 0.042, 0.1, 4), headM, 0.075, 0, 0.36); flat(capsule(0.018, 0.028, 0.08, 4), innerM, 0.07, 0.012, 0.25); }
+      else if(sh === 'long'){ eg.position.set(s * 0.055, hy + hr * 0.9, -0.02); eg.rotation.z = -s * 0.16; eg.rotation.x = -0.12;
+        flat(capsule(0.026, 0.036, 0.19, 4), headM, 0.13, 0, 0.4); flat(capsule(0.014, 0.022, 0.16, 4), innerM, 0.125, 0.011, 0.3); }
+      else if(sh === 'round'){ eg.position.set(s * 0.1, hy + hr * 0.82, -0.015); eg.rotation.z = -s * 0.5;
+        flat(new THREE.SphereGeometry(0.048, 16, 12), headM, 0.035, 0, 0.42); flat(new THREE.SphereGeometry(0.03, 12, 10), innerM, 0.03, 0.013, 0.3); }
+      else { eg.position.set(s * 0.078, hy + hr * 0.84 + (has('hood') ? 0.03 : 0), -0.015); eg.rotation.z = -s * 0.28; eg.rotation.y = -s * 0.2;
+        flat(new THREE.ConeGeometry(0.052, 0.16, 12), headM, 0.08, 0, 0.42); flat(new THREE.ConeGeometry(0.032, 0.11, 10), innerM, 0.062, 0.012, 0.28);
+        if(sh === 'tufted') part(new THREE.ConeGeometry(0.012, 0.06, 6), headM, eg, 0, 0.175, 0).rotation.z = -s * 0.3; }
+      ears.push(eg);
+    });
+    else if(rc.head === 'bare' || rc.head === 'skull') [-1, 1].forEach(s => { const e = part(new THREE.ConeGeometry(0.03, 0.13, 8), headM, head, s * (hr + 0.02), hy + 0.02, -0.01, 1, 1, 0.45); e.rotation.z = -s * 1.15; ears.push(e); });
+    else [-1, 1].forEach(s => { const e = part(new THREE.ConeGeometry(0.045, 0.12, 8), headM, head, s * 0.085, hy + hr + 0.03, -0.01); e.rotation.z = -s * 0.25; ears.push(e); part(new THREE.ConeGeometry(0.02, 0.08, 8), innerM, head, s * 0.085, hy + hr + 0.03, 0.012); });
+  }
+  const noseM = new THREE.MeshPhysicalMaterial({color:C(0x141417), roughness:0.28, clearcoat:1, clearcoatRoughness:0.2});
+  if(has('snout')){
+    if(animal){
+      // a proper muzzle: a long rounded bridge, a lighter jaw under it, a glossy nose at the tip and a groove down to the mouth
+      part(new THREE.SphereGeometry(0.07, 20, 14), secondM, head, 0, hy - 0.035, hr - 0.005, 0.92, 0.66, 1.3);
+      part(new THREE.SphereGeometry(0.05, 16, 10), secondM, head, 0, hy - 0.068, hr - 0.012, 1, 0.55, 1.2);
+      part(new THREE.SphereGeometry(0.023, 14, 10), noseM, head, 0, hy - 0.012, hr + 0.084, 1.4, 0.85, 1).userData.noShadow = true;
+      part(new THREE.BoxGeometry(0.005, 0.03, 0.005), noseM, head, 0, hy - 0.044, hr + 0.08).userData.noShadow = true;
+    } else { part(new THREE.SphereGeometry(0.07, 16, 12), secondM, head, 0, hy - 0.03, hr + 0.03, 1, 0.75, 1.1); part(new THREE.SphereGeometry(0.022, 10, 8), baseM, head, 0, hy - 0.01, hr + 0.1); }
+  } else if(animal){
+    // no snout (cats, rabbits, owls): a small muzzle pad and nose on the face
+    part(new THREE.SphereGeometry(0.046, 16, 10), secondM, head, 0, hy - 0.05, hr - 0.022, 1.25, 0.8, 0.7);
+    part(new THREE.SphereGeometry(0.015, 12, 8), noseM, head, 0, hy - 0.028, hr + 0.004, 1.4, 0.85, 1).userData.noShadow = true;
+  }
+  if(animal){
+    // eye sockets (a darker hollow round each eye) and brows: fierce for slit eyes, soft for round ones
+    const sockM = std(mixHex(col.main, '#000000', 0.4), {roughness:0.9}), browM = avatarMaterial(rc.material === 'fur' ? 'fur' : 'matte', mixHex(col.second, col.main, 0.35));
+    const E = rc.eyes.style === 'one' ? [0] : [-1, 1], fierce = rc.eyes.style === 'slits';
+    E.forEach(s => {
+      part(new THREE.SphereGeometry(0.031, 14, 10), sockM, head, s * 0.05, ey, hr - 0.02, rc.eyes.style === 'one' ? 1.7 : 1.25, 0.9, 0.55).userData.noShadow = true;
+      const b = part(new THREE.BoxGeometry(0.058, 0.014, 0.022), browM, head, s * 0.052, ey + 0.036, hr - 0.014); b.rotation.z = s * (fierce ? 0.32 : -0.14); b.rotation.y = s * 0.35; b.userData.noShadow = true;
+    });
+    if(rc.material === 'fur'){
+      // fur fins: short spikes over the back and top of the head and a ruff on the cheeks, so the silhouette reads as fur, not a smooth ball
+      const q = rng(recipeSeed(rc)), back = [], cheek = [], hood = has('hood'), R = [hr * 0.95, hr * 1.06, hr * 1.03];
+      for(let i = 0; i < 90 && back.length < 56; i++){
+        const th = Math.acos(1 - 2 * q() * 0.8), ph = q() * TAU, len = 0.028 + q() * 0.03, w = 0.011 + q() * 0.007;
+        const n = new V3(Math.sin(th) * Math.cos(ph), Math.cos(th), Math.sin(th) * Math.sin(ph));
+        if(n.z > 0.2 || (hood && n.y > -0.3)) continue;
+        const d = n.clone().add(new V3(0, -0.35, -0.55)).normalize();
+        back.push([n.x * R[0], hy + n.y * R[1], n.z * R[2], n.x, n.y, n.z, d.x, d.y, d.z, len, w]);
+      }
+      for(let i = 0; i < 16; i++){
+        const s = i % 2 ? 1 : -1, v = q(), th = Math.PI * (0.56 + v * 0.16), ph = s > 0 ? -0.35 + q() * 0.9 : Math.PI + 0.35 - q() * 0.9, len = 0.03 + q() * 0.025;
+        const n = new V3(Math.sin(th) * Math.cos(ph), Math.cos(th), Math.sin(th) * Math.sin(ph));
+        const d = new V3(s * 1, -0.5, -0.25).normalize();
+        cheek.push([n.x * R[0], hy + n.y * R[1], n.z * R[2], n.x, n.y, n.z, d.x, d.y, d.z, len, 0.013]);
+      }
+      if(back.length) part(finGeo(back), headM, head, 0, 0, 0).name = 'fur';
+      part(finGeo(cheek), secondM, head, 0, 0, 0).name = 'ruff';
+    }
+  }
   if(has('horns')) [-1, 1].forEach(s => { const h = part(new THREE.ConeGeometry(0.035, 0.22, 8), avatarMaterial('stone', rc.head === 'skull' ? '#e6dfd0' : col.trim), head, s * 0.09, hy + hr + 0.05, -0.03); h.rotation.z = -s * 0.55; h.rotation.x = -0.3; });
   if(has('antenna')){ part(new THREE.CylinderGeometry(0.008, 0.008, 0.2, 6), baseM, head, 0.06, hy + hr + 0.09, 0); part(new THREE.SphereGeometry(0.022, 10, 8), trimM, head, 0.06, hy + hr + 0.2, 0).userData.noShadow = true; }
   if(has('halo')){ const h = part(new THREE.TorusGeometry(0.16, 0.014, 8, 40), glowM(col.glow, 2.4), head, 0, hy + hr + 0.16, 0); h.rotation.x = Math.PI / 2; h.userData.noShadow = true; }
   if(has('crown')){ const cr = part(new THREE.CylinderGeometry(0.11, 0.1, 0.07, 12, 1, true), avatarMaterial('chrome', '#d4a93a'), head, 0, hy + hr + 0.02, 0); cr.material.side = THREE.DoubleSide; for(let i = 0; i < 6; i++){ const a = i / 6 * TAU; part(new THREE.ConeGeometry(0.02, 0.06, 6), cr.material, head, Math.cos(a) * 0.105, hy + hr + 0.08, Math.sin(a) * 0.105); } }
   if(has('mask')) part(new THREE.BoxGeometry(0.24, 0.07, 0.06), std(rc.body === 'beast' ? '#17171d' : col.second, {roughness:0.7}), head, 0, ey + 0.005, ez - 0.03);
-  if(has('hood')){ const hd = part(new THREE.SphereGeometry(hr + 0.05, 24, 16, 0, TAU, 0, Math.PI * 0.62), clothM, head, 0, hy + 0.01, -0.02); hd.material.side = THREE.DoubleSide; }
+  if(has('hood')){ const hd = part(new THREE.SphereGeometry(hr + 0.05, 24, 16, Math.PI / 2 + 0.72, TAU - 1.44, 0, Math.PI * 0.64), clothM, head, 0, hy + 0.01, -0.02); hd.material.side = THREE.DoubleSide; }
   if(has('spikes')) for(let i = 0; i < 5; i++){ const sp = part(new THREE.ConeGeometry(0.02, 0.09, 6), avatarMaterial('chrome', col.trim), blob ? hips : spine, 0, blob ? 0.45 + i * 0.03 : 0.55 - i * 0.09, blob ? -0.3 + i * 0.12 : -0.16 - i * 0.005); sp.rotation.x = -0.9; }
   if(has('cape')){ const geo = new THREE.PlaneGeometry(0.46, 0.85, 4, 8); const pa = geo.attributes.position; for(let i = 0; i < pa.count; i++){ const y = pa.getY(i); pa.setX(i, pa.getX(i) * (1 + (0.425 - y) * 0.5)); pa.setZ(i, -(0.425 - y) * (0.425 - y) * 0.25); } geo.translate(0, -0.425, 0); geo.computeVertexNormals();
     cape = part(geo, clothM, spine, 0, 0.5, -0.16); cape.material.side = THREE.DoubleSide; }
@@ -7030,7 +7153,7 @@ $('#nameInput').value = state.name;
    The recipe is what saves, never the words, so a reload makes no call. */
 const AVATAR_MODEL = 'claude-opus-5-5';   // the model for path 2; the owner can change it here (the Dreamer keeps its own model)
 const RECIPE_SCHEMA = { type:'object', additionalProperties:false,
-  required:['body','height','build','head','features','material','pattern','colours','eyes','voice_line'],
+  required:['body','height','build','head','features','material','pattern','colours','eyes','ear_shape','voice_line'],
   properties:{
     body:{type:'string', enum:R_BODIES}, height:{type:'number', description:'metres, 0.6 to 2.4; 1.8 is average'}, build:{type:'string', enum:R_BUILDS},
     head:{type:'string', enum:R_HEADS}, features:{type:'array', items:{type:'string', enum:R_FEATURES}}, material:{type:'string', enum:R_MATERIALS}, pattern:{type:'string', enum:R_PATTERNS},
@@ -7038,11 +7161,12 @@ const RECIPE_SCHEMA = { type:'object', additionalProperties:false,
       main:{type:'string', description:'hex colour #rrggbb, the body or suit'}, second:{type:'string', description:'hex colour #rrggbb, secondary parts: cape, belly, plates, muzzle'},
       trim:{type:'string', description:'hex colour #rrggbb, glowing trim lines'}, glow:{type:'string', description:'hex colour #rrggbb, the glow'}}},
     eyes:{type:'object', additionalProperties:false, required:['style','glow'], properties:{style:{type:'string', enum:R_EYES}, glow:{type:'string', description:'hex colour #rrggbb'}}},
+    ear_shape:{type:'string', enum:R_EARS, description:'shape of the ears when features has ears: fox and cat pointed, rabbit long, dog floppy, bear round, owl tufted'},
     voice_line:{type:'string', description:'one short line this avatar would say, under 12 words'} } };
 const AVATAR_EXAMPLES = [
-  ['a tall chrome knight with a red cape and glowing blue eyes', {body:'humanoid', height:2.15, build:'normal', head:'helmet', features:['sword','cape'], material:'chrome', pattern:'none', colours:{main:'#d0d4dc', second:'#b3172a', trim:'#2b6cd6', glow:'#2b6cd6'}, eyes:{style:'slits', glow:'#3d8bff'}, voice_line:'My blade answers to no one.'}],
-  ['a small fox in a hoodie', {body:'beast', height:1.3, build:'normal', head:'animal', features:['ears','snout','tail','hood'], material:'fur', pattern:'none', colours:{main:'#e8772e', second:'#f2efe8', trim:'#17171d', glow:'#ffb020'}, eyes:{style:'slits', glow:'#ffb020'}, voice_line:'Quick paws, quicker plans.'}],
-  ['looks like a lighthouse keeper who fell in a vat of paint', {body:'humanoid', height:1.75, build:'heavy', head:'bare', features:['hood','backpack'], material:'cloth', pattern:'checks', colours:{main:'#ffd166', second:'#ff4fa3', trim:'#2dc7c0', glow:'#ffb020'}, eyes:{style:'dots', glow:'#17171d'}, voice_line:'The lamp is lit. Mind the wet paint.'}]
+  ['a tall chrome knight with a red cape and glowing blue eyes', {body:'humanoid', height:2.15, build:'normal', head:'helmet', features:['sword','cape'], material:'chrome', pattern:'none', colours:{main:'#d0d4dc', second:'#b3172a', trim:'#2b6cd6', glow:'#2b6cd6'}, eyes:{style:'slits', glow:'#3d8bff'}, ear_shape:'pointed', voice_line:'My blade answers to no one.'}],
+  ['a small fox in a hoodie', {body:'beast', height:1.3, build:'normal', head:'animal', features:['ears','snout','tail','hood'], material:'fur', pattern:'none', colours:{main:'#e8772e', second:'#f2efe8', trim:'#17171d', glow:'#ffb020'}, eyes:{style:'slits', glow:'#ffb020'}, ear_shape:'pointed', voice_line:'Quick paws, quicker plans.'}],
+  ['looks like a lighthouse keeper who fell in a vat of paint', {body:'humanoid', height:1.75, build:'heavy', head:'bare', features:['hood','backpack'], material:'cloth', pattern:'checks', colours:{main:'#ffd166', second:'#ff4fa3', trim:'#2dc7c0', glow:'#ffb020'}, eyes:{style:'dots', glow:'#17171d'}, ear_shape:'round', voice_line:'The lamp is lit. Mind the wet paint.'}]
 ];
 function avatarSystem(){
   return 'You design avatars for Hub, a game universe. The player describes their avatar in their own words; you reply with one recipe that the game builds as a 3D figure.\n' +
@@ -8755,7 +8879,7 @@ Object.defineProperties(window.__hub, {
   gravK:{get:() => gravK},
   planetStream:{get:() => { const E = endless; return E && E.rec && E.rec.planet ? {chunks:E.chunks.size, visible:[...E.chunks.values()].filter(c => c.g.visible).length, shadowCells:[...E.chunks.values()].filter(c => c.near).length, terrainJob:!!E.job, grassJob:!!E.grassJob, stepMs:+(E.stepMs || 0).toFixed(2), maxMs:+(E.maxMs || 0).toFixed(2), chunkMs:+(E.chunkMs || 0).toFixed(2), chunkMax:+(E.chunkMax || 0).toFixed(2), centre:E.terrain ? [E.terrain.userData.terrain.cx, E.terrain.userData.terrain.cz] : null} : null; }},
   // Goal 2 (describe-your-avatar): paths 2 and 3; aiTestResponse is a canned API reply that replaces the network call
-  recipeFromAI:{value:recipeFromAI}, AVATAR_MODEL:{value:AVATAR_MODEL}, RECIPE_SCHEMA:{value:RECIPE_SCHEMA}, avatarSystem:{value:avatarSystem},
+  recipeFromAI:{value:recipeFromAI}, makeAvatar:{value:makeAvatar}, describeRecipe:{value:describeRecipe}, AVATAR_MODEL:{value:AVATAR_MODEL}, RECIPE_SCHEMA:{value:RECIPE_SCHEMA}, avatarSystem:{value:avatarSystem},
   lastAvatarPath:{get:() => avatarAI.path}, lastAvatarWhy:{get:() => avatarAI.why}, aiLastRequest:{get:() => avatarAI.lastRequest && JSON.parse(JSON.stringify(avatarAI.lastRequest))},
   aiTestResponse:{get:() => avatarAI.testResponse, set:v => { avatarAI.testResponse = v == null ? null : v; }}, aiTimeoutMs:{get:() => avatarAI.timeoutMs, set:v => { avatarAI.timeoutMs = Math.max(50, +v || 20000); }},
   explorerLog:{get:() => Object.values(explorer.planets).map(e => ({id:e.id, name:e.name, proposed:e.proposed, sector:e.sector, rules:e.rules, gravity:e.gravity, first:e.first, firstDate:new Date(e.first).toISOString().slice(0, 10), walked:Math.round(e.walked || 0), landmarks:(e.landmarks || []).slice(), visits:e.visits}))}
