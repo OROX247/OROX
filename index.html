@@ -263,7 +263,7 @@ body.bcast #hud, body.bcast #corner, body.bcast #roomCard, body.bcast #toast{ vi
 
 <div id="corner">
   <canvas id="minimap" aria-label="Minimap"></canvas>
-  <div class="btns"><button class="hbtn" id="aiBtn" title="AI reality mode (R)">AI</button><button class="hbtn" id="lookBtn" title="Realm look (L)">Look</button><button class="hbtn" id="forgeBtn" title="Worldsmith: describe a realm (F)">Forge</button><button class="hbtn" id="rideBtn" style="display:none">Ride</button><button class="hbtn" id="sndBtn" title="Sound on/off (N)">Sound</button><button class="hbtn" id="shopBtn" style="display:none">Shop</button><button class="hbtn" id="vendBtn" style="display:none">Vend</button><button class="hbtn" id="enrolBtn" style="display:none">Enrol</button><button class="hbtn" id="archBtn" style="display:none">Inspect</button><button class="hbtn" id="hollowBtn" style="display:none">Knock</button><button class="hbtn" id="chimeBtn" style="display:none">Strike</button><button class="hbtn" id="invBtn" title="Inventory (I)">Bag</button><button class="hbtn" id="mapBtn">Warp</button><button class="hbtn" id="helpBtn" aria-label="Avatar and controls">?</button></div>
+  <div class="btns"><button class="hbtn" id="aiBtn" title="AI reality mode (R)">AI</button><button class="hbtn" id="lookBtn" title="Realm look (L)">Look</button><button class="hbtn" id="forgeBtn" title="Worldsmith: describe a realm (F)">Forge</button><button class="hbtn" id="rideBtn" style="display:none">Ride</button><button class="hbtn" id="sndBtn" title="Sound on/off (N)">Sound</button><button class="hbtn" id="shopBtn" style="display:none">Shop</button><button class="hbtn" id="vendBtn" style="display:none">Vend</button><button class="hbtn" id="enrolBtn" style="display:none">Enrol</button><button class="hbtn" id="archBtn" style="display:none">Inspect</button><button class="hbtn" id="hollowBtn" style="display:none">Knock</button><button class="hbtn" id="chimeBtn" style="display:none">Strike</button><button class="hbtn" id="ashBtn" style="display:none">Recite</button><button class="hbtn" id="invBtn" title="Inventory (I)">Bag</button><button class="hbtn" id="mapBtn">Warp</button><button class="hbtn" id="helpBtn" aria-label="Avatar and controls">?</button></div>
 </div>
 
 <div id="intro" class="overlay" role="dialog" aria-labelledby="introTitle">
@@ -2877,7 +2877,8 @@ const state = {
   fuel: Math.min(100, Math.max(0, num(sv.fuel, 100))),  // the hoverbike tank, 0-100 (FUEL_MAX), shared by the bike in every realm
   enrolled: !!sv.enrolled,                               // enrolled at Campus (Goal 8): warps to and from Campus cost nothing
   archive: {ledger:!!(sv.archive && sv.archive.ledger), rooms:new Set(arr(sv.archive && sv.archive.rooms).filter(n => n >= 0 && n < 6)), found:new Set(arr(sv.archive && sv.archive.found).filter(n => n >= 0 && n < 6)), broadcast:!!(sv.archive && sv.archive.broadcast)},   // Goal 9 (+ Goal 10: the Broadcast seen): the Ledger taken, rooms visited, hidden details found
-  hunt: {door:!!(sv.hunt && sv.hunt.door), rallyBest:num(sv.hunt && sv.hunt.rallyBest, 0), rallyPlays:num(sv.hunt && sv.hunt.rallyPlays, 0), hoard:!!(sv.hunt && sv.hunt.hoard), rose:!!(sv.hunt && sv.hunt.rose), roseTries:num(sv.hunt && sv.hunt.roseTries, 0), cyan:!!(sv.hunt && sv.hunt.cyan)}   // Goal 11: the Hollow's door opened, the Comet Rally high score and plays, the hoard chest taken (+ Goal 12: rose, roseTries; Goal 13: cyan, the chimes sung)
+  hunt: {door:!!(sv.hunt && sv.hunt.door), rallyBest:num(sv.hunt && sv.hunt.rallyBest, 0), rallyPlays:num(sv.hunt && sv.hunt.rallyPlays, 0), hoard:!!(sv.hunt && sv.hunt.hoard), rose:!!(sv.hunt && sv.hunt.rose), roseTries:num(sv.hunt && sv.hunt.roseTries, 0), cyan:!!(sv.hunt && sv.hunt.cyan),
+    gates:[0, 1, 2].map(i => !!(sv.hunt && Array.isArray(sv.hunt.gates) && sv.hunt.gates[i])), won:!!(sv.hunt && sv.hunt.won), starBest:num(sv.hunt && sv.hunt.starBest, 0), g1Tries:num(sv.hunt && sv.hunt.g1Tries, 0), starPlays:num(sv.hunt && sv.hunt.starPlays, 0), g3Tries:num(sv.hunt && sv.hunt.g3Tries, 0)}   // Goal 14: the three gates opened, the Seed won, the Starling high score, tries   // Goal 11: the Hollow's door opened, the Comet Rally high score and plays, the hoard chest taken (+ Goal 12: rose, roseTries; Goal 13: cyan, the chimes sung)
 };
 // state.recipe is filled in once the recipe schema below is defined (see loadRecipe)
 function persist(){
@@ -2939,7 +2940,12 @@ const WORLDS = {
   sky:   { name:'Sky Isles', seed:73, exposure:0.88, fog:0.0026, sector:1, rules:{magic:true, tech:true, danger:false},
            sky:{top:0x3d7fe0, horizon:0xf3dbe6, ground:0xf4eef2, sun:0xfff4e0, dir:[0.5,0.38,-0.78], size:0.009, clouds:0.3, lit:0xffffff, shade:0xc8d0e8},
            atm:{turb:2, ray:1.1, mie:0.003, g:0.7, bright:0.7, clouds:0.36, cloudH:900, cirrus:0.4, rays:0.45, flare:0.55, fogSun:0.5, wind:[0.8, 0.4]}, fogH:0.012, fogBase:-40,
-           sun:[0xfff0dc,2.8], hemi:[0xcfe0ff,0x8aa070,0.6], portals:[{to:'hub',x:0,z:-26}], pads:[] }
+           sun:[0xfff0dc,2.8], hemi:[0xcfe0ff,0x8aa070,0.6], portals:[{to:'hub',x:0,z:-26}], pads:[] },
+  // Ashfall (Goal 14, blueprint 2 and 9): the Citadel's world, held at dusk for ever. A low red sun on the horizon behind the arrival point, a bruised violet sky, ash and embers. Sealed until you hold all three shards.
+  ashfall:{ name:'Ashfall', seed:131, exposure:0.95, fog:0.0062, stars:true, sector:14, rules:{magic:true, tech:true, danger:true},
+           sky:{top:0x140c22, horizon:0xa8482a, ground:0x1a1212, sun:0xff6a2a, dir:[-0.25,0.035,-0.97], size:0.014, clouds:0.34, lit:0xff8a4a, shade:0x2a1a2a},
+           atm:{turb:7, ray:2.2, mie:0.012, g:0.86, bright:0.2, tint:0xffb89a, sat:1.1, clouds:0.34, cloudH:1200, cirrus:0.25, rays:0.5, flare:0.45, fogSun:1.0, wind:[0.5, 0.15]}, fogH:0.05,
+           sun:[0xff9a60,1.6], hemi:[0x5e5a86,0x241814,0.5], portals:[{to:'hub',x:0,z:-26}], pads:[] }
 };
 const WORLD_ORDER = ['hub','campus','dunes','grid','grove','sky'];
 /* the universe is a 3x3x3 cube of 27 sectors (blueprint section 3); a sector's coordinates come from its number */
@@ -2947,7 +2953,9 @@ const sectorXYZ = n => [(n - 1) % 3, Math.floor((n - 1) / 3) % 3, Math.floor((n 
 function sectorDistance(a, b){ const A = sectorXYZ(a), B = sectorXYZ(b); return Math.max(Math.abs(A[0] - B[0]), Math.abs(A[1] - B[1]), Math.abs(A[2] - B[2])); }
 function fare(from, to){ if(to === 'hub') return 0; if(WORLDS[to] && WORLDS[to].own) return 0; if(state.enrolled && (from === 'campus' || to === 'campus')) return 0; const d = sectorDistance(WORLDS[from].sector, WORLDS[to].sector); return d === 0 ? 10 : d === 1 ? 25 : d === 2 ? 60 : 120; }
 const rulesText = W => (W.rules.magic ? 'magic' : 'no magic') + ' · ' + (W.rules.tech ? 'tech' : 'no tech') + ' · ' + (W.rules.danger ? 'danger zone' : 'safe');
-const PORTAL_COLORS = { hub:0xffd166, campus:0xb6ff7a, dunes:0xf2a07b, grid:0xff4fa3, grove:0x5ce1e6, sky:0xbfe0ff };
+const PORTAL_COLORS = { hub:0xffd166, campus:0xb6ff7a, dunes:0xf2a07b, grid:0xff4fa3, grove:0x5ce1e6, sky:0xbfe0ff, ashfall:0xff7a3a };
+// Ashfall is not in WORLD_ORDER (that list counts the coins, 12 a realm); it joins the Warp list and the star map here, sealed until you hold three shards
+const HUNT_WORLDS = ['ashfall'];
 const NPC_NAMES = ['Kestrel','Nyx_77','Pixelwolf','Dune Rider','Glitch','Moth','Sable','Byte Queen','Vektor','Ember','Lumen','Rook','Juno','Static','Marrow','Quill','Tallow','Orbit','Sixpence','Halcyon','Wren','Cinder'];
 const SUITS = [0x1f2a44,0x6b1d2e,0x1d4a46,0x2a2a30,0xdad9de,0x3b2a5a,0x4a3a22,0x0f3b5f];
 const PLATES = [0xeceef2,0xb9bec8,0x2b2d33,0xd9b26a,0xf2efe8];
@@ -4449,7 +4457,7 @@ function addShard(id, x, y, z){
 function giveShard(id, why){
   if(state.shards.has(id)) return false;
   state.shards.add(id); reward(150, 50); sfx('shard'); refreshHud(); if(typeof huntState === 'function') huntState();
-  toast((why ? why + '   ' : '') + (state.shards.size < 3 ? 'Shard found. ' + state.shards.size + ' of 3.   +150 XP' : 'All three shards found. The vault in the Hub is open.'), 5200);
+  toast((why ? why + '   ' : '') + (state.shards.size < 3 ? 'Shard found. ' + state.shards.size + ' of 3.   +150 XP' : 'All three shards found. Ashfall is open to you: warp there (M), where the Citadel\'s three gates wait.'), 5200);
   return true;
 }
 function addPlatform(x, z, rad, top, mesh, bottom){ platforms.push({x, z, r:rad, top, bottom:bottom || 0}); return mesh; }
@@ -4547,6 +4555,7 @@ const HEIGHTS = {
   grove:(n, pf) => (x, z) => { const d = Math.hypot(x, z); let h = n.fbm(x * 0.03, z * 0.03, 4) * 2.4 * smooth(6, 20, d); const ri = 1 - Math.abs(n.fbm(x * 0.007, z * 0.007, 5) * 1.5); h += smooth(R + 10, R + 180, d) * (ri * ri * 100 + 10); if(d > GROVE_OUT) h = groveOuter(n, x, z, d, h); return h * pf(x, z); },
   sky:(n, pf) => (x, z) => { const d = Math.hypot(x, z); let h = n.fbm(x * 0.035, z * 0.035, 4) * 1.6 * smooth(4, 16, d); h -= smooth(R, R + 6, d) * 3; return h * pf(x, z); },
   // a gently rolling lawn (flat under the buildings), a little more roll in the east woods, green hills beyond the walkable ring
+  ashfall:(n, pf) => (x, z) => { const d = Math.hypot(x, z); let h = n.fbm(x * 0.03, z * 0.03, 4) * 1.5 * smooth(4, 18, d); const ri = 1 - Math.abs(n.fbm(x * 0.006 + 3, z * 0.006 - 5, 5) * 1.5); h += smooth(R + 32, R + 220, d) * (ri * ri * 90 + 10); return h * pf(x, z) * ashFlat(x, z); },
   campus:(n, pf) => (x, z) => { const d = Math.hypot(x, z); let h = n.fbm(x * 0.028, z * 0.028, 4) * (1.3 + smooth(CAMPUS.woods.x0, CAMPUS.woods.x0 + 15, x) * 1.2) * campusFlat(x, z) * smooth(3, 12, d); const ri = 1 - Math.abs(n.fbm(x * 0.006 + 9, z * 0.006, 4) * 1.4); h += smooth(R + 12, R + 170, d) * (ri * ri * 60 + 10); if(d > CAMPUS_OUT) h = campusOuter(n, x, z, d, h); return h * pf(x, z); }
 };
 
@@ -7636,6 +7645,7 @@ ENDLESS.campus = {
 
 /* ================= spawning ================= */
 function spawnNPCs(key, r){
+  if(!LINES[key]) return;   // Ashfall: nobody walks the ash
   const pool = NPC_NAMES.slice(), count = (key === 'hub' ? 12 : 5) - (COARSE ? 2 : 0);
   for(let i = 0; i < count; i++){
     const s = freeSpot(r, 6, 40, 2); if(!s) continue;
@@ -7691,7 +7701,7 @@ function buildWorld(key){
   const W = WORLDS[key]; state.world = key; gravK = W.gravity || 1; if(explorer.dirty) saveExplorer();
   world = new THREE.Group(); scene.add(world);
   if(camHid){ camHid = false; if(!zeroing) me.g.visible = true; }
-  grassMeshes = []; lods = []; slotMats = {}; mainTerrain = null; coreSolids = []; coreFollow = []; boxes = []; desk = null; gym = null; floaters = []; p.zeroG = false; colliders = []; platforms = []; coins = []; portals = []; spinners = []; npcs = []; shardObj = null; vault = null; gridSun = null; fireflies = null; shopKiosk = null; forgeStand = null; vendor = null; archive = null; archRoom = -1; hollow = null; drift = null; corr = null; if(chimes && chimes.play) chimeWin(true); chimes = null; if(rally.open) closeRally(); rally.tex = null; rally.cab = null; rally.trophy = null; hazards = []; burst = null; pickups = []; bike.g = null; bike.riding = false; bike.near = false; engineStop(); $('#rideBtn').style.display = 'none'; trial.active = false; trial.rings = []; trial.pad = null; trial.padPos = null; $('#trialPanel').style.display = 'none';
+  grassMeshes = []; lods = []; slotMats = {}; mainTerrain = null; coreSolids = []; coreFollow = []; boxes = []; desk = null; gym = null; floaters = []; p.zeroG = false; colliders = []; platforms = []; coins = []; portals = []; spinners = []; npcs = []; shardObj = null; vault = null; gridSun = null; fireflies = null; shopKiosk = null; forgeStand = null; vendor = null; archive = null; archRoom = -1; hollow = null; drift = null; corr = null; ash = null; if(chimes && chimes.play) chimeWin(true); chimes = null; if(rally.open) closeRally(); rally.tex = null; rally.cab = null; rally.trophy = null; hazards = []; burst = null; pickups = []; bike.g = null; bike.riding = false; bike.near = false; engineStop(); $('#rideBtn').style.display = 'none'; trial.active = false; trial.rings = []; trial.pad = null; trial.padPos = null; $('#trialPanel').style.display = 'none';
   const r = rng(W.seed), noise = makeNoise(W.seed * 7 + 1);
   waterBody = null; if(weatherFx){ scene.remove(weatherFx.pts); weatherFx.geo.dispose(); weatherFx.pts.material.dispose(); weatherFx = null; } clearSkyProps(); flyers = []; ships = []; endless = null; buildParent = null; chunkAt = null; waterMeshes.forEach(w => { if(w.renderTarget) w.renderTarget.dispose(); }); waterMeshes = [];
   applyLook(W);
@@ -7709,7 +7719,7 @@ function buildWorld(key){
   const spots = [], onPl = key === 'grid' ? [0, 1, 2] : (key === 'dunes' || key === 'sky') ? [1, 3, 5] : [];
   onPl.forEach(i => { const s = platforms[i]; if(s) spots.push([s.x + (key === 'grid' ? s.r - 0.45 : 0), s.top + 1, s.z]); });
   while(spots.length < 12){ const s = freeSpot(r, 5, 52, 2); spots.push(s ? [s[0], G(s[0], s[1]) + 1, s[1]] : [0, 1, 8]); }
-  if(W.custom) spots.length = 0;   // forged realms have no coins: the coin count belongs to the charted universe
+  if(W.custom || key === 'ashfall') spots.length = 0;   // forged realms have no coins: the coin count belongs to the charted universe
   spots.forEach((s, i) => {
     const id = key + ':' + i; if(state.coins.has(id)) return;
     const g = new THREE.Group(); g.position.set(s[0], s[1], s[2]); world.add(g);
@@ -8423,11 +8433,12 @@ const BOARD = NPC_NAMES.slice(0, 11).map(nm => ({name:nm, shards:Math.floor(boar
 function openWarp(){
   if(zeroing) return;
   const list = $('#warpList'); list.innerHTML = '';
-  WORLD_ORDER.concat(customKeys()).forEach(k => {
+  WORLD_ORDER.concat(HUNT_WORLDS, customKeys()).forEach(k => {
     const b = document.createElement('button'); b.className = 'warp-item'; b.style.setProperty('--c', hexStr(PORTAL_COLORS[k]));
-    const here = k === state.world, cost = fare(state.world, k), enr = !cost && k !== 'hub' && state.enrolled && (k === 'campus' || state.world === 'campus');
-    b.innerHTML = '<span>' + WORLDS[k].name + '<br><small>Sector ' + WORLDS[k].sector + ' · ' + rulesText(WORLDS[k]) + (bundles.some(bb => bb.world === k) ? ' · your bundle' : '') + '</small></span><small>' + (here ? 'You are here' : cost ? '₵ ' + cost : enr ? 'Free · enrolled' : 'Free') + '</small>';
-    if(here) b.disabled = true;
+    const here = k === state.world, cost = fare(state.world, k), enr = !cost && k !== 'hub' && state.enrolled && (k === 'campus' || state.world === 'campus'), sealed = k === 'ashfall' && ashSealed();
+    b.innerHTML = '<span>' + WORLDS[k].name + '<br><small>Sector ' + WORLDS[k].sector + ' · ' + rulesText(WORLDS[k]) + (bundles.some(bb => bb.world === k) ? ' · your bundle' : '') + '</small></span><small>' + (here ? 'You are here' : sealed ? 'Sealed · needs all three shards' : cost ? '₵ ' + cost : enr ? 'Free · enrolled' : 'Free') + '</small>';
+    if(here || sealed) b.disabled = true;
+    if(sealed) b.classList.add('sealed');
     b.addEventListener('click', () => {
       if(state.credits < cost){ toast('Not enough credits. Collect coins to earn more.'); return; }
       state.credits -= cost; persist(); refreshHud(); closeWarp(); travel(k);
@@ -8449,7 +8460,7 @@ function drawStarMap(){
   c.width = W * d; c.height = Math.round(W * (open ? 0.62 : 0.42)) * d;
   const x = c.getContext('2d'); x.scale(d, d); const w = W, h = c.height / d; starView.hits = [];
   x.clearRect(0, 0, w, h); x.font = '600 11px "Chakra Petch","Trebuchet MS",sans-serif'; x.textAlign = 'center';
-  const charted = {}; WORLD_ORDER.concat(customKeys()).forEach(k => { (charted[WORLDS[k].sector] = charted[WORLDS[k].sector] || []).push(k); });
+  const charted = {}; WORLD_ORDER.concat(HUNT_WORLDS, customKeys()).forEach(k => { (charted[WORLDS[k].sector] = charted[WORLDS[k].sector] || []).push(k); });
   const here = WORLDS[state.world] && WORLDS[state.world].planet;
   if(open){
     const stars = sectorStars(open), size = Math.min(h - 22, w * 0.62), ox = 8, oy = 16;
@@ -9508,7 +9519,9 @@ $('#jumpBtn').addEventListener('pointerdown', e => { jumpBuffer = 0.15; e.preven
 let traveling = false, portalCool = 0;
 const fadeEl = $('#fade');
 function travel(to, opts){
-  if(traveling) return; traveling = true; opts = opts || {};
+  if(traveling) return;
+  if(to === 'ashfall' && ashSealed()){ toast('Ashfall is sealed. It opens to whoever holds all three shards.', 3600); return false; }   // Goal 14: no way in without amber, rose and cyan
+  traveling = true; opts = opts || {};
   if(bike.riding) dismountBike(true);
   const from = state.world; fadeEl.classList.add('on'); sfx('warp');
   setTimeout(() => {
@@ -10080,6 +10093,7 @@ function ambience(key){
   else if(key === 'grid'){ hum([55, 110, 165], 320, 0.05, 0.5); wind(90, 0.15, 0.05, 0.3); }
   else if(key === 'grove'){ wind(260, 0.22, 0.09, 0.5); crickets(); }
   else if(key === 'sky'){ wind(900, 0.3, 0.13, 0.7); chirps(); }
+  else if(key === 'ashfall'){ wind(220, 0.32, 0.09, 0.5); hum([41.2, 61.7], 140, 0.02, 0.3); }
   else if(key === 'campus'){ wind(240, 0.16, 0.07, 0.4); chirps(); }
   else wind(300, 0.3, 0.1, 0.5);
 }
@@ -10554,7 +10568,7 @@ function vrUpdate(dt){
   if(Math.abs(turn) > 0.7 && vr.snapCool <= 0){ vr.rig.rotation.y -= Math.sign(turn) * Math.PI / 6; vr.snapCool = 0.3; }
   if(Math.abs(turn) < 0.4) vr.snapCool = Math.min(vr.snapCool, 0);
 }
-function interactKey(){ if(bike.riding) dismountBike(); else if(bike.near) mountBike(); else if(shopNear) openShop(); else if(vendNear) openVendor(); else if(deskNear) enroll(); else if(forgeNear) openForge(); else if(archNear) archiveAct(); else if(hollowNear) hollowAct(); else if(chimeNear != null) strikeChime(chimeNear + 1, 'key'); }
+function interactKey(){ if(bike.riding) dismountBike(); else if(bike.near) mountBike(); else if(shopNear) openShop(); else if(vendNear) openVendor(); else if(deskNear) enroll(); else if(forgeNear) openForge(); else if(archNear) archiveAct(); else if(hollowNear) hollowAct(); else if(chimeNear != null) strikeChime(chimeNear + 1, 'key'); else if(ashNear) ashAct(); }
 vrSetup();
 
 /* ================= Goal 13: the Cyan Shard, the wind chimes on Sky Isles' highest isle =================
@@ -10827,7 +10841,7 @@ function update(dt, time){
     state.won = true; reward(500, 200); sfx('win'); setHalo(); toast('You opened the vault. First to crack the Hub.   +500 XP', 5000);
   }
   if(playing && p.grounded && p.speed > 0.6){ snd.stepT -= dt; if(snd.stepT <= 0){ sfx('step'); snd.stepT = p.speed > 7 ? 0.27 : 0.42; } } else snd.stepT = 0.1;
-  shopProximity(); bikeProximity(); vendProximity(); deskProximity(); archiveUpdate(dt); hollowUpdate(dt, time); chimeUpdate(dt, time); driftUpdate(dt, time); hallUpdate(dt, time); rallyTick(dt, time); trialUpdate(dt, time);
+  shopProximity(); bikeProximity(); vendProximity(); deskProximity(); archiveUpdate(dt); hollowUpdate(dt, time); chimeUpdate(dt, time); ashUpdate(dt, time); driftUpdate(dt, time); hallUpdate(dt, time); rallyTick(dt, time); trialUpdate(dt, time);
   updatePickups(dt, time); hurtCool -= dt; simTime += dt; updateHazards(simTime); updateBurst(dt); checkBundles();
   if(!WORLDS[state.world].rules.danger && !zeroing && state.hp < maxHp()){ state.hp = Math.min(maxHp(), state.hp + 12 * dt); hpHud(); }
   portalCool -= dt;
@@ -10908,6 +10922,214 @@ window.addEventListener('message', e => {
     if(m.stats && e.source) e.source.postMessage({hub:'stats', fps:Math.round(stats.fps), ms:Math.round(stats.ms * 10) / 10, q:qLevel, world:state.world, gl:GL_INFO, pr:renderer.getPixelRatio(), w:innerWidth, h:innerHeight, post:post.on, x:Math.round(p.x), z:Math.round(p.z), frames:stats.frames, err:(document.getElementById('errBox') || {}).textContent || null, chunks:endless ? endless.chunks.size : -1, dreamer:{source:dreamer.source, sample:!!dreamer.sample, busy:dreamer.busy, failed:dreamer.failed, queue:endless ? endless.dreams.length : -1, next:endless ? endless.dreams.slice(0, 8).map(d => d.name + ' | ' + d.text + ' | ' + d.lore) : [], talk:LINES[state.world] ? LINES[state.world].slice(0, 6) : [], placed:endless ? Object.values(endless.dreamsPlaced || {}).map(d => d.name + ' [' + d.from + ']') : [], log:endless ? endless.log.slice(-5) : []}}, '*');
   }catch(err){ console.warn('ctl', err); }
 });
+/* ================= Ashfall and the Citadel (Goal 14, blueprint 9) =================
+   Ashfall is held at dusk for ever: an ash plain, dead trees, ember fissures and sparks that drift up (emissive stones and glow sprites, no point lights).
+   It is sealed until you hold all three shards. The Citadel's front wall faces the arrival point with the First, Second and Third Gates, each with its
+   shard in a socket over the arch. Behind the Third Gate runs Lantern Row as a memory, and at its end the vault with the Seed.
+   Everything here draws from its own rng seeds (1414 and up), never Math.random, so the realm looks the same on every visit. */
+const CITADEL = {z:20, t:2.4, h:11, x0:-26, x1:26, back:68, gw:2.1, gh:6.2, spring:4.1,
+  gates:[{x:14, shard:'dunes', name:'First Gate', col:0xffb020}, {x:0, shard:'grid', name:'Second Gate', col:0xff4fa3}, {x:-14, shard:'sky', name:'Third Gate', col:0x5ce1e6}],   // +x is on your left as you face the wall (+z), so the First Gate is the left-hand arch
+  row:{x:-14, hw:2.6, z0:22.4, z1:56, pile:48.4, past:51.5}, vault:{x:-14, z0:56, z1:68, hw:6, door:67.4}};
+// the Citadel stands on level ground; beyond it the plain rolls and far out it rises into dark ridges
+function ashFlat(x, z){ const C0 = CITADEL, dx = Math.max(C0.x0 - 6 - x, 0, x - C0.x1 - 6), dz = Math.max(C0.z - 8 - z, 0, z - C0.back - 6); return smooth(0, 12, Math.hypot(dx, dz)); }
+let ash = null, ashNear = null;
+function ashInCitadel(x, z, m){ m = m || 0; return x > CITADEL.x0 - 4 - m && x < CITADEL.x1 + 4 + m && z > CITADEL.z - 6 - m && z < CITADEL.back + 4 + m; }
+BUILD.ashfall = (r, n) => {
+  buildTerrain({maxR:900, surf:{layers:[{surf:'ash', rep:3.2}, {surf:'lava', rep:3.5}, {surf:'darkrock', rep:6}, {surf:'ash', rep:3.2}], rules:{patch:[0.83, 0.95], slope:[0.2, 0.42]}},
+    color:(x, y, z, sl) => { const v = n.fbm(x * 0.05, z * 0.05, 3) * 0.5 + 0.5; return [0.78 + 0.2 * v, 0.74 + 0.18 * v, 0.72 + 0.16 * v]; }});
+  const q = rng(1414), spot = (minR, maxR) => { for(let k = 0; k < 40; k++){ const a = q() * TAU, d = minR + q() * (maxR - minR), x = Math.cos(a) * d, z = Math.sin(a) * d;
+    if(ashInCitadel(x, z) || Math.hypot(x, z + 26) < 9) continue; return [x, z]; } return null; };
+  // dead trees: three bare shapes (a leaning trunk, crooked limbs, twigs), merged per shape and instanced
+  const bark = surface('pinebark'), barkM = std(0x5a5250, {map:bark.map, normalMap:bark.normal, normalScale:new V2(0.8, 0.8), roughness:0.95});
+  const treeGeo = k => { const t = rng(1500 + k), H = 4.2 + t() * 2.4, parts = [new THREE.CylinderGeometry(0.1, 0.32, H, 8, 4).translate(0, H / 2, 0)];
+    { const pa = parts[0].attributes.position; for(let i = 0; i < pa.count; i++){ const y = pa.getY(i); pa.setX(i, pa.getX(i) + Math.sin(y * 0.9 + k) * 0.18 * y / H); } parts[0].computeVertexNormals(); }
+    const nb = 4 + Math.floor(t() * 3);
+    for(let b = 0; b < nb; b++){ const y = H * (0.45 + t() * 0.5), len = 1.0 + t() * 1.9, a = t() * TAU, tilt = 0.55 + t() * 0.7;
+      parts.push(new THREE.CylinderGeometry(0.025, 0.085, len, 5).translate(0, len / 2, 0).rotateZ(tilt).rotateY(a).translate(Math.sin(y * 0.9 + k) * 0.18 * y / H, y, 0));
+      const ex = -Math.sin(tilt) * len * Math.cos(a), ey = Math.cos(tilt) * len, ez = Math.sin(tilt) * len * Math.sin(a), l2 = len * (0.35 + t() * 0.3);
+      parts.push(new THREE.CylinderGeometry(0.012, 0.03, l2, 4).translate(0, l2 / 2, 0).rotateZ(tilt * (0.3 + t() * 0.9)).rotateY(a + 0.5 + t()).translate(ex + Math.sin(y * 0.9 + k) * 0.18 * y / H, y + ey, ez)); }
+    return merge(parts); };
+  const trees = [[], [], []];
+  for(let i = 0; i < 70; i++){ const s = spot(12, 75); if(!s) continue; const k = i % 3, sc = 0.8 + q() * 0.6; trees[k].push(mat4(s[0], G(s[0], s[1]) - 0.15, s[1], (q() - 0.5) * 0.12, q() * TAU, (q() - 0.5) * 0.12, sc)); colliders.push({x:s[0], z:s[1], r:0.3 * sc}); }
+  for(let i = 0; i < 90 + 220 * Q; i++){ const s = spot(75, 320); if(!s) continue; const k = i % 3, sc = 0.9 + q() * 0.9; trees[k].push(mat4(s[0], G(s[0], s[1]) - 0.2, s[1], (q() - 0.5) * 0.15, q() * TAU, (q() - 0.5) * 0.15, sc)); }
+  trees.forEach((L, k) => instanced(treeGeo(k), k ? barkM : barkM, L, null, true));
+  // ember stones: half-buried coals with a hot core and a glow, the dusk's only warm light near the ground
+  const emberM = std(0x2a1a14, {emissive:C(0xff5a1a), emissiveIntensity:1.6, roughness:0.9}), coalM = std(0x1c1716, {roughness:0.95, map:detailTex, normalMap:detailNormal});
+  const embers = [];
+  for(let i = 0; i < 34; i++){ const s = spot(8, 70); if(!s) continue; const y = G(s[0], s[1]), k = 0.3 + q() * 0.5;
+    const c = mk(new THREE.DodecahedronGeometry(k, 0), coalM, s[0], y + k * 0.2, s[1]); c.rotation.set(q() * 3, q() * 3, q() * 3); c.scale.y = 0.6;
+    const e = mk(new THREE.DodecahedronGeometry(k * 0.7, 0), emberM, s[0] + k * 0.25, y + k * 0.1, s[1]); e.castShadow = false; e.rotation.set(q() * 3, q() * 3, 0);
+    glow(0xff6a20, 1.6 + k * 2.2, s[0], y + 0.25, s[1], world, 0.45); colliders.push({x:s[0], z:s[1], r:k * 0.7}); }
+  const rocks = []; for(let i = 0; i < 26; i++){ const s = spot(10, 80); if(!s) continue; const k = 0.5 + q() * 1.3; rocks.push({x:s[0], y:G(s[0], s[1]), z:s[1], s:k, ry:q() * TAU}); colliders.push({x:s[0], z:s[1], r:k * 0.85}); }
+  placeRocks(rocks, 0x4a4442, {surf:'darkrock', seed:1419});
+  // sparks drifting up out of the ash
+  const ns = COARSE ? 160 : 320, base = [], pos = new Float32Array(ns * 3);
+  for(let i = 0; i < ns; i++){ const a = q() * TAU, d = 3 + q() * 60, x = Math.cos(a) * d, z = Math.sin(a) * d; base.push([x, G(x, z), z, q() * 9, 0.4 + q() * 0.8]); }
+  const sg = new THREE.BufferGeometry(); sg.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  const spts = new THREE.Points(sg, new THREE.PointsMaterial({map:glowTex, color:C(0xff8a3a), size:0.32, transparent:true, blending:THREE.AdditiveBlending, depthWrite:false, fog:false}));
+  spts.frustumCulled = false; world.add(spts);
+  buildCitadel({sparks:{geo:sg, base}});
+};
+function buildCitadel(extra){
+  ash = {g3:null}; const C0 = CITADEL, g = new THREE.Group(); world.add(g);
+  const dr = surface('darkrock'), S = archiveStone(), K = roomKit({cx:0, cz:0, sd:1, ry:a => a}, g);
+  const M = {
+    stone:std(0x5e5864, {map:dr.map, normalMap:dr.normal, normalScale:new V2(0.9, 0.9), roughness:0.92}), trim:std(0x77706c, {map:dr.map, normalMap:dr.normal, normalScale:new V2(0.5, 0.5), roughness:0.85}),
+    iron:std(0x1d1e22, {metalness:0.7, roughness:0.45}), brick:std(0xffffff, {map:S.brick.map, normalMap:S.brick.normal, roughnessMap:S.brick.rough, roughness:1}),
+    cobble:std(0xffffff, {map:S.cobble.map, normalMap:S.cobble.normal, roughnessMap:S.cobble.rough, roughness:1}), frame:std(0xd8cfbe, {roughness:0.6}),
+    blue:std(0x284a7a, {roughness:0.45, map:detailTex}), green:std(0x2f4a3a, {roughness:0.5, map:detailTex}), red:std(0x6a2a24, {roughness:0.5, map:detailTex}),
+    pane:std(0x0c1018, {roughness:0.06, metalness:0.4}), slate:std(0x2c2c34, {roughness:0.7, map:detailTex, normalMap:detailNormal}), flame:glowM(0xffb45a, 2.6), stoneL:std(0x9a948a, {map:detailTex, normalMap:detailNormal, normalScale:new V2(0.4, 0.4), roughness:0.85})
+  };
+  const z0 = C0.z, z1 = C0.z + C0.t, H = C0.h, solid = (x0, x1, y0, y1, a, b) => aabb(x0, x1, y0, y1, a, b);
+  // the front wall: solid between the three arches, a lintel over each
+  let xa = C0.x0; C0.gates.forEach(Gt => { const a = Gt.x - C0.gw, b = Gt.x + C0.gw; K.box(M.stone, 4, xa, a, 0, H, z0, z1); solid(xa, a, 0, H, z0, z1); K.box(M.stone, 4, a, b, C0.gh, H, z0, z1); solid(a, b, C0.gh, H, z0, z1); xa = b; });
+  K.box(M.stone, 4, xa, C0.x1, 0, H, z0, z1); solid(xa, C0.x1, 0, H, z0, z1);
+  // the keep behind it: side walls, the back wall, all the same dark stone; battlements along the front
+  K.box(M.stone, 4, C0.x0, C0.x0 + C0.t, 0, H, z1, C0.back); solid(C0.x0, C0.x0 + C0.t, 0, H, z1, C0.back);
+  K.box(M.stone, 4, C0.x1 - C0.t, C0.x1, 0, H, z1, C0.back); solid(C0.x1 - C0.t, C0.x1, 0, H, z1, C0.back);
+  K.box(M.stone, 4, C0.x0, C0.x1, 0, H, C0.back, C0.back + C0.t); solid(C0.x0, C0.x1, 0, H, C0.back, C0.back + C0.t);
+  for(let x = C0.x0; x < C0.x1 - 0.5; x += 2.2) K.box(M.trim, 2, x, x + 1.1, H, H + 1.2, z0 - 0.1, z0 + 0.7);
+  K.box(M.trim, 2, C0.x0 - 0.2, C0.x1 + 0.2, H - 0.5, H, z0 - 0.3, z0 + 0.1);
+  // towers at the corners and between the gates
+  [[C0.x0, z0 + 1.2, 3.4, 16], [C0.x1, z0 + 1.2, 3.4, 16], [-7, z0 + 1.2, 1.9, 13.5], [7, z0 + 1.2, 1.9, 13.5], [C0.x0, C0.back + 1.2, 3, 14], [C0.x1, C0.back + 1.2, 3, 14]].forEach(([x, z, rad, h]) => {
+    const tg = new THREE.CylinderGeometry(rad, rad * 1.08, h, 28, 1); const uv = tg.attributes.uv; for(let k = 0; k < uv.count; k++) uv.setXY(k, uv.getX(k) * rad * TAU / 4, uv.getY(k) * h / 4);
+    mk(tg, M.stone, x, h / 2, z, g); const cap = mk(new THREE.ConeGeometry(rad * 1.2, rad * 1.6, 28), M.slate, x, h + rad * 0.8, z, g); cap.castShadow = true;
+    for(let k = 0; k < 10; k++){ const a = k / 10 * TAU; mk(new THREE.BoxGeometry(0.7, 0.9, 0.5), M.trim, x + Math.cos(a) * rad * 1.02, h - 0.1, z + Math.sin(a) * rad * 1.02, g).rotation.y = -a; }
+    colliders.push({x, z, r:rad + 0.3}); });
+  // the arches: stone spandrels round the top of each opening, a trim ring, the shard's socket in the keystone, the gate's name, a portcullis
+  const spandrel = (() => { const s = new THREE.Shape(); s.moveTo(-C0.gw, 0); s.absarc(0, 0, C0.gw, Math.PI, 0, true); s.lineTo(C0.gw, C0.gh - C0.spring); s.lineTo(-C0.gw, C0.gh - C0.spring); s.lineTo(-C0.gw, 0);
+    const e = new THREE.ExtrudeGeometry(s, {depth:C0.t, bevelEnabled:false}); const uv = e.attributes.uv; for(let k = 0; k < uv.count; k++) uv.setXY(k, uv.getX(k) / 4, uv.getY(k) / 4); return e; })();
+  ash.gateObjs = C0.gates.map((Gt, i) => {
+    mk(spandrel.clone(), M.stone, Gt.x, C0.spring, z0, g);
+    const ring = mk(new THREE.TorusGeometry(C0.gw + 0.2, 0.28, 10, 40, Math.PI), M.trim, Gt.x, C0.spring, z0 - 0.1, g); ring.castShadow = true;
+    [-1, 1].forEach(sd => mk(new THREE.BoxGeometry(0.5, C0.spring, 0.5), M.trim, Gt.x + sd * (C0.gw + 0.2), C0.spring / 2, z0 - 0.1, g));
+    const ky = C0.spring + C0.gw + 0.55, kz = z0 - 0.3;
+    mk(new THREE.BoxGeometry(1.2, 1.3, 0.6), M.trim, Gt.x, ky, z0 - 0.05, g);
+    mk(new THREE.TorusGeometry(0.42, 0.06, 8, 28), M.iron, Gt.x, ky, kz - 0.05, g);
+    const sm = phys(Gt.col, {emissive:C(Gt.col), emissiveIntensity:2.2, roughness:0.1}), s = mk(new THREE.OctahedronGeometry(0.34, 0), sm, Gt.x, ky, kz - 0.2, g); s.scale.set(0.8, 1.5, 0.8); s.castShadow = false;
+    const sgl = glow(Gt.col, 2.2, Gt.x, ky, kz - 0.4, g, 0.6);
+    const lb = label(Gt.name, {small:true, edge:hexStr(Gt.col), fg:'#f3eee6'}); lb.position.set(Gt.x, ky + 1.3, z0 - 0.5); g.add(lb);
+    // the portcullis: iron bars on a group that rises into the wall when the gate opens
+    const pc = new THREE.Group(); pc.position.set(Gt.x, 0, z0 + 0.9); g.add(pc); const bars = [];
+    for(let x = -C0.gw + 0.2; x <= C0.gw - 0.19; x += 0.38) bars.push(new THREE.BoxGeometry(0.09, C0.gh, 0.09).translate(x, C0.gh / 2, 0));
+    for(let y = 0.5; y < C0.gh; y += 0.7) bars.push(new THREE.BoxGeometry(C0.gw * 2, 0.08, 0.12).translate(0, y, 0));
+    for(let x = -C0.gw + 0.2; x <= C0.gw - 0.19; x += 0.38) bars.push(new THREE.ConeGeometry(0.07, 0.3, 6).rotateX(Math.PI).translate(x, -0.12, 0));
+    const pm = mk(merge(bars), M.iron, 0, 0, 0, pc); pm.castShadow = true;
+    const box = aabb(Gt.x - C0.gw, Gt.x + C0.gw, 0, C0.gh, z0 + 0.7, z0 + 1.1);
+    return {x:Gt.x, pc, box, lift:0, shard:s, shardGlow:sgl};
+  });
+  // behind the First and Second Gates: a shallow sealed alcove with the shard's sign cut into the back wall
+  C0.gates.slice(0, 2).forEach((Gt, i) => { const a = Gt.x - C0.gw - 0.6, b = Gt.x + C0.gw + 0.6, zb = z1 + 3;
+    K.box(M.stone, 4, a, b, 0, C0.gh + 1, zb, zb + 1); solid(a, b, 0, C0.gh + 1, zb, zb + 1);
+    K.box(M.stone, 4, a, a + 0.6, 0, C0.gh + 1, z1, zb); solid(a, a + 0.6, 0, C0.gh + 1, z1, zb); K.box(M.stone, 4, b - 0.6, b, 0, C0.gh + 1, z1, zb); solid(b - 0.6, b, 0, C0.gh + 1, z1, zb);
+    K.box(M.stone, 4, a, b, C0.gh, C0.gh + 1, z1, zb);
+    K.box(M.trim, 2, Gt.x - 1.5, Gt.x + 1.5, 0, 0.12, z1, zb);
+    const sign = mk(new THREE.OctahedronGeometry(0.9, 0), std(0x1a1616, {emissive:C(Gt.col), emissiveIntensity:0, roughness:0.4}), Gt.x, 3, zb - 0.2, g); sign.scale.set(0.8, 1.7, 0.25);
+    ash.gateObjs[i].sign = sign; });
+  // Lantern Row, as the Architect remembered it: cobbles, two rows of narrow brick houses, lanterns on brackets, No. 9 with the jar of credits on its step
+  { const Rw = C0.row, xl = Rw.x - Rw.hw, xr = Rw.x + Rw.hw, q = rng(1421);
+    K.box(M.cobble, 2.4, xl, xr, -0.3, 0.02, z1, C0.vault.z1);
+    for(const [sd, xf] of [[-1, xl], [1, xr]]){ let z = z1 + 0.6;
+      while(z < Rw.z1 - 0.5){ const w = 3.6 + q() * 1.4, z2 = Math.min(Rw.z1, z + w), h = 5.6 + q() * 2.2, xb = xf + sd * 5, u0 = Math.min(xf, xb), u1 = Math.max(xf, xb);
+        K.box(M.brick, 3, u0, u1, 0, h, z, z2); solid(u0, u1, 0, h, z, z2);
+        const rf = new THREE.CylinderGeometry(0.01, 3.2, 1.8, 4, 1).rotateY(Math.PI / 4).scale(1, 1, (z2 - z) / 4.5).translate(0, 0.9, 0); mk(rf, M.slate, (u0 + u1) / 2, h, (z + z2) / 2, g).scale.x = (u1 - u0) / 4.5;
+        const zm = (z + z2) / 2, lit = q() < 0.5, dc = [M.blue, M.green, M.red][Math.floor(q() * 3)], ry = sd < 0 ? Math.PI / 2 : -Math.PI / 2;
+        // door, step and two windows (one upstairs)
+        K.box(dc, 1, xf - sd * 0.02 - 0.02, xf - sd * 0.02 + 0.02, 0, 2.2, zm - 1.35, zm - 0.4); K.box(M.stoneL, 1, xf - sd * 0.25 - 0.22, xf - sd * 0.25 + 0.22, 0, 0.16, zm - 1.5, zm - 0.25);
+        [[zm + 0.7, 1.2], [zm - 0.3, 3.9]].forEach(([wz, wy], k) => { K.box(M.frame, 1, xf - sd * 0.03 - 0.02, xf - sd * 0.03 + 0.02, wy, wy + 1.15, wz - 0.5, wz + 0.5);
+          if(lit || k) K.panel(ARCH_TEX.curtain(), 0.9, 1.0, xf - sd * 0.06, wy + 0.58, wz, ry, {emi:lit ? 0.6 : 0.2}); else K.box(M.pane, 1, xf - sd * 0.06 - 0.01, xf - sd * 0.06 + 0.01, wy + 0.05, wy + 1.1, wz - 0.45, wz + 0.45); });
+        z = z2 + 0.02; } }
+    // lanterns on iron brackets down both sides
+    for(let z = z1 + 3; z < Rw.z1; z += 6.5) [-1, 1].forEach((sd, k) => { if((Math.round(z) + k) % 2) return; const x = Rw.x + sd * (Rw.hw - 0.05), y = 3.0;
+      K.part(M.iron, new THREE.BoxGeometry(0.4, 0.04, 0.04), x - sd * 0.2, y + 0.3, z); K.part(M.iron, new THREE.CylinderGeometry(0.1, 0.1, 0.03, 12), x - sd * 0.38, y - 0.16, z);
+      K.part(M.flame, new THREE.CylinderGeometry(0.075, 0.075, 0.26, 12), x - sd * 0.38, y, z); K.glow(0xffb870, 1.8, x - sd * 0.38, y, z, 0.55); });
+    // No. 9: its number over the door on the right-hand row, the jar and the pile of credits on its step
+    const pz = Rw.pile; K.panel(ARCH_TEX.houseNo(), 0.3, 0.3, xr - 0.03, 2.5, pz, -Math.PI / 2);
+    const pile = new THREE.Group(); pile.position.set(xr - 0.45, 0.16, pz); g.add(pile);
+    const coinM = std(0xffc94d, {metalness:1, roughness:0.25, emissive:C(0x6a4300), emissiveIntensity:0.6}), pq = rng(1431), cg = [];
+    for(let k = 0; k < 46; k++){ const a = pq() * TAU, d = Math.sqrt(pq()) * 0.34, hgt = (0.34 - d) * 0.9 * pq(); cg.push(new THREE.CylinderGeometry(0.06, 0.06, 0.012, 16).rotateX((pq() - 0.5) * 0.6).rotateZ((pq() - 0.5) * 0.6).translate(Math.cos(a) * d, 0.006 + hgt, Math.sin(a) * d)); }
+    mk(merge(cg), coinM, 0, 0, 0, pile).castShadow = false;
+    const jar = mk(new THREE.CylinderGeometry(0.12, 0.13, 0.3, 20), std(0xcfe6ee, {roughness:0.08, transparent:true, opacity:0.45}), 0.1, 0.15, -0.46, pile); jar.castShadow = false;
+    const note = mk(new THREE.PlaneGeometry(0.2, 0.14), std(0xefe6d0, {roughness:0.9}), -0.1, 0.012, -0.5, pile); note.rotation.x = -Math.PI / 2;
+    ash.pile = pile; ash.pileGlow = glow(0xffcc55, 1.4, xr - 0.45, 0.5, pz, g, 0.35);
+    // a veil of dusk across the Third Gate: the way into the memory
+    const veil = new THREE.Mesh(new THREE.PlaneGeometry(C0.gw * 2, C0.gh), new THREE.MeshBasicMaterial({color:C(0x8fb8d8), transparent:true, opacity:0.12, depthWrite:false, blending:THREE.AdditiveBlending, side:THREE.DoubleSide}));
+    veil.position.set(Rw.x, C0.gh / 2, z1 + 0.3); g.add(veil); ash.veil = veil;
+  }
+  // the vault at the end of the street: a round chamber door with three sockets in the back wall, the Seed behind it
+  { const V = C0.vault, x0 = V.x - V.hw, x1 = V.x + V.hw;
+    K.box(M.stone, 4, x0, x0 + 0.8, 0, H - 1, V.z0, V.z1); solid(x0, x0 + 0.8, 0, H - 1, V.z0, V.z1); K.box(M.stone, 4, x1 - 0.8, x1, 0, H - 1, V.z0, V.z1); solid(x1 - 0.8, x1, 0, H - 1, V.z0, V.z1);
+    K.box(M.stone, 4, x0, x1, H - 1.4, H - 1, V.z0, V.z1);
+    K.box(M.trim, 2, x0 + 0.8, V.x - C0.row.hw, 0, H - 1.4, V.z0 - 0.4, V.z0); solid(x0 + 0.8, V.x - C0.row.hw, 0, H - 1.4, V.z0 - 0.4, V.z0);
+    K.box(M.trim, 2, V.x + C0.row.hw, x1 - 0.8, 0, H - 1.4, V.z0 - 0.4, V.z0); solid(V.x + C0.row.hw, x1 - 0.8, 0, H - 1.4, V.z0 - 0.4, V.z0);
+    const door = new THREE.Group(); door.position.set(V.x, 3.2, V.door); g.add(door);
+    const dm = std(0x3a3430, {metalness:0.75, roughness:0.4, map:detailTex}), rim = std(0x8a6a3a, {metalness:0.9, roughness:0.3});
+    mk(new THREE.CylinderGeometry(3, 3, 0.5, 48).rotateX(Math.PI / 2), dm, 0, 0, 0, door);
+    mk(new THREE.TorusGeometry(3, 0.16, 10, 64), rim, 0, 0, -0.26, door); mk(new THREE.TorusGeometry(1.2, 0.08, 8, 40), rim, 0, 0, -0.26, door);
+    const sockets = C0.gates.map((Gt, i) => { const a = Math.PI / 2 + i * TAU / 3, sx = Math.cos(a) * 1.95, sy = Math.sin(a) * 1.95;
+      mk(new THREE.TorusGeometry(0.34, 0.06, 8, 24), rim, sx, sy, -0.28, door);
+      const off = std(0x2a2830, {metalness:0.5, roughness:0.4}), on = phys(Gt.col, {emissive:C(Gt.col), emissiveIntensity:2.2, roughness:0.1});
+      const s = mk(new THREE.OctahedronGeometry(0.28, 0), off, sx, sy, -0.4, door); s.scale.set(0.8, 1.5, 0.8); s.castShadow = false; return {m:s, off, on, col:Gt.col}; });
+    const doorBox = aabb(V.x - 3, V.x + 3, 0, 6.3, V.door - 0.3, V.door + 0.3);
+    // the niche behind the door and the Seed on its plinth (shown once the vault opens)
+    K.box(M.stone, 4, V.x - 3.4, V.x + 3.4, 0, 7, V.z1 + C0.t, V.z1 + C0.t + 0.2);
+    mk(new THREE.CylinderGeometry(0.55, 0.7, 1.1, 24), M.trim, V.x, 0.55, V.z1 + 1.4, g);
+    const seed = new THREE.Group(); seed.position.set(V.x, 1.75, V.z1 + 1.4); g.add(seed); seed.visible = false;
+    const sgeo = new THREE.LatheGeometry([[0.001, -0.34], [0.14, -0.3], [0.24, -0.14], [0.26, 0.04], [0.2, 0.2], [0.1, 0.32], [0.001, 0.4]].map(a => new V2(a[0], a[1])), 40);
+    mk(sgeo, phys(0xfff0c0, {emissive:C(0xffd98a), emissiveIntensity:1.8, roughness:0.15, metalness:0.2}), 0, 0, 0, seed).castShadow = false;
+    const sgl = glow(0xffe2a0, 3.2, 0, 0, 0, seed, 0.7);
+    ash.vault = {door, sockets, box:doorBox, open:0, seed, seedGlow:sgl};
+  }
+  K.done();
+  g.traverse(o => { if(o.isMesh && !o.material.transparent && !o.material.emissiveMap) o.castShadow = true; });
+  ash.g = g; ash.sparks = extra && extra.sparks;
+  ashSync(true);
+}
+// the gates' saved state drives what stands where: raised portcullises, lit alcove signs, the veil, the vault door and the Seed
+const gateOpen = i => !!state.hunt.gates[i];
+const ashSealed = () => state.shards.size < 3;
+function ashSync(instant){
+  if(!ash || !ash.gateObjs) return;
+  ash.gateObjs.forEach((o, i) => { o.want = (i < 2 ? gateOpen(i) : gateOpen(0) && gateOpen(1)) ? 1 : 0; if(instant) o.lift = o.want; ashGatePose(o); if(o.sign) o.sign.material.emissiveIntensity = gateOpen(i) ? 1.8 : 0; });
+  if(ash.veil) ash.veil.visible = !gateOpen(2);
+  const V = ash.vault; if(V){ V.sockets.forEach((s, i) => { s.m.material = gateOpen(i) ? s.on : s.off; }); if(instant) V.open = state.hunt.won ? 1 : 0; V.seed.visible = V.open > 0.3; ashVaultPose(); }
+  if(ash.pile){ const taken = !!(ash.g3 && ash.g3.took); ash.pile.visible = !taken; ash.pileGlow.visible = !taken; }
+}
+function ashGatePose(o){ o.pc.position.y = o.lift * (CITADEL.gh - 0.4); o.box.y0 = o.lift > 0.5 ? -100 : 0; o.box.y1 = o.lift > 0.5 ? -99 : CITADEL.gh; }
+function ashVaultPose(){ const V = ash.vault; V.door.position.x = CITADEL.vault.x + V.open * 5.2; V.door.rotation.z = -V.open * 1.7; V.box.y0 = V.open > 0.6 ? -100 : 0; V.box.y1 = V.open > 0.6 ? -99 : 6.3; }
+function ashUpdate(dt, time){
+  let near = null;
+  if(ash && state.world === 'ashfall'){
+    ash.gateObjs.forEach(o => { if(Math.abs(o.lift - o.want) > 1e-3){ o.lift += clamp(o.want - o.lift, -dt * 0.35, dt * 0.35); ashGatePose(o); } });
+    const V = ash.vault; if(V && state.hunt.won && V.open < 1){ V.open = Math.min(1, V.open + dt * 0.4); ashVaultPose(); V.seed.visible = V.open > 0.3; }
+    if(V && V.seed.visible){ V.seed.rotation.y += dt * 0.8; V.seed.position.y = 1.75 + Math.sin(time * 1.6) * 0.06; }
+    if(ash.sparks){ const pa = ash.sparks.geo.attributes.position; ash.sparks.base.forEach((b, i) => { const k = (time * b[4] + b[3]) % 9; pa.setXYZ(i, b[0] + Math.sin(time * 0.6 + b[3]) * 0.6 * k * 0.3, b[1] + 0.2 + k, b[2] + Math.cos(time * 0.5 + b[3]) * 0.6 * k * 0.3); }); pa.needsUpdate = true; }
+    if(playing && !bike.riding){ const C0 = CITADEL, Rw = C0.row;
+      C0.gates.forEach((Gt, i) => { if(i < 2 && Math.abs(p.x - Gt.x) < C0.gw + 0.4 && p.z > C0.z - 4 && p.z < C0.z + 0.8 && !gateOpen(i)) near = 'g' + i; });
+      if(Math.abs(p.x - C0.gates[2].x) < C0.gw + 0.4 && p.z > C0.z - 4 && p.z < C0.z + 0.8 && !(gateOpen(0) && gateOpen(1)) && !ash.toldThird){ ash.toldThird = true; toast('The Third Gate will not lift until the First and Second are open.', 3600); }
+      // Lantern Row: the walk is stepped here, every frame you are in the street
+      if(Math.abs(p.x - Rw.x) < Rw.hw + 0.2 && p.z > C0.z + C0.t - 0.2 && p.z < Rw.z1 + 1 && typeof g3Tick === 'function') near = g3Tick(near) || near;
+      if(V && gateOpen(2) && !state.hunt.won && Math.abs(p.x - C0.vault.x) < 3.4 && p.z > C0.vault.door - 5 && p.z < C0.vault.door) near = 'vault';
+    }
+  }
+  if(near !== ashNear){ ashNear = near; const b = $('#ashBtn'); b.style.display = near ? '' : 'none'; b.textContent = near === 'g0' ? 'Recite' : near === 'g1' ? 'Play Starling' : near === 'pile' ? 'Take the credits' : near === 'vault' ? 'Set the shards' : '';
+    if(near === 'g0' && !ash.told0){ ash.told0 = true; toast('The First Gate. A voice from the stones: "Say it back to me, line by line." Press E.', 4200); }
+    if(near === 'g1' && !ash.told1){ ash.told1 = true; toast(gateOpen(0) ? 'The Second Gate. A cabinet stands in the arch: STARLING. Beat 31,550. Press E.' : 'The Second Gate. It will not wake until the First is open.', 4200); } }
+}
+function ashAct(){
+  if(ashNear === 'g0') return typeof openGate1 === 'function' ? openGate1() : null;
+  if(ashNear === 'g1'){ if(!gateOpen(0)){ toast('The Second Gate will not wake until the First is open.', 3200); return null; } return typeof openStarling === 'function' ? openStarling() : null; }
+  if(ashNear === 'pile') return typeof g3Take === 'function' ? g3Take('played') : null;
+  if(ashNear === 'vault') return typeof openVault === 'function' ? openVault('played') : null;
+  return null;
+}
+// a gate opens: saved, rewarded, the portcullis lifts; the Third Gate's portcullis follows the first two
+function openGateN(i, why){
+  if(gateOpen(i)) return false;
+  state.hunt.gates[i] = true; persist(); reward(100, 0); sfx('rumble'); ashSync(false); huntState();
+  toast((why ? why + '   ' : '') + CITADEL.gates[i].name + ' is open.   +100 XP', 5200); return true;
+}
+$('#ashBtn').addEventListener('click', () => { if(ashNear) ashAct(); });
 // hooks for the tester (headless checks) and for debugging; not used by the game itself
 window.__hub = { state, p, cam, post, stats, WORLDS, scene, renderer, camera, sunLight, hemi, gl:GL_INFO, softwareGL:SOFTWARE_GL, travel, buildWorld, startGame, setPaused, degrade, parseDescription, makeFromWords, rebuildPlayer, cleanRecipe, snd, sfx, setMute, bike, mountBike, dismountBike, keys, update, trial, trialStart, COURSES, get me(){ return me; }, freezeQuality(){ warm = 1e9; }, get qLevel(){ return qLevel; }, get world(){ return state.world; }, get envRT(){ return envRT; },
   damage(n){ return hurt(n, 'test'); }, get hazards(){ return hazards.map(h => ({x:h.x, z:h.z, L:h.L})); },
