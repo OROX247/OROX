@@ -199,6 +199,7 @@ button.inv-row{ cursor:pointer; } button.inv-row:hover{ background:rgba(255,255,
 #board li.you{ color:var(--gold); font-weight:700; }
 #board .sc{ margin-left:auto; color:#c7c1ea; white-space:nowrap; }
 #board li.you .sc{ color:var(--gold); }
+#huntState{ margin:0 0 8px; } #huntState.hunt-on{ color:var(--gold); }
 
 #toast{ position:fixed; left:50%; bottom:calc(env(safe-area-inset-bottom,0px) + 28px); transform:translate(-50%,20px); opacity:0;
   padding:10px 18px; font-weight:600; font-size:16px; transition:opacity .3s, transform .3s; z-index:6; pointer-events:none;
@@ -286,7 +287,8 @@ body.bcast #hud, body.bcast #corner, body.bcast #roomCard, body.bcast #toast{ vi
     <canvas id="starMap" aria-label="Star map of the 27 sectors: pick a sector, then a star" style="width:100%;height:auto;display:block;margin:0 0 8px"></canvas>
     <div class="star-bar"><button class="ghost" id="starBack" hidden>Back to the cube</button><span id="starInfo">Pick a sector to see its stars. Every star is a planet you can land on.</span><button class="go" id="starGo" hidden>Land</button><button class="ghost" id="xlogOpen">Explorer Log (J)</button></div>
     <div id="warpList"></div>
-    <h3>Hunt board</h3>
+    <h3>Ledger Board</h3>
+    <p class="lede" id="huntState"></p>
     <ol id="board"></ol>
     <button class="ghost" id="warpClose">Close</button>
   </div>
@@ -5445,6 +5447,13 @@ const ARCH_TEX = {
     x.fillStyle = '#fff1c6'; x.fillRect(w * 0.7 - 12, h * 0.61, 24, 40);
     x.fillStyle = 'rgba(243,226,176,0.85)'; x.font = 'italic 400 34px ' + SERIF; x.textAlign = 'center'; x.fillText('Wick', w / 2, h - 50); }),
   frieze:() => archTex('frieze', 2048, 256, (x, w, h) => { x.clearRect(0, 0, w, h); x.fillStyle = '#5a4f44'; x.font = '700 150px ' + SERIF; x.textAlign = 'center'; x.fillText('T H E   A R C H I V E', w / 2, 190); }),
+  bcScreen:() => archTex('bcScreen', 1024, 608, (x, w, h) => { const q = archRnd(23); const gr = x.createRadialGradient(w / 2, h * 0.42, 20, w / 2, h / 2, w * 0.7); gr.addColorStop(0, '#2a2438'); gr.addColorStop(1, '#0b0a12'); x.fillStyle = gr; x.fillRect(0, 0, w, h);
+    for(let i = 0; i < 900; i++){ x.fillStyle = 'rgba(255,240,210,' + (q() * 0.05).toFixed(3) + ')'; x.fillRect(q() * w, q() * h, 2, 2); }
+    const lx = w / 2, ly = 190; x.strokeStyle = '#c9a25a'; x.lineWidth = 5; x.beginPath(); x.arc(lx, ly - 70, 22, Math.PI, 0); x.stroke(); x.strokeRect(lx - 34, ly - 60, 68, 104); x.fillStyle = 'rgba(255,190,110,0.95)'; x.beginPath(); x.ellipse(lx, ly - 8, 16, 30, 0, 0, TAU); x.fill();
+    const hg = x.createRadialGradient(lx, ly - 8, 4, lx, ly - 8, 110); hg.addColorStop(0, 'rgba(255,200,120,0.35)'); hg.addColorStop(1, 'rgba(255,200,120,0)'); x.fillStyle = hg; x.fillRect(lx - 120, ly - 130, 240, 250);
+    x.textAlign = 'center'; x.fillStyle = '#f3e2b0'; fitFont(x, 'The Architect\'s Last Broadcast', w - 120, 58, 'italic 400'); x.fillText('The Architect\'s Last Broadcast', w / 2, 360);
+    x.fillStyle = '#e8c77a'; x.font = '400 26px ' + SERIF; x.fillText('Lyle Ashcombe, recorded at No. 9 Lantern Row', w / 2, 414);
+    x.fillStyle = '#cfc6e8'; x.font = '700 30px ' + SERIF; x.fillText('Press E to play it again', w / 2, 500); }),
   plaque:i => archTex('plaque' + i, 1024, 768, (x, w, h) => { const R = ARCHIVE_ROOMS[i];
     const g = x.createLinearGradient(0, 0, w, h); g.addColorStop(0, '#a88444'); g.addColorStop(0.5, '#d4b266'); g.addColorStop(1, '#9a7434'); x.fillStyle = g; x.fillRect(0, 0, w, h);
     for(let k = 0; k < h; k += 3){ x.fillStyle = 'rgba(255,255,255,' + (((k * 7919) % 13) / 260).toFixed(3) + ')'; x.fillRect(0, k, w, 1); }
@@ -5779,7 +5788,12 @@ function buildArchive(){
     [-1, 1].forEach(s => { mk(SP(0.035, 12, 8), M.brass, s * 0.06, 1.0, 2 * A.roomDoor.w - 0.18, piv).castShadow = false; [0.5, 1.5].forEach(z => [0.8, 2.0].forEach(y => { mk(BX(0.012, 0.9, 0.72), M.dark, s * 0.034, y, z * A.roomDoor.w, piv).castShadow = false; })); });
     const sg = new THREE.Mesh(new THREE.PlaneGeometry(2.0, 0.375), std(0xffffff, {map:ARCH_TEX.sign(i), roughness:0.5})); sg.position.set(F.sd * (A.hall - 0.28), 3.2, F.cz); sg.rotation.y = -F.sd * Math.PI / 2; hall.add(sg);
     return {F, g, piv, ang:0, built:false, detail:null}; });
-  archive = {M, hall, rooms, lectern:{x:L.x, z:L.z - 0.75}, registrar:{x:D.x, z:D.z - 0.85}, inside:false, cardAt:-1, cardT:0};
+  // Goal 10: the brass screen by the door, where the Architect's Last Broadcast can be played again (E)
+  const BS = {x:3.2, y:1.75, z:A.z0 + A.t + 0.035, w:1.6, h:0.95};
+  { const sc = new THREE.Mesh(new THREE.PlaneGeometry(BS.w, BS.h), std(0xffffff, {map:ARCH_TEX.bcScreen(), roughness:0.35, emissive:C(0xffffff), emissiveMap:ARCH_TEX.bcScreen(), emissiveIntensity:0.35})); sc.position.set(BS.x, BS.y, BS.z); hall.add(sc); sc.castShadow = false;
+    const fr = [[BS.x - BS.w / 2 - 0.08, BS.x + BS.w / 2 + 0.08, BS.y + BS.h / 2, BS.y + BS.h / 2 + 0.08], [BS.x - BS.w / 2 - 0.08, BS.x + BS.w / 2 + 0.08, BS.y - BS.h / 2 - 0.08, BS.y - BS.h / 2], [BS.x - BS.w / 2 - 0.08, BS.x - BS.w / 2, BS.y - BS.h / 2, BS.y + BS.h / 2], [BS.x + BS.w / 2, BS.x + BS.w / 2 + 0.08, BS.y - BS.h / 2, BS.y + BS.h / 2]].map(f => [f[0], f[1], f[2], f[3], BS.z - 0.035, BS.z + 0.02]);
+    mk(boxGeo(fr, 1), M.brass, 0, 0, 0, hall).castShadow = false; }
+  archive = {M, hall, rooms, lectern:{x:L.x, z:L.z - 0.75}, registrar:{x:D.x, z:D.z - 0.85}, bcScreen:{x:BS.x, z:BS.z + 0.9}, inside:false, cardAt:-1, cardT:0};
 }
 
 /* ================= Worldsmith: describe a realm and the game builds it =================
@@ -8362,6 +8376,9 @@ function updatePickups(dt, time){
 }
 
 /* ================= warp + board ================= */
+// Goal 10: once the Broadcast has played, the Ledger Board says the Hunt has begun
+function huntState(){ const el = $('#huntState'); if(!el) return; const on = state.archive.broadcast; el.classList.toggle('hunt-on', on);
+  el.textContent = on ? 'The Hunt has begun. Three shards (amber, rose, cyan) open three gates on Ashfall; the Seed is behind the third. Every clue is in the Ashcombe Ledger.' : 'The Hunt has not begun for you yet. Walk into the Archive, south of the plaza.'; }
 const boardRng = rng(99);
 const BOARD = NPC_NAMES.slice(0, 11).map(nm => ({name:nm, shards:Math.floor(boardRng() * 2.6), xp:Math.floor(150 + boardRng() * 2300)}));
 function openWarp(){
@@ -8380,6 +8397,7 @@ function openWarp(){
   });
   const rows = BOARD.concat([{name:state.name || 'You', shards:state.shards.size, xp:state.xp, you:true}]).sort((a, b) => b.shards - a.shards || b.xp - a.xp);
   const top = rows.slice(0, 8); if(!top.some(x => x.you)) top[7] = rows.find(x => x.you);
+  huntState();
   $('#board').innerHTML = top.map(x => '<li class="' + (x.you ? 'you' : '') + '"><span>' + x.name.replace(/[<>&"]/g, '') + '</span><span class="sc">' + x.shards + ' shards, ' + x.xp + ' XP</span></li>').join('');
   { const pl = WORLDS[state.world].planet; if(pl){ starView.sector = starById(pl).sector; starView.sel = pl; } }
   warpEl.classList.remove('hidden'); setPaused(true); drawStarMap(); starInfo();
@@ -8644,17 +8662,18 @@ function archiveUpdate(dt){
   const cand = (kind, idx, x, z, r) => { const d = Math.hypot(px - x, pz - z); if(d < r && d < bd){ bd = d; best = {kind, idx}; } };
   if(inB && !bike.riding){
     cand('ledger', -1, archive.lectern.x, archive.lectern.z, 1.6); cand('registrar', -1, archive.registrar.x, archive.registrar.z, 1.9);
+    if(archive.bcScreen) cand('broadcast', -1, archive.bcScreen.x, archive.bcScreen.z, 1.5);
     if(at >= 0 && archive.rooms[at].detail){ const d = archive.rooms[at].detail; cand('detail', at, d.x, d.z, 1.5); }
   }
   if((best ? best.kind + best.idx : '') !== (archNear ? archNear.kind + archNear.idx : '')){
     archNear = best; const b = $('#archBtn'); b.style.display = best ? '' : 'none';
-    if(best){ b.textContent = best.kind === 'ledger' ? 'Read' : best.kind === 'registrar' ? 'Ask' : 'Inspect';
-      if(playing) toast(best.kind === 'ledger' ? (state.archive.ledger ? 'The Ashcombe Ledger. E or tap Read.' : 'A book lies open on the lectern: the Ashcombe Ledger. E or tap Read.') : best.kind === 'registrar' ? 'The Registrar looks up from the desk. E or tap Ask.' : 'Something here catches your eye. E or tap Inspect.', 2600); }
+    if(best){ b.textContent = best.kind === 'ledger' ? 'Read' : best.kind === 'registrar' ? 'Ask' : best.kind === 'broadcast' ? 'Play' : 'Inspect';
+      if(playing) toast(best.kind === 'ledger' ? (state.archive.ledger ? 'The Ashcombe Ledger. E or tap Read.' : 'A book lies open on the lectern: the Ashcombe Ledger. E or tap Read.') : best.kind === 'registrar' ? 'The Registrar looks up from the desk. E or tap Ask.' : best.kind === 'broadcast' ? 'The Architect\'s Last Broadcast. E or tap Play to watch it again.' : 'Something here catches your eye. E or tap Inspect.', 2600); }
   }
 }
 function roomCard(i){ const R = ARCHIVE_ROOMS[i], el = $('#roomCard'); el.querySelector('small').textContent = 'Room ' + (i + 1) + ' of 6 · ' + R.when; el.querySelector('b').textContent = R.title; el.querySelector('p').textContent = R.plaque;
   el.classList.add('on'); clearTimeout(cardTimer); cardTimer = setTimeout(() => el.classList.remove('on'), 9000); }
-function archiveAct(){ if(!archNear) return; if(archNear.kind === 'ledger'){ takeLedger(); openLedger(); } else if(archNear.kind === 'registrar') openRegistrar(); else inspectDetail(archNear.idx); }
+function archiveAct(){ if(!archNear) return; if(archNear.kind === 'broadcast'){ playBroadcast('replay'); return; } if(archNear.kind === 'ledger'){ takeLedger(); openLedger(); } else if(archNear.kind === 'registrar') openRegistrar(); else inspectDetail(archNear.idx); }
 $('#archBtn').addEventListener('click', archiveAct);
 function playLowTide(){ if(!snd.ctx || !snd.on) return; const t = snd.ctx.currentTime + 0.35; HUNT_CLUES.cyan.order.forEach((n, k) => { const f = LOW_TIDE_HZ[n - 1]; tone('sine', f, f, 1.5, 0.08, t + k * 0.6); tone('triangle', f * 2, f * 2, 0.5, 0.015, t + k * 0.6); }); }
 function inspectDetail(i){
@@ -8912,7 +8931,7 @@ function endBroadcast(skipped){
   if(post.dof && s.dof != null) post.dof.enabled = s.dof;
   me.g.visible = true;
   bcEl.classList.remove('open'); bcEl.hidden = true; document.body.classList.remove('bcast');
-  const first = !state.archive.broadcast; state.archive.broadcast = true; persist();
+  const first = !state.archive.broadcast; state.archive.broadcast = true; persist(); huntState();
   setPaused(false); snapCamera();
   toast(first ? 'The Hunt has begun. Every clue is in the Ashcombe Ledger, on the lectern.' : 'The Hunt has begun. Replay the Broadcast from the brass screen by the door.', 4600);
   return true;
@@ -9992,7 +10011,7 @@ Object.defineProperties(window.__hub, {
 Object.defineProperties(window.__hub, {
   broadcast:{get:() => ({playing:bc.on, seen:state.archive.broadcast, t:+bc.t.toFixed(2), duration:BROADCAST_END, line:bc.line, subtitle:bc.on && bc.line >= 0 ? BROADCAST_LINES[bc.line].text : '', why:bc.why, plays:bc.plays, skipped:bc.skipped,
     lines:BROADCAST_LINES.map(L => L.text), script:BROADCAST_LINES.map(L => Object.assign({}, L)), wickVisible:!!(bc.wick && bc.wick.g.visible),
-    leftovers:scene.children.filter(o => o.name === 'broadcast').length, audioNodes:bcAudio.nodes.length, bus:!!bcAudio.bus, meVisible:me.g.visible, controls:playing, overlay:!bcEl.hidden,
+    leftovers:scene.children.filter(o => o.name === 'broadcast').length, audioNodes:bcAudio.nodes.length, bus:!!bcAudio.bus, meVisible:me.g.visible, controls:playing, overlay:!bcEl.hidden, board:($('#huntState') || {}).textContent || '', screen:archive && archive.bcScreen ? Object.assign({}, archive.bcScreen) : null, near:!!(archNear && archNear.kind === 'broadcast'),
     seek(t){ if(!bc.on) return false; bc.t = clamp(+t || 0, 0, BROADCAST_END - 0.05); bc.t0 = performance.now() - bc.t * 1000; bcMusic(bc.t); return true; }})},
   playBroadcast:{value:() => playBroadcast('test')}, skipBroadcast:{value:() => skipBroadcast()}
 });
