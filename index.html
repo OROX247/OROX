@@ -324,6 +324,10 @@ body.bcast #hud, body.bcast #corner, body.bcast #roomCard, body.bcast #toast{ vi
     <label class="field">Solid real textures</label>
     <p class="lede" id="texState">Real photo-scanned ground and rock (free, from Poly Haven), drawn by the game so they stay fixed like a normal game. They load automatically in the downloaded file.</p>
     <div class="look-row"><button class="ghost" id="texMake">Reload real</button><button class="ghost" id="texAI">Make with AI</button><button class="ghost" id="texClear">Remove</button></div>
+    <label class="field">Dreamglass: far layer / portals / screens</label>
+    <p class="lede" id="dgState">Live AI video mixed into the solid world: only far away, in portals and on screens. The ground you stand on is always the game's own.</p>
+    <div class="look-row"><button class="ghost" id="dgMaster">Dreamglass off</button></div>
+    <div class="look-row"><button class="ghost" id="dgFar">Far layer</button><button class="ghost" id="dgPortals">Portals</button><button class="ghost" id="dgScreens">Screens</button></div>
     <button class="start" id="lookSave">Save look</button>
     <div class="look-row"><button class="ghost" id="lookReset">Reset to default</button><button class="ghost" id="lookClose">Close</button></div>
   </div>
@@ -4434,6 +4438,9 @@ function addClutter(r, o){
   }
 }
 
+// Dreamglass screens (blueprint 5f, layer 4): any in-world screen registers here and can take the dreamSource texture (see the Dreamglass section)
+const dgScreens = [];
+function dgScreen(mesh, o){ o = o || {}; dgScreens.push({mesh, panel:o.panel || mesh, prompt:o.prompt || null, range:o.range || 6, holo:!!o.holo, own:o.own !== false, orig:null, showing:false}); if(o.holo) mesh.visible = false; return mesh; }
 function addPortal(q){
   const col = PORTAL_COLORS[q.to], y = G(q.x, q.z);
   const g = new THREE.Group(); g.position.set(q.x, y, q.z); g.rotation.y = Math.atan2(-q.x, -q.z); world.add(g);
@@ -4442,16 +4449,19 @@ function addPortal(q){
   mk(new THREE.TorusGeometry(2.15, 0.18, 16, 72), metal, 0, 2.7, 0, g);
   mk(new THREE.TorusGeometry(1.97, 0.05, 8, 72), glowM(col, 2.5), 0, 2.7, 0, g);
   const disc = new THREE.Mesh(new THREE.CircleGeometry(1.95, 64), new THREE.ShaderMaterial({
-    uniforms:{time:uTime, color:{value:new THREE.Color(col)}}, transparent:true, side:THREE.DoubleSide, depthWrite:false,
+    uniforms:{time:uTime, color:{value:new THREE.Color(col)}, map:{value:null}, dream:{value:0}}, transparent:true, side:THREE.DoubleSide, depthWrite:false,
     vertexShader:'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
-    fragmentShader:'uniform float time, fade; uniform vec3 color; varying vec2 vUv; void main(){ vec2 p = vUv * 2.0 - 1.0; float r = length(p); if(r > 1.0) discard; float a = atan(p.y, p.x); float s1 = sin(a * 6.0 + r * 14.0 - time * 3.5) * 0.5 + 0.5; float s2 = sin(a * 3.0 - r * 9.0 + time * 2.0) * 0.5 + 0.5; vec3 c = color * (0.35 + 0.9 * s1 * s2) + vec3(1.0) * pow(1.0 - r, 4.0) * 0.8; gl_FragColor = vec4(c, (0.45 + 0.45 * s1) * smoothstep(1.0, 0.8, r) * fade); }'
+    // Dreamglass (5f, layer 3): with dream > 0 the disc shows the live dream of the destination (map), tinted to its colour; at 0 it is exactly the old swirl
+    fragmentShader:'uniform float time, fade, dream; uniform vec3 color; uniform sampler2D map; varying vec2 vUv; void main(){ vec2 p = vUv * 2.0 - 1.0; float r = length(p); if(r > 1.0) discard; float a = atan(p.y, p.x); float s1 = sin(a * 6.0 + r * 14.0 - time * 3.5) * 0.5 + 0.5; float s2 = sin(a * 3.0 - r * 9.0 + time * 2.0) * 0.5 + 0.5; vec3 c = color * (0.35 + 0.9 * s1 * s2) + vec3(1.0) * pow(1.0 - r, 4.0) * 0.8; float al = (0.45 + 0.45 * s1) * smoothstep(1.0, 0.8, r) * fade;' +
+      ' if(dream > 0.0){ vec3 v = pow(texture2D(map, vec2(0.5) + p * vec2(0.3, 0.46)).rgb, vec3(2.2)); vec3 dc = v * (0.55 + 0.45 * color) * 1.4 + color * pow(r, 6.0) * 0.8; c = mix(c, dc, dream); al = mix(al, smoothstep(1.0, 0.93, r) * fade, dream); }' +
+      ' gl_FragColor = vec4(c, al); }'
   }));
   disc.material.uniforms.fade = {value:1};
   disc.position.y = 2.7; g.add(disc);
   const gl = glow(col, 7, 0, 2.7, 0, g, 0.35);
   const l = label(WORLDS[q.to].name); l.position.y = 5.7; g.add(l);
   // arrival puts the camera right at the portal you came through: fade its glow and disc when the camera is that close, or they flood the screen
-  portals.push({x:q.x, z:q.z, to:q.to, y:y + 2.7, gl, disc});
+  portals.push({x:q.x, z:q.z, to:q.to, y:y + 2.7, gl, disc, col});
 }
 function freeSpot(r, minR, maxR, clear){
   for(let t = 0; t < 90; t++){
@@ -4859,6 +4869,7 @@ BUILD.grid = (r, n) => {
     });
     const sc = new THREE.Mesh(new THREE.PlaneGeometry(0.95, 0.8), new THREE.MeshBasicMaterial({map:tex, toneMapped:false}));
     sc.position.set(0, 1.7, 0.46); sc.rotation.x = -0.12; g.add(sc);
+    if(i === 0) dgScreen(sc, {range:6, prompt:'Photorealistic video of an original retro arcade game on a glowing screen: a tiny bright ship dodging falling comets across a black starfield, chunky pixel art, vivid colours, no text.'});   // Dreamglass: the first cabinet plays a dreamed game when you walk up
     mk(new THREE.BoxGeometry(1.32, 0.34, 0.3), glowM(scr[(i + 1) % 4], 2.5), 0, 2.45, 0.35, g);
     glow(col, 2.4, 0, 1.7, 0.6, g, 0.35);
     colliders.push({x:s[0], z:s[1], r:0.9});
@@ -4867,6 +4878,14 @@ BUILD.grid = (r, n) => {
     const a = r() * TAU, d = 160 + r() * 220, m = new THREE.Mesh(new THREE.TorusGeometry(18 + r() * 20, 0.5, 8, 120), new THREE.MeshBasicMaterial({color:C(i % 2 ? 0x5ce1e6 : 0xff4fa3), toneMapped:false}));
     m.position.set(Math.cos(a) * d, 40 + r() * 90, Math.sin(a) * d); m.rotation.set(r() * 3, r() * 3, 0); world.add(m);
   }
+  // Dreamglass billboards (5f, layer 4): three floating frames high over the plaza that only exist while the Dreamglass screens layer is live.
+  // Fixed spots, no rng draws and no colliders, so nothing else in the realm moves; hidden, they cost nothing and the realm looks exactly as before.
+  [[-46, 10, 0x5ce1e6, 'an invented fizzy drink bottle made of liquid starlight turning slowly'], [40, -30, 0xff4fa3, 'a made-up noodle bar on a moon, steam rising from a bowl under pink lanterns'], [22, 44, 0xffd166, 'an original cartoon comet mascot surfing a wave of neon light']].forEach(([bx, bz, bc, what]) => {
+    const hg = new THREE.Group(); hg.position.set(bx, 19, bz); hg.rotation.y = Math.atan2(-bx, -bz); world.add(hg);
+    const panel = new THREE.Mesh(new THREE.PlaneGeometry(16, 9), new THREE.MeshBasicMaterial({color:C(0xffffff), toneMapped:false, side:THREE.DoubleSide})); hg.add(panel);
+    const fm = glowM(bc, 2.2); [[0, 4.65, 16.6, 0.3], [0, -4.65, 16.6, 0.3], [8.15, 0, 0.3, 9.6], [-8.15, 0, 0.3, 9.6]].forEach(([fx, fy, fw, fh]) => mk(new THREE.BoxGeometry(fw, fh, 0.2), fm, fx, fy, 0, hg));
+    dgScreen(hg, {holo:true, panel, range:30, prompt:'Photorealistic video of a glowing animated billboard: ' + what + ', bold abstract shapes, rich neon colours, no words, no logos.'});
+  });
 };
 
 BUILD.grove = (r, n) => {
@@ -9507,7 +9526,8 @@ window.addEventListener('keydown', e => {
   if(e.code === 'KeyN'){ setMute(snd.on); return; }
   if(e.code === 'KeyV'){ cycleView(); return; }
   if(e.code === 'KeyC'){ setCine(!post.cine); return; }
-  if(e.code === 'Escape'){ openIntro(); return; }
+  if(e.code === 'Escape'){ if(dg.lens){ dgLens(false); return; } openIntro(); return; }
+  if(e.code === 'KeyG'){ e.preventDefault(); dgLensKey(); return; }
   if(e.code === 'KeyM'){ openWarp(); return; }
   if(e.code === 'KeyR'){ aiStart(); return; }
   if(e.code === 'KeyL'){ e.preventDefault(); openLook(); return; }
@@ -9654,7 +9674,7 @@ function refreshLook(){
   $('#lookPhotoState').textContent = lookImage() ? 'A photo is guiding this realm as well as the description.' : 'No photo set. The description alone decides the look.';
   $('#modelFast').classList.toggle('sel', modelPref() === 'fast'); $('#modelSharp').classList.toggle('sel', modelPref() === 'sharp');
 }
-function openLook(){ $('#lookText').value = promptText(); refreshLook(); lookEl.classList.remove('hidden'); setPaused(true); $('#lookText').focus(); }
+function openLook(){ $('#lookText').value = promptText(); refreshLook(); dgRefreshLook(); lookEl.classList.remove('hidden'); setPaused(true); $('#lookText').focus(); }
 function closeLook(){ lookEl.classList.add('hidden'); setPaused(false); }
 function setModel(m){ if(m === modelPref()) return; lsSet(MODEL_KEY, m); refreshLook(); if(ai.on){ aiStop(); setTimeout(aiStart, 300); } }
 $('#lookBtn').addEventListener('click', openLook);
@@ -9681,25 +9701,31 @@ function aiStop(msg){
   ai.rt = ai.stream = ai.ctx = null; aiVid.style.display = 'none'; aiVid.srcObject = null; $('#stage').style.zIndex = ''; aiLite(false);
   $('#aiBtn').classList.remove('on'); if(msg) toast(msg, 7000);
 }
+// the realtime model and its frame size and rate: shared by AI reality (R) and Dreamglass. Newer models report fps as {ideal, max} (LESSONS).
+function decartModel(sdk){
+  let model = null;
+  const order = modelPref() === 'sharp' ? ['lucy-2.5', 'lucy-latest', 'lucy-2.1', 'lucy-restyle-2'] : ['lucy-restyle-2', 'lucy-restyle-latest', 'lucy-2.1', 'lucy-2.5'];
+  for(const name of order){ try{ model = sdk.models.realtime(name); if(model) break; }catch(e){} }
+  if(!model) throw new Error('No realtime restyle model found in the Decart SDK');
+  const w = model.width || 1280, h = model.height || 704;
+  const fps = typeof model.fps === 'number' ? model.fps : (model.fps && (model.fps.ideal || model.fps.max)) || 25;
+  return {model, w, h, fps};
+}
 async function aiStart(){
   if(ai.on || ai.busy){ if(ai.on) aiStop('AI reality off'); return; }
   const local = location.protocol === 'file:' || /^(localhost|127\.0\.0\.1)$/.test(location.hostname);
   if(!local){ showError('AI reality mode cannot run on the published link, because it blocks connections to outside services. Download hub-world.html, open it from your computer (double-click it), then press R.'); return; }
   const key = getKey(); if(!key) return;
   if(!window.RTCPeerConnection || !HTMLCanvasElement.prototype.captureStream){ showError('This browser cannot stream video to the AI. Use Chrome or Edge.'); return; }
+  dgStop();   // one Decart stream at a time: AI reality replaces Dreamglass while it runs
   ai.busy = true; $('#aiBtn').classList.add('on');
   let stage = 'loading the Decart toolkit';
   const step = (t, n) => { stage = t; toast('AI step ' + n + ' of 4: ' + t + '…', 15000); };
   step(stage, 1);
   try{
     const sdk = await loadSdk();
-    let model = null;
     step('choosing the model', 2);
-    const order = modelPref() === 'sharp' ? ['lucy-2.5', 'lucy-latest', 'lucy-2.1', 'lucy-restyle-2'] : ['lucy-restyle-2', 'lucy-restyle-latest', 'lucy-2.1', 'lucy-2.5'];
-    for(const name of order){ try{ model = sdk.models.realtime(name); if(model) break; }catch(e){} }
-    if(!model) throw new Error('No realtime restyle model found in the Decart SDK');
-    const w = model.width || 1280, h = model.height || 704;
-    const fps = typeof model.fps === 'number' ? model.fps : (model.fps && (model.fps.ideal || model.fps.max)) || 25;
+    const {model, w, h, fps} = decartModel(sdk);
     const cap = document.createElement('canvas'); cap.width = w; cap.height = h;
     ai.w = w; ai.h = h; ai.fps = fps; ai.last = 0; ai.ctx = cap.getContext('2d'); ai.ctx.drawImage(renderer.domElement, 0, 0, w, h);
     ai.stream = cap.captureStream(fps);
@@ -10904,6 +10930,7 @@ const stats = {ms:16.7, fps:60, frames:0};
 /* quality ladder: effects go first, sharpness last. It never disables shadows and never drops below pixel ratio 1. */
 const Q_MAX = 6;
 function degrade(){
+  if(dgDegrade()) return;   // Dreamglass layers are the first thing the ladder drops
   qLevel++;
   if(qLevel === 1 && post.on){ if(post.dof) post.dof.enabled = false; }
   else if(qLevel === 2 && post.on) post.ssao.enabled = false;
@@ -10920,6 +10947,7 @@ function frame(){
   update(dt, clock.elapsedTime);
   updateLods();
   renderer.shadowMap.needsUpdate = true;
+  dgFrame(dt);   // Dreamglass (5f): picks what the one stream shows and switches its passes, portals and screens; all off and untouched without a source
   if(ai.on && ai.ctx){
     // the AI only ever sees the world; avatars are drawn by the game on top, so they never change
     const now = performance.now(), cap = now - ai.last >= 1000 / ai.fps - 3;
@@ -10928,7 +10956,7 @@ function frame(){
     if(showing){ camera.layers.set(1); renderer.setClearAlpha(0); renderer.render(scene, camera); renderer.setClearAlpha(1); }
     else { camera.layers.enable(1); renderer.render(scene, camera); }
     camera.layers.set(0); camera.layers.enable(1);
-  } else if(post.on && !vr.on){ if(post.dof && post.dof.enabled){ post.dof.uniforms.focus.value = camera.position.distanceTo(_t1); } updateSun(); renderMirrors(); post.composer.render(); }
+  } else if(post.on && !vr.on){ if(post.dof && post.dof.enabled){ post.dof.uniforms.focus.value = camera.position.distanceTo(_t1); } updateSun(); renderMirrors(); post.composer.render(); dgAfter(); }
   else { renderMirrors(); renderer.render(scene, camera); }
   if(!vr.on) drawMap();
 }
@@ -11624,6 +11652,261 @@ Object.defineProperties(window.__hub, {
     get state(){ const S = starling.S; return S ? {score:S.score, t:+S.t.toFixed(1), lives:S.lives, wave:S.wave, done:S.done, why:S.why} : null; }, get last(){ return starling.last && Object.assign({}, starling.last); }, get isOpen(){ return starling.open; }, get best(){ return state.hunt.starBest; },
 
     step:(policy, n) => { const S = starling.S; if(!S) return null; for(let i = 0; i < (n || 60) && !S.done; i++){ starStep(S, starBot(S, policy || 'win'), STAR.dt); S.events.length = 0; } if(S.done) starResult(S, 'played'); return {score:S.score, done:S.done}; }}}
+});
+/* ================= Dreamglass: Hybrid Reality (blueprint 5f) =================
+   Live AI video mixed into the solid world, only where it cannot break solidity. One `dreamSource` gives a video frame texture:
+   the real Decart stream (local file plus a key, the same connection code as AI reality mode) or `__hub.dreamTest = true`,
+   a canvas-drawn "fake AI" video that lets every layer be tested without the network. With neither, every Dreamglass pass is
+   disabled, portals and screens are untouched and the picture is exactly the old one.
+   Layer 1, the far layer: the scene depth (a depth texture on the composer's targets, only while the layer runs) marks what is
+   beyond `dg.T` metres; the AI frame is blended in from T to 1.6 T. Near ground, avatars (layer 1), name tags, glows and
+   anything drawn without depth are masked out, so they always stay the game's own pixels. */
+const DG_LAYERS_KEY = 'hub-dream-layers', DG_ON_KEY = 'hub-dream-on';
+const dg = {
+  test:false, pause:false, master:lsGet(DG_ON_KEY) === '1', lens:false, qDrop:false, T:70,
+  kind:'off', frames:0, fresh:false, owner:null, ownerObj:null, prompt:'', sent:null, hue:195, tex:null,
+  cv:null, cx:null, testTex:null, testLast:0,
+  rt:null, busy:false, live:false, vid:null, vidTex:null, cap:null, capCtx:null, stream:null, fps:25, capLast:0, failed:null, told:false,
+  active:{far:false, portals:false, screens:false, lens:false}, L:null, Lw:null, scanT:0, maskN:0,
+  layer:null, comp:null, lensPass:null, depthOn:false
+};
+function dgLayersAll(){ try{ return JSON.parse(lsGet(DG_LAYERS_KEY) || '{}') || {}; }catch(e){ return {}; } }
+function dgLayersFor(w){ const o = dgLayersAll()[w] || {}; return {far:o.far !== false, portals:o.portals !== false, screens:o.screens !== false}; }
+function dgSetLayer(k, v){ const all = dgLayersAll(), o = dgLayersFor(state.world); o[k] = !!v; all[state.world] = o; lsSet(DG_LAYERS_KEY, JSON.stringify(all)); dg.Lw = null; dg.qDrop = false; }
+function dgPromptFor(w){ return lsGet(PROMPT_KEY(w)) || AI_PROMPTS[w] || ('Photorealistic real-life video. An invented place called ' + ((WORLDS[w] && WORLDS[w].name) || 'Nowhere') + ', seen wide in natural light, true to life.'); }
+
+/* ---- dreamSource 1: the test source, an animated canvas that stands in for the AI (soft moving bands, a frame counter, who owns the stream) ---- */
+function dgTestDraw(){
+  if(!dg.cv){ dg.cv = document.createElement('canvas'); dg.cv.width = 512; dg.cv.height = 288; dg.cx = dg.cv.getContext('2d');
+    dg.testTex = new THREE.CanvasTexture(dg.cv); dg.testTex.encoding = THREE.sRGBEncoding; dg.testTex.minFilter = THREE.LinearFilter; dg.testTex.generateMipmaps = false; SHARED_TEX.add(dg.testTex); }
+  const x = dg.cx, n = dg.frames, W = 512, H = 288, h = dg.hue;
+  const g = x.createLinearGradient(0, 0, W, H); g.addColorStop(0, 'hsl(' + ((h + n * 0.6) % 360) + ',70%,52%)'); g.addColorStop(1, 'hsl(' + ((h + 110 + n * 0.6) % 360) + ',65%,30%)');
+  x.fillStyle = g; x.fillRect(0, 0, W, H);
+  x.fillStyle = 'rgba(255,255,255,0.14)'; for(let i = 0; i < 7; i++){ const bx = ((i * 96 + n * 1.2) % (W + 128)) - 64; x.fillRect(bx, 0, 34, H); }
+  x.fillStyle = 'rgba(0,0,0,0.35)'; x.fillRect(12, 12, 262, 50);
+  x.fillStyle = '#fff'; x.font = 'bold 22px monospace'; x.fillText('DREAM TEST ' + n, 20, 36); x.font = '13px monospace'; x.fillText(String(dg.owner || 'idle').slice(0, 30), 20, 54);
+  dg.testTex.needsUpdate = true;
+}
+
+/* ---- dreamSource 2: the Decart stream (local file and a key only; the published link blocks outside services) ---- */
+async function dgConnect(){
+  if(dg.rt || dg.busy || ai.on || ai.busy || !isLocal()) return false;
+  const key = lsGet(AI_KEY); if(!key) return false;
+  if(!window.RTCPeerConnection || !HTMLCanvasElement.prototype.captureStream){ dg.failed = 'this browser cannot stream video'; return false; }
+  dg.busy = true; dg.failed = null;
+  try{
+    const sdk = await loadSdk(), M = decartModel(sdk);
+    if(ai.on || ai.busy) throw new Error('AI reality is on');
+    dg.cap = document.createElement('canvas'); dg.cap.width = M.w; dg.cap.height = M.h; dg.capCtx = dg.cap.getContext('2d'); dg.capCtx.drawImage(renderer.domElement, 0, 0, M.w, M.h);
+    dg.fps = M.fps; dg.capLast = 0; dg.stream = dg.cap.captureStream(M.fps);
+    if(!dg.vid){ dg.vid = document.createElement('video'); dg.vid.muted = true; dg.vid.playsInline = true; dg.vid.autoplay = true; dg.vid.style.display = 'none'; document.body.appendChild(dg.vid);
+      dg.vidTex = new THREE.VideoTexture(dg.vid); dg.vidTex.update = () => {}; dg.vidTex.encoding = THREE.sRGBEncoding; SHARED_TEX.add(dg.vidTex); }   // uploaded only when a new video frame arrives
+    const client = sdk.createDecartClient({apiKey:key}), text = dg.prompt || promptText();
+    dg.rt = await client.realtime.connect(dg.stream, {model:M.model, mirror:false, initialState:{prompt:{text, enhance:false}},
+      onRemoteStream: st => { dg.vid.srcObject = st; dg.vid.play().catch(() => {}); dg.live = true; dgWatchVideo(); }});
+    dg.sent = text;
+    if(dg.rt && dg.rt.on){ dg.rt.on('error', e => { dg.failed = String(e && (e.message || e.code) || e); }); dg.rt.on('connectionChange', st => { if(st === 'disconnected') dgStop(); }); }
+    return true;
+  }catch(e){
+    const m = (e && (e.message || e.code)) || String(e);
+    if(/401|403|unauthori[sz]ed|forbidden|api key/i.test(m)) lsSet(AI_KEY, null);
+    dgStop(); dg.failed = m; return false;
+  }finally{ dg.busy = false; }
+}
+function dgWatchVideo(){
+  const v = dg.vid; if(!v) return;
+  const tick = () => { if(!dg.live || dg.vid !== v) return; dg.vidTex.needsUpdate = true; dg.fresh = true; dg.frames++; v.requestVideoFrameCallback(tick); };
+  if(v.requestVideoFrameCallback) v.requestVideoFrameCallback(tick); else dg.poll = true;
+}
+function dgStop(){
+  try{ if(dg.rt) dg.rt.disconnect(); }catch(e){}
+  if(dg.stream) dg.stream.getTracks().forEach(t => t.stop());
+  dg.rt = dg.stream = dg.capCtx = dg.cap = null; dg.live = false; dg.poll = false; if(dg.vid) dg.vid.srcObject = null;
+}
+function dgSetPrompt(text){
+  dg.prompt = text;
+  if(dg.rt && dg.sent !== text){ dg.sent = text; try{ if(typeof dg.rt.set === 'function') Promise.resolve(dg.rt.set({prompt:text, enhance:false})).catch(() => {}); else if(dg.rt.setPrompt) dg.rt.setPrompt(text); }catch(e){} }
+}
+
+/* ---- the passes: DreamLayerPass right after the scene render (it is the only point where the depth is the scene's), the far composite
+   after bloom and depth of field and before gamma, grade and SMAA (so the AI layer never blooms onto near pixels) ---- */
+const DG_VS = 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }';
+const DG_WEIGHT = {
+  uniforms:{tDepth:{value:null}, tMask:{value:null}, useMask:{value:0}, cNear:{value:0.25}, cFar:{value:2500}, T0:{value:70}, T1:{value:112}},
+  vertexShader:DG_VS,
+  fragmentShader:'uniform sampler2D tDepth, tMask; uniform float useMask, cNear, cFar, T0, T1; varying vec2 vUv;' +
+    ' void main(){ float d = texture2D(tDepth, vUv).x; float z = d * 2.0 - 1.0; float lin = 2.0 * cNear * cFar / (cFar + cNear - z * (cFar - cNear));' +
+    '  float w = d >= 1.0 ? 1.0 : smoothstep(T0, T1, lin); if(useMask > 0.5) w *= 1.0 - clamp(texture2D(tMask, vUv).a * 4.0, 0.0, 1.0);' +
+    '  gl_FragColor = vec4(w, 0.0, 0.0, 1.0); }'
+};
+// the layer (half resolution): colour stored as sqrt (more precision in the dark), confidence in alpha
+const DG_LAYER = {
+  uniforms:{tAI:{value:null}},
+  vertexShader:DG_VS,
+  fragmentShader:'uniform sampler2D tAI; varying vec2 vUv;' +
+    ' void main(){ vec3 a = pow(texture2D(tAI, vUv).rgb, vec3(2.2)); gl_FragColor = vec4(sqrt(a), 1.0); }'
+};
+const DG_COMP = {
+  uniforms:{tDiffuse:{value:null}, tWeight:{value:null}, tLayer:{value:null}, strength:{value:1}},
+  vertexShader:DG_VS,
+  fragmentShader:'uniform sampler2D tDiffuse, tWeight, tLayer; uniform float strength; varying vec2 vUv;' +
+    ' void main(){ vec4 c = texture2D(tDiffuse, vUv); float w = texture2D(tWeight, vUv).r;' +
+    '  if(w > 0.0){ vec4 L = texture2D(tLayer, vUv); c.rgb = mix(c.rgb, L.rgb * L.rgb, w * L.a * strength); }' +
+    '  gl_FragColor = c; }'
+};
+const _dgCol = new THREE.Color(), _dgV = new V3();
+class DreamLayerPass extends THREE.Pass {
+  constructor(w, h){
+    super(); this.needsSwap = false; this.fresh = false; this.mask = false; this.reset = true;
+    const lin = {minFilter:THREE.LinearFilter, magFilter:THREE.LinearFilter, format:THREE.RGBAFormat, depthBuffer:false, stencilBuffer:false};
+    this.maskRT = new THREE.WebGLRenderTarget(2, 2, {minFilter:THREE.LinearFilter, magFilter:THREE.LinearFilter, format:THREE.RGBAFormat});
+    this.weightRT = new THREE.WebGLRenderTarget(2, 2, {minFilter:THREE.NearestFilter, magFilter:THREE.NearestFilter, format:THREE.RGBAFormat, depthBuffer:false, stencilBuffer:false});
+    this.histA = new THREE.WebGLRenderTarget(2, 2, lin); this.histB = new THREE.WebGLRenderTarget(2, 2, lin);
+    const sm = S => { const m = new THREE.ShaderMaterial({uniforms:THREE.UniformsUtils.clone(S.uniforms), vertexShader:S.vertexShader, fragmentShader:S.fragmentShader}); m.depthTest = m.depthWrite = false; return m; };
+    this.weightMat = sm(DG_WEIGHT); this.layerMat = sm(DG_LAYER);
+    this.quad = new THREE.FullScreenQuad(this.weightMat);
+    this.setSize(w, h);
+  }
+  setSize(w, h){ this.weightRT.setSize(w, h); const hw = Math.max(2, Math.round(w / 2)), hh = Math.max(2, Math.round(h / 2)); this.maskRT.setSize(hw, hh); this.histA.setSize(hw, hh); this.histB.setSize(hw, hh); this.reset = true; }
+  get layerTex(){ return this.histA.texture; }
+  draw(renderer, mat, rt){ this.quad.material = mat; renderer.setRenderTarget(rt); this.quad.render(renderer); }
+  render(renderer, writeBuffer, readBuffer){
+    const depth = readBuffer.depthTexture; if(!depth || !dg.tex) return;
+    renderer.getClearColor(_dgCol); const ca = renderer.getClearAlpha(), au = scene.autoUpdate;
+    renderer.setClearColor(0x000000, 0);
+    if(this.reset){ [this.histA, this.histB].forEach(t => { renderer.setRenderTarget(t); renderer.clear(); }); this.reset = false; }
+    // what must stay the game's own even against the sky: name tags, glows, particles, portal discs and far avatars (layer 6, from dgScanMask)
+    if(this.mask){ const lm = camera.layers.mask; camera.layers.set(6); scene.autoUpdate = false; renderer.setRenderTarget(this.maskRT); renderer.clear(); renderer.render(scene, camera); camera.layers.mask = lm; scene.autoUpdate = au; }
+    const u = this.weightMat.uniforms; u.tDepth.value = depth; u.tMask.value = this.maskRT.texture; u.useMask.value = this.mask ? 1 : 0;
+    u.cNear.value = camera.near; u.cFar.value = camera.far; u.T0.value = dg.T; u.T1.value = dg.T * 1.6;
+    this.draw(renderer, this.weightMat, this.weightRT);
+    this.updateLayer(renderer, depth);
+    renderer.setClearColor(_dgCol, ca);
+  }
+  updateLayer(renderer, depth){
+    if(!this.fresh) return;
+    this.layerMat.uniforms.tAI.value = dg.tex; this.draw(renderer, this.layerMat, this.histB);
+    const t = this.histA; this.histA = this.histB; this.histB = t; this.fresh = false;
+    if(dg.comp) dg.comp.uniforms.tLayer.value = this.histA.texture;
+  }
+}
+function dgSetup(){
+  if(!post.on || !THREE.FullScreenQuad) return;
+  try{
+    const c = post.composer, pr = renderer.getPixelRatio(), w = innerWidth * pr, h = innerHeight * pr;
+    dg.layer = new DreamLayerPass(w, h); dg.layer.enabled = false; c.insertPass(dg.layer, 1);
+    dg.comp = new THREE.ShaderPass(DG_COMP); dg.comp.material.depthTest = dg.comp.material.depthWrite = false; dg.comp.enabled = false; c.insertPass(dg.comp, c.passes.indexOf(post.gamma));
+    Object.assign(post, {dgLayer:dg.layer, dgComp:dg.comp});
+  }catch(e){ dg.layer = dg.comp = null; console.warn('Dreamglass is off: ' + (e && e.message || e)); }
+}
+dgSetup();
+// the depth texture exists only while a far layer runs (16-bit, the same format as the old depth buffer, so the scene renders exactly as before)
+function dgDepth(on){
+  if(dg.depthOn === on || !post.on) return; dg.depthOn = on;
+  [post.composer.renderTarget1, post.composer.renderTarget2].forEach(t => {
+    if(on){ const d = new THREE.DepthTexture(t.width, t.height); d.type = THREE.UnsignedShortType; t.depthTexture = d; }
+    else if(t.depthTexture){ const d = t.depthTexture; t.depthTexture = null; d.dispose(); }
+    t.dispose();
+  });
+  if(dg.layer) dg.layer.reset = true;
+}
+// layer 6 = what the far layer must never paint over: things drawn without depth (tags, glows, particles, discs) and far avatars
+const _dgL1 = new THREE.Layers(); _dgL1.set(1);
+function dgUnder(o, top){ for(let q = o.parent; q; q = q.parent) if(q === top) return true; return false; }
+function dgScanMask(){
+  const T = dg.T; let n = 0;
+  scene.traverse(o => {
+    if(o.isLight){ o.layers.enable(6); return; }   // the same lights, so no material switches program for the mask render
+    o.layers.disable(6);
+    if(!(o.isMesh || o.isSprite || o.isPoints) || o === sky || !o.visible) return;
+    if(o.onBeforeRender !== THREE.Object3D.prototype.onBeforeRender) return;   // mirrors (water) render only at top level
+    const m = Array.isArray(o.material) ? o.material[0] : o.material; if(!m) return;
+    const depthless = o.isSprite || o.isPoints || (m.transparent && !m.depthWrite), avatar = o.layers.test(_dgL1);
+    if(!depthless && !avatar) return;
+    if(dgUnder(o, sky)) return;   // sky props are part of the far view
+    const g = o.geometry; if(g && !g.boundingSphere) g.computeBoundingSphere();
+    o.getWorldPosition(_dgV); const r = g && g.boundingSphere ? g.boundingSphere.radius * o.matrixWorld.getMaxScaleOnAxis() : 1, d = camWorld.distanceTo(_dgV);
+    if(d - r < T * 1.6 && (depthless || d + r > T * 0.9)){ o.layers.enable(6); n++; }
+  });
+  dg.maskN = n; return n;
+}
+function dgPasses(far){
+  if(!dg.layer) return;
+  dgDepth(far);
+  dg.layer.enabled = far; dg.comp.enabled = far;
+  if(far){ dg.comp.uniforms.tWeight.value = dg.layer.weightRT.texture; dg.comp.uniforms.tLayer.value = dg.layer.layerTex; }
+}
+
+/* ---- every frame: which source, who owns the one stream, what each layer shows ---- */
+function dgFrame(dt){
+  const src = dg.test ? 'test' : dg.live ? 'decart' : 'off'; dg.kind = src;
+  if(dg.Lw !== state.world){ dg.Lw = state.world; dg.L = dgLayersFor(state.world); }
+  const L = dg.L, can = src !== 'off' && post.on && !vr.on && !ai.on && !!dg.layer;
+  let owner = null, prompt = null;
+  if(can){
+    if(L.far && !dg.qDrop){ owner = 'far'; prompt = dgPromptFor(state.world); }
+  }
+  if(owner !== dg.owner){ dg.owner = owner; dg.hue = 195; if(owner) dgSetPrompt(prompt); }
+  if(src === 'test' && owner && !dg.pause){ const now = performance.now(); if(now - dg.testLast >= 30){ dg.testLast = now; dg.frames++; dgTestDraw(); dg.fresh = true; } }
+  if(src === 'decart' && dg.poll && dg.vid.readyState >= 2){ const now = performance.now(); if(now - dg.capLast >= 1000 / dg.fps){ dg.vidTex.needsUpdate = true; dg.fresh = true; dg.frames++; } }
+  dg.tex = src === 'test' ? dg.testTex : src === 'decart' ? dg.vidTex : null;
+  const ready = can && !!dg.tex && dg.frames > 0;
+  const far = ready && L.far && !dg.qDrop;
+  if(far){ dg.scanT -= dt; if(dg.scanT <= 0 || !dg.active.far){ dg.scanT = 0.5; dgScanMask(); } }
+  if(dg.layer){ dg.layer.mask = far && dg.maskN > 0; if(dg.fresh && (owner === 'far' || owner === 'lens')) dg.layer.fresh = true; }
+  dg.fresh = false;
+  dg.active.far = far;
+  dgPasses(far);
+}
+// after the frame is on the canvas: hand it to the Decart stream at the model's frame rate
+function dgAfter(){
+  if(!dg.rt || !dg.capCtx || !dg.owner) return;
+  const now = performance.now(); if(now - dg.capLast < 1000 / dg.fps - 3) return;
+  dg.capLast = now; dg.capCtx.drawImage(renderer.domElement, 0, 0, dg.cap.width, dg.cap.height);
+}
+// the quality ladder drops Dreamglass first (without counting a step, so the rest of the ladder is unchanged)
+function dgDegrade(){ if(dg.qDrop || !(dg.active.far || dg.active.portals || dg.active.screens)) return false; dg.qDrop = true; toast('Dreamglass layers off (keeping the frame rate up)', 2000); return true; }
+function dgLens(on){ dg.lens = false; return false; }
+function dgLensKey(){ return false; }
+if(dg.master && isLocal() && lsGet(AI_KEY)) setTimeout(() => { if(dg.master && !ai.on) dgConnect(); }, 1500);
+
+/* ---- the Look panel: Dreamglass on/off (saved) and this realm's three layers ---- */
+function dgRefreshLook(){
+  const L = dgLayersFor(state.world), on = dg.master || dg.test;
+  $('#dgMaster').textContent = on ? 'Dreamglass on' : 'Dreamglass off'; $('#dgMaster').classList.toggle('sel', on);
+  $('#dgFar').classList.toggle('sel', L.far); $('#dgPortals').classList.toggle('sel', L.portals); $('#dgScreens').classList.toggle('sel', L.screens);
+  $('#dgState').textContent = dg.test ? 'Test stream on (a stand-in video, no network).' : !isLocal() ? 'Dreamglass needs the downloaded file: this link blocks the live AI service.'
+    : dg.live ? 'Live: ' + (dg.owner || 'idle') + '.' : dg.busy ? 'Connecting…' : dg.failed ? 'Not connected: ' + dg.failed : dg.master ? 'On, waiting for the AI stream.' : 'Off. Live AI video only far away, in portals and on screens; the ground you stand on is always the game\'s own.';
+}
+function dgSetMaster(on){
+  dg.master = !!on; lsSet(DG_ON_KEY, dg.master ? '1' : null); dg.qDrop = false;
+  if(dg.master){ if(!isLocal()) toast('Dreamglass needs the downloaded file: this link blocks the live AI service.', 4000); else { const key = getKey(); if(key) dgConnect().then(dgRefreshLook); } }
+  else dgStop();
+  dgRefreshLook();
+}
+$('#dgMaster').addEventListener('click', () => dgSetMaster(!dg.master));
+[['#dgFar', 'far'], ['#dgPortals', 'portals'], ['#dgScreens', 'screens']].forEach(([id, k]) => $(id).addEventListener('click', () => { dgSetLayer(k, !dgLayersFor(state.world)[k]); dgRefreshLook(); }));
+/* ---- test hooks: __hub.dream, dreamTest, dreamDepthThreshold, dreamSample(x, y), dreamAB(points) ---- */
+function dgRead(x, y){
+  const gl = renderer.getContext(), pr = renderer.getPixelRatio(), X = Math.min(gl.drawingBufferWidth - 1, Math.max(0, Math.floor(x * pr))), Y = Math.min(gl.drawingBufferHeight - 1, Math.max(0, gl.drawingBufferHeight - 1 - Math.floor(y * pr)));
+  const px = new Uint8Array(4); gl.readPixels(X, Y, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px); return [px[0], px[1], px[2]];
+}
+function dgRender(){ if(post.on && !vr.on && !ai.on){ updateSun(); renderMirrors(); post.composer.render(); } else renderer.render(scene, camera); }
+Object.defineProperties(window.__hub, {
+  dream:{get:() => ({kind:dg.kind, test:dg.test, master:dg.master, local:isLocal(), key:!!lsGet(AI_KEY), live:dg.live, busy:dg.busy, failed:dg.failed, frames:dg.frames, paused:dg.pause,
+    layers:Object.assign({}, dg.L || dgLayersFor(state.world)), active:Object.assign({}, dg.active), owner:dg.owner, prompt:dg.prompt, threshold:dg.T, qDrop:dg.qDrop, maskObjects:dg.maskN,
+    passes:dg.layer ? {layer:dg.layer.enabled, comp:dg.comp.enabled, depth:dg.depthOn} : null, texture:dg.tex})},
+  dreamTest:{get:() => dg.test, set:v => { dg.test = !!v; if(!dg.test){ dg.frames = dg.live ? dg.frames : 0; } }},
+  dreamPause:{get:() => dg.pause, set:v => { dg.pause = !!v; }},
+  dreamDepthThreshold:{get:() => dg.T, set:v => { dg.T = clamp(+v || 70, 5, 2000); dg.scanT = 0; }},
+  // the final colour at a screen point (CSS pixels from the top left), rendered now
+  dreamSample:{value:(x, y) => { dgRender(); return dgRead(x, y); }},
+  // the same frame twice, Dreamglass passes off then on: [{x, y, plain, dream, same}]
+  dreamAB:{value:(pts, o) => { o = o || {}; const keep = {c:dg.comp && dg.comp.enabled, f:dg.layer && dg.layer.fresh};
+    if(dg.comp) dg.comp.enabled = false; dgRender(); const A = pts.map(q => dgRead(q[0], q[1]));
+    if(dg.comp) dg.comp.enabled = keep.c; dgRender(); const B = pts.map(q => dgRead(q[0], q[1]));
+    return pts.map((q, i) => ({x:q[0], y:q[1], plain:A[i], dream:B[i], same:A[i].join() === B[i].join()})); }},
+  dreamScanMask:{value:() => dgScanMask()}
 });
 })();
 </script>
