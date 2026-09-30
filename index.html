@@ -2877,7 +2877,7 @@ const state = {
   fuel: Math.min(100, Math.max(0, num(sv.fuel, 100))),  // the hoverbike tank, 0-100 (FUEL_MAX), shared by the bike in every realm
   enrolled: !!sv.enrolled,                               // enrolled at Campus (Goal 8): warps to and from Campus cost nothing
   archive: {ledger:!!(sv.archive && sv.archive.ledger), rooms:new Set(arr(sv.archive && sv.archive.rooms).filter(n => n >= 0 && n < 6)), found:new Set(arr(sv.archive && sv.archive.found).filter(n => n >= 0 && n < 6)), broadcast:!!(sv.archive && sv.archive.broadcast)},   // Goal 9 (+ Goal 10: the Broadcast seen): the Ledger taken, rooms visited, hidden details found
-  hunt: {door:!!(sv.hunt && sv.hunt.door), rallyBest:num(sv.hunt && sv.hunt.rallyBest, 0), rallyPlays:num(sv.hunt && sv.hunt.rallyPlays, 0), hoard:!!(sv.hunt && sv.hunt.hoard), rose:!!(sv.hunt && sv.hunt.rose), roseTries:num(sv.hunt && sv.hunt.roseTries, 0)}   // Goal 11: the Hollow's door opened, the Comet Rally high score and plays, the hoard chest taken
+  hunt: {door:!!(sv.hunt && sv.hunt.door), rallyBest:num(sv.hunt && sv.hunt.rallyBest, 0), rallyPlays:num(sv.hunt && sv.hunt.rallyPlays, 0), hoard:!!(sv.hunt && sv.hunt.hoard), rose:!!(sv.hunt && sv.hunt.rose), roseTries:num(sv.hunt && sv.hunt.roseTries, 0), cyan:!!(sv.hunt && sv.hunt.cyan)}   // Goal 11: the Hollow's door opened, the Comet Rally high score and plays, the hoard chest taken (+ Goal 12: rose, roseTries; Goal 13: cyan, the chimes sung)
 };
 // state.recipe is filled in once the recipe schema below is defined (see loadRecipe)
 function persist(){
@@ -5274,19 +5274,19 @@ const ARCHIVE_ROOMS = [
   {title:'Low Water', when:'No. 9 Lantern Row, again · the last years',
    plaque:'In his last years Lyle bought back the house he grew up in and lived there alone, with a lantern in the window though no ferry came in at night any more. He wrote the Ledger at the kitchen table. The neighbours say he hummed the same tune every evening when the tide was out.',
    detail:{name:'The music box', clue:'cyan', serves:'Goal 13, the Cyan Shard: the chime order of "Low Tide"',
-     text:'A tin music box on the side table. Inside the lid, a paper strip: "Low Tide, for the five chimes on the highest isle. Number them from the longest, which sings lowest. Begin in the middle, climb to the top, then come down past where you began until you are home." Pencilled beneath: 3 - 4 - 5 - 4 - 3 - 2 - 1.'}}
+     text:'A tin music box on the side table. Inside the lid, a paper strip: "Low Tide, for the seven chimes on the highest isle. Number them from the longest, which sings lowest. Begin on the third, climb two, then come down past where you began until you are home." Pencilled beneath: 3 - 4 - 5 - 4 - 3 - 2 - 1.'}}
 ];
 // the answers later goals build against (Goals 11-14). Pillar index 3 is the fourth of Glass Dunes' seven stones counted from the lowest (BUILD.dunes, i = 3).
 const HUNT_CLUES = {
   amber:{goal:11, realm:'dunes', pillar:3, of:7, countFrom:'lowest', at:[+(22 + Math.cos(3 * 0.78) * 6).toFixed(2), +(16 + Math.sin(3 * 0.78) * 6).toFixed(2)], time:'17:40',
          door:'where the fourth stone\'s shadow ends (Glass Dunes is held at twenty to six for ever)', cabinet:'Comet Rally', win:'drive the last lap the wrong way round', rooms:[1, 2]},
   rose:{goal:12, realm:'grid', club:'The Drift', way:'through the wall behind the dancers', rule:'keep walking, never turn round', rooms:[4]},
-  cyan:{goal:13, realm:'sky', song:'Low Tide', chimes:5, numbering:'1 is the longest chime and sings lowest; 5 is the shortest', order:[3, 4, 5, 4, 3, 2, 1], rooms:[5]},
+  cyan:{goal:13, realm:'sky', song:'Low Tide', chimes:7, numbering:'1 is the longest chime and sings lowest; 7 is the shortest (the tune only uses 1 to 5)', order:[3, 4, 5, 4, 3, 2, 1], rooms:[5]},
   gate2:{goal:14, game:'Starling', score:31550, holder:'MQ', rooms:[3]},
   gate3:{goal:14, street:'Lantern Row', rule:'leave the credits on the step', rooms:[0]}
 };
-// "Low Tide" as five chime pitches (C D E G A, 1 = lowest), the tune the music box plays
-const LOW_TIDE_HZ = [523.25, 587.33, 659.25, 783.99, 880.0];
+// the seven chime pitches (C D E G A C D, 1 = the longest, lowest); "Low Tide" uses the first five, the tune the music box plays (Goal 13: the chimes on Sky Isles ring these)
+const LOW_TIDE_HZ = [523.25, 587.33, 659.25, 783.99, 880.0, 1046.5, 1174.66];
 const LEDGER = [
   {kind:'cover', title:'The Ashcombe Ledger', body:'Being the notes, rules and riddles of Lyle Ashcombe, called the Architect, left open on purpose for whoever comes looking.\n\nKept in the Archive, Hub Spaceport.'},
   {kind:'note', title:'To whoever is reading', body:'I built Hub because I was never quite at home anywhere else, and I hoped I was not the only one.\n\nI have hidden three shards in it: amber, rose and cyan. Each opens a gate on Ashfall. Behind the last gate is the Seed, and whoever holds the Seed looks after Hub when I am gone.\n\nI am not asking you to be clever. I am asking you to pay attention.'},
@@ -5297,7 +5297,7 @@ const LEDGER = [
   {kind:'riddle', shard:'rose', title:'II. The Rose Shard', body:'In the city that never turns its lights off\nthere is a room where the floor lets go of you.\nMara built it. Dance there once, for her.\n\nThen put your back to the music\nand your hand to the wall behind it.\nThe hallway past that wall will try every trick it knows to turn you round.\nEvery door in it is painted on.\n\nDo not look back.\nWhat you came for is ahead of you, never behind.'},
   {kind:'song', title:'Low Tide', body:'(my mother\'s song, for nights the boats were out)\n\nHush now, the water\'s walking out,\nit takes the noise and leaves the shells.\nThe boats lie down along the mud\nand no one needs to ring the bells.\n\nLow tide, low tide, it will come back,\nit always does, it always has.\nSleep while the harbour\'s gone to sea;\nI\'ll wake you when the ferry\'s in.'},
   {kind:'herring', title:'The fourth shard', body:'There are four shards, not three. The fourth is the colour of nothing. It lies in the Night Grove, where the fireflies will not go, under a lantern that nobody is holding.\n\nBring it to the vault with the others and the Seed will come to you.'},
-  {kind:'riddle', shard:'cyan', title:'III. The Cyan Shard', body:'Go up until there is no more up.\nOn the last island, five chimes hang where the wind cannot miss them.\n\nSing them the song my mother sang me,\nthe way she sang it:\nbegin halfway, climb to the top,\ncome down past where you began,\nand rest where the sea has gone furthest out.'},
+  {kind:'riddle', shard:'cyan', title:'III. The Cyan Shard', body:'Go up until there is no more up.\nOn the last island, seven chimes hang where the wind cannot miss them.\n\nSing them the song my mother sang me,\nthe way she sang it:\nbegin on the third, climb two,\ncome down past where you began,\nand rest where the sea has gone furthest out.'},
   {kind:'herring', title:'A word about Starling', body:'Press fire eleven times on the Starling title screen before the first wave comes in, and the game will start you with ninety-nine ships.\n\nMara never needed it.'},
   {kind:'note', title:'The gates', body:'Each shard opens a gate on Ashfall, and each gate asks one thing.\n\nThe first asks whether you listened to what I said.\nThe second asks how well you fly.\nThe third asks what you will leave behind.\n\nThe Seed is behind the third, and it is smaller than you think.'},
   {kind:'herring', title:'The Worldsmith', body:'Ask the Worldsmith for "a realm with the Seed in it" and it will build one and put you there.\n\nIt will be a very nice realm.'},
@@ -8413,7 +8413,8 @@ function huntState(){ const el = $('#huntState'); if(!el) return; const on = sta
   el.textContent = (on ? 'The Hunt has begun. Three shards (amber, rose, cyan) open three gates on Ashfall; the Seed is behind the third. Every clue is in the Ashcombe Ledger.'
     : held.length ? 'You are on the Hunt already. Three shards open three gates on Ashfall; the Architect\'s broadcast and the Ledger wait in the Archive, south of the plaza.'
     : 'The Hunt has not begun for you yet. Walk into the Archive, south of the plaza.')
-    + (held.length ? ' You hold ' + held.length + ' of 3: ' + held.join(', ') + (how => how.length ? ' (' + how.join('; ') + ').' : '.')([state.shards.has('dunes') && 'Comet Rally, the last lap driven the wrong way round', state.shards.has('grid') && state.hunt.rose && 'the hallway behind The Drift, walked without turning round'].filter(Boolean)) : ''); }
+    + (held.length ? ' You hold ' + held.length + ' of 3: ' + held.join(', ') + (how => how.length ? ' (' + how.join('; ') + ').' : '.')([state.shards.has('dunes') && 'Comet Rally, the last lap driven the wrong way round', state.shards.has('grid') && state.hunt.rose && 'the hallway behind The Drift, walked without turning round', state.shards.has('sky') && state.hunt.cyan && 'the wind chimes on the highest isle, rung to Low Tide'].filter(Boolean)) : '')
+    + (held.length === 3 ? ' Next: the three gates on Ashfall.' : ''); }
 const boardRng = rng(99);
 const BOARD = NPC_NAMES.slice(0, 11).map(nm => ({name:nm, shards:Math.floor(boardRng() * 2.6), xp:Math.floor(150 + boardRng() * 2300)}));
 function openWarp(){
@@ -8758,7 +8759,7 @@ const REG_TOPICS = [
   {id:'starling', k:/starling|shooter|high score|score/, a:'"Starling: Mara\'s favourite. One screen, one ship, and the birds come down in waves of eleven." He adds: "I made it for her birthday and she has beaten me at it ever since." Room four remembers the night of the launch.'},
   {id:'amber', k:/amber|dune|desert|pillar|stones?\b|glass sea|sandstone/, a:'The first riddle begins: "Seven stones climb out of a sea of glass." It says to "Count from the lowest and stop in the middle", and it names the hour: "twenty minutes short of six". Room three, Above the Laundrette, may help you read it.'},
   {id:'rose', k:/rose|drift|club|dance|neon|grid|hallway|corridor|hotel|wall behind/, a:'The second riddle: "In the city that never turns its lights off there is a room where the floor lets go of you." And the part people forget: "Do not look back." Room five, the Glass Room, is where Mara said goodbye.'},
-  {id:'cyan', k:/cyan|chime|isles?\b|island|highest|wind/, a:'The third riddle: "Go up until there is no more up." On the last island "five chimes hang where the wind cannot miss them", and you are to sing them his mother\'s song. Room six, Low Water, keeps the tune.'},
+  {id:'cyan', k:/cyan|chime|isles?\b|island|highest|wind/, a:'The third riddle: "Go up until there is no more up." On the last island "seven chimes hang where the wind cannot miss them", and you are to sing them his mother\'s song. Room six, Low Water, keeps the tune.'},
   {id:'song', k:/low tide|lullaby|song|sing|tune|music|mother|hush/, a:'Low Tide was his mother\'s song "for nights the boats were out". It begins: "Hush now, the water\'s walking out, it takes the noise and leaves the shells." He hummed it every evening at low water, the neighbours say.'},
   {id:'gates', k:/gates?\b|ashfall|citadel/, a:'"Each shard opens a gate on Ashfall, and each gate asks one thing." The first asks "whether you listened to what I said", the second "how well you fly", the third "what you will leave behind".'},
   {id:'seed', k:/\bseed\b|inherit|\bwin\b|prize|own hub/, a:'"Behind the last gate is the Seed, and whoever holds the Seed looks after Hub when I am gone." He also wrote that "it is smaller than you think."'},
