@@ -3775,7 +3775,7 @@ const cam = { yaw:0, pitch:0.28, dist:5.5 };
 /* ================= world state ================= */
 let boxes = [], desk = null, gym = null, floaters = [], colliders = [], platforms = [], coins = [], portals = [], spinners = [], npcs = [], shardObj = null, vault = null, gridSun = null, fireflies = null, shopKiosk = null;
 let hf = () => 0, G = () => 0, grassMeshes = [], qLevel = 0, slotMats = {}, hazards = [], burst = null, pickups = [], vendor = null, forgeStand = null, forgeNear = false, forgeHinted = false;
-let mainTerrain = null, coreSolids = [];   // the realm's first ground disc (endless realms re-centre it) and far hand-made props that get collision once the core is built
+let mainTerrain = null, coreSolids = [], coreFollow = [];   // the realm's first ground disc (endless realms re-centre it) and far hand-made props that get collision once the core is built
 function reg(slot, e){ (slotMats[slot] = slotMats[slot] || []).push(e); return e.mat; }
 
 function clearWorld(){
@@ -4154,7 +4154,7 @@ function addStars(r, n){
   for(let i = 0; i < n; i++){ const a = r() * TAU, e = 0.03 + r() * 1.5, d = 900; pts.push(Math.cos(a) * Math.cos(e) * d, Math.sin(e) * d, Math.sin(a) * Math.cos(e) * d); }
   g.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
   const s = new THREE.Points(g, new THREE.PointsMaterial({color:0xffffff, size:1.5, sizeAttenuation:false, fog:false, transparent:true, opacity:0.85, depthWrite:false}));
-  s.renderOrder = -5; world.add(s);
+  s.renderOrder = -5; world.add(s); coreFollow.push({o:s});
 }
 function addShard(id, x, y, z){
   if(state.shards.has(id)) return;
@@ -4248,8 +4248,8 @@ function dunesOuter(n, x, z, d, h0, ri){
 const HEIGHTS = {
   hub:(n, pf) => (x, z) => { const d = Math.hypot(x, z); let h = n.fbm(x * 0.025, z * 0.025, 4) * 2.2 * smooth(37, 50, d); h += smooth(R + 15, R + 170, d) * (10 + n.fbm(x * 0.006, z * 0.006, 4) * 45); return h * pf(x, z); },
   dunes:(n, pf) => (x, z) => { const d = Math.hypot(x, z), w = n.fbm(x * 0.01, z * 0.01, 3), ri = 1 - Math.abs(n.n2(x * 0.028 + w * 2, z * 0.011 + w)); let h = ri * ri * 3.4 + n.fbm(x * 0.06, z * 0.06, 3) * 0.5; h *= 0.25 + 0.75 * smooth(6, 26, d); h += smooth(R + 8, R + 150, d) * (ri * ri * 26 + 8); if(d > DUNES_OUT) h = dunesOuter(n, x, z, d, h, ri); return h * pf(x, z); },
-  grid:(n) => (x, z) => { const d = Math.hypot(x, z), m = smooth(R + 30, R + 170, d), ri = 1 - Math.abs(n.fbm(x * 0.008, z * 0.008, 4) * 1.6); return m * (ri * ri * 75 + 5) - 0.3 * (1 - smooth(R + 26, R + 32, d)); },
-  grove:(n, pf) => (x, z) => { const d = Math.hypot(x, z); let h = n.fbm(x * 0.03, z * 0.03, 4) * 2.4 * smooth(6, 20, d); const ri = 1 - Math.abs(n.fbm(x * 0.007, z * 0.007, 5) * 1.5); h += smooth(R + 10, R + 180, d) * (ri * ri * 100 + 10); return h * pf(x, z); },
+  grid:(n) => (x, z) => { const d = Math.hypot(x, z), m = smooth(R + 30, R + 170, d), ri = 1 - Math.abs(n.fbm(x * 0.008, z * 0.008, 4) * 1.6), h = m * (ri * ri * 75 + 5) - 0.3 * (1 - smooth(R + 26, R + 32, d)); return h; },
+  grove:(n, pf) => (x, z) => { const d = Math.hypot(x, z); let h = n.fbm(x * 0.03, z * 0.03, 4) * 2.4 * smooth(6, 20, d); const ri = 1 - Math.abs(n.fbm(x * 0.007, z * 0.007, 5) * 1.5); h += smooth(R + 10, R + 180, d) * (ri * ri * 100 + 10); if(d > GROVE_OUT) h = groveOuter(n, x, z, d, h); return h * pf(x, z); },
   sky:(n, pf) => (x, z) => { const d = Math.hypot(x, z); let h = n.fbm(x * 0.035, z * 0.035, 4) * 1.6 * smooth(4, 16, d); h -= smooth(R, R + 6, d) * 3; return h * pf(x, z); },
   // a gently rolling lawn (flat under the buildings), a little more roll in the east woods, green hills beyond the walkable ring
   campus:(n, pf) => (x, z) => { const d = Math.hypot(x, z); let h = n.fbm(x * 0.028, z * 0.028, 4) * (1.3 + smooth(CAMPUS.woods.x0, CAMPUS.woods.x0 + 15, x) * 1.2) * campusFlat(x, z) * smooth(3, 12, d); const ri = 1 - Math.abs(n.fbm(x * 0.006 + 9, z * 0.006, 4) * 1.4); h += smooth(R + 12, R + 170, d) * (ri * ri * 60 + 10); return h * pf(x, z); }
@@ -5800,8 +5800,8 @@ function updateEndless(dt, time){
 /* ================= no boundaries (Goal 8a): the built-in realms go on past their hand-made cores =================
    Every built-in realm keeps its hand-made core exactly as it was (same seed, same placements, same look) and loses its edge.
    Past ENDLESS[key].core the land is built in 48 m cells, seeded by the cell's coordinates, so the same spot always looks the
-   same. A cell has two tiers: `far` (big silhouettes: mesas, towers, isles, cheap LODs) out to `far` cells, and `near` (props,
-   clutter, landmarks) out to `near` cells. Work is streamed: every frame spends at most STREAM_MS on it (at least one step),
+   same. A cell is built in tiers, widest first: `far` (big silhouettes: mesas, towers, isles, forest) out to many cells, then
+   `mid`, `dream` and `near` (props, landmarks, grass, clutter) out to one or two cells. Work is streamed: every frame spends at most STREAM_MS on it (at least one step),
    nearest cells first, and the ground disc is re-centred in slices. Within `home` metres of the centre the ground is the
    original disc, restored from a copy, so the core is bit-for-bit what it was. Dreamer landmarks (5c) appear in near cells;
    the first dream placed in a cell is remembered (hub-dreams-v1), so the landmark is still there next time. */
@@ -5833,16 +5833,24 @@ function solidMesa(x, z, w, h, y0, o){ platforms.push({x, z, r:w * 0.7, top:y0 +
 function startBuiltin(key){
   const S = ENDLESS[key], W = WORLDS[key], root = new THREE.Group(); root.name = 'endless'; world.add(root);
   endless = { builtin:key, style:S, rec:{text:S.words, seed:W.seed, structures:new Set(S.dream.kinds), extras:new Set(), tints:{}, surface:S.dream.surface, trees:'none', time:S.dream.time, density:1},
-    chunks:new Map(), dreams:[], log:[], dreamsPlaced:{}, root, terrain:mainTerrain, job:null, queue:[], pcx:1e9, pcz:1e9, kit:null, big:new Map(), follow:[], stepMs:0, maxMs:0, built:0, dropped:0, lastMove:0, home:null };
+    chunks:new Map(), dreams:[], log:[], dreamsPlaced:{}, root, terrain:S.noRecenter ? null : mainTerrain, job:null, queue:[], pcx:1e9, pcz:1e9, kit:null, big:new Map(), follow:[], stepMs:0, maxMs:0, built:0, dropped:0, lastMove:0, home:null };
   endless.slow = [];
-  const T = mainTerrain && mainTerrain.geometry.attributes;
+  const T = endless.terrain && endless.terrain.geometry.attributes;
   if(T) endless.home = {pos:T.position.array.slice(), nor:T.normal.array.slice(), col:T.color.array.slice(), uv:T.uv.array.slice()};   // the core's own ground, restored exactly when you come back
   // far hand-made props become solid now, after coins, NPCs, pickups and the vendor are placed, so nothing in the core moves
-  coreSolids.forEach(c => { if(c.kind === 'mesa') solidMesa(c.x, c.z, c.w, c.h, c.y0, c.o); else if(S.solid) S.solid(c); });
+  coreSolids.forEach(c => { if(c.kind === 'mesa') solidMesa(c.x, c.z, c.w, c.h, c.y0, c.o); else if(c.kind === 'box') addBox(c.x, c.z, c.hx, c.hz, c.y0, c.y1, {a:c.a, full:c.full, cam:c.cam}); else if(c.kind === 'round') colliders.push({x:c.x, z:c.z, r:c.r}); else if(S.solid) S.solid(c); });
+  endless.follow = coreFollow.map(f => ({o:f.o, bx:f.o.position.x, bz:f.o.position.z, snap:f.snap}));
   endless.kit = S.kit ? S.kit() : {};
   { const t = performance.now(); (endless.kit.warm || []).forEach(f => f()); endless.kitMs = performance.now() - t; }   // heavy shapes are made with the realm, inside the travel fade, never while walking
-  if(!S.tiers.some(t => t.dream)) S.tiers.push({name:'dream', r:S.dreamR || 2, dream:true});
+  if(!S.tiers.some(t => t.dream)){ S.tiers.push({name:'dream', r:S.dreamR || 2, dream:true}); S.tiers.sort((a, b) => b.r - a.r); }   // widest first: each tier only needs the ones before it
   if(S.start) S.start(endless);
+  // the core's instanced meshes (grass, trees, rocks, clutter) are never frustum-culled in r128, so far away they would still be drawn:
+  // each gets a bounding sphere, and beyond the fog (97.5 %) it moves to a layer the camera and the sun do not render
+  endless.coreInst = []; endless.fogFar = 2 / Math.max(W.fog, 1e-4); world.updateMatrixWorld(true);
+  world.traverse(o => { if(!o.isInstancedMesh) return; for(let x = o; x; x = x.parent) if(x === root) return;
+    if(!o.geometry.boundingSphere) o.geometry.computeBoundingSphere(); const gr = o.geometry.boundingSphere.radius, bb = new THREE.Box3(), v = new V3(), M = new THREE.Matrix4(), n = o.instanceMatrix.count;
+    for(let i = 0; i < n; i++){ o.getMatrixAt(i, M); v.setFromMatrixPosition(M).applyMatrix4(o.matrixWorld); const sc = M.getMaxScaleOnAxis() * gr; bb.expandByPoint(v.clone().addScalar(sc)); bb.expandByPoint(v.addScalar(-sc)); }
+    if(bb.isEmpty()) return; const sp = bb.getBoundingSphere(new THREE.Sphere()); endless.coreInst.push({o, c:sp.center, r:sp.radius, mask:o.layers.mask, off:false}); });
   planCells(endless);
 }
 function bigOf(E, cx, cz){ const k = chunkKey(cx, cz); let b = E.big.get(k); if(!b){ b = E.style.big ? E.style.big(cx, cz, rng(cellSeed(E.builtin, cx, cz, 7))) : []; E.big.set(k, b); } return b; }
@@ -5856,13 +5864,20 @@ function cellCtx(E, c, tier){
   return { cx, cz, q, local, tier, E, key:c.key, core:S.core, cell:c, clearOf,
     spot(clear, o){ o = o || {}; const m = (o.margin || 2.4) / CHUNK;
       for(let t = 0; t < (o.tries || 24); t++){ const x = (cx + m + q() * (1 - 2 * m)) * CHUNK, z = (cz + m + q() * (1 - 2 * m)) * CHUNK;
-        if(Math.hypot(x, z) < S.core + clear) continue; if(!clearOf(x, z, clear)) continue; if(o.ok && !o.ok(x, z)) continue; if(o.slope != null && slopeAt(x, z) > o.slope) continue; return [x, z]; }
+        if(Math.hypot(x, z) < S.core + clear) continue; if(!clearOf(x, z, clear)) continue; if(o.ok && !o.ok(x, z)) continue; if(S.solidAt && !S.solidAt(x, z, clear)) continue; if(o.slope != null && slopeAt(x, z) > o.slope) continue; return [x, z]; }
       return null; },
     free(x, z, clear){ return Math.hypot(x, z) >= S.core + clear && clearOf(x, z, clear); },
+    h:cellHeights(c),
     skip:(x, z) => Math.hypot(x, z) < S.core };
 }
 // tiers run from the widest (index 0: big silhouettes) to the nearest (last: small props and the dream); each starts from the
 // spots the tiers before it took, so a tier rebuilt later comes out exactly the same
+// the ground height inside a cell from a 2 m table (made once per cell): cheap enough for thousands of grass cards and pebbles
+function cellHeights(c){
+  return (x, z) => { if(!c.htab){ const N = 25, t = new Float32Array(N * N), x0 = c.cx * CHUNK, z0 = c.cz * CHUNK; for(let j = 0; j < N; j++) for(let i = 0; i < N; i++) t[j * N + i] = G(x0 + i * 2, z0 + j * 2); c.htab = t; }
+    const fx = clamp((x - c.cx * CHUNK) / 2, 0, 23.999), fz = clamp((z - c.cz * CHUNK) / 2, 0, 23.999), i = Math.floor(fx), j = Math.floor(fz), u = fx - i, v = fz - j, t = c.htab, a = t[j * 25 + i], b = t[j * 25 + i + 1], d = t[(j + 1) * 25 + i], e = t[(j + 1) * 25 + i + 1];
+    return (a * (1 - u) + b * u) * (1 - v) + (d * (1 - u) + e * u) * v; };
+}
 function buildPart(E, c, ti){
   const tier = E.style.tiers[ti], g = new THREE.Group(); g.name = c.key + ' ' + tier.name; E.root.add(g);
   const c0 = colliders.length, p0 = platforms.length, s0 = spinners.length, b0 = boxes.length, t0 = performance.now();
@@ -5885,6 +5900,7 @@ function dropPart(E, part){
   const del = (arr, list) => { if(!list.length) return arr; const S = new Set(list); return arr.filter(x => !S.has(x)); };
   colliders = del(colliders, part.cols); platforms = del(platforms, part.plats); spinners = del(spinners, part.spins); boxes = del(boxes, part.boxes);
   lods = lods.filter(e => e.grp !== part.g); E.dropped++;
+  if(grassMeshes.length){ const gone = new Set(); part.g.traverse(o => gone.add(o)); grassMeshes = grassMeshes.filter(m => !gone.has(m)); }
 }
 // a landmark from the Dreamer: whether a cell has one is fixed by its coordinates; what it is, is remembered once placed
 function cellDream(ctx){
@@ -5893,7 +5909,7 @@ function cellDream(ctx){
   const store = dreamsOf(E.builtin); let d = store[ctx.key];
   if(!d){ const src = E.dreams.length ? E.dreams.shift() : dreamOffline(E.rec, qd); d = store[ctx.key] = {name:src.name, text:src.text, lore:src.lore, from:src.from, found:false}; saveDreams(); if(E.dreams.length < 3) askDreamer(); }
   const qs = rng(cellSeed(E.builtin, ctx.cx, ctx.cz, 92)), dr = parseRealm(d.text); dr.time = E.rec.time;
-  const kinds = [...dr.structures].filter(k => k !== 'city' || S.dream.kinds.indexOf('city') >= 0);
+  const kinds = [...dr.structures].filter(k => k !== 'statues' && (k !== 'city' || S.dream.kinds.indexOf('city') >= 0));   // statues build three avatars: too heavy for one streamed step
   if(!kinds.length) kinds.push(S.dream.kinds[Math.floor(qs() * S.dream.kinds.length)]);
   chunkAt = at; const rec = Object.assign({}, E.rec, {structures:dr.structures});
   kinds.slice(0, 2).forEach(k => addStructure(k, qs, rec));
@@ -5905,20 +5921,20 @@ function cellDream(ctx){
 function planCells(E){
   const TS = E.style.tiers, F = TS[0].r, pcx = E.pcx, pcz = E.pcz, cheb = c => Math.max(Math.abs(c.cx - pcx), Math.abs(c.cz - pcz));
   for(const c of [...E.chunks.values()]){ const ch = cheb(c);
-    for(let ti = TS.length - 1; ti >= 0; ti--) if(c.parts[ti] && ch > TS[ti].r + 1){ dropPart(E, c.parts[ti]); c.parts[ti] = null; if(ti === TS.length - 1) c.dream = null; }
+    for(let ti = TS.length - 1; ti >= 0; ti--) if(c.parts[ti] && ch > TS[ti].r + 1){ dropPart(E, c.parts[ti]); c.parts[ti] = null; if(TS[ti].dream) c.dream = null; }
     if(!c.parts[0]) E.chunks.delete(c.key); else for(const pt of c.parts) if(pt) partDetail(pt, ch <= 1); }
   const lookX = p.x - Math.sin(cam.yaw) * 30, lookZ = p.z - Math.cos(cam.yaw) * 30, want = [];
   for(let dz = -F; dz <= F; dz++) for(let dx = -F; dx <= F; dx++){
     const cx = pcx + dx, cz = pcz + dz; if(cellInCore(cx, cz, E.style.core)) continue;
     const c = E.chunks.get(chunkKey(cx, cz)), ch = Math.max(Math.abs(dx), Math.abs(dz)), d = Math.hypot((cx + 0.5) * CHUNK - lookX, (cz + 0.5) * CHUNK - lookZ) / 1000;
-    TS.forEach((t, ti) => { if(ch <= t.r && !(c && c.parts[ti])) want.push({cx, cz, ti, pri:ch + ti * 0.3 - (ti ? 0.5 : 0) + d}); });
+    TS.forEach((t, ti) => { if(ch <= t.r && !(c && c.parts[ti])) want.push({cx, cz, ti, pri:ch + ti * 0.05 + d}); });
   }
   want.sort((a, b) => a.pri - b.pri); E.queue = want;
 }
 function runCellJob(E, w){
   const key = chunkKey(w.cx, w.cz); let c = E.chunks.get(key);
   if(!c){ c = {key, cx:w.cx, cz:w.cz, parts:[], locals:[], dream:null, local:[]}; E.chunks.set(key, c); }
-  for(let ti = 0; ti <= w.ti; ti++) if(!c.parts[ti]){ c.parts[ti] = buildPart(E, c, ti); return; }   // one tier per step; the ones below it first
+  for(let ti = 0; ti <= w.ti; ti++) if(!c.parts[ti]){ c.parts[ti] = buildPart(E, c, ti); if(ti < w.ti) E.queue.unshift(w); return; }   // one tier per step, the ones it stands on first; the job comes back until its own tier is built
 }
 /* the ground disc, re-centred in slices: positions and uvs by ring, normals accumulated by ring band (the same sums as
    computeVertexNormals), colours by ring, then one swap. Centre (0, 0) restores the saved original instead. */
@@ -5951,6 +5967,8 @@ function updateBuiltin(){
   if(pcx !== E.pcx || pcz !== E.pcz){ E.pcx = pcx; E.pcz = pcz; planCells(E); }
   if(E.terrain && !E.job){ const T = E.terrain.userData.terrain, home = Math.hypot(p.x, p.z) < S.home, tx = home ? 0 : Math.round(p.x / 24) * 24, tz = home ? 0 : Math.round(p.z / 24) * 24;
     if(tx !== T.cx || tz !== T.cz){ if(tx === 0 && tz === 0 && E.home) swapTerrain(E.terrain, E.home.pos, E.home.nor, E.home.col, E.home.uv, 0, 0); else E.job = reJob(E.terrain, tx, tz); } }
+  if(S.tick) S.tick(E);
+  for(const ci of E.coreInst){ const off = camWorld.distanceTo(ci.c) - ci.r > E.fogFar; if(off !== ci.off){ ci.off = off; if(off) ci.o.layers.set(5); else ci.o.layers.mask = ci.mask; } }
   const until = t0 + STREAM_MS;
   for(;;){
     if(E.job){ if(reStep(E.job, until)) E.job = null; }
@@ -6071,13 +6089,140 @@ ENDLESS.dunes = {
     // near: dry shrubs, small boulders, pebbles
     {name:'near', r:1, build(c, k){
       const q = c.q, sm = [], sc = [];
-      for(let i = 0, n = 8 + Math.floor(q() * 16); i < n; i++){ const s = c.spot(1, {slope:0.7, tries:4}); if(!s) continue; sm.push(mat4(s[0], G(s[0], s[1]) - 0.05, s[1], 0, q() * TAU, 0, 0.6 + q() * 0.8)); const cc = C([0x9a9068, 0x8a7e5a, 0xa39a70, 0x7f7a52][Math.floor(q() * 4)]); cc.multiplyScalar(0.85 + q() * 0.3); sc.push(cc); }
+      for(let i = 0, n = 8 + Math.floor(q() * 16); i < n; i++){ const s = c.spot(1, {slope:0.7, tries:4}); if(!s) continue; sm.push(mat4(s[0], c.h(s[0], s[1]) - 0.05, s[1], 0, q() * TAU, 0, 0.6 + q() * 0.8)); const cc = C([0x9a9068, 0x8a7e5a, 0xa39a70, 0x7f7a52][Math.floor(q() * 4)]); cc.multiplyScalar(0.85 + q() * 0.3); sc.push(cc); }
       if(sm.length){ const m = instanced(k.shrubGeo, k.shrubM, sm, sc); m.userData.noAO = true; m.customDepthMaterial = k.shrubDepth; }
       const rocks = []; for(let i = 0, n = 1 + Math.floor(q() * 3); i < n; i++){ const s = c.spot(1.5, {slope:0.7, tries:6}); if(!s) continue; const sk = 0.5 + q() * 1.1; rocks.push(mat4(s[0], G(s[0], s[1]) - 0.1, s[1], 0, q() * TAU, 0, sk)); colliders.push({x:s[0], z:s[1], r:sk * 0.85}); c.local.push({x:s[0], z:s[1], r:sk}); }
       if(rocks.length){ k.rock(); lodInstanced(k.rockHi, k.rockLo, k.rockM, rocks, rocks.map(() => { const cc = C(0xf4ebe2); cc.multiplyScalar(0.8 + q() * 0.35); return cc; }), 32, 6); }
       const pm = [], pc = []; for(let i = 0; i < 60; i++){ const x = (c.cx + q()) * CHUNK, z = (c.cz + q()) * CHUNK, sk = 0.05 + q() * q() * 0.22; if(c.skip(x, z)) continue;
-        pm.push(mat4(x, G(x, z) - sk * 0.25, z, q() * 0.6, q() * TAU, q() * 0.6, sk, sk * (0.7 + q() * 0.5), sk * (0.8 + q() * 0.5))); const cc = C(0xe0c4a8); cc.multiplyScalar(0.7 + q() * 0.5); pc.push(cc); }
+        pm.push(mat4(x, c.h(x, z) - sk * 0.25, z, q() * 0.6, q() * TAU, q() * 0.6, sk, sk * (0.7 + q() * 0.5), sk * (0.8 + q() * 0.5))); const cc = C(0xe0c4a8); cc.multiplyScalar(0.7 + q() * 0.5); pc.push(cc); }
       if(pm.length) instanced(k.pebbleGeo, k.pebbleM, pm, pc, false); }}
+  ]
+};
+
+/* shared pieces for streamed cells: grass cards (the same cards and wind as makeGrass), pebbles, still water */
+let cellGrass = null;
+function grassKit(){
+  if(cellGrass) return cellGrass;
+  const geo = new THREE.BufferGeometry(), w = 0.34, pos = [], uv = [], col = [], nor = [], idx = [];
+  [[1, 0, 0], [0.7071, 0, 0.7071], [-0.7071, 0, 0.7071]].forEach((d, k) => { const o = k * 4;
+    pos.push(-d[0] * w, 0, -d[2] * w,  d[0] * w, 0, d[2] * w,  d[0] * w, 1, d[2] * w,  -d[0] * w, 1, -d[2] * w);
+    uv.push(0, 0, 1, 0, 1, 1, 0, 1); col.push(0.55, 0.55, 0.55, 0.55, 0.55, 0.55, 1, 1, 1, 1, 1, 1); nor.push(0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0); idx.push(o, o + 1, o + 2, o, o + 2, o + 3); });
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); geo.setAttribute('color', new THREE.Float32BufferAttribute(col, 3)); geo.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3)); geo.setIndex(idx);
+  const mat = std(0xffffff, {vertexColors:true, side:THREE.DoubleSide, roughness:0.85, map:grassTexture(), alphaTest:0.4});
+  mat.onBeforeCompile = sh => { sh.uniforms.time = uTime;
+    sh.fragmentShader = sh.fragmentShader.replace('#include <normal_fragment_begin>', 'float faceDirection = gl_FrontFacing ? 1.0 : - 1.0; vec3 normal = normalize( vNormal ); vec3 geometryNormal = normal;');
+    sh.vertexShader = 'uniform float time;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n float gk = position.y; vec4 gip = instanceMatrix[3];\n float gw = sin(time * 1.7 + gip.x * 0.35 + gip.z * 0.27) + 0.5 * sin(time * 2.9 + gip.x * 0.8);\n transformed.x += gw * 0.1 * gk * gk; transformed.z += gw * 0.05 * gk * gk;'); };
+  mat.customProgramCacheKey = () => 'grass';
+  return (cellGrass = {geo:shareGeo(geo), mat:shareMat(mat), depth:new THREE.MeshDepthMaterial({depthPacking:THREE.RGBADepthPacking, map:grassTexture(), alphaTest:0.4})});
+}
+// a patch of grass cards: spots from ok(x, z), heights hr, colours hexes
+function cellGrassPatch(c, n, hexes, hr, ok){
+  const K = grassKit(), q = c.q, mats = [], cols = [];
+  for(let i = 0; i < n; i++){ const x = (c.cx + q()) * CHUNK, z = (c.cz + q()) * CHUNK, hh = (hr[0] + q() * (hr[1] - hr[0])) * 1.25, sx = 0.9 + q() * 0.6, sz = 0.9 + q() * 0.6, ry = q() * TAU, t1 = (q() - 0.5) * 0.2, t2 = (q() - 0.5) * 0.2, ci = Math.floor(q() * hexes.length), cm = 0.8 + q() * 0.45;
+    if(c.skip(x, z) || (ok && !ok(x, z))) continue; mats.push(mat4(x, c.h(x, z) - 0.03, z, t1, ry, t2, sx, hh, sz)); const cc = C(hexes[ci]); cc.multiplyScalar(cm); cols.push(cc); }
+  const m = instanced(K.geo, K.mat, mats, cols, false); if(m) cellGrassMesh(m, K); return m;
+}
+// cell grass joins grassMeshes, so the quality ladder and the AI filter hide it with the rest (dropPart takes it out again)
+function cellGrassMesh(m, K){ m.userData.noAO = true; m.customDepthMaterial = K.depth; m.visible = qLevel < 5 && aiVid.style.display !== 'block'; grassMeshes.push(m); }
+let cellPebbleCache = {};
+function cellPebbles(c, n, surf, hex, ok){
+  const K = cellPebbleCache[surf] || (cellPebbleCache[surf] = (() => { const g = new THREE.IcosahedronGeometry(1, 1); displace(g, 0.25, 2.2); g.scale(1, 0.6, 1); g.translate(0, 0.3, 0); const s = surface(surf);
+    return {geo:shareGeo(g), mat:shareMat(std(0xffffff, {map:s.map, normalMap:s.normal, normalScale:new V2(0.6, 0.6), roughness:0.85}))}; })());
+  const q = c.q, mats = [], cols = [];
+  for(let i = 0; i < n; i++){ const x = (c.cx + q()) * CHUNK, z = (c.cz + q()) * CHUNK, k = 0.05 + q() * q() * 0.22, a = q() * 0.6, b = q() * TAU, e = q() * 0.6, sy = 0.7 + q() * 0.5, sz = 0.8 + q() * 0.5, cm = 0.7 + q() * 0.5;
+    if(c.skip(x, z) || (ok && !ok(x, z))) continue; mats.push(mat4(x, c.h(x, z) - k * 0.25, z, a, b, e, k, k * sy, k * sz)); const cc = C(hex); cc.multiplyScalar(cm); cols.push(cc); }
+  return instanced(K.geo, K.mat, mats, cols, false);
+}
+function cellWeeds(c, n, hexes, ok){
+  const q = c.q, mats = [], cols = [];
+  for(let i = 0; i < n; i++){ const x = (c.cx + q()) * CHUNK, z = (c.cz + q()) * CHUNK, k = 0.6 + q() * 1.1, ry = q() * TAU, sy = 0.8 + q() * 0.6, ci = Math.floor(q() * hexes.length), cm = 0.8 + q() * 0.4;
+    if(c.skip(x, z) || (ok && !ok(x, z))) continue; mats.push(mat4(x, c.h(x, z) - 0.02, z, 0, ry, 0, k, k * sy, k)); const cc = C(hexes[ci]); cc.multiplyScalar(cm); cols.push(cc); }
+  const m = instanced(weedGeo(), weedMaterial(), mats, cols, false); if(m){ m.userData.noAO = true; m.customDepthMaterial = cellWeedDepth || (cellWeedDepth = new THREE.MeshDepthMaterial({depthPacking:THREE.RGBADepthPacking, map:weedTexture(), alphaTest:0.4})); } return m;
+}
+let cellWeedDepth = null, cellWaterMat = null;
+const waterKit = () => cellWaterMat || (cellWaterMat = shareMat(std(0x0b2a3a, {roughness:0.06, metalness:0.2, normalMap:waterNormal, normalScale:new V2(0.35, 0.35), envMapIntensity:1.6, transparent:true, opacity:0.93})));
+
+/* ---- Night Grove: endless night forest with clearings, streams and pools, old stones, glowing mushrooms ---- */
+const GROVE_OUT = 200;
+function groveBase(n, x, z){
+  const P = n.fbm(x * 0.0012 + 7, z * 0.0012 - 3, 3), mount = smooth(0.12, 0.45, P), ri = 1 - Math.abs(n.fbm(x * 0.007, z * 0.007, 5) * 1.5);   // the rim's own ridges carry on, lower, with mountains here and there
+  let h = 5 + ri * ri * (14 + 72 * mount) + n.fbm(x * 0.012 + 3, z * 0.012, 3) * 6 + n.fbm(x * 0.03, z * 0.03, 4) * 2.4;
+  const a = Math.abs(n.fbm(x * 0.003 + 50, z * 0.003 - 20, 3)), valley = smooth(0.13, 0.0, a);   // streams run in valleys of their own
+  return h - (h - 2.5) * 0.8 * valley;
+}
+const groveStream = (n, x, z) => smooth(0.03, 0.0, Math.abs(n.fbm(x * 0.003 + 50, z * 0.003 - 20, 3)));   // 1 in the middle of a stream bed
+const groveBigMemo = new Map();
+function groveBig(n, cx, cz){
+  const k = cx * 65536 + cz; let b = groveBigMemo.get(k); if(b) return b;
+  const q = rng(cellSeed('grove', cx, cz, 7)); b = [];
+  if(q() < 0.08){ const x = (cx + 0.3 + q() * 0.4) * CHUNK, z = (cz + 0.3 + q() * 0.4) * CHUNK, r = 5 + q() * 5; if(Math.hypot(x, z) > GROVE_OUT + 40 && groveStream(n, x, z) < 0.01) b.push({kind:'pool', x, z, r:r + 12, pr:r, y:groveBase(n, x, z)}); }
+  groveBigMemo.set(k, b); return b;
+}
+function groveOuter(n, x, z, d, h0){
+  const e = smooth(GROVE_OUT, GROVE_OUT + 160, d);
+  let h = groveBase(n, x, z) - groveStream(n, x, z) * 1.3;
+  const cx = Math.floor(x / CHUNK), cz = Math.floor(z / CHUNK);
+  for(let dz = -1; dz <= 1; dz++) for(let dx = -1; dx <= 1; dx++) for(const b of groveBig(n, cx + dx, cz + dz)){ const dd = Math.hypot(x - b.x, z - b.z); if(dd < b.r){ h = h + (b.y - h) * smooth(b.r, b.pr + 2, dd); h -= smooth(b.pr, b.pr * 0.3, dd) * 1.7; } }   // a flat clearing round a still pool
+  return h0 + (h - h0) * e;
+}
+ENDLESS.grove = {
+  core:GROVE_OUT + 10, home:R + 12, dreamOdds:0.14, dreamR:2,
+  words:'an endless moonlit pine forest with clearings, streams, still pools, old standing stones and glowing mushrooms, at night',
+  dream:{kinds:['ruins', 'monoliths', 'tower', 'temple', 'arch'], surface:'forest', time:'night'},
+  big(cx, cz){ return groveBig(this.n, cx, cz); },
+  start(E){ this.n = makeNoise(WORLDS.grove.seed * 7 + 1); },
+  kit(){
+    this.n = makeNoise(WORLDS.grove.seed * 7 + 1);
+    const PG = pineGeos(); ['trunk', 'leaf', 'trunkLo', 'leafLo'].forEach(k => shareGeo(PG[k]));
+    const stem = new THREE.LatheGeometry([[0.001,0],[0.2,0],[0.14,0.4],[0.12,1.2],[0.15,1.6],[0.001,1.62]].map(a => new V2(a[0], a[1])), 12), cap = new THREE.SphereGeometry(0.9, 20, 10, 0, TAU, 0, Math.PI / 2); cap.scale(1, 0.55, 1); cap.translate(0, 1.55, 0);
+    const capCols = [0xff5fa2, 0x4fe3ff, 0xb58cff], dr = surface('darkrock');
+    const stone = new THREE.BoxGeometry(1, 1, 1, 3, 6, 3); stone.translate(0, 0.5, 0); displace(stone, 0.12, 1.4);
+    return { PG, stem:shareGeo(stem), cap:shareGeo(cap), stemM:shareMat(phys(0xe9e2d4, {roughness:0.6, clearcoat:0.2})), capCols, caps:capCols.map(c => shareMat(phys(c, {emissive:C(c), emissiveIntensity:1.4, roughness:0.35, clearcoat:0.8}))),
+      stone:shareGeo(stone), stoneM:shareMat(reg('rock', {mat:std(0x8a9098, {roughness:0.9, map:dr.map, normalMap:dr.normal, normalScale:new V2(0.8, 0.8)}), kind:'rocks'})), water:waterKit() };
+  },
+  wet(x, z){ return groveStream(this.n, x, z) > 0.05 || groveBig(this.n, Math.floor(x / CHUNK), Math.floor(z / CHUNK)).some(b => Math.hypot(x - b.x, z - b.z) < b.pr + 1.5); },
+  dens(x, z){ return smooth(-0.22, 0.2, this.n.fbm(x * 0.009 + 11, z * 0.009 - 4, 3)); },   // forest thickens and thins; below 0.3 it is a clearing
+  tiers:[
+    // far: the forest itself (pines with their own far LOD) and boulders
+    {name:'far', r:2, build(c, k){
+      const q = c.q, list = [];
+      for(let i = 0; i < 24; i++){ const s = c.spot(2.4, {slope:1.1, tries:3, margin:1}); if(!s) continue; const k2 = 0.9 + q() * 0.8;
+        if(this.wet(s[0], s[1]) || G(s[0], s[1]) > 40 || q() > this.dens(s[0], s[1])) continue;
+        list.push({x:s[0], y:G(s[0], s[1]) - 0.2, z:s[1], s:k2, ry:q() * TAU}); c.local.push({x:s[0], z:s[1], r:0.4 * k2}); colliders.push({x:s[0], z:s[1], r:0.3 * k2}); }
+      if(list.length) plantTrees(k.PG, list, [0x1f3b2c, 0x24402f, 0x2a4636], q);
+      const rocks = []; for(let i = 0, n = Math.floor(q() * 3); i < n; i++){ const s = c.spot(2, {slope:0.8}); if(!s || this.wet(s[0], s[1])) continue; const sk = 0.7 + q() * 1.6; rocks.push({x:s[0], y:G(s[0], s[1]) - 0.1, z:s[1], s:sk, ry:q() * TAU}); c.local.push({x:s[0], z:s[1], r:sk}); colliders.push({x:s[0], z:s[1], r:sk * 0.85}); }
+      if(rocks.length){ if(!k.rockHi){ k.rockHi = shareGeo(rockGeo()); k.rockLo = shareGeo(rockGeo(true)); }
+        lodInstanced(k.rockHi, k.rockLo, k.stoneM, rocks.map(t => mat4(t.x, t.y, t.z, 0, t.ry, 0, t.s)), rocks.map(() => { const cc = C(0x5a5f6b); cc.multiplyScalar(0.8 + q() * 0.35); return cc; }), 40, 6); } }},
+    // mid: glowing mushrooms, old stones in clearings, stream beds and pools of still water, fireflies
+    {name:'mid', r:2, build(c, k){
+      const q = c.q, glows = [];
+      if(q() < 0.4){ const at = c.spot(4, {slope:0.6}); if(at){ const stems = [], caps = [[], [], []];
+        for(let i = 0, n = 4 + Math.floor(q() * 7); i < n; i++){ const a = q() * TAU, d = 1 + q() * 7, x = at[0] + Math.cos(a) * d, z = at[1] + Math.sin(a) * d, s = 0.5 + q() * 1.2, ci = Math.floor(q() * 3); if(!c.free(x, z, 0.4 * s) || this.wet(x, z)) continue;
+          const y = G(x, z), M = mat4(x, y, z, 0, q() * TAU, 0, s); stems.push(M); caps[ci].push(M); glows.push([x, y + 1.7 * s, z, 3.6 * s, k.capCols[ci]]); colliders.push({x, z, r:0.25 * s}); c.local.push({x, z, r:0.5 * s}); }
+        instanced(k.stem, k.stemM, stems); caps.forEach((l, ci) => instanced(k.cap, k.caps[ci], l)); } }
+      const clear = (x, z) => this.dens(x, z) < 0.3;
+      if(q() < 0.2){ const at = c.spot(9, {slope:0.25, ok:clear, margin:10}); if(at){ const mats = [], n = 5 + Math.floor(q() * 5), rr = 4 + q() * 3;
+        for(let i = 0; i < n; i++){ const a = i / n * TAU + (q() - 0.5) * 0.2, x = at[0] + Math.cos(a) * rr, z = at[1] + Math.sin(a) * rr, h = 1.8 + q() * 2.2, w = 0.6 + q() * 0.4; mats.push(mat4(x, G(x, z) - 0.3, z, (q() - 0.5) * 0.15, a + (q() - 0.5) * 0.4, (q() - 0.5) * 0.15, w * 1.3, h, w)); colliders.push({x, z, r:w}); }
+        instanced(k.stone, k.stoneM, mats, mats.map(() => { const cc = C(0x9aa6a0); cc.multiplyScalar(0.75 + q() * 0.3); return cc; })); c.local.push({x:at[0], z:at[1], r:rr + 2}); } }
+      // stream water: a sheet that follows the bed, only where the bed is deep enough to hold it
+      { const st = 2, N = CHUNK / st, pos = [], idx = [], vid = new Map(), n = this.n, x0 = c.cx * CHUNK, z0 = c.cz * CHUNK, sv = [];
+        for(let j = 0; j <= N; j++) for(let i = 0; i <= N; i++) sv.push(groveStream(n, x0 + i * st, z0 + j * st));
+        if(sv.some(v => v > 0.3)){
+          const vert = (i, j) => { const key = j * (N + 1) + i; let v = vid.get(key); if(v === undefined){ const x = x0 + i * st, z = z0 + j * st; v = pos.length / 3; pos.push(x, groveBase(n, x, z) - 0.42, z); vid.set(key, v); } return v; };
+          for(let j = 0; j < N; j++) for(let i = 0; i < N; i++){ const s4 = [sv[j * (N + 1) + i], sv[j * (N + 1) + i + 1], sv[(j + 1) * (N + 1) + i], sv[(j + 1) * (N + 1) + i + 1]]; if(Math.max(...s4) < 0.3 || c.skip(x0 + i * st, z0 + j * st)) continue;
+            const a = vert(i, j), b = vert(i + 1, j), cc = vert(i, j + 1), d = vert(i + 1, j + 1); idx.push(a, cc, b, b, cc, d); }
+          if(idx.length){ const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setIndex(idx); g.computeVertexNormals();
+            const uv = new Float32Array(pos.length / 3 * 2); for(let v = 0; v < pos.length / 3; v++){ uv[v * 2] = pos[v * 3] * 0.08; uv[v * 2 + 1] = pos[v * 3 + 2] * 0.08; } g.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+            const m = mk(g, k.water, 0, 0, 0); m.castShadow = false; m.userData.noAO = true; } } }
+      for(const b of groveBig(this.n, c.cx, c.cz)){ const w = mk(new THREE.CircleGeometry(b.pr * 0.98, 48), k.water, b.x, b.y - 0.35, b.z); w.rotation.x = -Math.PI / 2; w.castShadow = false; w.userData.noAO = true;
+        for(let i = 0; i < 8; i++){ const a = q() * TAU; glows.push([b.x + Math.cos(a) * (b.pr + q() * 6), b.y + 0.6 + q() * 2.5, b.z + Math.sin(a) * (b.pr + q() * 6), 0.55, 0xd9ff8a, 0.6, 0.9, q() * TAU]); } }
+      for(let i = 0, n = Math.floor(q() * 10); i < n; i++){ const x = (c.cx + q()) * CHUNK, z = (c.cz + q()) * CHUNK; if(!c.skip(x, z)) glows.push([x, G(x, z) + 0.5 + q() * 3, z, 0.55, 0xd9ff8a, 0.6, 0.9, q() * TAU]); }   // fireflies
+      glowCloud(glows, 0.3); }},
+    // near: grass in the clearings and under the trees, weeds, pebbles
+    {name:'near', r:1, build(c, k){
+      cellPebbles(c, 50, 'darkrock', 0xb0b8c8, (x, z) => !this.wet(x, z));
+      cellWeeds(c, 70, [0x2f5a3a, 0x3a6a44, 0x2a4a38], (x, z) => !this.wet(x, z)); }},
+    {name:'grass', r:1, build(c, k){ cellGrassPatch(c, 1100, [0x18301f, 0x1e3a26, 0x1a3229, 0x24402c], [0.3, 0.75], (x, z) => !this.wet(x, z) && c.h(x, z) < 34); }}
   ]
 };
 
@@ -6137,7 +6282,7 @@ function buildWorld(key){
   const W = WORLDS[key]; state.world = key;
   world = new THREE.Group(); scene.add(world);
   if(camHid){ camHid = false; if(!zeroing) me.g.visible = true; }
-  grassMeshes = []; lods = []; slotMats = {}; mainTerrain = null; coreSolids = []; boxes = []; desk = null; gym = null; floaters = []; p.zeroG = false; colliders = []; platforms = []; coins = []; portals = []; spinners = []; npcs = []; shardObj = null; vault = null; gridSun = null; fireflies = null; shopKiosk = null; forgeStand = null; vendor = null; hazards = []; burst = null; pickups = []; bike.g = null; bike.riding = false; bike.near = false; engineStop(); $('#rideBtn').style.display = 'none'; trial.active = false; trial.rings = []; trial.pad = null; trial.padPos = null; $('#trialPanel').style.display = 'none';
+  grassMeshes = []; lods = []; slotMats = {}; mainTerrain = null; coreSolids = []; coreFollow = []; boxes = []; desk = null; gym = null; floaters = []; p.zeroG = false; colliders = []; platforms = []; coins = []; portals = []; spinners = []; npcs = []; shardObj = null; vault = null; gridSun = null; fireflies = null; shopKiosk = null; forgeStand = null; vendor = null; hazards = []; burst = null; pickups = []; bike.g = null; bike.riding = false; bike.near = false; engineStop(); $('#rideBtn').style.display = 'none'; trial.active = false; trial.rings = []; trial.pad = null; trial.padPos = null; $('#trialPanel').style.display = 'none';
   const r = rng(W.seed), noise = makeNoise(W.seed * 7 + 1);
   waterBody = null; if(weatherFx){ scene.remove(weatherFx.pts); weatherFx.geo.dispose(); weatherFx.pts.material.dispose(); weatherFx = null; } clearSkyProps(); flyers = []; ships = []; endless = null; buildParent = null; chunkAt = null; waterMeshes.forEach(w => { if(w.renderTarget) w.renderTarget.dispose(); }); waterMeshes = [];
   applyLook(W);
@@ -6932,6 +7077,7 @@ function drawMap(){
   const T = (x, z) => { const dx = x - p.x, dz = z - p.z; return [c + (cy * dx - sy * dz) * sc, c - (-sy * dx - cy * dz) * sc]; };
   mx2.clearRect(0, 0, w, w); mx2.save(); mx2.beginPath(); mx2.arc(c, c, c - 1, 0, TAU); mx2.clip();
   mx2.fillStyle = 'rgba(14,12,40,0.78)'; mx2.fillRect(0, 0, w, w);
+  if(endless && endless.style && endless.style.minimap) endless.style.minimap(mx2, T, sc);
   let o = T(0, 0); if(!endless){ mx2.strokeStyle = 'rgba(92,225,230,0.5)'; mx2.lineWidth = 1.5 * sc; mx2.beginPath(); mx2.arc(o[0], o[1], R * sc, 0, TAU); mx2.stroke(); }
   mx2.fillStyle = 'rgba(255,255,255,0.3)'; boxes.forEach(b => { if(b.y0 > 1.9 || b.map === false) return; mx2.beginPath(); [[-1, -1], [1, -1], [1, 1], [-1, 1]].forEach((k, i) => { const lx = k[0] * b.hx, lz = k[1] * b.hz; o = T(b.x + lx * b.c - lz * b.s, b.z + lx * b.s + lz * b.c); if(i) mx2.lineTo(o[0], o[1]); else mx2.moveTo(o[0], o[1]); }); mx2.fill(); });
   mx2.fillStyle = 'rgba(255,255,255,0.14)'; platforms.forEach(s => { o = T(s.x, s.z); mx2.beginPath(); mx2.arc(o[0], o[1], s.r * sc, 0, TAU); mx2.fill(); });
@@ -6949,6 +7095,7 @@ function drawMap(){
   if(trial.active && trial.rings[trial.idx]){ const rg = trial.rings[trial.idx]; o = T(rg.x, rg.z); mx2.strokeStyle = '#9dff6a'; mx2.lineWidth = 2; mx2.beginPath(); mx2.arc(o[0], o[1], 5, 0, TAU); mx2.stroke(); }
   hazards.forEach(hz => { o = T(hz.x, hz.z); mx2.strokeStyle = 'rgba(255,45,85,0.85)'; mx2.lineWidth = 1.5; mx2.beginPath(); mx2.arc(o[0], o[1], hz.L * sc, 0, TAU); mx2.stroke(); });
   bundles.forEach(bb => { if(bb.world === state.world) star(bb.x, bb.z, '#ff9f1c'); });
+  if(endless) for(const ch of endless.chunks.values()){ const d = ch.dream; if(d && d.x != null) star(d.x, d.z, d.found ? 'rgba(177,140,255,0.45)' : '#b18cff'); }   // landmarks nearby: violet, faded once found
   const tip = T(p.x + Math.sin(p.facing) * 2.4, p.z + Math.cos(p.facing) * 2.4), ang = Math.atan2(tip[1] - c, tip[0] - c);
   mx2.translate(c, c); mx2.rotate(ang); mx2.fillStyle = '#fff'; mx2.beginPath(); mx2.moveTo(9, 0); mx2.lineTo(-6, -6); mx2.lineTo(-3, 0); mx2.lineTo(-6, 6); mx2.fill();
   mx2.restore();
@@ -7820,7 +7967,10 @@ window.__hub = { state, p, cam, post, stats, WORLDS, scene, renderer, camera, su
   VEND, get vendor(){ return vendor && {world:vendor.world, x:vendor.x, z:vendor.z}; }, get vendors(){ return JSON.parse(JSON.stringify(vendorsSeen)); }, get vendNear(){ return vendNear; }, openVendor, closeVendor, buyVend,
   get fuel(){ return state.fuel; }, set fuel(v){ state.fuel = clamp(+v || 0, 0, FUEL_MAX); fuelShown = -1; fuelHud(); }, FUEL_MAX,
   get inGym(){ return !!p.zeroG; }, get gym(){ return gym && {x:gym.x, z:gym.z, r:gym.r, h:gym.h}; }, gymIn:(x, z) => gymIn(x, z),
-  get cellKey(){ return chunkKey(Math.floor(p.x / CHUNK), Math.floor(p.z / CHUNK)); }, cellSum:k => cellSum(k), coreSum:d => coreSum(d), heightAt:(x, z) => G(x, z), get stream(){ const E = endless; return E && E.builtin ? {cells:E.chunks.size, near:[...E.chunks.values()].filter(c => c.parts[c.parts.length - 1] && c.parts.length === E.style.tiers.length).length, slow:E.slow.slice(), kitMs:+(E.kitMs || 0).toFixed(1), queue:E.queue.length, terrainJob:!!E.job, stepMs:+E.stepMs.toFixed(2), maxMs:+E.maxMs.toFixed(2), built:E.built, dropped:E.dropped, centre:E.terrain ? [E.terrain.userData.terrain.cx, E.terrain.userData.terrain.cz] : null, core:E.style.core} : null; }, resetStreamMax(){ if(endless) endless.maxMs = 0; }, benchTerrain(x, z){ if(!mainTerrain) return null; const J = reJob(mainTerrain, x, z), out = []; let t = performance.now(), ph = 0; while(!reStep(J, 0)){ if(J.phase !== ph){ const n = performance.now(); out.push(+(n - t).toFixed(1)); t = n; ph = J.phase; } } out.push(+(performance.now() - t).toFixed(1)); return out; }, get dreamStore(){ return JSON.parse(JSON.stringify(dreamStore || {})); },
+  get cellKey(){ return chunkKey(Math.floor(p.x / CHUNK), Math.floor(p.z / CHUNK)); }, cellSum:k => cellSum(k), coreSum:d => coreSum(d), heightAt:(x, z) => G(x, z), get stream(){ const E = endless; return E && E.builtin ? {cells:E.chunks.size, near:[...E.chunks.values()].filter(c => c.parts[c.parts.length - 1] && c.parts.length === E.style.tiers.length).length, slow:E.slow.slice(), kitMs:+(E.kitMs || 0).toFixed(1), queue:E.queue.length, terrainJob:!!E.job, stepMs:+E.stepMs.toFixed(2), maxMs:+E.maxMs.toFixed(2), built:E.built, dropped:E.dropped, centre:E.terrain ? [E.terrain.userData.terrain.cx, E.terrain.userData.terrain.cz] : null, core:E.style.core} : null; }, resetStreamMax(){ if(endless) endless.maxMs = 0; }, teleport(x, z){ if(bike.riding) dismountBike(true); if(endless && endless.style && endless.style.landAt){ const L = endless.style.landAt(x, z); x = L[0]; z = L[1]; } p.x = x; p.z = z; p.y = G(x, z) + 0.05; p.vy = 0; p.speed = 0; const s = window.__hub.streamNow(); snapCamera(); return {x:+x.toFixed(2), z:+z.toFixed(2), y:+p.y.toFixed(2), cell:chunkKey(Math.floor(x / CHUNK), Math.floor(z / CHUNK)), stream:s}; },
+  streamNow(){ const E = endless; if(!E || !E.builtin) return 0; const t = performance.now(); let n = 0; E.pcx = 1e9;
+    for(let k = 0; k < 4; k++){ updateBuiltin(); if(!E.job && !E.queue.length) break; while(E.job || E.queue.length){ if(E.job){ if(reStep(E.job, Infinity)) E.job = null; } else runCellJob(E, E.queue.shift()); n++; } }
+    updateLods(); return {steps:n, ms:Math.round(performance.now() - t)}; }, benchTerrain(x, z){ if(!mainTerrain) return null; const J = reJob(mainTerrain, x, z), out = []; let t = performance.now(), ph = 0; while(!reStep(J, 0)){ if(J.phase !== ph){ const n = performance.now(); out.push(+(n - t).toFixed(1)); t = n; ph = J.phase; } } out.push(+(performance.now() - t).toFixed(1)); return out; }, get dreamStore(){ return JSON.parse(JSON.stringify(dreamStore || {})); },
   get endless(){ return endless && {builtin:endless.builtin || null, chunks:endless.chunks.size, dreams:endless.dreams.length, log:endless.log.slice(), source:dreamer.source, placed:Object.keys(endless.dreamsPlaced || {}).length, center:[endless.terrain ? endless.terrain.userData.terrain.cx : 0, endless.terrain ? endless.terrain.userData.terrain.cz : 0]}; }, updateChunks:(all) => updateChunks(all), dreamOffline, get dreamer(){ return {source:dreamer.source, hasSample:!!dreamer.sample, hasKey:!!dreamer.key}; },
   forgeRealm, realmKey, parseRealm, describeRealm, deleteRealm, get realms(){ return realms.map(x => Object.assign({}, x)); }, get waterBody(){ return waterBody && {level:waterBody.level, kind:waterBody.kind}; },
   fare, CAMPUS, get enrolled(){ return state.enrolled; }, set enrolled(v){ state.enrolled = !!v; persist(); }, enroll, get desk(){ return desk && {x:desk.x, z:desk.z}; }, get deskNear(){ return deskNear; }, get boxes(){ return boxes.length; }, boxOut, G:(x, z) => G(x, z), get portals(){ return portals.map(q => ({to:q.to, x:q.x, z:q.z})); }, get coins(){ return coins.map(k => ({id:k.id, x:k.g.position.x, y:k.g.position.y, z:k.g.position.z})); },
