@@ -9177,12 +9177,12 @@ function hollowTreasure(g, M){
 }
 function enterHollow(){
   if(traveling || !hollow) return; traveling = true; fadeEl.classList.add('on'); sfx('thud');
-  setTimeout(() => {
+  setTimeout(() => { try{
     if(hollow && state.world === 'dunes'){ if(!hollow.built) buildHollow(); hollow.inside = true; hollow.g.visible = true; hollow.room = -1;
       p.x = HOLLOW.x; p.z = HOLLOW.z - 4.2; p.y = hollowFloor(p.x, p.z); p.vy = 0; p.speed = 0; p.facing = 0; cam.yaw = Math.PI; cam.pitch = Math.min(cam.pitch, 0.22);
       hemi.intensity = WORLDS.dunes.hemi[2] * 0.4; snapCamera(); clipCamera();
       if(!hollow.told){ hollow.told = true; toast('The Hollow. Mind the sand, the blades and whatever drifts in the dark.', 4200); } }
-    fadeEl.classList.remove('on'); traveling = false;
+    } finally { fadeEl.classList.remove('on'); traveling = false; }
   }, 450);
 }
 function leaveHollow(){
@@ -9220,8 +9220,8 @@ function hollowUpdate(dt, time){
     if(H.hood && H.rise < 1){ H.rise = Math.min(1, H.rise + dt / 3); const e = 1 - Math.pow(1 - H.rise, 3); H.hood.position.y = (e - 1) * 3.6; }
     if(H.built && H.inside){ hollowInside(dt, time);
       if(H.lid && state.hunt.hoard) H.lid.rotation.x += (-1.9 - H.lid.rotation.x) * (1 - Math.exp(-dt * 5));
-      const C = HOLLOW.cabinet, K = HOLLOW.chest;
-      if(H.inside && !bike.riding){ if(Math.hypot(p.x - HOLLOW.x - C.x, p.z - HOLLOW.z - C.z + 1.2) < 1.3) near = 'cabinet'; else if(!state.hunt.hoard && Math.hypot(p.x - HOLLOW.x - K.x, p.z - HOLLOW.z - K.z) < 1.9) near = 'chest'; }
+      const CB = HOLLOW.cabinet, K = HOLLOW.chest;
+      if(H.inside && !bike.riding){ if(Math.hypot(p.x - HOLLOW.x - CB.x, p.z - HOLLOW.z - CB.z + 1.2) < 1.3) near = 'cabinet'; else if(!state.hunt.hoard && Math.hypot(p.x - HOLLOW.x - K.x, p.z - HOLLOW.z - K.z) < 1.9) near = 'chest'; }
     } else if(!H.inside){
       if(!H.open && !bike.riding && Math.hypot(p.x - 22, p.z - 16) < HOLLOW.fieldR) near = 'knock';
       // walk into the dark doorway at the back of the porch to go down
@@ -9397,7 +9397,7 @@ document.querySelectorAll('#rally .rally-touch button').forEach(b => { const k =
 window.addEventListener('resize', () => { if(rally.open) sizeRally(); });
 // the cabinet: a tall purple cabinet with a lit marquee, the race on its screen, a little wheel on the control panel
 function buildRallyCabinet(g, M){
-  const H = HOLLOW, C = H.cabinet, cab = new THREE.Group(); cab.position.set(H.x + C.x, H.y, H.z + C.z); cab.rotation.y = Math.PI; g.add(cab);
+  const H = HOLLOW, CB = H.cabinet, cab = new THREE.Group(); cab.position.set(H.x + CB.x, H.y, H.z + CB.z); cab.rotation.y = Math.PI; g.add(cab);
   rally.scv = document.createElement('canvas'); rally.scv.width = 512; rally.scv.height = 384; drawRally(rally.scv, null, 0);
   rally.tex = new THREE.CanvasTexture(rally.scv); rally.tex.encoding = THREE.sRGBEncoding; rally.tex.anisotropy = 4;
   const side = canvasTex(256, 512, (x, w, h) => { x.fillStyle = '#231546'; x.fillRect(0, 0, w, h); const gr = x.createLinearGradient(0, h, w, 0); gr.addColorStop(0, 'rgba(255,179,71,0)'); gr.addColorStop(0.6, 'rgba(255,179,71,0.9)'); gr.addColorStop(1, '#fff');
@@ -9420,7 +9420,7 @@ function buildRallyCabinet(g, M){
   mk(new THREE.BoxGeometry(0.8, 0.24, 0.16), black, 0, 1.84, 0.34, cab);
   const mq = mk(new THREE.PlaneGeometry(0.74, 0.19), std(0x000000, {map:marq, emissive:C(0xffffff), emissiveMap:marq, emissiveIntensity:1.4}), 0, 1.84, 0.425, cab); mq.castShadow = false;
   glow(0x7fe0ff, 1.5, 0, 1.43, 0.35, cab, 0.22); glow(0xffb347, 1.6, 0, 1.84, 0.5, cab, 0.3);
-  aabb(H.x + C.x - 0.46, H.x + C.x + 0.46, H.y, H.y + 2, H.z + C.z - 0.46, H.z + C.z + 0.46, {hollow:true, full:true, map:false});
+  aabb(H.x + CB.x - 0.46, H.x + CB.x + 0.46, H.y, H.y + 2, H.z + CB.z - 0.46, H.z + CB.z + 0.46, {hollow:true, full:true, map:false});
   rally.cab = cab; rally.trophy = null; if(state.shards.has('dunes')) rallyTrophy();
 }
 // once won, the Amber Shard turns slowly above the cabinet
