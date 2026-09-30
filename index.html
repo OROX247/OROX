@@ -4248,7 +4248,7 @@ function dunesOuter(n, x, z, d, h0, ri){
 const HEIGHTS = {
   hub:(n, pf) => (x, z) => { const d = Math.hypot(x, z); let h = n.fbm(x * 0.025, z * 0.025, 4) * 2.2 * smooth(37, 50, d); h += smooth(R + 15, R + 170, d) * (10 + n.fbm(x * 0.006, z * 0.006, 4) * 45); if(d > HUB_OUT) h = hubOuter(n, x, z, d, h); return h * pf(x, z); },
   dunes:(n, pf) => (x, z) => { const d = Math.hypot(x, z), w = n.fbm(x * 0.01, z * 0.01, 3), ri = 1 - Math.abs(n.n2(x * 0.028 + w * 2, z * 0.011 + w)); let h = ri * ri * 3.4 + n.fbm(x * 0.06, z * 0.06, 3) * 0.5; h *= 0.25 + 0.75 * smooth(6, 26, d); h += smooth(R + 8, R + 150, d) * (ri * ri * 26 + 8); if(d > DUNES_OUT) h = dunesOuter(n, x, z, d, h, ri); return h * pf(x, z); },
-  grid:(n) => (x, z) => { const d = Math.hypot(x, z), m = smooth(R + 30, R + 170, d), ri = 1 - Math.abs(n.fbm(x * 0.008, z * 0.008, 4) * 1.6), h = m * (ri * ri * 75 + 5) - 0.3 * (1 - smooth(R + 26, R + 32, d)); return h; },
+  grid:(n) => (x, z) => { const d = Math.hypot(x, z), m = smooth(R + 30, R + 170, d), ri = 1 - Math.abs(n.fbm(x * 0.008, z * 0.008, 4) * 1.6), h = m * (ri * ri * 75 + 5) - 0.3 * (1 - smooth(R + 26, R + 32, d)); return d > GRID_OUT ? gridOuter(x, z, d, h) : h; },
   grove:(n, pf) => (x, z) => { const d = Math.hypot(x, z); let h = n.fbm(x * 0.03, z * 0.03, 4) * 2.4 * smooth(6, 20, d); const ri = 1 - Math.abs(n.fbm(x * 0.007, z * 0.007, 5) * 1.5); h += smooth(R + 10, R + 180, d) * (ri * ri * 100 + 10); if(d > GROVE_OUT) h = groveOuter(n, x, z, d, h); return h * pf(x, z); },
   sky:(n, pf) => (x, z) => { const d = Math.hypot(x, z); let h = n.fbm(x * 0.035, z * 0.035, 4) * 1.6 * smooth(4, 16, d); h -= smooth(R, R + 6, d) * 3; return h * pf(x, z); },
   // a gently rolling lawn (flat under the buildings), a little more roll in the east woods, green hills beyond the walkable ring
@@ -4485,7 +4485,7 @@ BUILD.grid = (r, n) => {
   });
   gridTex.repeat.set(350, 350);
   const floor = new THREE.Mesh(new THREE.CircleGeometry(700, 96), std(0x0a0712, {roughness:0.2, metalness:0.65, emissive:C(0xffffff), emissiveMap:gridTex, emissiveIntensity:1.2}));
-  floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; world.add(floor);
+  floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; world.add(floor); coreFollow.push({o:floor, snap:4});   // the floor follows in whole grid squares, so its lines never move
   const sunTex = canvasTex(512, 512, (x) => {
     const g = x.createLinearGradient(0, 0, 0, 512); g.addColorStop(0, '#ffe08a'); g.addColorStop(0.55, '#ff7a45'); g.addColorStop(1, '#ff3d9a');
     x.fillStyle = g; x.beginPath(); x.arc(256, 256, 252, 0, TAU); x.fill();
@@ -4493,7 +4493,7 @@ BUILD.grid = (r, n) => {
   });
   gridSun = new THREE.Mesh(new THREE.PlaneGeometry(260, 260), new THREE.MeshBasicMaterial({map:sunTex, transparent:true, fog:false, depthWrite:false, toneMapped:false}));
   gridSun.position.set(0, 95, -760); world.add(gridSun);
-  glow(0xff4fa3, 700, 0, 95, -770, world, 0.35);
+  coreFollow.push({o:gridSun}, {o:glow(0xff4fa3, 700, 0, 95, -770, world, 0.35)});   // the sun and its glow keep their place in the sky however far you go
   const zx = -18, zz = 16, glass = phys(0x0b0716, {roughness:0.12, metalness:0.5, clearcoat:1});
   [7, 5.8, 4.6, 3.4, 2.2].forEach((rad, i) => {
     const top = 1.3 * (i + 1);
@@ -6322,6 +6322,78 @@ ENDLESS.hub = {
       cellPebbles(c, 40, 'gravel', 0xcfc8bc, ok);
       cellWeeds(c, 70, [0x5a8a3a, 0x6f9a44, 0x86a04a], ok); }},
     {name:'grass', r:1, build(c, k){ cellGrassPatch(c, 1100, [0x55752f, 0x6b8436, 0x7d8f3e, 0x4d6a2c], [0.35, 0.8], (x, z) => !bigOf(c.E, Math.floor(x / CHUNK), Math.floor(z / CHUNK)).some(b => b.kind !== 'towers' && Math.hypot(x - b.x, z - b.z) < b.pr + 2)); }}
+  ]
+};
+
+/* ---- Neon Grid: past the ring of wire mountains, an endless city of towers and plazas on the glowing floor; the streets
+   run along the cell edges, 8 m wide, and stay clear, so you can always walk on ---- */
+const GRID_OUT = 450;
+const gridOuter = (x, z, d, h0) => h0 + (-0.3 - h0) * smooth(GRID_OUT, GRID_OUT + 170, d);   // the mountains sink back into the floor
+function gridFacade(v){
+  // four floors per tile (the towers' v runs a quarter as fast), each window lit or dark on its own
+  const W = 256, H = 512, q = rng(700 + v), cols = v ? 6 : 4, neon = v ? '#5ce1e6' : '#ff4fa3', lit = [];
+  for(let i = 0; i < cols * 4; i++) lit.push(q() < 0.22 ? (q() < 0.45 ? neon : q() < 0.5 ? '#ffd9a0' : q() < 0.5 ? '#b18cff' : '#cfe4ff') : null);
+  const draw = em => (x, w, h) => { x.fillStyle = em ? '#000' : '#08050f'; x.fillRect(0, 0, w, h); const fh = h / 4;
+    for(let f = 0; f < 4; f++){ for(let c = 0; c < cols; c++){ const cw = w / cols, L = lit[f * cols + c]; x.fillStyle = em ? (L || '#000') : (L ? '#2a1d3a' : '#120c22'); x.fillRect(c * cw + 5, f * fh + fh * 0.2, cw - 10, fh * 0.62); }
+      x.fillStyle = em ? (f === 3 ? neon : '#000') : '#3a1d44'; x.fillRect(0, f * fh + fh - 5, w, 3); } };
+  const map = canvasTex(W, H, draw(false)), em = canvasTex(W, H, draw(true));
+  const m = std(0xffffff, {map, roughness:0.18, metalness:0.6, emissive:C(0xffffff), emissiveMap:em, emissiveIntensity:1.4, envMapIntensity:1.2}); [map, em].forEach(t => SHARED_TEX.add(t)); return shareMat(m);
+}
+// the 12 edges of a box (world space, rotated by a) as line pairs
+function boxEdges(out, x, y0, z, hx, hz, h, a){ const c = Math.cos(a), s = Math.sin(a), P = (lx, y, lz) => [x + lx * c + lz * s, y, z - lx * s + lz * c];
+  const k = [[-hx, -hz], [hx, -hz], [hx, hz], [-hx, hz]]; for(let i = 0; i < 4; i++){ const A = k[i], B = k[(i + 1) % 4]; out.push(...P(A[0], y0, A[1]), ...P(B[0], y0, B[1]), ...P(A[0], y0 + h, A[1]), ...P(B[0], y0 + h, B[1]), ...P(A[0], y0, A[1]), ...P(A[0], y0 + h, A[1])); } }
+ENDLESS.grid = {
+  core:GRID_OUT + 20, home:R + 12, dreamOdds:0.1, dreamR:2,
+  words:'an endless neon city at night: black glass towers with glowing edges, plazas with arcade cabinets and glass pyramids, streets of light',
+  dream:{kinds:['tower', 'monoliths', 'pyramid', 'arch'], surface:'rock', time:'night'},
+  big(cx, cz, q){
+    const x0 = cx * CHUNK, z0 = cz * CHUNK, out = [], t = q(); if(Math.hypot(x0 + 24, z0 + 24) < this.core + 40) return out;
+    const flat = (x, z, hx, hz) => Math.max(G(x - hx, z - hz), G(x + hx, z - hz), G(x - hx, z + hz), G(x + hx, z + hz), G(x, z)) < 0.05;
+    if(t < 0.64){ const lots = q() < 0.35 ? [[24, 24, 20]] : q() < 0.55 ? [[14, 24, 10], [34, 24, 10]] : [[14, 14, 10], [34, 14, 10], [14, 34, 10], [34, 34, 10]];
+      for(const [lx, lz, half] of lots){ if(q() < 0.12) continue; const hx = half - 1.5 - q() * 3, hz = half - 1.5 - q() * 3, x = x0 + lx + (q() - 0.5) * 2, z = z0 + lz + (q() - 0.5) * 2, h = 14 + q() * q() * 120, v = Math.floor(q() * 2);
+        if(flat(x, z, hx, hz)) out.push({kind:'tower', x, z, hx, hz, h, v, r:Math.hypot(hx, hz) + 1}); } }
+    else if(flat(x0 + 24, z0 + 24, 18, 18)) out.push({kind:t < 0.88 ? 'plaza' : 'garden', x:x0 + 24, z:z0 + 24, r:5});
+    return out;
+  },
+  kit(){
+    const glass = shareMat(phys(0x0c0818, {roughness:0.15, metalness:0.5, clearcoat:1})), cab = shareMat(phys(0x1a0f33, {roughness:0.35, clearcoat:0.8}));
+    const scr = canvasTex(128, 128, (x) => { const q = rng(909); x.fillStyle = '#05030c'; x.fillRect(0, 0, 128, 128); x.fillStyle = '#5ce1e6'; for(let yy = 0; yy < 8; yy++) for(let xx = 0; xx < 4; xx++) if(q() < 0.5){ x.fillRect(40 + xx * 6, 30 + yy * 6, 6, 6); x.fillRect(40 + (7 - xx) * 6, 30 + yy * 6, 6, 6); } x.font = 'bold 12px monospace'; x.fillText('HI 77120', 10, 16); x.fillText('INSERT COIN', 22, 112); });
+    SHARED_TEX.add(scr);
+    const cabGeo = merge([new THREE.BoxGeometry(1.3, 2.3, 1.0).translate(0, 1.15, -0.05), new THREE.BoxGeometry(1.3, 0.12, 0.55).rotateX(0.2).translate(0, 1.05, 0.5)]);
+    const scrGeo = new THREE.PlaneGeometry(0.95, 0.8); scrGeo.rotateX(-0.12); scrGeo.translate(0, 1.7, 0.46);
+    return { facade:[gridFacade(0), gridFacade(1)], glass, cab, cabGeo:shareGeo(cabGeo), scrGeo:shareGeo(scrGeo), scrM:shareMat(new THREE.MeshBasicMaterial({map:scr, toneMapped:false})),
+      pink:shareMat(new THREE.LineBasicMaterial({color:C(0xff4fa3), toneMapped:false})), cyan:shareMat(new THREE.LineBasicMaterial({color:C(0x5ce1e6), toneMapped:false})),
+      kerbP:shareMat(glowM(0xff4fa3, 2.2)), kerbC:shareMat(glowM(0x5ce1e6, 2.2)), ringM:shareMat(new THREE.MeshBasicMaterial({color:C(0x5ce1e6), transparent:true, opacity:0.6, depthWrite:false, toneMapped:false})), pyr:shareGeo(new THREE.ConeGeometry(1, 1.6, 4).translate(0, 0.8, 0)) };
+  },
+  tiers:[
+    // far: the towers, their neon edges and roof beacons (three draws a block)
+    {name:'far', r:6, build(c, k){
+      const bins = [[], []], edges = [[], []], glows = [];
+      for(const b of bigOf(c.E, c.cx, c.cz)){ if(b.kind !== 'tower') continue;
+        const tg = skyTowerGeo(b.hx * 2, b.hz * 2, b.h, -0.5), tu = tg.attributes.uv; for(let i = 0; i < tu.count; i++) tu.setY(i, tu.getY(i) * 0.25); bins[b.v].push(tg.translate(b.x, 0, b.z)); boxEdges(edges[b.v], b.x, -0.5, b.z, b.hx + 0.02, b.hz + 0.02, b.h + 0.52, 0);
+        addBox(b.x, b.z, b.hx, b.hz, -1, b.h, {}); glows.push([b.x, b.h + 1.5, b.z, b.h > 60 ? 5 : 3, b.v ? 0x5ce1e6 : 0xff4fa3, 0.6]); }
+      bins.forEach((l, v) => { if(!l.length) return; mk(merge(l), k.facade[v]).castShadow = true;
+        const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(edges[v], 3)); const ls = new THREE.LineSegments(g, v ? k.cyan : k.pink); ls.frustumCulled = false; buildParent.add(ls); });
+      glowCloud(glows, 0.6); }},
+    // mid: kerbs of light, street lamps, plazas (arcade cabinets, glass pyramids, a ring of light) and pyramid gardens
+    {name:'mid', r:2, build(c, k){
+      const q = c.q, x0 = c.cx * CHUNK, z0 = c.cz * CHUNK, parts = [[], []], glows = [];
+      if(!cellInCore(c.cx, c.cz, c.core + 40) && G(x0 + 24, z0 + 24) < 0.05){
+        [[24, 4.2, 40, 0.25], [24, 43.8, 40, 0.25], [4.2, 24, 0.25, 40], [43.8, 24, 0.25, 40]].forEach((e, i) => parts[(c.cx + c.cz + i) & 1].push(new THREE.BoxGeometry(e[2], 0.12, e[3]).translate(x0 + e[0], 0.06, z0 + e[1])));
+        for(let i = 0; i < 4; i++){ const cx2 = x0 + (i & 1 ? 44.5 : 3.5), cz2 = z0 + (i & 2 ? 44.5 : 3.5); glows.push([cx2, 3.2, cz2, 3, (i + c.cx) & 1 ? 0xff4fa3 : 0x5ce1e6, 0.45]); parts[i & 1].push(new THREE.CylinderGeometry(0.06, 0.08, 3.2, 6).translate(cx2, 1.6, cz2)); colliders.push({x:cx2, z:cz2, r:0.2}); } }
+      parts.forEach((l, v) => { if(l.length) mk(merge(l), v ? k.kerbC : k.kerbP).castShadow = false; });
+      for(const b of bigOf(c.E, c.cx, c.cz)){
+        if(b.kind === 'plaza'){ const ring = mk(new THREE.RingGeometry(9.7, 10, 96), k.ringM, b.x, 0.03, b.z); ring.rotation.x = -Math.PI / 2; ring.castShadow = false;
+          const cm = [], sm = []; for(let i = 0, n = 3 + Math.floor(q() * 4); i < n; i++){ const a = i / n * TAU + q() * 0.3, x = b.x + Math.cos(a) * 13, z = b.z + Math.sin(a) * 13, M = mat4(x, 0, z, 0, Math.atan2(b.x - x, b.z - z), 0); cm.push(M); sm.push(M); glows.push([x, 1.7, z, 2.4, [0x5ce1e6, 0xff4fa3, 0xffd166][i % 3], 0.35]); colliders.push({x, z, r:0.9}); }
+          instanced(k.cabGeo, k.cab, cm); instanced(k.scrGeo, k.scrM, sm, null, false);
+          const pm = [], el = []; for(let i = 0, n = 1 + Math.floor(q() * 2); i < n; i++){ const a = q() * TAU, d = q() * 4, s = 2.5 + q() * 3, x = b.x + Math.cos(a) * d, z = b.z + Math.sin(a) * d, ry = q() * TAU; pm.push(mat4(x, 0, z, 0, ry, 0, s)); colliders.push({x, z, r:s * 0.75});
+            const E = new THREE.EdgesGeometry(new THREE.ConeGeometry(s, s * 1.6, 4).translate(0, s * 0.8, 0).rotateY(ry).translate(x, 0, z)); el.push(...E.attributes.position.array); glows.push([x, s * 1.6, z, 3, 0x5ce1e6, 0.6]); }
+          instanced(k.pyr, k.glass, pm); if(el.length){ const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(el, 3)); buildParent.add(new THREE.LineSegments(g, k.cyan)); } }
+        else if(b.kind === 'garden'){ const pm = [], el = []; for(let i = 0, n = 4 + Math.floor(q() * 6); i < n; i++){ const x = b.x + (q() - 0.5) * 30, z = b.z + (q() - 0.5) * 30, s = 1 + q() * 2.2, ry = q() * TAU; pm.push(mat4(x, 0, z, 0, ry, 0, s)); colliders.push({x, z, r:s * 0.75});
+            const E = new THREE.EdgesGeometry(new THREE.ConeGeometry(s, s * 1.6, 4).translate(0, s * 0.8, 0).rotateY(ry).translate(x, 0, z)); el.push(...E.attributes.position.array); }
+          instanced(k.pyr, k.glass, pm); const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(el, 3)); buildParent.add(new THREE.LineSegments(g, (c.cx & 1) ? k.pink : k.cyan)); }
+      }
+      glowCloud(glows, 0.45); }}
   ]
 };
 
