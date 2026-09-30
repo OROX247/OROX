@@ -118,6 +118,11 @@ html,body{ height:100%; margin:0; overflow:hidden; background:#07061a; color:var
 #regAsk{ padding:9px 16px; border:none; background:linear-gradient(90deg,var(--cyan),var(--pink)); color:var(--btn-ink); font:700 15px 'Chakra Petch','Trebuchet MS',sans-serif; cursor:pointer; }
 #regChips{ display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
 #regChips button{ padding:5px 10px; background:none; border:1.5px solid rgba(255,255,255,.22); color:#dcd7f5; font:13px 'Chakra Petch','Trebuchet MS',sans-serif; cursor:pointer; }
+#rally{ background:rgba(3,3,12,.82); } .rally-box{ display:grid; gap:10px; justify-items:center; }
+#rallyCv{ width:min(92vw, 108vh, 1100px); aspect-ratio:4/3; max-height:84vh; background:#05071a; border-radius:12px; box-shadow:0 0 0 3px #3a2a66, 0 0 40px rgba(255,179,71,.25); }
+.rally-bar{ display:flex; gap:10px; align-items:center; color:#c9c3e6; font:600 13px 'Chakra Petch','Trebuchet MS',sans-serif; flex-wrap:wrap; justify-content:center; }
+.rally-touch{ display:none; gap:10px; } .rally-touch button{ min-width:64px; min-height:52px; font-size:18px; }
+@media (pointer:coarse){ .rally-touch{ display:flex; } }
 .memo-card{ width:min(540px,100%); } .memo-card small{ color:var(--gold); letter-spacing:.08em; text-transform:uppercase; font-size:12px; }
 #memoText{ font:16.5px/1.6 Georgia,"Times New Roman",serif; color:#efe8d6; margin:10px 0 8px; } #memoNote{ font-size:13px; color:#b9b2e0; margin:0; }
 .ico.book{ border-radius:2px; width:18px; height:24px; background:linear-gradient(90deg,#3a1a12 0 20%,var(--c) 20%); }
@@ -377,6 +382,13 @@ body.bcast #hud, body.bcast #corner, body.bcast #roomCard, body.bcast #toast{ vi
     <div id="regChips"></div>
     <p class="lede" id="regSrc"></p>
     <button class="ghost" id="regClose">Close</button>
+  </div>
+</div>
+<div id="rally" class="overlay hidden" role="dialog" aria-label="Comet Rally">
+  <div class="rally-box">
+    <canvas id="rallyCv" width="640" height="480"></canvas>
+    <div class="rally-touch"><button class="hbtn" data-k="L" aria-label="Steer left">&#9664;</button><button class="hbtn" data-k="R" aria-label="Steer right">&#9654;</button><button class="hbtn" data-k="B">Brake</button><button class="hbtn" data-k="G">Go</button></div>
+    <div class="rally-bar"><span>Arrows or WASD drive · Enter starts · Esc leaves</span><button class="hbtn" id="rallyGo">Start</button><button class="ghost" id="rallyQuit">Leave</button></div>
   </div>
 </div>
 <div id="memo" class="overlay hidden" role="dialog" aria-labelledby="memoTitle">
@@ -4432,6 +4444,13 @@ function addShard(id, x, y, z){
   beam.position.set(x, y + 40, z); world.add(beam);
   shardObj = {id, m, beam, l, gl, base:y};
 }
+// the one way a shard is given (a pickup, or Goal 11's Comet Rally): saved, rewarded, shown on the HUD and the Ledger Board
+function giveShard(id, why){
+  if(state.shards.has(id)) return false;
+  state.shards.add(id); reward(150, 50); sfx('shard'); refreshHud(); if(typeof huntState === 'function') huntState();
+  toast((why ? why + '   ' : '') + (state.shards.size < 3 ? 'Shard found. ' + state.shards.size + ' of 3.   +150 XP' : 'All three shards found. The vault in the Hub is open.'), 5200);
+  return true;
+}
 function addPlatform(x, z, rad, top, mesh, bottom){ platforms.push({x, z, r:rad, top, bottom:bottom || 0}); return mesh; }
 /* solid boxes (Goal 8): walls and furniture, turned only about y. The local x axis points along (c, s) in world x/z.
    The player is pushed out where heights overlap (or always, for full:true furniture, so nobody lands inside a desk); cam:false boxes do not stop the camera. */
@@ -7668,7 +7687,7 @@ function buildWorld(key){
   const W = WORLDS[key]; state.world = key; gravK = W.gravity || 1; if(explorer.dirty) saveExplorer();
   world = new THREE.Group(); scene.add(world);
   if(camHid){ camHid = false; if(!zeroing) me.g.visible = true; }
-  grassMeshes = []; lods = []; slotMats = {}; mainTerrain = null; coreSolids = []; coreFollow = []; boxes = []; desk = null; gym = null; floaters = []; p.zeroG = false; colliders = []; platforms = []; coins = []; portals = []; spinners = []; npcs = []; shardObj = null; vault = null; gridSun = null; fireflies = null; shopKiosk = null; forgeStand = null; vendor = null; archive = null; archRoom = -1; hollow = null; hazards = []; burst = null; pickups = []; bike.g = null; bike.riding = false; bike.near = false; engineStop(); $('#rideBtn').style.display = 'none'; trial.active = false; trial.rings = []; trial.pad = null; trial.padPos = null; $('#trialPanel').style.display = 'none';
+  grassMeshes = []; lods = []; slotMats = {}; mainTerrain = null; coreSolids = []; coreFollow = []; boxes = []; desk = null; gym = null; floaters = []; p.zeroG = false; colliders = []; platforms = []; coins = []; portals = []; spinners = []; npcs = []; shardObj = null; vault = null; gridSun = null; fireflies = null; shopKiosk = null; forgeStand = null; vendor = null; archive = null; archRoom = -1; hollow = null; if(rally.open) closeRally(); rally.tex = null; rally.cab = null; rally.trophy = null; hazards = []; burst = null; pickups = []; bike.g = null; bike.riding = false; bike.near = false; engineStop(); $('#rideBtn').style.display = 'none'; trial.active = false; trial.rings = []; trial.pad = null; trial.padPos = null; $('#trialPanel').style.display = 'none';
   const r = rng(W.seed), noise = makeNoise(W.seed * 7 + 1);
   waterBody = null; if(weatherFx){ scene.remove(weatherFx.pts); weatherFx.geo.dispose(); weatherFx.pts.material.dispose(); weatherFx = null; } clearSkyProps(); flyers = []; ships = []; endless = null; buildParent = null; chunkAt = null; waterMeshes.forEach(w => { if(w.renderTarget) w.renderTarget.dispose(); }); waterMeshes = [];
   applyLook(W);
@@ -7807,7 +7826,7 @@ function zeroOut(why){
   if(zeroing) return;
   if(trySecondBreath(why)) return;
   zeroing = true;
-  const where = state.world, y = groundAt(p.x, p.z, p.y);
+  const where = state.world, y = hollow && hollow.inside ? hollowFloor(p.x, p.z) : groundAt(p.x, p.z, p.y);
   const b = {id:++bundleSeq, world:where, x:p.x, y, z:p.z, credits:state.credits, items:takeCarried(), why:why || ''};
   const empty = !b.credits && !b.items.length;
   if(!empty){ bundles.push(b); addBundleMesh(b); }
@@ -8385,7 +8404,9 @@ function updatePickups(dt, time){
 /* ================= warp + board ================= */
 // Goal 10: once the Broadcast has played, the Ledger Board says the Hunt has begun
 function huntState(){ const el = $('#huntState'); if(!el) return; const on = state.archive.broadcast; el.classList.toggle('hunt-on', on);
-  el.textContent = on ? 'The Hunt has begun. Three shards (amber, rose, cyan) open three gates on Ashfall; the Seed is behind the third. Every clue is in the Ashcombe Ledger.' : 'The Hunt has not begun for you yet. Walk into the Archive, south of the plaza.'; }
+  const held = ['dunes', 'grid', 'sky'].filter(k => state.shards.has(k)).map(k => ({dunes:'amber', grid:'rose', sky:'cyan'})[k]);
+  el.textContent = (on ? 'The Hunt has begun. Three shards (amber, rose, cyan) open three gates on Ashfall; the Seed is behind the third. Every clue is in the Ashcombe Ledger.' : 'The Hunt has not begun for you yet. Walk into the Archive, south of the plaza.')
+    + (held.length ? ' You hold ' + held.length + ' of 3: ' + held.join(', ') + (state.shards.has('dunes') ? ' (Comet Rally, the last lap driven the wrong way round).' : '.') : ''); }
 const boardRng = rng(99);
 const BOARD = NPC_NAMES.slice(0, 11).map(nm => ({name:nm, shards:Math.floor(boardRng() * 2.6), xp:Math.floor(150 + boardRng() * 2300)}));
 function openWarp(){
@@ -8647,7 +8668,7 @@ let archNear = null, archRoom = -1, cardTimer = 0;
 const ARCH_DOOR_OPEN = Math.PI - 0.1;
 const ledgerEl = $('#ledger'), regEl = $('#reg'), memoEl = $('#memo');
 function archiveUpdate(dt){
-  if(!archive || state.world !== 'hub'){ if(archNear){ archNear = null; $('#archBtn').style.display = 'none'; } if(me.tag && !me.tag.visible) me.tag.visible = true; return; }
+  if(!archive || state.world !== 'hub'){ if(archNear){ archNear = null; $('#archBtn').style.display = 'none'; } if(me.tag) me.tag.visible = !(hollow && hollow.inside); return; }   // indoors (the Hollow too) your own name tag would fill the view
   const A = ARCHIVE, px = p.x, pz = p.z, cp = camera.position;
   // the rooms are built the first time you come near (one a frame), so the Spaceport loads exactly as fast as before
   if(Math.hypot(px, pz - 77) < 60){ const k = archive.rooms.findIndex(R => !R.built); if(k >= 0) archiveBuildRoom(k); }
@@ -9030,26 +9051,386 @@ function knock(){
   toast(best && bd < HOLLOW.knockR ? 'A dull knock. Solid stone under the sand at the end of this shadow, and nothing behind it.' : 'You knock on the sand. Nothing answers.', 2800);
   return {opened:false, stone:best && bd < HOLLOW.knockR ? best.i : null};
 }
+/* The Hollow itself: hand-made, under the dunes at y = HOLLOW.y, in its own frame (x across, z along, from HOLLOW.x/z). A stair of 14 steps comes down from the
+   doorway, then three rooms and the treasure room, joined by short halls. Walls, ceilings and columns are solid boxes (they also stop the camera and cast
+   the shadow that keeps the sun out); light comes from braziers (emissive flames, glow sprites and a warm pool on the floor), never from point lights.
+   Traps (Phase 1 rules, all through hurt()): sinking sand in the first room, two low scythes to jump in the second, sand wraiths that drift and burn on touch. */
+Object.assign(HOLLOW, {
+  rooms:[{name:'The Sifting Hall', x0:-7, x1:7, z0:0, z1:16, h:5}, {name:'The Scythe Gallery', x0:-8, x1:8, z0:21, z1:37, h:5.4}, {name:'The Wraith Crypt', x0:-9, x1:9, z0:42, z1:60, h:5.8}, {name:'The Hoard', x0:-7, x1:7, z0:65, z1:79, h:6}],
+  halls:[{x0:-1.4, x1:1.4, z0:16, z1:21, h:3.4}, {x0:-1.4, x1:1.4, z0:37, z1:42, h:3.4}, {x0:-1.4, x1:1.4, z0:60, z1:65, h:3.4}],
+  stair:{hw:1.3, steps:14, run:0.5, rise:0.3, out:-6},
+  pits:[{x0:-6.2, x1:-1.2, z0:3.5, z1:7.5}, {x0:1.2, x1:6.2, z0:7.5, z1:11.5}, {x0:-5.5, x1:-0.6, z0:11.5, z1:14.8}],
+  scythes:[{x:-3.2, z:25.5, L:3.6, w:1.25, a0:0}, {x:3.2, z:32.5, L:3.6, w:-1.45, a0:2.2}],
+  wraiths:[{cx:0, cz:9.5, rx:5, rz:1.4, w:0.55, ph:0}, {cx:0, cz:29, rx:6, rz:4.5, w:0.42, ph:1.3}, {cx:-4.5, cz:47, rx:3.2, rz:2.2, w:0.7, ph:0.4}, {cx:4.5, cz:51.5, rx:3.2, rz:2.6, w:-0.6, ph:2},
+    {cx:0, cz:55.5, rx:6.5, rz:1.3, w:0.5, ph:1}, {cx:0, cz:48, rx:1.3, rz:3.8, w:0.8, ph:3}],
+  cabinet:{x:0, z:77.4}, chest:{x:-4.6, z:76.4}
+});
+// the floor under (x, z) while inside: the stair's steps, the sinking sand, else the flagstones
+function hollowFloor(x, z){
+  const H = HOLLOW, lx = x - H.x, lz = z - H.z, S = H.stair;
+  if(lz < 0) return H.y + Math.min(Math.ceil(-lz / S.run - 1e-6), S.steps) * S.rise;
+  for(const q of H.pits) if(lx > q.x0 && lx < q.x1 && lz > q.z0 && lz < q.z1) return H.y - 0.35;
+  return H.y;
+}
+const hollowPit = (x, z) => { const lx = x - HOLLOW.x, lz = z - HOLLOW.z; return HOLLOW.pits.some(q => lx > q.x0 && lx < q.x1 && lz > q.z0 && lz < q.z1); };
+function hollowCeil(x, z){
+  const H = HOLLOW, lx = x - H.x, lz = z - H.z, S = H.stair;
+  if(lz < 0) return H.y + Math.min(Math.ceil(-lz / S.run - 1e-6), S.steps) * S.rise + 3;
+  for(const R of H.rooms) if(lz >= R.z0 && lz <= R.z1) return H.y + R.h;
+  for(const R of H.halls) if(lz >= R.z0 && lz <= R.z1) return H.y + R.h;
+  return H.y + 3.4;
+}
+function hollowRoomAt(x, z){ const lx = x - HOLLOW.x, lz = z - HOLLOW.z; return HOLLOW.rooms.findIndex(R => lx > R.x0 && lx < R.x1 && lz > R.z0 && lz < R.z1); }
+let poolTex = null;
+function buildHollow(){
+  const H = HOLLOW, Y = H.y, X = H.x, Z = H.z, prev = buildParent; buildParent = null;
+  const g = new THREE.Group(); g.name = 'hollow'; world.add(g); hollow.g = g; buildParent = g;   // instanced props land in the Hollow's group too, so it hides as one
+  const st = sandstoneTextures(), sandS = surfCache.dunesand || surface('dunesand');
+  const stoneM = (hex, n) => withDetailNormal(std(hex, {map:st.map, normalMap:st.normal, normalScale:new V2(n || 1, n || 1), roughnessMap:st.rough, roughness:1, envMapIntensity:0.25}), detailNormal, 5, 0.35);
+  const M = {wall:stoneM(0xd9bd9c), floor:stoneM(0xa88c70, 0.8), ceil:stoneM(0x8c735c), col:stoneM(0xe6cdb0),
+    sand:std(0xd6ae78, {map:sandS.map, normalMap:sandS.normal, roughness:1, envMapIntensity:0.2}), bronze:std(0x8a5a2a, {metalness:0.85, roughness:0.38, map:detailTex, envMapIntensity:0.5}),
+    amber:glowM(0xffa62e, 0.9), flame:glowM(0xff9a40, 2.8), gold:std(0xd8a93a, {metalness:0.9, roughness:0.3, map:detailTex, envMapIntensity:0.6}), wood:std(0x4a3020, {map:detailTex, roughness:0.85})};
+  const lists = {wall:[], floor:[], ceil:[], col:[], sand:[], amber:[]}, T = 0.6;
+  // a box in the Hollow's frame: drawn with material list k, solid unless o.solid === false (o.cam false: the camera may pass)
+  const box = (k, x0, x1, y0, y1, z0, z1, o) => { lists[k].push([X + x0, X + x1, Y + y0, Y + y1, Z + z0, Z + z1]); o = o || {};
+    if(o.solid !== false) aabb(X + x0, X + x1, Y + y0, Y + y1, Z + z0, Z + z1, Object.assign({hollow:true, map:false}, o.box || {})); };
+  // a wall across z (at z0..z1) from x0 to x1 with an opening |x| < hw up to height hh
+  const across = (x0, x1, z0, z1, h, hw, hh) => { if(!hw){ box('wall', x0, x1, -0.5, h, z0, z1); return; } box('wall', x0, -hw, -0.5, h, z0, z1); box('wall', hw, x1, -0.5, h, z0, z1); box('wall', -hw, hw, hh, h, z0, z1); };
+  // rooms: side walls, end walls with their doorways, ceiling, a flagstone floor (cut round the sinking sand), columns, an amber band
+  H.rooms.forEach((R, i) => {
+    box('wall', R.x0 - T, R.x0, -0.5, R.h + T, R.z0 - T, R.z1 + T); box('wall', R.x1, R.x1 + T, -0.5, R.h + T, R.z0 - T, R.z1 + T);
+    across(R.x0 - T, R.x1 + T, R.z0 - T, R.z0, R.h + T, i === 0 ? H.stair.hw : 1.4, i === 0 ? H.stair.rise + 3 : 3.4);
+    across(R.x0 - T, R.x1 + T, R.z1, R.z1 + T, R.h + T, i < 3 ? 1.4 : 0, 3.4);
+    box('ceil', R.x0 - T, R.x1 + T, R.h, R.h + T, R.z0 - T, R.z1 + T, {box:{cam:true}});
+    const xs = [R.x0, R.x1], zs = [R.z0, R.z1], pits = i === 0 ? H.pits : [];
+    pits.forEach(q => { xs.push(q.x0, q.x1); zs.push(q.z0, q.z1); }); xs.sort((a, b) => a - b); zs.sort((a, b) => a - b);
+    for(let a = 0; a < xs.length - 1; a++) for(let c = 0; c < zs.length - 1; c++){ const mx = (xs[a] + xs[a + 1]) / 2, mz = (zs[c] + zs[c + 1]) / 2;
+      if(xs[a + 1] - xs[a] < 1e-3 || zs[c + 1] - zs[c] < 1e-3 || pits.some(q => mx > q.x0 && mx < q.x1 && mz > q.z0 && mz < q.z1)) continue;
+      lists.floor.push([X + xs[a], X + xs[a + 1], Y - 0.5, Y, Z + zs[c], Z + zs[c + 1]]); }
+    pits.forEach(q => lists.sand.push([X + q.x0, X + q.x1, Y - 0.9, Y - 0.35, Z + q.z0, Z + q.z1]));
+    for(let z = R.z0 + 2; z <= R.z1 - 1.9; z += 4) [R.x0, R.x1 - 0.4].forEach(x => {   // half-columns along both side walls, with a capital and a base
+      box('col', x, x + 0.4, 0, R.h, z - 0.35, z + 0.35); box('col', x - (x < 0 ? 0 : 0.15), x + 0.55 - (x < 0 ? 0 : 0.15) , R.h - 0.55, R.h - 0.3, z - 0.5, z + 0.5, {solid:false}); box('col', x - (x < 0 ? 0 : 0.1), x + 0.5 - (x < 0 ? 0 : 0.1), 0, 0.3, z - 0.45, z + 0.45, {solid:false}); });
+    [[R.x0, R.x0 + 0.03], [R.x1 - 0.03, R.x1]].forEach(b => lists.amber.push([X + b[0], X + b[1], Y + 3.1, Y + 3.22, Z + R.z0, Z + R.z1]));
+  });
+  H.halls.forEach(R => { box('wall', R.x0 - T, R.x0, -0.5, R.h + T, R.z0, R.z1); box('wall', R.x1, R.x1 + T, -0.5, R.h + T, R.z0, R.z1);
+    box('ceil', R.x0 - T, R.x1 + T, R.h, R.h + T, R.z0, R.z1, {box:{cam:true}}); lists.floor.push([X + R.x0, X + R.x1, Y - 0.5, Y, Z + R.z0, Z + R.z1]); });
+  // the stair: 14 steps up to the doorway, a stepped ceiling above them, daylight at the top
+  { const S = H.stair; for(let k = 1; k <= S.steps; k++){ const z1 = -(k - 1) * S.run, z0 = -k * S.run, top = k * S.rise;
+      lists.floor.push([X - S.hw, X + S.hw, Y - 0.5, Y + top, Z + z0, Z + z1]); box('ceil', -S.hw - T, S.hw + T, top + 3, top + 3.6, z0, z1, {box:{cam:true}}); }
+    const zt = -S.steps * S.run; box('wall', -S.hw - T, -S.hw, -0.5, S.steps * S.rise + 3.6, zt - T, 0); box('wall', S.hw, S.hw + T, -0.5, S.steps * S.rise + 3.6, zt - T, 0);
+    box('wall', -S.hw, S.hw, S.steps * S.rise, S.steps * S.rise + 3.6, zt - T, zt);
+    const day = mk(new THREE.PlaneGeometry(2 * S.hw, 2.6), glowM(0xffe2b0, 1.6), X, Y + S.steps * S.rise + 1.4, Z + zt + 0.02, g); day.castShadow = false; glow(0xffd9a0, 5, X, Y + S.steps * S.rise + 1.6, Z + zt + 0.4, g, 0.35); }
+  // drifted sand in the corners of the first room and along the stair foot
+  [[-6.3, 1, 1.6], [6.2, 15, 1.4], [-6.4, 15.2, 1.2], [6.4, 0.8, 1.1]].forEach(d => { const m = mk(new THREE.SphereGeometry(d[2], 24, 12, 0, TAU, 0, Math.PI / 2), M.sand, X + d[0], Y - 0.02, Z + d[1], g); m.scale.y = 0.32; });
+  Object.keys(lists).forEach(k => { if(lists[k].length){ const m = mk(boxGeo(lists[k], k === 'floor' ? 1.8 : k === 'sand' ? 3 : 2.6), M[k], 0, 0, 0, g); m.castShadow = k === 'wall' || k === 'ceil' || k === 'col'; if(k === 'amber') m.castShadow = false; } });
+  // braziers: a stone drum, a bronze bowl, a live flame, two soft glows and a warm pool of light on the floor
+  if(!poolTex){ poolTex = canvasTex(128, 128, (x, w, h) => { const gr = x.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, w / 2); gr.addColorStop(0, 'rgba(255,190,120,1)'); gr.addColorStop(0.35, 'rgba(255,150,70,0.45)'); gr.addColorStop(1, 'rgba(255,120,40,0)'); x.fillStyle = gr; x.fillRect(0, 0, w, h); }); SHARED_TEX.add(poolTex); }
+  const poolM = new THREE.MeshBasicMaterial({map:poolTex, transparent:true, opacity:0.55, blending:THREE.AdditiveBlending, depthWrite:false});
+  const bowl = new THREE.LatheGeometry([[0.05, 0], [0.38, 0.06], [0.52, 0.28], [0.56, 0.36], [0.5, 0.34], [0.05, 0.12]].map(a => new V2(a[0], a[1])), 32), drum = new THREE.CylinderGeometry(0.3, 0.36, 0.9, 24);
+  const flameGeo = merge([new THREE.ConeGeometry(0.22, 0.7, 12).translate(0, 0.35, 0), new THREE.ConeGeometry(0.14, 0.5, 10).translate(0.1, 0.25, 0.06), new THREE.ConeGeometry(0.13, 0.45, 10).translate(-0.09, 0.22, -0.07)]);
+  hollow.flames = [];
+  const brazier = (lx, lz) => { const x = X + lx, z = Z + lz; mk(drum, M.col, x, Y + 0.45, z, g); mk(bowl, M.bronze, x, Y + 0.88, z, g);
+    const f = mk(flameGeo, M.flame, x, Y + 1.1, z, g); f.castShadow = false; hollow.flames.push(f);
+    glow(0xff9a40, 1.6, x, Y + 1.45, z, g, 0.7); glow(0xff8a30, 6.5, x, Y + 1.6, z, g, 0.16);
+    const pool = new THREE.Mesh(new THREE.PlaneGeometry(7, 7), poolM); pool.rotation.x = -Math.PI / 2; pool.position.set(x, Y + 0.012, z); g.add(pool);
+    colliders.push({x, z, r:0.55, hollow:true}); };
+  H.rooms.forEach((R, i) => { const ix = R.x1 - 1.6, z0 = R.z0 + 1.8, z1 = R.z1 - 1.8; [[-ix, z0], [ix, z0], [-ix, z1], [ix, z1]].forEach(b => { if(!(i === 3 && b[0] < 0 && b[1] > 70)) brazier(b[0], b[1]); }); });
+  // the scythes: a stone post and a bronze blade that sweeps a hand's breadth above the floor (jump it)
+  hollow.scythes = H.scythes.map(s => { const x = X + s.x, z = Z + s.z; mk(new THREE.CylinderGeometry(0.3, 0.38, 1.3, 24), M.col, x, Y + 0.65, z, g); colliders.push({x, z, r:0.45, hollow:true});
+    const arm = new THREE.Group(); arm.position.set(x, Y + 0.45, z); g.add(arm);
+    mk(new THREE.CylinderGeometry(0.42, 0.42, 0.18, 24), M.bronze, 0, 0, 0, arm);
+    const blade = mk(merge([new THREE.BoxGeometry(s.L, 0.1, 0.05).translate(s.L / 2 + 0.3, 0, 0), new THREE.BoxGeometry(s.L * 0.9, 0.2, 0.02).translate(s.L * 0.45 + 0.4, -0.02, 0.03)]), M.bronze, 0, 0, 0, arm);
+    blade.castShadow = true; return Object.assign({g:arm}, s, {x, z}); });
+  // the sand wraiths: a slow column of blown sand with two amber eyes
+  const wm = std(0xd2a86e, {transparent:true, opacity:0.42, depthWrite:false, roughness:1, emissive:C(0x4a2a0a), emissiveIntensity:0.5, side:THREE.DoubleSide});
+  const wBody = new THREE.LatheGeometry([[0.02, 0], [0.18, 0.08], [0.34, 0.45], [0.42, 0.8], [0.34, 1.05], [0.2, 1.18], [0.02, 1.25]].map(a => new V2(a[0], a[1])), 28);
+  const grains = new THREE.BufferGeometry(), gp = [], gq = rng(7117); for(let k = 0; k < 90; k++){ const a = gq() * TAU, r = 0.2 + gq() * 0.45, y = gq() * 1.3; gp.push(Math.cos(a) * r, y, Math.sin(a) * r); }
+  grains.setAttribute('position', new THREE.Float32BufferAttribute(gp, 3));
+  const grainM = new THREE.PointsMaterial({color:C(0xe8c48a), size:0.045, transparent:true, opacity:0.85, depthWrite:false});
+  hollow.wraiths = H.wraiths.map(w => { const wg = new THREE.Group(); g.add(wg); const body = new THREE.Mesh(wBody, wm); body.castShadow = false; body.renderOrder = 2; wg.add(body);
+    const spin = new THREE.Points(grains, grainM); wg.add(spin);
+    [-0.1, 0.1].forEach(ex => { const e = mk(new THREE.SphereGeometry(0.035, 10, 8), glowM(0xffb347, 3.5), ex, 0.98, 0.3, wg); e.castShadow = false; });
+    glow(0xffa040, 0.8, 0, 0.98, 0.3, wg, 0.5);
+    return Object.assign({g:wg, spin, x:0, z:0}, w); });
+  hollowTreasure(g, M);
+  g.visible = false; hollow.built = true; buildParent = prev;
+}
+// the treasure room: heaps of old coin, amber crystals, the Architect's chest, and (Goal 11) the Comet Rally cabinet against the back wall
+function hollowTreasure(g, M){
+  const H = HOLLOW, Y = H.y, X = H.x, Z = H.z, q = rng(1111), HEAPS = [[-4.8, 69.2, 1.5], [4.4, 71, 1.4], [3.9, 75, 1.1]];
+  HEAPS.forEach(h => { mk(new THREE.ConeGeometry(h[2], h[2] * 0.42, 40, 1), M.gold, X + h[0], Y + h[2] * 0.21, Z + h[1], g); colliders.push({x:X + h[0], z:Z + h[1], r:h[2] * 0.8, hollow:true}); });
+  const coinG = new THREE.CylinderGeometry(0.12, 0.12, 0.025, 16), cm = [];
+  for(let k = 0; k < 180; k++){ const a = q() * TAU, d = 1.2 + q() * 2.4, hp = HEAPS[k % 3]; cm.push(mat4(X + hp[0] + Math.cos(a) * d, Y + 0.013, Z + hp[1] + Math.sin(a) * d, (q() - 0.5) * 0.3, q() * TAU, (q() - 0.5) * 0.3)); }
+  instanced(coinG, M.gold, cm);
+  const crystal = merge([new THREE.CylinderGeometry(0.16, 0.2, 1.2, 6).translate(0, 0.6, 0), new THREE.ConeGeometry(0.16, 0.4, 6).translate(0, 1.4, 0)]), km = [];
+  [[-6, 73.5], [6.2, 68.6], [-2.3, 78.3], [2.4, 78.3]].forEach(c => { for(let j = 0; j < 5; j++) km.push(mat4(X + c[0] + (q() - 0.5) * 0.7, Y - 0.05, Z + c[1] + (q() - 0.5) * 0.5, (q() - 0.5) * 0.8, q() * TAU, (q() - 0.5) * 0.8, 0.6 + q() * 0.7));
+    glow(0xffa62e, 2.4, X + c[0], Y + 0.9, Z + c[1], g, 0.35); colliders.push({x:X + c[0], z:Z + c[1], r:0.6, hollow:true}); });
+  instanced(crystal, phys(0xffb347, {roughness:0.08, transparent:true, opacity:0.88, emissive:C(0xb35a00), emissiveIntensity:0.8}), km);
+  // the chest: dark wood, bronze bands, a lid that opens once (a gift of credits)
+  const c = H.chest, cg = new THREE.Group(); cg.position.set(X + c.x, Y, Z + c.z); cg.rotation.y = 0.5; g.add(cg);
+  mk(new THREE.BoxGeometry(1.2, 0.6, 0.7), M.wood, 0, 0.3, 0, cg); [-0.45, 0.45].forEach(b => mk(new THREE.BoxGeometry(0.08, 0.62, 0.72), M.bronze, b, 0.3, 0, cg));
+  const lid = new THREE.Group(); lid.position.set(0, 0.6, -0.35); cg.add(lid);
+  mk(new THREE.CylinderGeometry(0.35, 0.35, 1.2, 20, 1, false, 0, Math.PI), M.wood, 0, 0, 0.35, lid).rotation.z = Math.PI / 2;
+  lid.rotation.x = state.hunt.hoard ? -1.9 : 0; hollow.lid = lid; colliders.push({x:X + c.x, z:Z + c.z, r:0.75, hollow:true});
+  // the cabinet (built by the Comet Rally section)
+  if(typeof buildRallyCabinet === 'function') buildRallyCabinet(g, M);
+}
+function enterHollow(){
+  if(traveling || !hollow) return; traveling = true; fadeEl.classList.add('on'); sfx('thud');
+  setTimeout(() => {
+    if(hollow && state.world === 'dunes'){ if(!hollow.built) buildHollow(); hollow.inside = true; hollow.g.visible = true; hollow.room = -1;
+      p.x = HOLLOW.x; p.z = HOLLOW.z - 4.2; p.y = hollowFloor(p.x, p.z); p.vy = 0; p.speed = 0; p.facing = 0; cam.yaw = Math.PI; cam.pitch = Math.min(cam.pitch, 0.22);
+      hemi.intensity = WORLDS.dunes.hemi[2] * 0.4; snapCamera(); clipCamera();
+      if(!hollow.told){ hollow.told = true; toast('The Hollow. Mind the sand, the blades and whatever drifts in the dark.', 4200); } }
+    fadeEl.classList.remove('on'); traveling = false;
+  }, 450);
+}
+function leaveHollow(){
+  if(traveling || !hollow) return; traveling = true; fadeEl.classList.add('on');
+  setTimeout(() => {
+    if(hollow){ hollow.inside = false; if(hollow.g) hollow.g.visible = false; hemi.intensity = WORLDS[state.world].hemi[2];
+      const w = hoodW(-1.6, 0); p.x = w[0]; p.z = w[1]; p.y = G(p.x, p.z); p.vy = 0; p.speed = 0; p.facing = Math.atan2(-hollow.ux, -hollow.uz); cam.yaw = p.facing + Math.PI; snapCamera(); }
+    fadeEl.classList.remove('on'); traveling = false;
+  }, 450);
+}
+// inside: the room names, the ceiling, the traps and the wraiths (on simTime, the same clamped clock as the player)
+function hollowInside(dt, time){
+  const H = hollow, Y = HOLLOW.y;
+  H.flames.forEach((f, k) => { f.scale.set(1 + Math.sin(time * 9 + k) * 0.06, 1 + Math.sin(time * 13 + k * 2) * 0.12, 1 + Math.cos(time * 11 + k) * 0.06); });
+  H.wraiths.forEach(w => { const t = simTime * w.w + w.ph; w.x = HOLLOW.x + w.cx + Math.cos(t) * w.rx; w.z = HOLLOW.z + w.cz + Math.sin(t) * w.rz;
+    w.g.position.set(w.x, Y + 0.12 + Math.sin(simTime * 2.1 + w.ph) * 0.08, w.z); w.g.rotation.y = Math.atan2(-Math.sin(t) * w.rx * Math.sign(w.w), Math.cos(t) * w.rz * Math.sign(w.w)); w.spin.rotation.y = simTime * 2.6; });
+  H.scythes.forEach(s => { s.ang = s.a0 + s.w * simTime; s.g.rotation.y = s.ang; });
+  if(!H.inside) return;
+  const room = hollowRoomAt(p.x, p.z);
+  if(room !== H.room){ H.room = room; if(room >= 0 && playing) toast(HOLLOW.rooms[room].name, 2200); }
+  const ceil = hollowCeil(p.x, p.z) - 1.9; if(p.y > ceil){ p.y = ceil; if(p.vy > 0) p.vy = 0; }
+  if(p.z - HOLLOW.z < HOLLOW.stair.out && playing && !zeroing){ leaveHollow(); return; }
+  if(!playing || zeroing || traveling) return;
+  const feet = p.y - Y;
+  if(hollowPit(p.x, p.z) && p.grounded){ p.speed = Math.min(p.speed, 2.2); H.pitT = (H.pitT || 0) - dt; if(H.pitT <= 0){ H.pitT = 0.7; hurt(6, 'sinking sand'); } } else H.pitT = 0.35;
+  if(hurtCool > 0) return;
+  for(const s of H.scythes){ const dx = p.x - s.x, dz = p.z - s.z, bx = Math.cos(s.ang), bz = -Math.sin(s.ang), along = dx * bx + dz * bz, perp = Math.abs(dx * bz - dz * bx);
+    if(along > 0.2 && along < s.L + 0.6 && perp < 0.42 && feet < 0.75){ hurtCool = 0.8; p.vy = 6; p.grounded = false; hurt(20, 'scythe'); return; } }
+  for(const w of H.wraiths){ const dx = p.x - w.x, dz = p.z - w.z, d = Math.hypot(dx, dz);
+    if(d < 0.8 && feet < 1.15){ hurtCool = 0.9; hurt(15, 'sand wraith'); const k = 1.1 / Math.max(d, 0.05); p.x += dx * k; p.z += dz * k; return; } }
+}
 function hollowUpdate(dt, time){
   const H = hollow; let near = null;
   if(H && state.world === 'dunes'){
     if(H.hood && H.rise < 1){ H.rise = Math.min(1, H.rise + dt / 3); const e = 1 - Math.pow(1 - H.rise, 3); H.hood.position.y = (e - 1) * 3.6; }
-    if(!H.inside){
+    if(H.built && H.inside){ hollowInside(dt, time);
+      if(H.lid && state.hunt.hoard) H.lid.rotation.x += (-1.9 - H.lid.rotation.x) * (1 - Math.exp(-dt * 5));
+      const C = HOLLOW.cabinet, K = HOLLOW.chest;
+      if(H.inside && !bike.riding){ if(Math.hypot(p.x - HOLLOW.x - C.x, p.z - HOLLOW.z - C.z + 1.2) < 1.3) near = 'cabinet'; else if(!state.hunt.hoard && Math.hypot(p.x - HOLLOW.x - K.x, p.z - HOLLOW.z - K.z) < 1.9) near = 'chest'; }
+    } else if(!H.inside){
       if(!H.open && !bike.riding && Math.hypot(p.x - 22, p.z - 16) < HOLLOW.fieldR) near = 'knock';
       // walk into the dark doorway at the back of the porch to go down
       if(H.open && H.rise >= 1 && playing && !traveling && !zeroing){ const dx = p.x - H.door.x, dz = p.z - H.door.z, lx = dx * H.ux + dz * H.uz, lz = -dx * H.uz + dz * H.ux;
         if(lx > 2.55 && lx < 3.4 && Math.abs(lz) < 0.9 && p.y < H.hoodBase + 2.5) enterHollow(); }
     }
   }
-  if(near !== hollowNear){ hollowNear = near; const b = $('#hollowBtn'); b.style.display = near ? '' : 'none'; b.textContent = near === 'knock' ? 'Knock' : near === 'cabinet' ? 'Play' : near === 'chest' ? 'Open' : ''; }
+  if(near !== hollowNear){ hollowNear = near; const b = $('#hollowBtn'); b.style.display = near ? '' : 'none'; b.textContent = near === 'knock' ? 'Knock' : near === 'cabinet' ? 'Play' : near === 'chest' ? 'Open' : '';
+    if(near === 'cabinet' && playing) toast('A Comet Rally cabinet, lit and waiting. E or tap Play.', 3000); else if(near === 'chest' && playing) toast('An old chest with bronze bands. E or tap Open.', 2600); }
 }
-function hollowAct(){ if(hollowNear === 'knock') return knock(); return null; }
-function enterHollow(){ if(hollow.told) return; hollow.told = true; toast('The stair goes down into the dark.', 2400); }
+function hollowAct(){ if(hollowNear === 'knock') return knock(); if(hollowNear === 'chest') return openChest(); if(hollowNear === 'cabinet' && typeof openRally === 'function') return openRally(); return null; }
+function openChest(){ if(state.hunt.hoard) return null; state.hunt.hoard = true; persist(); reward(20, 60); sfx('coin'); toast('The chest holds sixty credits in old Fennick Bay coin.   +20 XP', 3600); return {credits:60}; }
 $('#hollowBtn').addEventListener('click', hollowAct);
+
+/* ================= Comet Rally (Goal 11): the Architect's first game, on the cabinet in the Hoard =================
+   Invented for Hub: a little rocket-car on a looping track seen from above, three laps, three comets for rivals. One pure step function (rallyStep)
+   runs every race, played on the cabinet or headless in rally.simulate(policy), so a test drives the same race a player does.
+   Laps come from progress along the centre line, unwrapped (P, in laps; the start line is every whole number). Forward laps one and two end at P = 1
+   and 2. After that the race ends forwards at P = 3 (a place, a score, and "try another way"), or backwards at P = 1: the last lap driven the wrong
+   way round and over the line again, as the notebook in the Workbench says. Only that ending gives the Amber Shard. */
+const RALLY = {W:640, H:480, width:60, laps:3, dt:1 / 60, cap:180, count:3, vmax:150, grass:60,
+  pts:[[90, 110], [250, 70], [420, 95], [560, 80], [590, 210], [500, 270], [560, 370], [470, 430], [300, 400], [170, 440], [70, 330], [120, 220]],
+  comets:[{speed:114, lane:-17, s0:-22, col:'#5ce1e6'}, {speed:121, lane:17, s0:-36, col:'#ff4fa3'}, {speed:108, lane:-17, s0:-50, col:'#b9a2ff'}], car0:-70, hitR:13};
+// the centre line: a closed Catmull-Rom curve through the points, sampled with its running length
+const RLINE = (() => { const P = RALLY.pts, n = P.length, p = [];
+  for(let i = 0; i < n; i++){ const a = P[(i - 1 + n) % n], b = P[i], c = P[(i + 1) % n], d = P[(i + 2) % n];
+    for(let k = 0; k < 24; k++){ const t = k / 24, t2 = t * t, t3 = t2 * t; p.push([0, 1].map(j => 0.5 * (2 * b[j] + (c[j] - a[j]) * t + (2 * a[j] - 5 * b[j] + 4 * c[j] - d[j]) * t2 + (3 * b[j] - a[j] - 3 * c[j] + d[j]) * t3))); } }
+  const s = [0]; for(let i = 1; i <= p.length; i++){ const a = p[i - 1], b = p[i % p.length]; s.push(s[i - 1] + Math.hypot(b[0] - a[0], b[1] - a[1])); }
+  return {p, s, n:p.length, L:s[p.length]}; })();
+// a point on the centre line at distance s (any real number; it wraps), its heading, and an offset across the track (+ is to the right of forward)
+function rallyPoint(s, lane){ const L = RLINE.L; s = ((s % L) + L) % L; let i = Math.min(RLINE.n - 1, Math.floor(s / L * RLINE.n)); while(i > 0 && RLINE.s[i] > s) i--; while(i < RLINE.n - 1 && RLINE.s[i + 1] <= s) i++;
+  const a = RLINE.p[i], b = RLINE.p[(i + 1) % RLINE.n], t = (s - RLINE.s[i]) / Math.max(1e-6, RLINE.s[i + 1] - RLINE.s[i]), h = Math.atan2(b[1] - a[1], b[0] - a[0]), o = lane || 0;
+  return {x:a[0] + (b[0] - a[0]) * t - Math.sin(h) * o, y:a[1] + (b[1] - a[1]) * t + Math.cos(h) * o, h}; }
+// the nearest point of the centre line to (x, y): searched near the last index, or everywhere when there is none
+function rallyNearest(x, y, hint){ const n = RLINE.n; let best = {d:1e9, s:0, i:0}; const from = hint == null ? 0 : hint - 30, to = hint == null ? n : hint + 30;
+  for(let j = from; j < to; j++){ const i = ((j % n) + n) % n, a = RLINE.p[i], b = RLINE.p[(i + 1) % n], dx = b[0] - a[0], dy = b[1] - a[1], l2 = dx * dx + dy * dy, t = clamp(((x - a[0]) * dx + (y - a[1]) * dy) / l2, 0, 1), px = a[0] + dx * t - x, py = a[1] + dy * t - y, d = Math.hypot(px, py);
+    if(d < best.d) best = {d, s:RLINE.s[i] + Math.sqrt(l2) * t, i}; }
+  return best; }
+const wrapA = a => Math.atan2(Math.sin(a), Math.cos(a));
+function rallyNew(){ const c0 = rallyPoint(RALLY.car0, 0), n = rallyNearest(c0.x, c0.y);
+  return {t:0, car:{x:c0.x, y:c0.y, h:c0.h, v:0, P:RALLY.car0 / RLINE.L, sLast:n.s, idx:n.i, back:0, th:0}, lapMark:0, laps:[], hits:0, hitT:0, done:false, way:null, time:0, place:0, score:0, shard:false, wrongT:0,
+    comets:RALLY.comets.map(k => ({s:k.s0, speed:k.speed, lane:k.lane, col:k.col, fin:null, trail:[]}))}; }
+// one fixed step of the race; inp = {th: -1..1 (brake/reverse to throttle), st: -1..1 (left to right)}
+function rallyStep(R, inp, dt){
+  if(R.done) return;
+  R.t += dt; const rt = R.t - RALLY.count; if(rt < 0) return;   // the countdown: everyone waits on the grid
+  const c = R.car, L = RLINE.L;
+  R.comets.forEach(k => { k.s += k.speed * dt; if(k.fin == null && k.s >= RALLY.laps * L) k.fin = rt; });
+  const n0 = rallyNearest(c.x, c.y, c.idx), on = n0.d < RALLY.width / 2 + 3, vmax = on ? RALLY.vmax : RALLY.grass;
+  const th = clamp(inp.th || 0, -1, 1), st = clamp(inp.st || 0, -1, 1); c.th = th;
+  if(th > 0) c.v += 175 * th * dt; else if(th < 0) c.v -= (c.v > 0 ? 320 : 90) * -th * dt;
+  c.v -= c.v * 0.45 * dt; if(!th) c.v -= Math.sign(c.v) * Math.min(Math.abs(c.v), 30 * dt);
+  if(c.v > vmax) c.v = on ? vmax : c.v + (vmax - c.v) * Math.min(1, 3 * dt);   // the grass slows you, the track never lets you past top speed if(c.v < -50) c.v = -50;
+  c.h = wrapA(c.h + st * 2.8 * Math.min(1, Math.abs(c.v) / 55) * (c.v < 0 ? -1 : 1) * dt);
+  c.x = clamp(c.x + Math.cos(c.h) * c.v * dt, 6, RALLY.W - 6); c.y = clamp(c.y + Math.sin(c.h) * c.v * dt, 6, RALLY.H - 6);
+  // bumping a comet: you bounce off it and lose your speed; it flies on
+  R.hitT -= dt;
+  R.comets.forEach(k => { const q = rallyPoint(k.s, k.lane), dx = c.x - q.x, dy = c.y - q.y, d = Math.hypot(dx, dy);
+    if(d < RALLY.hitR && d > 1e-3){ c.x = q.x + dx / d * RALLY.hitR; c.y = q.y + dy / d * RALLY.hitR; if(R.hitT <= 0){ R.hitT = 0.4; R.hits++; c.v *= -0.3; rallySfx('bump'); } } });
+  // progress along the line; a jump across the infield never counts
+  const n = rallyNearest(c.x, c.y, n0.i); let ds = n.s - c.sLast; if(ds > L / 2) ds -= L; if(ds < -L / 2) ds += L;
+  if(Math.abs(ds) < 40){ c.P += ds / L; c.back = c.back * 0.9 + (ds < -0.05 ? 1 : ds > 0.05 ? -1 : 0) * 0.1; }
+  c.sLast = n.s; c.idx = n.i;
+  R.wrongT = c.back > 0.5 && Math.abs(c.v) > 20 ? R.wrongT + dt : 0;
+  if(R.lapMark < 2 && c.P >= R.lapMark + 1){ R.lapMark++; R.laps.push(+rt.toFixed(2)); rallySfx('lap'); }
+  if(R.lapMark >= 2 && c.P >= RALLY.laps) rallyEnd(R, 'forward', rt);
+  else if(R.lapMark >= 2 && c.P <= 1) rallyEnd(R, 'backwards', rt);
+  else if(rt > RALLY.cap) rallyEnd(R, 'time', rt);
+}
+function rallyEnd(R, way, rt){
+  R.done = true; R.way = way; R.time = +rt.toFixed(2);
+  if(way === 'forward'){ R.place = 1 + R.comets.filter(k => k.fin != null).length; R.score = Math.round(Math.max(0, 120 - rt) * 50) * 10 + (4 - R.place) * 5000; }
+  else if(way === 'backwards'){ R.place = 0; R.score = Math.round(Math.max(0, 150 - rt) * 50) * 10 + 30000; R.shard = true; }
+  else { R.place = 0; R.score = 0; }
+  if(R.laps.length === 2) R.laps.push(+rt.toFixed(2));
+}
+// the scripted drivers for rally.simulate: 'forward' races three laps; 'backwards-last-lap' races two, turns round and drives the third the wrong way;
+// 'backwards-first-lap' turns round at the start (it never earns a lap); 'stop-after-two' parks after lap two
+function rallyBot(R, policy){
+  const c = R.car, back = (policy === 'backwards-last-lap' && R.lapMark >= 2) || policy === 'backwards-first-lap', dir = back ? -1 : 1;
+  if(policy === 'stop-after-two' && R.lapMark >= 2) return {th:c.v > 5 ? -1 : 0, st:0};
+  const n = rallyNearest(c.x, c.y, c.idx), tp = rallyPoint(n.s + dir * (48 + Math.abs(c.v) * 0.25), 0), da = wrapA(Math.atan2(tp.y - c.y, tp.x - c.x) - c.h);
+  return {st:clamp(da * 2.5, -1, 1), th:Math.abs(da) > 1.1 ? (c.v > 45 ? -0.8 : 0.5) : Math.abs(da) > 0.5 ? 0.6 : 1};
+}
+// the cabinet's side: the screen canvas (a texture), the overlay canvas, the controls, the result
+const rally = {open:false, R:null, acc:0, last:null, drawT:0, tex:null, scv:null, touch:{}, trophy:null};
+const rallyEl = $('#rally'), rallyCv = $('#rallyCv');
+function rallySfx(k){ if(!snd.ctx || !snd.on || !rally.open) return; const t = snd.ctx.currentTime; try{
+  if(k === 'beep') tone('square', 660, 660, 0.12, 0.05); else if(k === 'go') tone('square', 1320, 1320, 0.3, 0.06); else if(k === 'lap') { tone('square', 880, 880, 0.08, 0.05); tone('square', 1175, 1175, 0.12, 0.05, t + 0.09); }
+  else if(k === 'bump') noiseHit(500, 1, 0.12, 0.1); else if(k === 'end') [523, 659, 784].forEach((f, i) => tone('square', f, f, 0.18, 0.05, t + i * 0.12)); }catch(e){} }
+const RALLY_STARS = (() => { const q = rng(4242), a = []; for(let i = 0; i < 90; i++) a.push([q() * RALLY.W, q() * RALLY.H, 0.4 + q() * 1.2, 0.3 + q() * 0.6]); return a; })();
+const fmtT = t => { t = Math.max(0, t); const m = Math.floor(t / 60), s = t - m * 60; return (m < 10 ? '0' : '') + m + ':' + (s < 10 ? '0' : '') + s.toFixed(1); };
+// draw a race (or the attract screen when R is null) into a canvas of any size; the track is 640 x 480 units
+function drawRally(cv, R, time){
+  const x = cv.getContext('2d'), k = Math.min(cv.width / RALLY.W, cv.height / RALLY.H), ox = (cv.width - RALLY.W * k) / 2, oy = (cv.height - RALLY.H * k) / 2;
+  x.setTransform(1, 0, 0, 1, 0, 0); x.fillStyle = '#05071a'; x.fillRect(0, 0, cv.width, cv.height); x.setTransform(k, 0, 0, k, ox, oy);
+  const bg = x.createRadialGradient(320, 240, 40, 320, 240, 420); bg.addColorStop(0, '#141a3f'); bg.addColorStop(1, '#05071a'); x.fillStyle = bg; x.fillRect(0, 0, RALLY.W, RALLY.H);
+  RALLY_STARS.forEach(s => { x.globalAlpha = s[3] * (0.75 + 0.25 * Math.sin(time * 2 + s[0])); x.fillStyle = '#fff'; x.fillRect(s[0], s[1], s[2], s[2]); }); x.globalAlpha = 1;
+  // the track: kerb, asphalt, a dashed centre line, the start line, chevrons that point the way round
+  const path = () => { x.beginPath(); RLINE.p.forEach((q, i) => i ? x.lineTo(q[0], q[1]) : x.moveTo(q[0], q[1])); x.closePath(); };
+  x.lineJoin = 'round'; path(); x.strokeStyle = '#e9d6a6'; x.lineWidth = RALLY.width + 8; x.stroke(); path(); x.strokeStyle = '#232843'; x.lineWidth = RALLY.width; x.stroke();
+  path(); x.setLineDash([10, 12]); x.strokeStyle = 'rgba(160,170,220,0.45)'; x.lineWidth = 2; x.stroke(); x.setLineDash([]);
+  for(let s = 120; s < RLINE.L - 60; s += 160){ const q = rallyPoint(s, 0); x.save(); x.translate(q.x, q.y); x.rotate(q.h); x.strokeStyle = 'rgba(255,200,120,0.35)'; x.lineWidth = 3; x.beginPath(); x.moveTo(-5, -9); x.lineTo(4, 0); x.lineTo(-5, 9); x.stroke(); x.restore(); }
+  { const q = rallyPoint(0, 0); x.save(); x.translate(q.x, q.y); x.rotate(q.h); for(let i = 0; i < 8; i++) for(let j = 0; j < 2; j++){ x.fillStyle = (i + j) % 2 ? '#fff' : '#111'; x.fillRect(-4 + j * 4, -RALLY.width / 2 + i * RALLY.width / 8, 4, RALLY.width / 8); } x.restore(); }
+  // the comets: bright heads with long tails
+  const comets = R ? R.comets : RALLY.comets.map((c, i) => ({s:c.s0 + time * c.speed * 0.9, lane:c.lane, col:c.col}));
+  comets.forEach(c => { const q = rallyPoint(c.s, c.lane); for(let j = 1; j <= 14; j++){ const b = rallyPoint(c.s - j * 5, c.lane); x.globalAlpha = (1 - j / 15) * 0.55; x.fillStyle = c.col; x.beginPath(); x.arc(b.x, b.y, 6 * (1 - j / 18), 0, TAU); x.fill(); }
+    x.globalAlpha = 1; const gr = x.createRadialGradient(q.x, q.y, 0, q.x, q.y, 13); gr.addColorStop(0, '#ffffff'); gr.addColorStop(0.35, c.col); gr.addColorStop(1, 'rgba(0,0,0,0)'); x.fillStyle = gr; x.beginPath(); x.arc(q.x, q.y, 13, 0, TAU); x.fill(); });
+  x.globalAlpha = 1;
+  const txt = (s, px, py, size, col, al) => { x.font = 'bold ' + size + 'px "Chakra Petch","Trebuchet MS",sans-serif'; x.textAlign = al || 'left'; x.fillStyle = 'rgba(0,0,0,0.6)'; x.fillText(s, px + 2, py + 2); x.fillStyle = col; x.fillText(s, px, py); };
+  if(!R){   // attract mode
+    txt('COMET RALLY', 320, 215, 54, '#ffb347', 'center'); txt('A GAME BY L. ASHCOMBE', 320, 245, 16, '#9fb0ff', 'center');
+    if(Math.sin(time * 4) > 0) txt('PRESS START', 320, 290, 22, '#ffffff', 'center');
+    txt('HI ' + state.hunt.rallyBest, 320, 322, 16, '#5ce1e6', 'center'); return; }
+  // your rocket-car
+  const c = R.car; x.save(); x.translate(c.x, c.y); x.rotate(c.h);
+  if(c.th > 0 && R.t > RALLY.count){ x.fillStyle = 'rgba(255,170,60,' + (0.6 + Math.random() * 0.3) + ')'; x.beginPath(); x.moveTo(-9, -3); x.lineTo(-16 - Math.random() * 5, 0); x.lineTo(-9, 3); x.fill(); }
+  x.fillStyle = '#ffb347'; x.beginPath(); x.moveTo(11, 0); x.lineTo(3, -6); x.lineTo(-9, -6); x.lineTo(-9, 6); x.lineTo(3, 6); x.closePath(); x.fill();
+  x.fillStyle = '#6b3a10'; x.fillRect(-8, -8, 6, 3); x.fillRect(-8, 5, 6, 3); x.fillStyle = '#1b2244'; x.beginPath(); x.ellipse(0, 0, 4, 3, 0, 0, TAU); x.fill(); x.restore();
+  // the heads-up: lap, time, place, high score, wrong way, countdown, the result
+  const rt = R.t - RALLY.count, lap = Math.min(RALLY.laps, R.lapMark + 1);
+  txt('LAP ' + lap + '/' + RALLY.laps, 16, 30, 20, '#ffffff'); txt(fmtT(R.done ? R.time : rt), 16, 54, 18, '#ffd166');
+  if(!R.done && rt > 0){ const ahead = R.comets.filter(k => k.s / RLINE.L > R.car.P).length; txt('POS ' + (ahead + 1) + '/4', 16, 78, 16, '#9fb0ff'); }
+  txt('HI ' + state.hunt.rallyBest, 624, 30, 16, '#5ce1e6', 'right');
+  if(R.wrongT > 0.6 && !R.done && Math.sin(time * 8) > -0.2) txt('WRONG WAY', 320, 120, 34, '#ff4f5e', 'center');
+  if(rt < 0) txt(String(Math.ceil(-rt)), 320, 250, 80, '#ffffff', 'center'); else if(rt < 0.8 && !R.done) txt('GO', 320, 250, 80, '#ffd166', 'center');
+  if(R.done){ x.fillStyle = 'rgba(5,7,26,0.78)'; x.fillRect(120, 170, 400, 150);
+    const L = R.way === 'backwards' ? ['YOU MET THE COMETS', 'SCORE ' + R.score, 'THE AMBER SHARD IS YOURS'] : R.way === 'forward' ? [R.place === 1 ? 'FIRST PLACE' : 'PLACE ' + R.place + ' OF 4', 'SCORE ' + R.score + (R.best ? '  NEW HIGH SCORE' : ''), 'TRY ANOTHER WAY'] : ['TIME UP', 'THE COMETS FLY ON', 'TRY AGAIN'];
+    txt(L[0], 320, 212, 30, R.way === 'backwards' ? '#ffb347' : '#ffffff', 'center'); txt(L[1], 320, 248, 18, '#9fb0ff', 'center'); txt(L[2], 320, 286, 22, R.way === 'backwards' ? '#ffd166' : '#ff9ad5', 'center');
+    txt('START: RACE AGAIN   ESC: LEAVE', 320, 312, 11, '#8890b8', 'center'); }
+}
+// a finished race, played or simulated, is scored here; the shard is given only for the backwards last lap
+function rallyResult(R, how){
+  if(R.reported) return R.summary; R.reported = true;
+  R.best = R.score > state.hunt.rallyBest; if(R.best) state.hunt.rallyBest = R.score;
+  let shardNew = false;
+  if(R.way === 'backwards'){ shardNew = giveShard('dunes', 'The comets only chase what runs from them. You turned round and met them: the Amber Shard.'); rallyTrophy(); }
+  else if(R.way === 'forward' && how !== 'simulate') toast((R.place === 1 ? 'First place' : 'Place ' + R.place + ' of 4') + ', score ' + R.score + '. The cabinet flashes: TRY ANOTHER WAY.', 4200);
+  persist(); huntState();
+  R.summary = {how, way:R.way, finished:R.way === 'forward' || R.way === 'backwards', laps:R.laps.slice(), lapMark:R.lapMark, P:+R.car.P.toFixed(3), time:R.time, place:R.place, score:R.score, best:R.best, hits:R.hits,
+    shard:R.way === 'backwards', shardNew, amberWon:state.shards.has('dunes'), message:R.way === 'backwards' ? 'YOU MET THE COMETS' : R.way === 'forward' ? 'TRY ANOTHER WAY' : 'TIME UP'};
+  rally.last = R.summary; return R.summary;
+}
+function rallySimulate(policy, o){
+  o = o || {}; const R = rallyNew(); let n = 0;
+  while(!R.done && n++ < (RALLY.count + RALLY.cap + 2) / RALLY.dt) rallyStep(R, rallyBot(R, policy || 'forward'), RALLY.dt);
+  if(!R.done) rallyEnd(R, 'time', R.t - RALLY.count);
+  return o.dry ? {way:R.way, laps:R.laps, time:R.time, place:R.place, score:R.score, P:+R.car.P.toFixed(3), hits:R.hits, shard:R.way === 'backwards'} : rallyResult(R, 'simulate');
+}
+function sizeRally(){ const d = Math.min(window.devicePixelRatio || 1, 2), w = rallyCv.clientWidth || 640; rallyCv.width = Math.round(w * d); rallyCv.height = Math.round(w * 0.75 * d); }
+function openRally(){ if(rally.open || zeroing) return null; rally.open = true; rally.R = null; rallyEl.classList.remove('hidden'); setPaused(true); sizeRally(); sfx('ui'); return {open:true}; }
+function closeRally(){ if(!rally.open) return; rally.open = false; rally.R = null; rallyEl.classList.add('hidden'); setPaused(false); for(const k in rally.touch) rally.touch[k] = false; }
+function rallyStart(){ rally.R = rallyNew(); rally.acc = 0; state.hunt.rallyPlays++; persist(); rallySfx('beep'); }
+function rallyInput(){ const K = keys, T = rally.touch; return {th:((K.ArrowUp || K.KeyW || T.G) ? 1 : 0) - ((K.ArrowDown || K.KeyS || T.B) ? 1 : 0), st:((K.ArrowRight || K.KeyD || T.R) ? 1 : 0) - ((K.ArrowLeft || K.KeyA || T.L) ? 1 : 0)}; }
+// runs every frame: the race while the overlay is open (fixed steps, real time), and the cabinet's own screen when you are in the Hoard
+function rallyTick(dt, time){
+  if(rally.open){ const R = rally.R;
+    if(R && !R.done){ const before = Math.ceil(RALLY.count - R.t); rally.acc = Math.min(rally.acc + dt, 0.25); while(rally.acc >= RALLY.dt && !R.done){ rallyStep(R, rallyInput(), RALLY.dt); rally.acc -= RALLY.dt; }
+      const after = Math.ceil(RALLY.count - R.t); if(after !== before && after >= 0) rallySfx(after === 0 ? 'go' : 'beep');
+      if(R.done){ rallySfx('end'); rallyResult(R, 'played'); } }
+    drawRally(rallyCv, R, time); }
+  if(rally.tex && hollow && hollow.inside && hollow.room === 3){ rally.drawT -= dt; if(rally.drawT <= 0){ rally.drawT = 1 / 12; drawRally(rally.scv, rally.open ? rally.R : null, time); rally.tex.needsUpdate = true; } }
+  if(rally.trophy){ rally.trophy.rotation.y += dt * 1.2; }
+}
+function rallyKey(e){
+  if(e.code === 'Escape'){ e.preventDefault(); closeRally(); return; }
+  if(e.code === 'Enter' || e.code === 'Space'){ e.preventDefault(); if(!e.repeat && (!rally.R || rally.R.done)) rallyStart(); return; }
+  if(e.code.indexOf('Arrow') === 0 || e.code === 'KeyW' || e.code === 'KeyA' || e.code === 'KeyS' || e.code === 'KeyD'){ e.preventDefault(); keys[e.code] = true; }
+}
+$('#rallyQuit').addEventListener('click', closeRally); $('#rallyGo').addEventListener('click', () => { if(!rally.R || rally.R.done) rallyStart(); });
+document.querySelectorAll('#rally .rally-touch button').forEach(b => { const k = b.dataset.k, on = v => e => { rally.touch[k] = v; e.preventDefault(); };
+  b.addEventListener('pointerdown', on(true)); b.addEventListener('pointerup', on(false)); b.addEventListener('pointercancel', on(false)); b.addEventListener('pointerleave', on(false)); });
+window.addEventListener('resize', () => { if(rally.open) sizeRally(); });
+// the cabinet: a tall purple cabinet with a lit marquee, the race on its screen, a little wheel on the control panel
+function buildRallyCabinet(g, M){
+  const H = HOLLOW, C = H.cabinet, cab = new THREE.Group(); cab.position.set(H.x + C.x, H.y, H.z + C.z); cab.rotation.y = Math.PI; g.add(cab);
+  rally.scv = document.createElement('canvas'); rally.scv.width = 512; rally.scv.height = 384; drawRally(rally.scv, null, 0);
+  rally.tex = new THREE.CanvasTexture(rally.scv); rally.tex.encoding = THREE.sRGBEncoding; rally.tex.anisotropy = 4;
+  const side = canvasTex(256, 512, (x, w, h) => { x.fillStyle = '#231546'; x.fillRect(0, 0, w, h); const gr = x.createLinearGradient(0, h, w, 0); gr.addColorStop(0, 'rgba(255,179,71,0)'); gr.addColorStop(0.6, 'rgba(255,179,71,0.9)'); gr.addColorStop(1, '#fff');
+    x.strokeStyle = gr; x.lineWidth = 26; x.lineCap = 'round'; x.beginPath(); x.moveTo(20, h * 0.9); x.quadraticCurveTo(w * 0.3, h * 0.45, w * 0.82, h * 0.2); x.stroke(); x.fillStyle = '#fff'; x.beginPath(); x.arc(w * 0.82, h * 0.2, 18, 0, TAU); x.fill();
+    x.strokeStyle = 'rgba(92,225,230,0.7)'; x.lineWidth = 8; x.beginPath(); x.moveTo(40, h * 0.98); x.quadraticCurveTo(w * 0.45, h * 0.6, w * 0.9, h * 0.45); x.stroke(); });
+  const marq = canvasTex(512, 128, (x, w, h) => { const gr = x.createLinearGradient(0, 0, 0, h); gr.addColorStop(0, '#1b1036'); gr.addColorStop(1, '#3a1b5c'); x.fillStyle = gr; x.fillRect(0, 0, w, h);
+    for(let i = 0; i < 40; i++){ x.fillStyle = 'rgba(255,255,255,' + (0.2 + (i * 37 % 10) / 20) + ')'; x.fillRect((i * 97) % w, (i * 53) % h, 2, 2); }
+    x.font = 'italic bold 70px "Chakra Petch","Trebuchet MS",sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillStyle = '#6b2a00'; x.fillText('COMET RALLY', w / 2 + 4, h / 2 + 4);
+    const tg = x.createLinearGradient(0, 20, 0, 100); tg.addColorStop(0, '#fff3c4'); tg.addColorStop(1, '#ff9a2e'); x.fillStyle = tg; x.fillText('COMET RALLY', w / 2, h / 2); });
+  const body = std(0xffffff, {map:side, roughness:0.45}), black = std(0x0d0d14, {roughness:0.5}), trim = std(0xc9a25a, {metalness:0.85, roughness:0.3});
+  [-0.41, 0.41].forEach(sx => mk(new THREE.BoxGeometry(0.05, 1.95, 0.86), body, sx, 0.975, 0, cab));
+  mk(new THREE.BoxGeometry(0.78, 1.95, 0.05), black, 0, 0.975, -0.4, cab); mk(new THREE.BoxGeometry(0.87, 0.05, 0.9), black, 0, 1.975, 0, cab);
+  mk(new THREE.BoxGeometry(0.78, 0.92, 0.05), std(0x2a1d4a, {roughness:0.5}), 0, 0.46, 0.36, cab);
+  mk(new THREE.BoxGeometry(0.22, 0.28, 0.02), trim, 0, 0.55, 0.39, cab); [-0.05, 0.05].forEach(sx => { const s = mk(new THREE.BoxGeometry(0.03, 0.07, 0.02), glowM(0xff5a3a, 1.8), sx, 0.6, 0.4, cab); s.castShadow = false; });
+  const panel = mk(new THREE.BoxGeometry(0.8, 0.07, 0.4), black, 0, 1.0, 0.33, cab); panel.rotation.x = 0.22;
+  const wheel = mk(new THREE.TorusGeometry(0.12, 0.018, 10, 36), std(0x1a1a22, {roughness:0.6}), 0, 1.1, 0.4, cab); wheel.rotation.x = -1.1;
+  mk(new THREE.CylinderGeometry(0.02, 0.02, 0.12, 10), trim, 0, 1.06, 0.37, cab).rotation.x = 0.5; mk(new THREE.CylinderGeometry(0.025, 0.025, 0.02, 16), glowM(0x5ce1e6, 2), 0.28, 1.05, 0.4, cab).castShadow = false;
+  const bez = mk(new THREE.BoxGeometry(0.72, 0.56, 0.04), black, 0, 1.43, 0.1, cab); bez.rotation.x = -0.2;
+  const scr = mk(new THREE.PlaneGeometry(0.62, 0.465), std(0x000000, {map:rally.tex, emissive:C(0xffffff), emissiveMap:rally.tex, emissiveIntensity:1.25, roughness:0.15}), 0, 1.43, 0.125, cab); scr.rotation.x = -0.2; scr.castShadow = false;
+  mk(new THREE.BoxGeometry(0.8, 0.24, 0.16), black, 0, 1.84, 0.34, cab);
+  const mq = mk(new THREE.PlaneGeometry(0.74, 0.19), std(0x000000, {map:marq, emissive:C(0xffffff), emissiveMap:marq, emissiveIntensity:1.4}), 0, 1.84, 0.425, cab); mq.castShadow = false;
+  glow(0x7fe0ff, 1.5, 0, 1.43, 0.35, cab, 0.22); glow(0xffb347, 1.6, 0, 1.84, 0.5, cab, 0.3);
+  aabb(H.x + C.x - 0.46, H.x + C.x + 0.46, H.y, H.y + 2, H.z + C.z - 0.46, H.z + C.z + 0.46, {hollow:true, full:true, map:false});
+  rally.cab = cab; rally.trophy = null; if(state.shards.has('dunes')) rallyTrophy();
+}
+// once won, the Amber Shard turns slowly above the cabinet
+function rallyTrophy(){ if(!rally.cab || rally.trophy) return; const t = new THREE.Group(); t.position.set(0, 2.5, 0.1); rally.cab.add(t);
+  const col = SHARD_COLORS.dunes, s = mk(new THREE.OctahedronGeometry(0.22, 0), phys(col, {emissive:C(col), emissiveIntensity:2.2, roughness:0.1}), 0, 0, 0, t); s.scale.set(0.8, 1.7, 0.8); s.castShadow = false; glow(col, 1.6, 0, 0, 0, t, 0.6); rally.trophy = t; }
 
 /* ================= input ================= */
 let jumpBuffer = 0;
 window.addEventListener('keydown', e => {
+  if(rally.open){ rallyKey(e); return; }   // Goal 11: the Comet Rally cabinet owns the keys while you play
   if(bc.on){ if(e.code === 'Escape'){ e.preventDefault(); skipBroadcast(); } else if(e.code === 'KeyN') setMute(snd.on); else if(e.code === 'Space' || e.code.indexOf('Arrow') === 0) e.preventDefault(); return; }   // the Broadcast owns the keys until it ends
   if(!ledgerEl.classList.contains('hidden')){ if(e.code === 'Escape'){ e.preventDefault(); closeLedger(); } else if(e.code === 'ArrowRight' || e.code === 'KeyD' || e.code === 'PageDown'){ e.preventDefault(); if(!$('#lgNext').disabled) turnLedger(1); } else if(e.code === 'ArrowLeft' || e.code === 'KeyA' || e.code === 'PageUp'){ e.preventDefault(); if(!$('#lgPrev').disabled) turnLedger(-1); } return; }
   if(!regEl.classList.contains('hidden')){ if(e.code === 'Escape') closeRegistrar(); return; }
@@ -9146,7 +9527,7 @@ function drawMap(){
   mx2.fillStyle = 'rgba(14,12,40,0.78)'; mx2.fillRect(0, 0, w, w);
   if(endless && endless.style && endless.style.minimap) endless.style.minimap(mx2, T, sc);
   let o = T(0, 0); if(!endless){ mx2.strokeStyle = 'rgba(92,225,230,0.5)'; mx2.lineWidth = 1.5 * sc; mx2.beginPath(); mx2.arc(o[0], o[1], R * sc, 0, TAU); mx2.stroke(); }
-  mx2.fillStyle = 'rgba(255,255,255,0.3)'; boxes.forEach(b => { if(b.y0 > 1.9 || b.map === false) return; mx2.beginPath(); [[-1, -1], [1, -1], [1, 1], [-1, 1]].forEach((k, i) => { const lx = k[0] * b.hx, lz = k[1] * b.hz; o = T(b.x + lx * b.c - lz * b.s, b.z + lx * b.s + lz * b.c); if(i) mx2.lineTo(o[0], o[1]); else mx2.moveTo(o[0], o[1]); }); mx2.fill(); });
+  mx2.fillStyle = 'rgba(255,255,255,0.3)'; const inH = !!(hollow && hollow.inside); boxes.forEach(b => { if(b.hollow ? !inH || b.y0 > HOLLOW.y + 1.9 : (inH || b.y0 > 1.9 || b.map === false)) return; mx2.beginPath(); [[-1, -1], [1, -1], [1, 1], [-1, 1]].forEach((k, i) => { const lx = k[0] * b.hx, lz = k[1] * b.hz; o = T(b.x + lx * b.c - lz * b.s, b.z + lx * b.s + lz * b.c); if(i) mx2.lineTo(o[0], o[1]); else mx2.moveTo(o[0], o[1]); }); mx2.fill(); });
   mx2.fillStyle = 'rgba(255,255,255,0.14)'; platforms.forEach(s => { o = T(s.x, s.z); mx2.beginPath(); mx2.arc(o[0], o[1], s.r * sc, 0, TAU); mx2.fill(); });
   portals.forEach(q => { o = T(q.x, q.z); mx2.strokeStyle = hexStr(PORTAL_COLORS[q.to]); mx2.lineWidth = 2.5; mx2.beginPath(); mx2.arc(o[0], o[1], 2.2 * sc, 0, TAU); mx2.stroke(); });
   mx2.fillStyle = '#ffd166'; coins.forEach(k => { o = T(k.g.position.x, k.g.position.z); mx2.beginPath(); mx2.arc(o[0], o[1], Math.max(2, 0.6 * sc), 0, TAU); mx2.fill(); });
@@ -9841,10 +10222,11 @@ function update(dt, time){
   const ix = nx, iz = nz;
   const push = (cx, cz, m) => { const dx = nx - cx, dz = nz - cz, d = Math.hypot(dx, dz); if(d < m && d > 1e-4){ nx = cx + dx / d * m; nz = cz + dz / d * m; } };
   const gHere = G(p.x, p.z);
-  for(const c of colliders) if(p.y - gHere < 10) push(c.x, c.z, c.r + 0.35);
-  for(const s of platforms) if(p.y < s.top - 0.35 && p.y + 1.85 > s.bottom) push(s.x, s.z, (s.rAt ? s.rAt(p.y + 0.4 - s.bottom) : s.r) + 0.35);
+  const HI = !!(hollow && hollow.inside);   // inside the Hollow (Goal 11) only its own walls and floor count
+  for(const c of colliders) if(HI ? c.hollow : p.y - gHere < 10) push(c.x, c.z, c.r + 0.35);
+  for(const s of platforms) if(!HI && p.y < s.top - 0.35 && p.y + 1.85 > s.bottom) push(s.x, s.z, (s.rAt ? s.rAt(p.y + 0.4 - s.bottom) : s.r) + 0.35);
   for(const nn of npcs) push(nn.x, nn.z, nn.av.rad);
-  for(const b of boxes) if(b.full || (p.y < b.y1 && p.y + 1.85 > b.y0)){ const q = boxOut(nx, nz, b, 0.35); if(q){ nx = q[0]; nz = q[1]; } }
+  for(const b of boxes) if((!HI || b.hollow) && (b.full || (p.y < b.y1 && p.y + 1.85 > b.y0))){ const q = boxOut(nx, nz, b, 0.35); if(q){ nx = q[0]; nz = q[1]; } }
   if(!endless){ const dr = Math.hypot(nx, nz), lim = R - 1.5; if(dr > lim){ nx *= lim / dr; nz *= lim / dr; } }
   if(p.zeroG){ const ddx = nx - ix, ddz = nz - iz, dl = Math.hypot(ddx, ddz); if(dl > 1e-5){ const ux = ddx / dl, uz = ddz / dl, vn = p.vx * ux + p.vz * uz; if(vn < 0){ p.vx -= 1.6 * vn * ux; p.vz -= 1.6 * vn * uz; } } }
   p.x = nx; p.z = nz;
@@ -9863,8 +10245,8 @@ function update(dt, time){
   }
   p.vy -= 24 * gravK * dt; p.y += p.vy * dt;
   for(const s of platforms) if(p.vy > 0 && s.bottom > 0.5 && Math.hypot(p.x - s.x, p.z - s.z) < s.r && prevY + 1.85 <= s.bottom + 0.01 && p.y + 1.85 > s.bottom){ p.y = s.bottom - 1.85; p.vy = 0; }
-  let ground = G(p.x, p.z);
-  for(const s of platforms) if(Math.hypot(p.x - s.x, p.z - s.z) < s.r + 0.2 && prevY >= s.top - 0.05) ground = Math.max(ground, s.top);
+  let ground = HI ? hollowFloor(p.x, p.z) : G(p.x, p.z);
+  if(!HI) for(const s of platforms) if(Math.hypot(p.x - s.x, p.z - s.z) < s.r + 0.2 && prevY >= s.top - 0.05) ground = Math.max(ground, s.top);
   if(p.y <= ground || (wasGrounded && p.vy <= 0 && p.y - ground < 0.45)){
     if(!wasGrounded && -p.vy > FALL_SAFE) hurt((-p.vy - FALL_SAFE) * 4.5, 'fall');
     p.y = ground; p.vy = 0; p.grounded = true; p.airJumps = 1; } else p.grounded = false;
@@ -9889,7 +10271,7 @@ function update(dt, time){
     if(d > lim){ camera.position.x = gym.x + dx / d * lim; camera.position.z = gym.z + dz / d * lim; }
     const c = gymCeil(camera.position.x, camera.position.z) - 0.5; if(camera.position.y > c) camera.position.y = c;
   }
-  const cg = G(camera.position.x, camera.position.z) + 0.4; if(camera.position.y < cg) camera.position.y = cg;
+  const cg = (hollow && hollow.inside ? hollowFloor(camera.position.x, camera.position.z) : G(camera.position.x, camera.position.z)) + 0.4; if(camera.position.y < cg) camera.position.y = cg;
   camera.lookAt(_t1); camera.updateMatrixWorld(); camWorld.copy(camera.position);
   sky.position.copy(camera.position);
   sunLight.position.set(p.x + lightDir.x * 150, p.y + lightDir.y * 150, p.z + lightDir.z * 150);
@@ -9926,7 +10308,7 @@ function update(dt, time){
     if(sp === 0 && nn.wait > 0.3){ for(const o of npcs){ if(o === nn) continue; const d = Math.hypot(o.x - nn.x, o.z - nn.z); if(d < 3.2 && d > 0.3){ nn.facing = lerpAngle(nn.facing, Math.atan2(o.x - nn.x, o.z - nn.z), 1 - Math.exp(-dt * 4)); if(nn.wait < 2.5 && Math.random() < dt * 0.3) nn.wait += 3; break; } } }
     nn.av.g.position.set(nn.x, G(nn.x, nn.z), nn.z); nn.av.g.rotation.y = nn.facing;
     animateAvatar(nn.av, dt, sp, true, time);
-    if(playing && !nn.spoke && Math.hypot(nn.x - p.x, nn.z - p.z) < 3 && p.y - G(p.x, p.z) < 1){ nn.spoke = true; nn.wait = 3; nn.facing = Math.atan2(p.x - nn.x, p.z - nn.z); toast(nn.name + ': ' + nn.line, 3600); }
+    if(playing && !nn.spoke && !(hollow && hollow.inside) && Math.hypot(nn.x - p.x, nn.z - p.z) < 3 && p.y - G(p.x, p.z) < 1){ nn.spoke = true; nn.wait = 3; nn.facing = Math.atan2(p.x - nn.x, p.z - nn.z); toast(nn.name + ': ' + nn.line, 3600); }
   }
   const px = p.x, py = p.y + 1, pz = p.z;
   for(let i = coins.length - 1; i >= 0; i--){
@@ -9940,15 +10322,14 @@ function update(dt, time){
   if(shardObj){
     const s = shardObj; s.m.rotation.y += dt * 1.5; s.m.position.y = s.gl.position.y = s.base + Math.sin(time * 2) * 0.2;
     if(Math.hypot(s.m.position.x - px, s.m.position.y - py, s.m.position.z - pz) < 1.6){
-      [s.m, s.beam, s.l, s.gl].forEach(o => world.remove(o)); state.shards.add(s.id); shardObj = null; reward(150, 50); sfx('shard');
-      toast(state.shards.size < 3 ? 'Shard found. ' + state.shards.size + ' of 3.   +150 XP' : 'All three shards found. The vault in the Hub is open.', 4200);
+      [s.m, s.beam, s.l, s.gl].forEach(o => world.remove(o)); shardObj = null; giveShard(s.id);
     }
   }
   if(state.world === 'hub' && state.shards.size >= 3 && !state.won && Math.hypot(p.x, p.z) < 2.8){
     state.won = true; reward(500, 200); sfx('win'); setHalo(); toast('You opened the vault. First to crack the Hub.   +500 XP', 5000);
   }
   if(playing && p.grounded && p.speed > 0.6){ snd.stepT -= dt; if(snd.stepT <= 0){ sfx('step'); snd.stepT = p.speed > 7 ? 0.27 : 0.42; } } else snd.stepT = 0.1;
-  shopProximity(); bikeProximity(); vendProximity(); deskProximity(); archiveUpdate(dt); hollowUpdate(dt, time); trialUpdate(dt, time);
+  shopProximity(); bikeProximity(); vendProximity(); deskProximity(); archiveUpdate(dt); hollowUpdate(dt, time); rallyTick(dt, time); trialUpdate(dt, time);
   updatePickups(dt, time); hurtCool -= dt; simTime += dt; updateHazards(simTime); updateBurst(dt); checkBundles();
   if(!WORLDS[state.world].rules.danger && !zeroing && state.hp < maxHp()){ state.hp = Math.min(maxHp(), state.hp + 12 * dt); hpHud(); }
   portalCool -= dt;
@@ -10106,7 +10487,21 @@ Object.defineProperties(window.__hub, {
 Object.defineProperties(window.__hub, {
   hollow:{get:() => hollow && {door:{x:+hollow.door.x.toFixed(2), z:+hollow.door.z.toFixed(2)}, stone:HUNT_CLUES.amber.pillar, time:HUNT_CLUES.amber.time, open:hollow.open, saved:state.hunt.door, rise:+hollow.rise.toFixed(2), inside:hollow.inside, built:hollow.built, near:hollowNear,
     tips:hollow.tips.map(t => ({i:t.i, x:+t.x.toFixed(2), z:+t.z.toFixed(2)})), room:hollow.room == null ? -1 : hollow.room}},
-  hollowAct:{value:() => { hollowUpdate(0); return hollowAct(); }}, knock:{value:() => knock()}
+  hollowAct:{value:() => { hollowUpdate(0); return hollowAct(); }}, knock:{value:() => knock()},
+  // enter (resolves once inside), leave, stand at a spot in the Hollow's own frame (lx across, lz along) facing along +z unless yaw is given
+  enterHollow:{value:() => new Promise(res => { enterHollow(); const t = setInterval(() => { if(!traveling){ clearInterval(t); res(!!(hollow && hollow.inside)); } }, 50); })},
+  leaveHollow:{value:() => new Promise(res => { leaveHollow(); const t = setInterval(() => { if(!traveling){ clearInterval(t); res(!(hollow && hollow.inside)); } }, 50); })},
+  hollowGoto:{value:(lx, lz, yaw) => { if(!hollow || !hollow.inside) return null; p.x = HOLLOW.x + lx; p.z = HOLLOW.z + lz; p.y = hollowFloor(p.x, p.z); p.vy = 0; p.speed = 0; if(yaw != null) cam.yaw = yaw; p.facing = cam.yaw + Math.PI; snapCamera(); clipCamera(); return {x:p.x, z:p.z, y:p.y, room:hollowRoomAt(p.x, p.z)}; }},
+  hollowPlan:{value:HOLLOW}, hollowFloor:{value:(x, z) => hollowFloor(x, z)},
+  hollowTraps:{get:() => hollow && hollow.built ? {wraiths:hollow.wraiths.map(w => ({x:+w.x.toFixed(2), z:+w.z.toFixed(2)})), scythes:hollow.scythes.map(s => ({x:s.x, z:s.z, L:s.L, ang:+(s.ang || 0).toFixed(3)})), pits:HOLLOW.pits.length} : null},
+  openChest:{value:() => openChest()}, settleDoor:{value:() => { if(!hollow || !hollow.hood) return false; hollow.rise = 1; hollow.hood.position.y = 0; return true; }},
+  // Comet Rally: simulate(policy) runs the same race logic headless with a scripted driver ('forward', 'backwards-last-lap', 'backwards-first-lap', 'stop-after-two') and scores it
+  // exactly as a played race (the shard only for the backwards last lap); {dry:true} scores nothing. state is the race on the cabinet now.
+  rally:{value:{simulate:(policy, o) => rallySimulate(policy, o), open:() => openRally(), close:() => closeRally(), start:() => { if(!rally.open) openRally(); rallyStart(); return true; },
+    get state(){ const R = rally.R; return {open:rally.open, racing:!!(R && !R.done), t:R ? +(R.t - RALLY.count).toFixed(2) : null, lap:R ? Math.min(RALLY.laps, R.lapMark + 1) : null, P:R ? +R.car.P.toFixed(3) : null, wrongWay:!!(R && R.wrongT > 0.6),
+      done:!!(R && R.done), way:R ? R.way : null, score:R ? R.score : null, best:state.hunt.rallyBest, plays:state.hunt.rallyPlays, last:rally.last && Object.assign({}, rally.last), track:{length:+RLINE.L.toFixed(1), laps:RALLY.laps}}; }}},
+  amberWon:{get:() => state.shards.has('dunes')}, shards:{get:() => [...state.shards]},
+  ledgerBoard:{get:() => { const rows = BOARD.concat([{name:state.name || 'You', shards:state.shards.size, xp:state.xp, you:true}]).sort((a, b) => b.shards - a.shards || b.xp - a.xp); huntState(); return {you:rows.find(x => x.you), rank:rows.findIndex(x => x.you) + 1, hunt:($('#huntState') || {}).textContent || ''}; }}
 });
 })();
 </script>
