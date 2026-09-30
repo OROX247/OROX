@@ -8817,9 +8817,41 @@ const WICK_RECIPE = {body:'humanoid', height:2.05, build:'slim', head:'bare', fe
   colours:{main:'#6d7078', second:'#4f535b', trim:'#8a8f98', glow:'#b8894a'}, eyes:{style:'dots', glow:'#ffd9a0'}};
 const bc = {on:false, t:0, t0:0, grp:null, wick:null, lantern:null, flame:null, halo:null, line:-1, why:'', saved:null, plays:0, skipped:false};
 const bcEl = $('#bcast');
-const bcAudio = {bus:null, nodes:[]};   // the music bed (filled in by the sound step)
-function bcMusic(){}
-function bcMusicStop(){}
+/* the music bed: the harbour's wash, a slow pad, and "Low Tide" from the music box's own notes (LOW_TIDE_HZ, HUNT_CLUES.cyan.order), an octave down
+   while he talks and at the box's pitch when he names it. Everything goes through one bus into the master (so N mutes it); the realm's ambience is
+   ducked meanwhile. bcMusic(from) schedules everything from timeline second `from` on, so seek() restarts it in place. */
+const bcAudio = {bus:null, nodes:[]};
+const BC_PADS = [[0, 30, [130.81, 196.0, 329.63]], [30, 47, [110.0, 164.81, 261.63]], [47, 58, [87.31, 130.81, 220.0]], [58, 89, [130.81, 196.0, 329.63]]];
+const BC_TUNES = [[4, 0.5, 0.05], [30.5, 0.5, 0.045], [58.8, 1, 0.06], [76.9, 0.5, 0.05]];   // [start, pitch, loudness]: the melody four times
+function bcMusic(from){
+  bcMusicStop(); if(!snd.ctx || !snd.on) return;
+  const c = snd.ctx, now = c.currentTime + 0.05, off = from == null ? bc.t : from, T = x => now + x - off;
+  const bus = c.createGain(); bus.gain.setValueAtTime(0.0001, now); bus.gain.exponentialRampToValueAtTime(0.9, now + 1.5); bus.connect(snd.master); bcAudio.bus = bus;
+  const keep = o => { bcAudio.nodes.push(o); o.onended = () => { const k = bcAudio.nodes.indexOf(o); if(k >= 0) bcAudio.nodes.splice(k, 1); }; return o; };
+  const endAt = T(BROADCAST_END);
+  // the harbour: brown noise, low-passed, rising and falling like small waves
+  { const src = keep(c.createBufferSource()); src.buffer = bufs().brownBuf; src.loop = true; const f = c.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 420; f.Q.value = 0.5;
+    const g = c.createGain(); g.gain.value = 0.16; const lfo = keep(c.createOscillator()), lg = c.createGain(); lfo.frequency.value = 0.09; lg.gain.value = 0.1; lfo.connect(lg); lg.connect(g.gain);
+    src.connect(f); f.connect(g); g.connect(bus); src.start(now); lfo.start(now); src.stop(endAt); lfo.stop(endAt); }
+  // the pad: three soft sines per chord, long swells, a little detune
+  BC_PADS.forEach(([a, b, fs]) => { if(b <= off) return; const t0 = T(Math.max(a, off)), t1 = T(b), lvl = 0.022;
+    fs.forEach((fr, k) => { const o = keep(c.createOscillator()), g = c.createGain(); o.type = k ? 'sine' : 'triangle'; o.frequency.value = fr; o.detune.value = (k - 1) * 4;
+      g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(lvl, t0 + 3); g.gain.setValueAtTime(lvl, Math.max(t0 + 3, t1 - 2.5)); g.gain.exponentialRampToValueAtTime(0.0001, t1 + 1.5);
+      o.connect(g); g.connect(bus); o.start(t0); o.stop(t1 + 1.6); }); });
+  // "Low Tide": the seven notes of the chime order, each a plucked sine with a soft octave, 1.3 s apart
+  BC_TUNES.forEach(([a, pitch, lvl]) => HUNT_CLUES.cyan.order.forEach((n, k) => { const at = a + k * 1.3 + (k === 6 ? 0.5 : 0); if(at < off) return; const t0 = T(at), fr = LOW_TIDE_HZ[n - 1] * pitch, d = k === 6 ? 4 : 2.2;
+    [[fr, 'sine', lvl], [fr * 2, 'triangle', lvl * 0.18]].forEach(([f, ty, gl]) => { const o = keep(c.createOscillator()), g = c.createGain(); o.type = ty; o.frequency.value = f;
+      g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(gl, t0 + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t0 + d); o.connect(g); g.connect(bus); o.start(t0); o.stop(t0 + d + 0.05); }); }));
+  if(snd.amb) snd.amb.gain.setTargetAtTime(0.12, now, 0.6);
+}
+function bcMusicStop(){
+  const c = snd.ctx; if(!c) return;
+  const bus = bcAudio.bus, t = c.currentTime;
+  if(bus){ try{ bus.gain.cancelScheduledValues(t); bus.gain.setValueAtTime(Math.max(bus.gain.value, 0.0001), t); bus.gain.exponentialRampToValueAtTime(0.0001, t + 0.25); }catch(e){} }
+  bcAudio.nodes.forEach(o => { o.onended = null; try{ o.stop(t + 0.3); }catch(e){ try{ o.stop(); }catch(e2){} } });
+  bcAudio.nodes = []; bcAudio.bus = null;
+  if(bus) setTimeout(() => { try{ bus.disconnect(); }catch(e){} }, 400);
+}
 function bcCatmull(a, b, c, d, u){ const u2 = u * u, u3 = u2 * u; return 0.5 * (2 * b + (-a + c) * u + (2 * a - 5 * b + 4 * c - d) * u2 + (-a + 3 * b - 3 * c + d) * u3); }
 function bcPathAt(t, out0, out1){
   const P = BC_PATH, n = P.length; let i = 0; while(i < n - 2 && t >= P[i + 1][0]) i++;
@@ -8868,12 +8900,14 @@ function playBroadcast(why){
   document.body.classList.add('bcast'); bcEl.hidden = false; bcEl.classList.remove('out'); bcEl.querySelector('.bc-sub').textContent = ''; bcEl.classList.add('open');
   $('#bcSkip').focus({preventScroll:true});
   bcPathAt(0, _t0, _t1); camera.position.copy(_t0); camera.lookAt(_t1);
+  audioInit(); bcMusic(0);
   return true;
 }
 function endBroadcast(skipped){
   if(!bc.on) return false;
   bc.on = false; bc.skipped = !!skipped;
   bcDispose();
+  bcMusicStop(); if(snd.ctx && snd.amb) snd.amb.gain.setTargetAtTime(0.55, snd.ctx.currentTime, 0.8);
   const s = bc.saved || {}; cam.yaw = s.yaw != null ? s.yaw : cam.yaw; cam.pitch = s.pitch != null ? s.pitch : cam.pitch; cam.dist = s.dist || cam.dist; if(s.view != null && s.view !== cam.view) setView(s.view);
   if(post.dof && s.dof != null) post.dof.enabled = s.dof;
   me.g.visible = true;
@@ -9959,7 +9993,7 @@ Object.defineProperties(window.__hub, {
   broadcast:{get:() => ({playing:bc.on, seen:state.archive.broadcast, t:+bc.t.toFixed(2), duration:BROADCAST_END, line:bc.line, subtitle:bc.on && bc.line >= 0 ? BROADCAST_LINES[bc.line].text : '', why:bc.why, plays:bc.plays, skipped:bc.skipped,
     lines:BROADCAST_LINES.map(L => L.text), script:BROADCAST_LINES.map(L => Object.assign({}, L)), wickVisible:!!(bc.wick && bc.wick.g.visible),
     leftovers:scene.children.filter(o => o.name === 'broadcast').length, audioNodes:bcAudio.nodes.length, bus:!!bcAudio.bus, meVisible:me.g.visible, controls:playing, overlay:!bcEl.hidden,
-    seek(t){ if(!bc.on) return false; bc.t0 = performance.now() - clamp(+t || 0, 0, BROADCAST_END - 0.05) * 1000; bcMusic(); return true; }})},
+    seek(t){ if(!bc.on) return false; bc.t = clamp(+t || 0, 0, BROADCAST_END - 0.05); bc.t0 = performance.now() - bc.t * 1000; bcMusic(bc.t); return true; }})},
   playBroadcast:{value:() => playBroadcast('test')}, skipBroadcast:{value:() => skipBroadcast()}
 });
 })();
