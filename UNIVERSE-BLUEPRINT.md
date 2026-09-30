@@ -41,7 +41,7 @@ A single, enormous, persistent virtual universe that started life as an online r
 | Castle Anorak on Chthonia (dark world with the final gate) | **The Citadel** on **Ashfall** | New realm. |
 | Planet Doom (war world) | **Warfront** | New realm, later phase. |
 | The Distracted Globe (zero-g dance club) | **The Drift** | A club inside Neon Grid. |
-| The Tomb of Horrors (dungeon hiding the first key) | **The Hollow** | A dungeon in Campus's forest. |
+| The Tomb of Horrors (dungeon hiding the first key) | **The Hollow** | A dungeon under Glass Dunes (roadmap goal 11; built there). |
 | Avatar Outfitters (shop) | **Outfitters** | Shop on Hub Spaceport. |
 | Extra Life coin | **The Second Breath** | Unique artifact. |
 | Orb of Osuvox (force-field artifact) | **The Bell Jar** | Unique artifact. |
@@ -147,7 +147,7 @@ The fixed rules still hold everywhere: solid real geometry and fixed textures (n
 - Private chat rooms: instanced spaces a player owns and decorates, where friends meet. The hero's best friend hosts one styled as a basement.
 - Schools: identical campuses across the school planet, marble halls, cathedral classrooms, zero-g gym, teachers freed from discipline because the software handles it.
 
-**Hub version.** Each realm gets at least one quest portal (a glowing doorway with a name and reward on its label). Campus gets the school building (walk-in, a classroom, a zero-g gym you can bounce in) and, hidden in its forest, The Hollow: a dungeon with three rooms, traps, monsters, a treasure room, and an arcade cabinet where the first shard is won. Neon Grid gets The Drift: a zero-g dance floor where gravity is off inside the sphere. The player gets one private room ("Den") reachable from the Spaceport, with a few decor items to buy and place; it saves.
+**Hub version.** Each realm gets at least one quest portal (a glowing doorway with a name and reward on its label). Campus gets the school building (walk-in, a classroom, a zero-g gym you can bounce in) and a quiet clearing in its forest (kept empty for a later quest). The Hollow, a dungeon with three rooms, traps, monsters, a treasure room and the arcade cabinet where the first shard is won, lies under Glass Dunes (goal 11). Neon Grid gets The Drift: a zero-g dance floor where gravity is off inside the sphere. The player gets one private room ("Den") reachable from the Spaceport, with a few decor items to buy and place; it saves.
 
 ## 8. Enemies and danger
 
