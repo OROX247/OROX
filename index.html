@@ -8675,7 +8675,7 @@ let archNear = null, archRoom = -1, cardTimer = 0;
 const ARCH_DOOR_OPEN = Math.PI - 0.1;
 const ledgerEl = $('#ledger'), regEl = $('#reg'), memoEl = $('#memo');
 function archiveUpdate(dt){
-  if(!archive || state.world !== 'hub'){ if(archNear){ archNear = null; $('#archBtn').style.display = 'none'; } if(me.tag) me.tag.visible = !pocketIn(); return; }   // indoors (the Hollow too) your own name tag would fill the view
+  if(!archive || state.world !== 'hub'){ if(archNear){ archNear = null; $('#archBtn').style.display = 'none'; } if(me.tag) me.tag.visible = !pocketIn() && !driftSafe(); return; }   // indoors (the Hollow, The Drift, its hallway) your own name tag would fill the view
   const A = ARCHIVE, px = p.x, pz = p.z, cp = camera.position;
   // the rooms are built the first time you come near (one a frame), so the Spaceport loads exactly as fast as before
   if(Math.hypot(px, pz - 77) < 60){ const k = archive.rooms.findIndex(R => !R.built); if(k >= 0) archiveBuildRoom(k); }
@@ -10333,7 +10333,7 @@ function buildHall(){
     brick:std(0xffffff, {map:S.brick.map, normalMap:S.brick.normal, roughnessMap:S.brick.rough, roughness:1}), cobble:std(0xffffff, {map:S.cobble.map, normalMap:S.cobble.normal, roughnessMap:S.cobble.rough, roughness:1}),
     boards:std(0x8a6a50, {map:T.wood.map, normalMap:T.wood.normal, normalScale:new V2(0.6, 0.6), roughnessMap:T.wood.rough, roughness:1}), wain:std(0x5a3e2c, {map:T.wood.map, normalMap:T.wood.normal, normalScale:new V2(0.4, 0.4), roughness:0.7}),
     plaster:std(0x9a9a86, {map:detailTex, normalMap:detailNormal, normalScale:new V2(0.15, 0.15), roughness:0.92}), ceil:std(0x6e6a60, {map:detailTex, roughness:0.95}),
-    glass:phys(0x0b0714, {roughness:0.12, metalness:0.55, normalMap:detailNormal, normalScale:new V2(0.12, 0.12)}), black:std(0x050407, {roughness:0.95}),
+    glass:phys(0x0b0714, {roughness:0.1, metalness:0.55, normalMap:detailNormal, normalScale:new V2(0.03, 0.03)}), black:std(0x050407, {roughness:0.95}),
     iron:std(0x2a2c31, {metalness:0.6, roughness:0.5}), flame:glowM(0xffb45a, 2.6), stone:std(0x9a948a, {map:detailTex, normalMap:detailNormal, normalScale:new V2(0.4, 0.4), roughness:0.85}),
     frame:std(0xd8cfbe, {roughness:0.6}), blue:std(0x284a7a, {roughness:0.45, map:detailTex}), green:std(0x2f4a3a, {roughness:0.5, map:detailTex}), red:std(0x6a2a24, {roughness:0.5, map:detailTex}),
     pane:std(0x0c1018, {roughness:0.06, metalness:0.4}), neonP:glowM(0xff4fa3, 2.4), neonC:glowM(0x5ce1e6, 2.0), rose:glowM(0xff4fa3, 3)
