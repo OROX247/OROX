@@ -10378,7 +10378,7 @@ function signCanvas(s){ return signTex(512, 192, (x, w, h) => { x.fillStyle = '#
   // a U-turn arrow: up, over and back down, pointing the way you came
   x.strokeStyle = '#ffb870'; x.lineWidth = 9; x.beginPath(); x.moveTo(40, 110); x.lineTo(40, 60); x.arc(70, 60, 30, Math.PI, 0); x.lineTo(100, 96); x.stroke();
   x.fillStyle = '#ffb870'; x.beginPath(); x.moveTo(84, 92); x.lineTo(116, 92); x.lineTo(100, 118); x.closePath(); x.fill(); }); }
-function buildHall(){
+function buildCorrHall(){   // (named apart from Campus's buildHall(T): two declarations of one name meant the later one replaced the Campus school hall, and Campus failed to build)
   const C0 = CORR, Y = C0.y, hw = C0.hw, H = C0.h, L = C0.L, zB = C0.zoneB, zC = C0.zoneC, g = new THREE.Group(); world.add(g);
   const T = campusTextures(), S = archiveStone(), q = rng(1313);
   const F = {cx:C0.x, cz:C0.z0, sd:1, ry:a => a}, K = roomKit(F, g);
@@ -10472,7 +10472,7 @@ function corrReset(){
 function enterHall(){
   if(traveling || !drift || !corr) return; traveling = true; fadeEl.classList.add('on'); sfx('thud');
   setTimeout(() => { try{
-    if(drift && corr && state.world === 'grid'){ if(!corr.built) buildHall();
+    if(drift && corr && state.world === 'grid'){ if(!corr.built) buildCorrHall();
       corr.saved = {hc:hemi.color.getHex(), hg:hemi.groundColor.getHex(), hi:hemi.intensity, si:sunLight.intensity, fc:scene.fog ? scene.fog.color.getHex() : 0, fd:scene.fog ? scene.fog.density : 0};
       corr.inside = true; corr.g.visible = true; corrReset(); p.zeroG = false;
       p.x = CORR.x; p.z = CORR.z0 + 1.5; p.y = CORR.y; p.vx = p.vy = p.vz = 0; p.speed = 0; p.facing = 0; cam.yaw = Math.PI; cam.pitch = Math.min(Math.max(cam.pitch, 0.05), 0.22);
