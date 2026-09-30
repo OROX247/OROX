@@ -123,6 +123,8 @@ html,body{ height:100%; margin:0; overflow:hidden; background:#07061a; color:var
 .rally-bar{ display:flex; gap:10px; align-items:center; color:#c9c3e6; font:600 13px 'Chakra Petch','Trebuchet MS',sans-serif; flex-wrap:wrap; justify-content:center; }
 .rally-touch{ display:none; gap:10px; } .rally-touch button{ min-width:64px; min-height:52px; font-size:18px; }
 @media (pointer:coarse){ .rally-touch{ display:flex; } }
+.g1-opt{ display:block; width:100%; margin:8px 0; padding:11px 13px; text-align:left; background:rgba(255,176,32,.06); border:1.5px solid rgba(255,176,32,.35); color:#f3eee6; font:15px/1.4 'Chakra Petch','Trebuchet MS',sans-serif; cursor:pointer; } .g1-opt:hover,.g1-opt:focus{ background:rgba(255,176,32,.18); }
+.warp-item.sealed{ opacity:.55; }
 .memo-card{ width:min(540px,100%); } .memo-card small{ color:var(--gold); letter-spacing:.08em; text-transform:uppercase; font-size:12px; }
 #memoText{ font:16.5px/1.6 Georgia,"Times New Roman",serif; color:#efe8d6; margin:10px 0 8px; } #memoNote{ font-size:13px; color:#b9b2e0; margin:0; }
 .ico.book{ border-radius:2px; width:18px; height:24px; background:linear-gradient(90deg,#3a1a12 0 20%,var(--c) 20%); }
@@ -389,6 +391,16 @@ body.bcast #hud, body.bcast #corner, body.bcast #roomCard, body.bcast #toast{ vi
     <canvas id="rallyCv" width="640" height="480"></canvas>
     <div class="rally-touch"><button class="hbtn" data-k="L" aria-label="Steer left">&#9664;</button><button class="hbtn" data-k="R" aria-label="Steer right">&#9654;</button><button class="hbtn" data-k="B">Brake</button><button class="hbtn" data-k="G">Go</button></div>
     <div class="rally-bar"><span>Arrows or WASD drive · Enter starts · Esc leaves</span><button class="hbtn" id="rallyGo">Start</button><button class="ghost" id="rallyQuit">Leave</button></div>
+  </div>
+</div>
+<div id="gate1" class="overlay hidden" role="dialog" aria-labelledby="g1Title">
+  <div class="card memo-card">
+    <small id="g1Step"></small>
+    <h2 id="g1Title">The First Gate</h2>
+    <p id="g1Prev"></p>
+    <div id="g1Opts"></div>
+    <p class="lede">Choose with the mouse or keys 1, 2, 3. A wrong line starts you again from the first.</p>
+    <button class="ghost" id="g1Close">Leave</button>
   </div>
 </div>
 <div id="memo" class="overlay hidden" role="dialog" aria-labelledby="memoTitle">
@@ -9452,7 +9464,8 @@ function rallyTrophy(){ if(!rally.cab || rally.trophy) return; const t = new THR
 /* ================= input ================= */
 let jumpBuffer = 0;
 window.addEventListener('keydown', e => {
-  if(rally.open){ rallyKey(e); return; }   // Goal 11: the Comet Rally cabinet owns the keys while you play
+  if(rally.open){ rallyKey(e); return; }
+  if(gate1.open){ if(e.code === 'Escape'){ e.preventDefault(); closeGate1(); } else if(/^(Digit|Numpad)[123]$/.test(e.code) && !e.repeat){ e.preventDefault(); g1Answer(+e.code.slice(-1) - 1, 'played'); } return; }   // Goal 14: the First Gate owns the keys while it asks   // Goal 11: the Comet Rally cabinet owns the keys while you play
   if(bc.on){ if(e.code === 'Escape'){ e.preventDefault(); skipBroadcast(); } else if(e.code === 'KeyN') setMute(snd.on); else if(e.code === 'Space' || e.code.indexOf('Arrow') === 0) e.preventDefault(); return; }   // the Broadcast owns the keys until it ends
   if(!ledgerEl.classList.contains('hidden')){ if(e.code === 'Escape'){ e.preventDefault(); closeLedger(); } else if(e.code === 'ArrowRight' || e.code === 'KeyD' || e.code === 'PageDown'){ e.preventDefault(); if(!$('#lgNext').disabled) turnLedger(1); } else if(e.code === 'ArrowLeft' || e.code === 'KeyA' || e.code === 'PageUp'){ e.preventDefault(); if(!$('#lgPrev').disabled) turnLedger(-1); } return; }
   if(!regEl.classList.contains('hidden')){ if(e.code === 'Escape') closeRegistrar(); return; }
@@ -11129,6 +11142,53 @@ function openGateN(i, why){
   state.hunt.gates[i] = true; persist(); reward(100, 0); sfx('rumble'); ashSync(false); huntState();
   toast((why ? why + '   ' : '') + CITADEL.gates[i].name + ' is open.   +100 XP', 5200); return true;
 }
+/* Gate One (the First Gate, amber): say the Architect's Broadcast back, line by line. Six of its fifteen lines are asked, in order; each time the true
+   line (from BROADCAST_LINES, the one place the words live) stands between two decoys. The decoys are Hub's own, written in Lyle's voice for this gate,
+   and none of them is a line of the Broadcast. One wrong choice and the gate forgets you: start again from the first line. */
+const G1_ROUNDS = [
+  {line:0, decoys:['Good evening. If you are hearing this, somebody finally found the switch, and I owe them a cup of tea.',
+                   'Hello. Pull up a chair; the lantern is warm and the story is long, and I was never any good at short ones.']},
+  {line:2, decoys:['I grew up above a chandler\'s shop in Fennick Bay, and I learned to count by sorting brass screws into jars.',
+                   'I grew up by the harbour wall, where my mother mended nets and sang to them as if they could hear her.']},
+  {line:5, decoys:['So I have locked it away somewhere deep, where only the patient and the lucky will ever dig it up.',
+                   'So I have left it to whoever is fastest, because a world like this needs someone who never stops running.']},
+  {line:7, decoys:['Behind the third gate is a room with my name on the door. Knock twice and I will tell you the rest myself.',
+                   'Behind the third gate is the Seed. Whoever carries it out may switch Hub off for good, if they think that best.']},
+  {line:10, decoys:['And learn to sail. Every answer in Hub is out on the water somewhere, a long way past the last buoy.',
+                    'And learn the Ferryman\'s Reel. My father whistled it at the wheel. It is shorter than it sounds.']},
+  {line:12, decoys:['A light in the window is a promise to yourself. Keep it burning and you will never need anybody.',
+                    'A light in the window is only worth the oil it burns. Count the oil, and you will see what I mean.']}
+];
+const gate1 = {open:false, round:0, attempt:0, opts:null, last:null};
+const gate1El = $('#gate1');
+// the three choices for this round, in an order fixed by the attempt and the round (no Math.random), so a test can read the right one
+function g1Options(){ const R = G1_ROUNDS[gate1.round], q = rng(7001 + gate1.attempt * 31 + gate1.round * 7);
+  const o = [{text:BROADCAST_LINES[R.line].text, right:true}, {text:R.decoys[0], right:false}, {text:R.decoys[1], right:false}];
+  for(let i = 2; i > 0; i--){ const j = Math.floor(q() * (i + 1)); const t = o[i]; o[i] = o[j]; o[j] = t; } return o; }
+function g1Draw(msg){
+  if(!gate1.opts) gate1.opts = g1Options();
+  const R = G1_ROUNDS[gate1.round], prev = R.line > 0 ? BROADCAST_LINES[R.line - 1].text : null;
+  $('#g1Step').textContent = 'Line ' + (gate1.round + 1) + ' of ' + G1_ROUNDS.length + (gate1.attempt ? ' · try ' + (gate1.attempt + 1) : '');
+  $('#g1Prev').textContent = (msg ? msg + ' ' : '') + (prev ? 'He said: "' + prev + '" What did he say next?' : 'The Broadcast begins. What were his first words?');
+  const box = $('#g1Opts'); box.innerHTML = '';
+  gate1.opts.forEach((o, i) => { const b = document.createElement('button'); b.className = 'g1-opt'; b.textContent = (i + 1) + '.  ' + o.text; b.addEventListener('click', () => g1Answer(i, 'played')); box.appendChild(b); });
+}
+function openGate1(){ if(gateOpen(0) || gate1.open || zeroing) return null; gate1.open = true; gate1.round = 0; gate1.opts = g1Options(); gate1El.classList.remove('hidden'); setPaused(true); g1Draw(); sfx('ui'); return {open:true}; }
+function closeGate1(){ if(!gate1.open) return; gate1.open = false; gate1El.classList.add('hidden'); setPaused(false); }
+// the rule: the i-th choice of the current round (0, 1 or 2); a wrong line restarts from the first
+function g1Answer(i, how){
+  if(gateOpen(0)) return {already:true, open:true};
+  if(!gate1.opts) gate1.opts = g1Options();
+  const o = gate1.opts[i]; if(!o) return {error:'no such choice', choices:gate1.opts.length};
+  if(!o.right){ state.hunt.g1Tries++; persist(); gate1.attempt++; gate1.round = 0; gate1.opts = g1Options(); sfx('thud');
+    gate1.last = {how, right:false, restarted:true};
+    if(gate1.open) g1Draw('Wrong. The stones go quiet, and the gate forgets you.'); else toast('Wrong line. The First Gate forgets you: start again from the first line.', 3600);
+    return Object.assign({}, gate1.last, {round:0, open:false}); }
+  sfx('ui'); gate1.round++;
+  if(gate1.round >= G1_ROUNDS.length){ gate1.opts = null; gate1.round = 0; state.hunt.g1Tries++; closeGate1(); openGateN(0, 'Every line in its place. The amber socket burns bright.'); gate1.last = {how, right:true, open:true}; return Object.assign({}, gate1.last); }
+  gate1.opts = g1Options(); if(gate1.open) g1Draw('Yes.'); gate1.last = {how, right:true, round:gate1.round}; return Object.assign({}, gate1.last, {open:false});
+}
+$('#g1Close').addEventListener('click', closeGate1);
 $('#ashBtn').addEventListener('click', () => { if(ashNear) ashAct(); });
 // hooks for the tester (headless checks) and for debugging; not used by the game itself
 window.__hub = { state, p, cam, post, stats, WORLDS, scene, renderer, camera, sunLight, hemi, gl:GL_INFO, softwareGL:SOFTWARE_GL, travel, buildWorld, startGame, setPaused, degrade, parseDescription, makeFromWords, rebuildPlayer, cleanRecipe, snd, sfx, setMute, bike, mountBike, dismountBike, keys, update, trial, trialStart, COURSES, get me(){ return me; }, freezeQuality(){ warm = 1e9; }, get qLevel(){ return qLevel; }, get world(){ return state.world; }, get envRT(){ return envRT; },
@@ -11280,6 +11340,23 @@ Object.defineProperties(window.__hub, {
     cam.yaw = Math.atan2(-H.ux, -H.uz) + (o.yaw || 0); cam.pitch = o.pitch == null ? 0.12 : o.pitch; cam.dist = o.dist || 4.2; p.facing = cam.yaw + Math.PI; snapCamera(); clipCamera(); chimeUpdate(0, clock.elapsedTime);
     return {x:+p.x.toFixed(2), z:+p.z.toFixed(2), y:+p.y.toFixed(2), near:chimeNear == null ? null : chimeNear + 1}; }},
   cyanWon:{get:() => state.shards.has('sky')}
+});
+// Goal 14: Ashfall, the Citadel's gates, the vault and the Seed
+Object.defineProperties(window.__hub, {
+  ashfall:{get:() => ({sealed:ashSealed(), here:state.world === 'ashfall', built:!!(ash && ash.g), sector:WORLDS.ashfall.sector, rules:Object.assign({}, WORLDS.ashfall.rules), near:ashNear,
+    warpItem:(() => { const b = [...document.querySelectorAll('#warpList .warp-item')].find(e => e.textContent.indexOf('Ashfall') === 0); return b ? {text:b.textContent, disabled:b.disabled} : null; })()})},
+  gates:{get:() => CITADEL.gates.map((Gt, i) => ({name:Gt.name, shard:Gt.shard, open:gateOpen(i), portcullis:ash && ash.gateObjs ? +ash.gateObjs[i].lift.toFixed(2) : null, blocks:ash && ash.gateObjs ? ash.gateObjs[i].box.y1 > 0 : null}))},
+  gate1:{value:{answer:i => g1Answer(i, 'hook'), open:() => openGate1(), close:() => closeGate1(), rounds:G1_ROUNDS.length,
+    get round(){ return gate1.round; }, get attempt(){ return gate1.attempt; }, get options(){ if(!gate1.opts) gate1.opts = g1Options(); return gate1.opts.map(o => o.text); },
+    get correct(){ if(!gate1.opts) gate1.opts = g1Options(); return gate1.opts.findIndex(o => o.right); }, get wrong(){ if(!gate1.opts) gate1.opts = g1Options(); return gate1.opts.findIndex(o => !o.right); },
+    get last(){ return gate1.last && Object.assign({}, gate1.last); }, get isOpen(){ return gate1.open; }, get tries(){ return state.hunt.g1Tries; },
+    decoysInBroadcast:() => G1_ROUNDS.some(R => R.decoys.some(d => BROADCAST_LINES.some(L => L.text === d)))}},
+  // frame the camera: 'gates' (the whole wall), 0/1/2 (in front of one gate), 'row' (the start of Lantern Row), 'pile', 'vault'
+  ashGoto:{value:v => { if(state.world !== 'ashfall') return null; const C0 = CITADEL, at = (x, z, yaw, dist, pitch) => { p.x = x; p.z = z; p.y = G(x, z); p.vx = p.vy = p.vz = 0; p.speed = 0; cam.yaw = yaw; p.facing = yaw + Math.PI; cam.dist = dist || cam.dist; cam.pitch = pitch == null ? 0.12 : pitch; snapCamera(); clipCamera(); };
+    if(v === 'gates') at(0, 1, Math.PI, 9, 0.06); else if(typeof v === 'number') at(C0.gates[v].x, C0.z - 2.2, Math.PI, 5); else if(v === 'row') at(C0.row.x, C0.row.z0 + 1, Math.PI, 4.5);
+    else if(v === 'pile') at(C0.row.x + 1.2, C0.row.pile - 0.5, Math.PI, 4.5); else if(v === 'vault') at(C0.vault.x, C0.vault.door - 3, Math.PI, 5);
+    ashUpdate(0, clock.elapsedTime); return {x:+p.x.toFixed(2), z:+p.z.toFixed(2), near:ashNear}; }},
+  ashUpdate:{value:dt => ashUpdate(dt || 0.05, clock.elapsedTime)}
 });
 })();
 </script>
