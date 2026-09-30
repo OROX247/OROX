@@ -126,6 +126,7 @@ html,body{ height:100%; margin:0; overflow:hidden; background:#07061a; color:var
 @media (pointer:coarse){ .rally-touch{ display:flex; } }
 .g1-opt{ display:block; width:100%; margin:8px 0; padding:11px 13px; text-align:left; background:rgba(255,176,32,.06); border:1.5px solid rgba(255,176,32,.35); color:#f3eee6; font:15px/1.4 'Chakra Petch','Trebuchet MS',sans-serif; cursor:pointer; } .g1-opt:hover,.g1-opt:focus{ background:rgba(255,176,32,.18); }
 .warp-item.sealed{ opacity:.55; }
+#seedCard{ background:rgba(8,5,14,.72); } .seed-card{ border-color:rgba(255,217,138,.6); box-shadow:0 0 60px rgba(255,217,138,.25); } #seedBody{ white-space:pre-line; line-height:1.55; } #seedSign{ text-align:right; font-style:italic; color:var(--gold); }
 .memo-card{ width:min(540px,100%); } .memo-card small{ color:var(--gold); letter-spacing:.08em; text-transform:uppercase; font-size:12px; }
 #memoText{ font:16.5px/1.6 Georgia,"Times New Roman",serif; color:#efe8d6; margin:10px 0 8px; } #memoNote{ font-size:13px; color:#b9b2e0; margin:0; }
 .ico.book{ border-radius:2px; width:18px; height:24px; background:linear-gradient(90deg,#3a1a12 0 20%,var(--c) 20%); }
@@ -399,6 +400,15 @@ body.bcast #hud, body.bcast #corner, body.bcast #roomCard, body.bcast #toast{ vi
     <canvas id="starCv" width="640" height="480"></canvas>
     <div class="rally-touch"><button class="hbtn" data-k="L" aria-label="Fly left">&#9664;</button><button class="hbtn" data-k="F">Light</button><button class="hbtn" data-k="R" aria-label="Fly right">&#9654;</button></div>
     <div class="rally-bar"><span>Arrows or A/D steer · Space or Up throws light · Enter starts · Esc leaves</span><button class="hbtn" id="starGo">Start</button><button class="ghost" id="starQuit">Leave</button></div>
+  </div>
+</div>
+<div id="seedCard" class="overlay hidden" role="dialog" aria-labelledby="seedTitle">
+  <div class="card memo-card seed-card">
+    <small id="seedWhere"></small>
+    <h2 id="seedTitle"></h2>
+    <p id="seedBody"></p>
+    <p id="seedSign"></p>
+    <button class="ghost" id="seedClose">Keep it</button>
   </div>
 </div>
 <div id="gate1" class="overlay hidden" role="dialog" aria-labelledby="g1Title">
@@ -8443,11 +8453,13 @@ function updatePickups(dt, time){
 function huntState(){ const el = $('#huntState'); if(!el) return; const on = state.archive.broadcast;
   const held = ['dunes', 'grid', 'sky'].filter(k => state.shards.has(k)).map(k => ({dunes:'amber', grid:'rose', sky:'cyan'})[k]); el.classList.toggle('hunt-on', on || held.length > 0);
   // holding a shard means you are on the Hunt, whether or not you have heard the Broadcast yet (never say "not begun" next to "you hold 1 of 3")
+  if(state.hunt.won){ el.classList.add('hunt-on'); el.textContent = 'You hold the Seed. The three gates on Ashfall stand open and the vault behind the Third Gate is empty: what was in it is yours. Hub is yours to keep.'; return; }
+  const gOpen = [0, 1, 2].filter(i => state.hunt.gates[i]).length;
   el.textContent = (on ? 'The Hunt has begun. Three shards (amber, rose, cyan) open three gates on Ashfall; the Seed is behind the third. Every clue is in the Ashcombe Ledger.'
     : held.length ? 'You are on the Hunt already. Three shards open three gates on Ashfall; the Architect\'s broadcast and the Ledger wait in the Archive, south of the plaza.'
     : 'The Hunt has not begun for you yet. Walk into the Archive, south of the plaza.')
     + (held.length ? ' You hold ' + held.length + ' of 3: ' + held.join(', ') + (how => how.length ? ' (' + how.join('; ') + ').' : '.')([state.shards.has('dunes') && 'Comet Rally, the last lap driven the wrong way round', state.shards.has('grid') && state.hunt.rose && 'the hallway behind The Drift, walked without turning round', state.shards.has('sky') && state.hunt.cyan && 'the wind chimes on the highest isle, rung to Low Tide'].filter(Boolean)) : '')
-    + (held.length === 3 ? ' Next: the three gates on Ashfall.' : ''); }
+    + (held.length === 3 ? (gOpen ? ' Gates open on Ashfall: ' + gOpen + ' of 3.' + (gOpen === 3 ? ' The vault waits at the end of Lantern Row.' : '') : ' Next: the three gates on Ashfall.') : ''); }
 const boardRng = rng(99);
 const BOARD = NPC_NAMES.slice(0, 11).map(nm => ({name:nm, shards:Math.floor(boardRng() * 2.6), xp:Math.floor(150 + boardRng() * 2300)}));
 function openWarp(){
@@ -8468,7 +8480,7 @@ function openWarp(){
   const rows = BOARD.concat([{name:state.name || 'You', shards:state.shards.size, xp:state.xp, you:true}]).sort((a, b) => b.shards - a.shards || b.xp - a.xp);
   const top = rows.slice(0, 8); if(!top.some(x => x.you)) top[7] = rows.find(x => x.you);
   huntState();
-  $('#board').innerHTML = top.map(x => '<li class="' + (x.you ? 'you' : '') + '"><span>' + x.name.replace(/[<>&"]/g, '') + '</span><span class="sc">' + x.shards + ' shards, ' + x.xp + ' XP</span></li>').join('');
+  $('#board').innerHTML = top.map(x => '<li class="' + (x.you ? 'you' : '') + '"><span>' + x.name.replace(/[<>&"]/g, '') + '</span><span class="sc">' + (x.you && state.hunt.won ? 'the Seed, ' : '') + x.shards + ' shards, ' + x.xp + ' XP</span></li>').join('');
   { const pl = WORLDS[state.world].planet; if(pl){ starView.sector = starById(pl).sector; starView.sel = pl; } }
   warpEl.classList.remove('hidden'); setPaused(true); drawStarMap(); starInfo();
   const first = list.querySelector('button:not([disabled])'); if(first) first.focus();
@@ -9474,6 +9486,7 @@ let jumpBuffer = 0;
 window.addEventListener('keydown', e => {
   if(rally.open){ rallyKey(e); return; }
   if(starling.open){ starKey(e); return; }   // Goal 14: the Starling screen owns the keys while you play
+  if(!seedEl.classList.contains('hidden')){ if(e.code === 'Escape' || e.code === 'Enter'){ e.preventDefault(); closeSeedCard(); } return; }   // Goal 14: the winning card
   if(gate1.open){ if(e.code === 'Escape'){ e.preventDefault(); closeGate1(); } else if(/^(Digit|Numpad)[123]$/.test(e.code) && !e.repeat){ e.preventDefault(); g1Answer(+e.code.slice(-1) - 1, 'played'); } return; }   // Goal 14: the First Gate owns the keys while it asks   // Goal 11: the Comet Rally cabinet owns the keys while you play
   if(bc.on){ if(e.code === 'Escape'){ e.preventDefault(); skipBroadcast(); } else if(e.code === 'KeyN') setMute(snd.on); else if(e.code === 'Space' || e.code.indexOf('Arrow') === 0) e.preventDefault(); return; }   // the Broadcast owns the keys until it ends
   if(!ledgerEl.classList.contains('hidden')){ if(e.code === 'Escape'){ e.preventDefault(); closeLedger(); } else if(e.code === 'ArrowRight' || e.code === 'KeyD' || e.code === 'PageDown'){ e.preventDefault(); if(!$('#lgNext').disabled) turnLedger(1); } else if(e.code === 'ArrowLeft' || e.code === 'KeyA' || e.code === 'PageUp'){ e.preventDefault(); if(!$('#lgPrev').disabled) turnLedger(-1); } return; }
@@ -10951,7 +10964,7 @@ window.addEventListener('message', e => {
    Everything here draws from its own rng seeds (1414 and up), never Math.random, so the realm looks the same on every visit. */
 const CITADEL = {z:20, t:2.4, h:11, x0:-26, x1:26, back:68, gw:2.1, gh:6.2, spring:4.1,
   gates:[{x:14, shard:'dunes', name:'First Gate', col:0xffb020}, {x:0, shard:'grid', name:'Second Gate', col:0xff4fa3}, {x:-14, shard:'sky', name:'Third Gate', col:0x5ce1e6}],   // +x is on your left as you face the wall (+z), so the First Gate is the left-hand arch
-  row:{x:-14, hw:2.6, z0:22.4, z1:56, pile:48.4, past:51.5}, vault:{x:-14, z0:56, z1:68, hw:6, door:67.4}};
+  row:{x:-14, hw:2.6, z0:22.4, z1:56, pile:48.4, past:51.5}, vault:{x:-14, z0:56, z1:68, hw:6, door:62.5}};
 // the Citadel stands on level ground; beyond it the plain rolls and far out it rises into dark ridges
 function ashFlat(x, z){ const C0 = CITADEL, dx = Math.max(C0.x0 - 6 - x, 0, x - C0.x1 - 6), dz = Math.max(C0.z - 8 - z, 0, z - C0.back - 6); return smooth(0, 12, Math.hypot(dx, dz)); }
 let ash = null, ashNear = null;
@@ -11095,10 +11108,13 @@ function buildCitadel(extra){
       const off = std(0x2a2830, {metalness:0.5, roughness:0.4}), on = phys(Gt.col, {emissive:C(Gt.col), emissiveIntensity:2.2, roughness:0.1});
       const s = mk(new THREE.OctahedronGeometry(0.28, 0), off, sx, sy, -0.4, door); s.scale.set(0.8, 1.5, 0.8); s.castShadow = false; return {m:s, off, on, col:Gt.col}; });
     const doorBox = aabb(V.x - 3, V.x + 3, 0, 6.3, V.door - 0.3, V.door + 0.3);
-    // the niche behind the door and the Seed on its plinth (shown once the vault opens)
-    K.box(M.stone, 4, V.x - 3.4, V.x + 3.4, 0, 7, V.z1 + C0.t, V.z1 + C0.t + 0.2);
-    mk(new THREE.CylinderGeometry(0.55, 0.7, 1.1, 24), M.trim, V.x, 0.55, V.z1 + 1.4, g);
-    const seed = new THREE.Group(); seed.position.set(V.x, 1.75, V.z1 + 1.4); g.add(seed); seed.visible = false;
+    // the vault wall the door is set in, and the chamber behind it with the Seed on its plinth (shown once the vault opens)
+    const wz0 = V.door - 0.35, wz1 = V.door + 0.35;
+    K.box(M.trim, 2, x0 + 0.8, V.x - 3.1, 0, H - 1.4, wz0, wz1); solid(x0 + 0.8, V.x - 3.1, 0, H - 1.4, wz0, wz1);
+    K.box(M.trim, 2, V.x + 3.1, x1 - 0.8, 0, H - 1.4, wz0, wz1); solid(V.x + 3.1, x1 - 0.8, 0, H - 1.4, wz0, wz1);
+    K.box(M.trim, 2, V.x - 3.1, V.x + 3.1, 6.3, H - 1.4, wz0, wz1);
+    mk(new THREE.CylinderGeometry(0.55, 0.7, 1.1, 24), M.trim, V.x, 0.55, V.door + 3, g); colliders.push({x:V.x, z:V.door + 3, r:0.8});
+    const seed = new THREE.Group(); seed.position.set(V.x, 1.75, V.door + 3); g.add(seed); seed.visible = false;
     const sgeo = new THREE.LatheGeometry([[0.001, -0.34], [0.14, -0.3], [0.24, -0.14], [0.26, 0.04], [0.2, 0.2], [0.1, 0.32], [0.001, 0.4]].map(a => new V2(a[0], a[1])), 40);
     mk(sgeo, phys(0xfff0c0, {emissive:C(0xffd98a), emissiveIntensity:1.8, roughness:0.15, metalness:0.2}), 0, 0, 0, seed).castShadow = false;
     const sgl = glow(0xffe2a0, 3.2, 0, 0, 0, seed, 0.7);
@@ -11204,6 +11220,24 @@ function g1Answer(i, how){
   gate1.opts = g1Options(); if(gate1.open) g1Draw('Yes.'); gate1.last = {how, right:true, round:gate1.round}; return Object.assign({}, gate1.last, {open:false});
 }
 $('#g1Close').addEventListener('click', closeGate1);
+/* The vault (Goal 14): the round door at the end of Lantern Row carries three sockets, lit as each gate opens (the Hub vault's socket idea, on the Citadel).
+   With all three gates open, E ("Set the shards") rolls the door aside and shows the Seed; the winning card is Lyle's last word. state.hunt.won is saved. */
+const SEED_CARD = {title:'The Seed', where:'Ashfall · the vault behind the Third Gate',
+  body:'You came in out of the dark, and you did not hurry.\n\nYou listened to an old man talking to a lantern. You flew as well as Mara. You walked past a heap of money on a step because a note in pencil told you to, and a note is only paper.\n\nThis is the Seed. It is small, because the best things I made were small: a racer drawn on squared paper, a song for nights the boats were out, a light in a window.\n\nHub is yours to keep now. Keep the lanterns lit. Leave the doors open. Let other people build the things I would not let anyone build; Mara was right about that, and I never told her.\n\nThe tide is coming back in. Go down and meet it.',
+  sign:'L. A.'};
+const seedEl = $('#seedCard');
+function openVault(how){
+  if(state.hunt.won){ showSeedCard(); return {already:true, won:true}; }
+  const missing = [0, 1, 2].filter(i => !gateOpen(i)); if(missing.length) return {won:false, missing:missing.map(i => CITADEL.gates[i].name)};
+  state.hunt.won = true; state.won = true; persist(); reward(1000, 500); sfx('win'); if(typeof setHalo === 'function') setHalo(); ashSync(false); huntState();
+  toast('Amber, rose and cyan: the three shards go into the door, and the vault rolls open.   +1000 XP', 5200);
+  if(how !== 'hook') setTimeout(showSeedCard, 2600); else showSeedCard();
+  return {won:true, how};
+}
+function showSeedCard(){ $('#seedTitle').textContent = SEED_CARD.title; $('#seedWhere').textContent = SEED_CARD.where; $('#seedBody').textContent = SEED_CARD.body; $('#seedSign').textContent = SEED_CARD.sign;
+  seedEl.classList.remove('hidden'); setPaused(true); }
+function closeSeedCard(){ if(seedEl.classList.contains('hidden')) return; seedEl.classList.add('hidden'); setPaused(false); }
+$('#seedClose').addEventListener('click', closeSeedCard);
 /* Gate Three (the Third Gate, cyan): Lantern Row as the Architect remembered it (the Archive's room 1 and the milk jar). At No. 9 a jar of coins and a pile
    of credits wait on the step. The clue (HUNT_CLUES.gate3, the milk jar's note, the Ledger): "What is left out for everyone is not left out for you."
    Taking them fails and the memory starts again at the gate; walking on past them opens the Third Gate. One rule, g3Step, for the played walk and gate3.walk(). */
@@ -11540,9 +11574,13 @@ Object.defineProperties(window.__hub, {
   // frame the camera: 'gates' (the whole wall), 0/1/2 (in front of one gate), 'row' (the start of Lantern Row), 'pile', 'vault'
   ashGoto:{value:v => { if(state.world !== 'ashfall') return null; const C0 = CITADEL, at = (x, z, yaw, dist, pitch) => { p.x = x; p.z = z; p.y = G(x, z); p.vx = p.vy = p.vz = 0; p.speed = 0; cam.yaw = yaw; p.facing = yaw + Math.PI; cam.dist = dist || cam.dist; cam.pitch = pitch == null ? 0.12 : pitch; snapCamera(); clipCamera(); };
     if(v === 'gates') at(0, 1, Math.PI, 9, 0.06); else if(typeof v === 'number') at(C0.gates[v].x, C0.z - 2.2, Math.PI, 5); else if(v === 'row') at(C0.row.x, C0.row.z0 + 1, Math.PI, 4.5);
-    else if(v === 'pile') at(C0.row.x + 1.2, C0.row.pile - 0.5, Math.PI, 4.5); else if(v === 'vault') at(C0.vault.x, C0.vault.door - 3, Math.PI, 5);
+    else if(v === 'pile') at(C0.row.x + 1.2, C0.row.pile - 0.5, Math.PI, 4.5); else if(v === 'vault') at(C0.vault.x + 1.6, C0.vault.door - 3.2, Math.PI + 0.25, 3.2, 0.05);
     ashUpdate(0, clock.elapsedTime); return {x:+p.x.toFixed(2), z:+p.z.toFixed(2), near:ashNear}; }},
   ashUpdate:{value:dt => ashUpdate(dt || 0.05, clock.elapsedTime)},
+  vault:{value:{open:() => openVault('hook'), close:() => closeSeedCard(), get sockets(){ return ash && ash.vault ? ash.vault.sockets.map(s => s.m.material === s.on) : null; }, get door(){ return ash && ash.vault ? +ash.vault.open.toFixed(2) : null; },
+    get seedShown(){ return !!(ash && ash.vault && ash.vault.seed.visible); }, get card(){ return !seedEl.classList.contains('hidden') ? {title:$('#seedTitle').textContent, text:$('#seedBody').textContent, sign:$('#seedSign').textContent} : null; }, text:SEED_CARD}},
+  seedWon:{get:() => state.hunt.won},
+  board:{get:() => ({hunt:($('#huntState') || {}).textContent || '', you:[...document.querySelectorAll('#board li.you')].map(e => e.textContent)[0] || null})},
   gate3:{value:{walk:policy => g3Walk(policy), take:() => g3Take('hook'), get state(){ return ash && ash.g3 ? Object.assign({}, ash.g3) : null; }, get last(){ return ash && ash.g3last ? Object.assign({}, ash.g3last) : null; },
     pileU:G3_PILE_U, pastU:G3_PAST_U, get tries(){ return state.hunt.g3Tries; }, get pileShown(){ return !!(ash && ash.pile && ash.pile.visible); }, clue:HUNT_CLUES.gate3}},
   starling:{value:{simulate:(policy, o) => starSimulate(policy, o), open:() => openStarling(), close:() => closeStarling(), start:() => { if(!starling.open) openStarling(); starStart(); return true; }, target:STAR.target,
