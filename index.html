@@ -104,6 +104,9 @@ input#nameInput:focus{ outline:none; border-color:var(--cyan); }
 #avatarText:focus{ outline:none; border-color:var(--cyan); }
 .avatar-row .ghost{ margin-top:8px; padding:8px; font-size:14px; }
 #avatarState{ margin:6px 0 8px; font-size:13px; }
+.avatar-made{ display:flex; align-items:center; gap:10px; }
+#avatarPortrait{ width:48px; height:48px; border-radius:50%; object-fit:cover; border:2px solid #ffd166; flex:none; }
+#avatarPortrait[hidden]{ display:none; }
 .swatch-row{ display:flex; align-items:center; gap:10px; margin:0 0 8px; font-size:13.5px; color:#c7c1ea; }
 .swatch-row > span:first-child{ width:78px; }
 .swatches{ display:flex; gap:8px; flex-wrap:wrap; }
@@ -214,7 +217,7 @@ body.paused #joy, body.paused #jumpBtn{ display:none; }
     <label class="field" for="avatarText">Describe your avatar, and the game builds it</label>
     <textarea id="avatarText" rows="2" maxlength="300" spellcheck="false" placeholder="e.g. a tall chrome knight with a red cape and glowing blue eyes"></textarea>
     <div class="look-row avatar-row"><button class="ghost" id="avatarMake">Make it</button><button class="ghost" id="avatarAgain">Try again</button><button class="ghost" id="avatarRandom">Surprise me</button><button class="ghost" id="avatarReset">Reset</button></div>
-    <p class="lede" id="avatarState">Any species, size or style. Watch it appear on the left.</p>
+    <div class="avatar-made"><img id="avatarPortrait" alt="Your avatar's portrait" width="48" height="48" hidden><p class="lede" id="avatarState">Any species, size or style. Watch it appear on the left.</p></div>
     <div class="swatch-row"><span>Suit</span><span class="swatches" id="suitSw"></span></div>
     <div class="swatch-row"><span>Glow</span><span class="swatches" id="visorSw"></span></div>
     <p class="controls mouse-only">WASD to move, Shift to run, Space to jump and Space again mid-air to boost. Drag to look, scroll to zoom. M warp, E ride / shop / vend, F Worldsmith (describe a realm and it is built; it goes on forever, with landmarks invented as you walk), I inventory, J Explorer Log (every star on the Warp map is a planet), V camera, C cinematic, N sound, Esc this panel. A VR button appears when a headset is connected.</p>
@@ -3456,6 +3459,7 @@ function cleanRecipe(r){
     colours:{main:hex(cols.main, d.colours.main), second:hex(cols.second, d.colours.second), trim:hex(cols.trim, d.colours.trim), glow},
     eyes:{style:pick(eyes.style, R_EYES, d.eyes.style), glow:hex(eyes.glow, glow)},
     ear_shape:pick(o.ear_shape, R_EARS, o.build === 'heavy' || o.build === 'huge' ? 'round' : 'pointed'),
+    ...(typeof o.face_texture === 'string' && /^idb:avatar:[a-z0-9]{1,16}$/.test(o.face_texture) ? {face_texture:o.face_texture} : {}),
     ...(typeof o.voice_line === 'string' && o.voice_line.trim() ? {voice_line:o.voice_line.trim().replace(/\s+/g, ' ').slice(0, 120)} : {}) };
 }
 function describeRecipe(r){
@@ -3858,6 +3862,18 @@ function makeAvatar(o){
   if(has('wings')){ wings = new THREE.Group(); wings.position.set(0, 0.4, -0.15); spine.add(wings);
     [-1, 1].forEach(s => { const shape = new THREE.Shape(); shape.moveTo(0, 0); shape.lineTo(s * 0.55, 0.35); shape.lineTo(s * 0.7, 0.05); shape.lineTo(s * 0.5, -0.15); shape.lineTo(s * 0.25, -0.25); shape.lineTo(0, -0.05); const w = part(new THREE.ShapeGeometry(shape), rc.material === 'glass' || rc.material === 'jelly' ? avatarMaterial('glass', col.glow) : clothM, wings, 0, 0, 0); w.material.side = THREE.DoubleSide; w.rotation.y = s * 0.5; }); }
   if(has('tail')){ tail = new THREE.Group(); tail.position.set(0, -0.02, -0.14); hips.add(tail); let seg = tail; for(let i = 0; i < 3; i++){ part(capsule(0.05 - i * 0.012, 0.045 - i * 0.012, 0.14, 4), i === 2 && beast ? plateM : suitM, seg, 0, 0, -0.08).rotation.x = Math.PI / 2; const n = new THREE.Group(); n.position.set(0, 0.02, -0.15); n.rotation.x = 0.35; seg.add(n); seg = n; } }
+  if(rc.face_texture){
+    // path 3: the Decart face goes on the head (a patch shaped like the head), on a screen head's screen, or as a chest emblem under a visor or helmet
+    const fm = std('#ffffff', {roughness:0.62, transparent:true, depthWrite:false, polygonOffset:true, polygonOffsetFactor:-2, polygonOffsetUnits:-2});
+    let dec;
+    if(blob) dec = part(new THREE.SphereGeometry(0.7, 24, 16, Math.PI / 2 - 0.55, 1.1, Math.PI / 2 - 0.55, 0.95), fm, hips, 0, 0, 0, 1, 0.88, 1);
+    else if(screenFace){ fm.emissive = C('#ffffff'); fm.emissiveIntensity = 0.5; dec = part(new THREE.PlaneGeometry(0.21, 0.155), fm, head, 0, hy, 0.1335); }
+    else if(rc.head === 'visor' || rc.head === 'helmet') dec = part(new THREE.CircleGeometry(0.062, 32), fm, spine, 0, 0.36, robot ? 0.167 : 0.153);
+    else dec = part(new THREE.SphereGeometry(hr * 1.012, 24, 16, Math.PI / 2 - 0.8, 1.6, Math.PI / 2 - 0.75, 1.4), fm, head, 0, hy, 0, 0.95, 1.06, 1.03);
+    dec.name = 'face'; dec.visible = false; dec.userData.noShadow = true;
+    const ref = rc.face_texture;
+    setTimeout(() => faceTex(ref).then(t => { if(t){ fm.map = t; if(screenFace) fm.emissiveMap = t; fm.needsUpdate = true; dec.visible = true; } }), 0);   // after load: the IndexedDB helper is defined further down
+  }
   if(has('backpack')) part(new THREE.BoxGeometry(0.28, 0.34, 0.16), avatarMaterial('matte', col.second), spine, 0, 0.28, -0.22);
   if(has('jetpack')){ [-1, 1].forEach(s => part(new THREE.CylinderGeometry(0.06, 0.07, 0.34, 12), avatarMaterial('chrome', col.second), spine, s * 0.09, 0.3, -0.22)); }
   if(has('sword')){ const sw = new THREE.Group(); sw.position.set(0.12, 0.45, -0.2); sw.rotation.z = -0.5; sw.rotation.x = 0.2; spine.add(sw); part(new THREE.BoxGeometry(0.05, 0.75, 0.012), avatarMaterial('chrome', '#d0d4dc'), sw, 0, -0.2, 0); part(new THREE.BoxGeometry(0.16, 0.03, 0.03), avatarMaterial('chrome', col.trim), sw, 0, 0.18, 0); part(new THREE.CylinderGeometry(0.015, 0.015, 0.16, 8), baseM, sw, 0, 0.27, 0); }
@@ -7222,10 +7238,90 @@ async function recipeFromAI(text, seed){
   avatarAI.path = 2; avatarAI.why = 'ok';
   return cleanRecipe(obj);
 }
+/* path 3: with the Decart key (local file only), lucy-image-2 paints a face panel and a small portrait from the words. Both are cached in
+   IndexedDB under the recipe's face_texture reference, so a reload never calls again; any failure simply skips path 3. */
+const faceAI = { test:false, path:'', busy:false, tex:new Map() };
+function hashId(t){ let h = 2166136261, k = 5381; for(let i = 0; i < t.length; i++){ h = Math.imul(h ^ t.charCodeAt(i), 16777619); k = Math.imul(k, 33) ^ t.charCodeAt(i); } return (h >>> 0).toString(36) + (k >>> 0).toString(36).slice(0, 4); }
+function faceSeedCanvas(rc){
+  // a rough face in the recipe's colours: the image model turns it into a detailed one with the same layout
+  const c = document.createElement('canvas'); c.width = c.height = 1024; const x = c.getContext('2d'), col = rc.colours;
+  x.fillStyle = col.main; x.fillRect(0, 0, 1024, 1024);
+  x.globalCompositeOperation = 'multiply'; for(let i = 0; i < 4; i++) for(let j = 0; j < 4; j++) x.drawImage(detailTex.image, i * 256, j * 256); x.globalCompositeOperation = 'source-over';
+  if(rc.body === 'beast'){ x.fillStyle = col.second; x.beginPath(); x.ellipse(512, 700, 250, 200, 0, 0, TAU); x.fill(); }
+  x.fillStyle = rc.eyes.glow; const eyes = rc.eyes.style === 'one' ? [512] : [350, 674];
+  eyes.forEach(ex => { x.beginPath(); if(rc.eyes.style === 'slits') x.ellipse(ex, 440, 90, 26, 0, 0, TAU); else x.ellipse(ex, 440, rc.eyes.style === 'wide' ? 90 : 60, rc.eyes.style === 'wide' ? 90 : 60, 0, 0, TAU); x.fill(); });
+  x.strokeStyle = '#17171d'; x.lineWidth = 22; x.lineCap = 'round'; x.beginPath(); x.arc(512, 640, 140, 0.25 * Math.PI, 0.75 * Math.PI); x.stroke();
+  return c;
+}
+function faceMask(img, w, h, round){
+  // soft edges so the decal melts into the head instead of showing a square
+  const c = document.createElement('canvas'); c.width = w; c.height = h; const x = c.getContext('2d');
+  x.drawImage(img, 0, 0, w, h); x.globalCompositeOperation = 'destination-in';
+  const g = x.createRadialGradient(w / 2, h / 2, Math.min(w, h) * (round ? 0.36 : 0.3), w / 2, h / 2, Math.min(w, h) * 0.5);
+  g.addColorStop(0, 'rgba(0,0,0,1)'); g.addColorStop(1, 'rgba(0,0,0,0)'); x.fillStyle = g; x.fillRect(0, 0, w, h);
+  return c;
+}
+const blobImage = blob => new Promise((res, rej) => { const u = URL.createObjectURL(blob), im = new Image(); im.onload = () => { URL.revokeObjectURL(u); res(im); }; im.onerror = e => { URL.revokeObjectURL(u); rej(e); }; im.src = u; });
+function faceTex(ref){
+  if(!ref) return Promise.resolve(null);
+  if(!faceAI.tex.has(ref)) faceAI.tex.set(ref, (async () => {
+    try{ const blob = await idb.get(ref.slice(4) + ':face'); if(!blob) return null;
+      const t = new THREE.CanvasTexture(faceMask(await blobImage(blob), 512, 512, true)); t.encoding = THREE.sRGBEncoding; t.anisotropy = MAX_ANISO; SHARED_TEX.add(t); return t;
+    }catch(e){ console.warn('face texture', e); return null; }
+  })());
+  return faceAI.tex.get(ref);
+}
+function scaleBlob(img, n, type){ const c = document.createElement('canvas'); c.width = c.height = n; c.getContext('2d').drawImage(img, 0, 0, n, n); return canvasBlob(c, type || 'image/jpeg', 0.88); }
+async function makeFace(text, rc, seed){
+  // returns an 'idb:avatar:<id>' reference, or null when path 3 is not available or fails
+  const key = lsGet(AI_KEY);
+  if(!faceAI.test && !(isLocal() && key)){ faceAI.path = 'skipped: ' + (isLocal() ? 'no Decart key' : 'not the local file'); return null; }
+  const plain = Object.assign({}, rc); delete plain.face_texture; delete plain.voice_line;
+  const id = hashId(String(text) + '|' + ((seed >>> 0) || 0) + '|' + JSON.stringify(plain)), ref = 'idb:avatar:' + id, base = 'avatar:' + id;
+  try{
+    if(await idb.get(base + ':face')){ faceAI.path = 'cached'; return ref; }
+    const input = await canvasBlob(faceSeedCanvas(rc));
+    let face, portrait;
+    if(faceAI.test){ face = input; portrait = input; faceAI.path = 'test'; }   // tester hook: no network, the seed image stands in for the model's
+    else {
+      const sdk = await loadSdk(), client = sdk.createDecartClient({apiKey:key}), model = sdk.models.image('lucy-image-2');
+      const within = (p, ms) => Promise.race([p, new Promise((r, j) => setTimeout(() => j(new Error('timeout')), ms))]);
+      face = await within(client.process({model, prompt:'Turn this into a detailed, front-on face for a game avatar described as: ' + text + '. The face fills the whole square, even soft light, no background, no text, no logos, original design.', data:input}), 90000);
+      portrait = await within(client.process({model, prompt:'A friendly head-and-shoulders portrait of a game avatar described as: ' + text + '. Centred, plain dark background, soft studio light, no text, no logos, original design.', data:input}), 90000);
+      faceAI.path = 'decart';
+    }
+    await idb.set(base + ':face', await scaleBlob(await blobImage(face), 512));
+    await idb.set(base + ':portrait', await scaleBlob(await blobImage(portrait), 128));
+    await idb.set(base + ':recipe', JSON.stringify(Object.assign(plain, {face_texture:ref})));
+    return ref;
+  }catch(e){
+    const m = (e && (e.message || e.code)) || String(e);
+    if(/401|403|unauthori[sz]ed|forbidden|api key/i.test(m)) lsSet(AI_KEY, null);
+    faceAI.path = 'failed: ' + m; console.warn('avatar face (path 3) skipped:', m); return null;
+  }
+}
+async function showPortrait(){
+  const im = $('#avatarPortrait'), ref = state.recipe && state.recipe.face_texture;
+  if(im.src && im.src.startsWith('blob:')) URL.revokeObjectURL(im.src);
+  im.hidden = true; im.removeAttribute('src');
+  if(!ref) return;
+  try{ const b = await idb.get(ref.slice(4) + ':portrait'); if(b && state.recipe.face_texture === ref){ im.src = URL.createObjectURL(b); im.hidden = false; } }catch(e){}
+}
+async function addFace(t, seed){
+  // runs after the recipe is built; the avatar already stands there, the face arrives when it is ready
+  const rc = state.recipe, look = state.look;
+  if(faceAI.busy) return; faceAI.busy = true;
+  if(faceAI.test || (isLocal() && lsGet(AI_KEY))) $('#avatarState').textContent = avatarStateText() + ' Painting a face…';
+  try{
+    const ref = await makeFace(t, rc, seed);
+    if(ref && state.recipe === rc && state.look === look){ state.recipe = cleanRecipe(Object.assign({}, rc, {face_texture:ref})); persist(); rebuildPlayer(); }
+  }finally{ faceAI.busy = false; $('#avatarState').textContent = avatarStateText(); await showPortrait(); }
+}
 const PATH_NAMES = {1:'Built on this device', 2:'Built by Claude'};
-function avatarStateText(){ return (PATH_NAMES[state.lookPath] || 'Made') + ': ' + describeRecipe(state.recipe) + '.'; }
+function avatarStateText(){ return (PATH_NAMES[state.lookPath] || 'Made') + (state.recipe.face_texture ? ', face painted by Decart' : '') + ': ' + describeRecipe(state.recipe) + '.'; }
 $('#avatarText').value = state.look || '';
 if(state.look) $('#avatarState').textContent = avatarStateText();
+setTimeout(showPortrait, 0);
 let avatarBusy = false;
 async function makeFromWords(t, seed){
   t = String(t || '').trim().replace(/\s+/g, ' ').slice(0, 300);
@@ -7235,14 +7331,15 @@ async function makeFromWords(t, seed){
   let rc = null; try{ rc = await recipeFromAI(t, seed); }catch(e){ avatarAI.path = 1; avatarAI.why = 'error'; rc = null; }
   state.recipe = rc ? cleanRecipe(rc) : parseDescription(t, seed); state.look = t; state.lookSeed = (seed >>> 0) || 0; state.lookPath = rc ? avatarAI.path : 1;
   persist(); rebuildPlayer();
-  $('#avatarState').textContent = avatarStateText();
+  $('#avatarState').textContent = avatarStateText(); showPortrait();
   avatarBusy = false;
+  await addFace(t, seed);
   return state.recipe;
 }
 $('#avatarMake').addEventListener('click', () => makeFromWords($('#avatarText').value, 0));
 $('#avatarAgain').addEventListener('click', () => { const t = $('#avatarText').value.trim() || state.look; if(!t){ toast('Describe your avatar first'); return; } $('#avatarText').value = t; makeFromWords(t, 1 + Math.floor(Math.random() * 1e6)); });
 $('#avatarRandom').addEventListener('click', () => { const t = randomLook(); $('#avatarText').value = t; makeFromWords(t, 0); });
-$('#avatarReset').addEventListener('click', () => { state.look = ''; state.lookSeed = 0; state.lookPath = 0; state.recipe = cleanRecipe({colours:{main:state.color, glow:state.visor}, eyes:{glow:state.visor}}); $('#avatarText').value = ''; persist(); rebuildPlayer(); $('#avatarState').textContent = 'Back to the default suit.'; });
+$('#avatarReset').addEventListener('click', () => { state.look = ''; state.lookSeed = 0; state.lookPath = 0; state.recipe = cleanRecipe({colours:{main:state.color, glow:state.visor}, eyes:{glow:state.visor}}); $('#avatarText').value = ''; persist(); rebuildPlayer(); showPortrait(); $('#avatarState').textContent = 'Back to the default suit.'; });
 $('#avatarText').addEventListener('keydown', e => { if(e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); e.stopPropagation(); makeFromWords(e.target.value, 0); } });
 
 let playing = false;
@@ -8881,6 +8978,7 @@ Object.defineProperties(window.__hub, {
   // Goal 2 (describe-your-avatar): paths 2 and 3; aiTestResponse is a canned API reply that replaces the network call
   recipeFromAI:{value:recipeFromAI}, makeAvatar:{value:makeAvatar}, describeRecipe:{value:describeRecipe}, AVATAR_MODEL:{value:AVATAR_MODEL}, RECIPE_SCHEMA:{value:RECIPE_SCHEMA}, avatarSystem:{value:avatarSystem},
   lastAvatarPath:{get:() => avatarAI.path}, lastAvatarWhy:{get:() => avatarAI.why}, aiLastRequest:{get:() => avatarAI.lastRequest && JSON.parse(JSON.stringify(avatarAI.lastRequest))},
+  makeFace:{value:makeFace}, faceTex:{value:faceTex}, lastFacePath:{get:() => faceAI.path}, faceTest:{get:() => faceAI.test, set:v => { faceAI.test = !!v; }},
   aiTestResponse:{get:() => avatarAI.testResponse, set:v => { avatarAI.testResponse = v == null ? null : v; }}, aiTimeoutMs:{get:() => avatarAI.timeoutMs, set:v => { avatarAI.timeoutMs = Math.max(50, +v || 20000); }},
   explorerLog:{get:() => Object.values(explorer.planets).map(e => ({id:e.id, name:e.name, proposed:e.proposed, sector:e.sector, rules:e.rules, gravity:e.gravity, first:e.first, firstDate:new Date(e.first).toISOString().slice(0, 10), walked:Math.round(e.walked || 0), landmarks:(e.landmarks || []).slice(), visits:e.visits}))}
 });
