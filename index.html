@@ -4252,7 +4252,7 @@ const HEIGHTS = {
   grove:(n, pf) => (x, z) => { const d = Math.hypot(x, z); let h = n.fbm(x * 0.03, z * 0.03, 4) * 2.4 * smooth(6, 20, d); const ri = 1 - Math.abs(n.fbm(x * 0.007, z * 0.007, 5) * 1.5); h += smooth(R + 10, R + 180, d) * (ri * ri * 100 + 10); if(d > GROVE_OUT) h = groveOuter(n, x, z, d, h); return h * pf(x, z); },
   sky:(n, pf) => (x, z) => { const d = Math.hypot(x, z); let h = n.fbm(x * 0.035, z * 0.035, 4) * 1.6 * smooth(4, 16, d); h -= smooth(R, R + 6, d) * 3; return h * pf(x, z); },
   // a gently rolling lawn (flat under the buildings), a little more roll in the east woods, green hills beyond the walkable ring
-  campus:(n, pf) => (x, z) => { const d = Math.hypot(x, z); let h = n.fbm(x * 0.028, z * 0.028, 4) * (1.3 + smooth(CAMPUS.woods.x0, CAMPUS.woods.x0 + 15, x) * 1.2) * campusFlat(x, z) * smooth(3, 12, d); const ri = 1 - Math.abs(n.fbm(x * 0.006 + 9, z * 0.006, 4) * 1.4); h += smooth(R + 12, R + 170, d) * (ri * ri * 60 + 10); return h * pf(x, z); }
+  campus:(n, pf) => (x, z) => { const d = Math.hypot(x, z); let h = n.fbm(x * 0.028, z * 0.028, 4) * (1.3 + smooth(CAMPUS.woods.x0, CAMPUS.woods.x0 + 15, x) * 1.2) * campusFlat(x, z) * smooth(3, 12, d); const ri = 1 - Math.abs(n.fbm(x * 0.006 + 9, z * 0.006, 4) * 1.4); h += smooth(R + 12, R + 170, d) * (ri * ri * 60 + 10); if(d > CAMPUS_OUT) h = campusOuter(n, x, z, d, h); return h * pf(x, z); }
 };
 
 /* ================= builders ================= */
@@ -4921,6 +4921,7 @@ function buildWoods(){
   const parts = [], sites = [[0.4, 210], [1.3, 260], [2.2, 190], [2.9, 300], [3.7, 230], [4.6, 280], [5.5, 200]];
   sites.forEach(([a, d]) => {
     const x = Math.cos(a) * d, z = Math.sin(a) * d, y = G(x, z) - 1, ry = Math.atan2(x, z);   // the portico faces this campus
+    campusHallSolids(coreSolids, x, y, z, ry);   // solid once the planet is endless
     const m = new THREE.Matrix4().makeRotationY(ry).setPosition(x, y, z);
     const body = new THREE.BoxGeometry(26, 9, 20); body.translate(0, 4.5, 10); parts.push(body.applyMatrix4(m));
     const por = new THREE.BoxGeometry(25, 1.2, 4.4); por.translate(0, 8.1, -2); parts.push(por.applyMatrix4(m));
@@ -6497,6 +6498,69 @@ ENDLESS.sky = {
       for(const I of this.isles(c)) for(let i = 0; i < 380; i++){ const a = q() * TAU, d = Math.sqrt(q()) * I.r * 0.95, x = I.x + Math.cos(a) * d, z = I.z + Math.sin(a) * d, hh = (0.35 + q() * 0.5) * 1.25, ry = q() * TAU, sx = 0.9 + q() * 0.6, ci = Math.floor(q() * 4), cm = 0.8 + q() * 0.45;
         const y = isleTopAt(I, x, z); if(y < -1000) continue; mats.push(mat4(x, y - 0.03, z, 0, ry, 0, sx, hh, sx)); const cc = C(hexes[ci]); cc.multiplyScalar(cm); cols.push(cc); }
       const m = instanced(K.geo, K.mat, mats, cols, false); if(m) cellGrassMesh(m, K); }}
+  ]
+};
+
+/* ---- Campus: the school planet's endless hills, a campus identical to the far-hill ones every 240 m, woods between ---- */
+const CAMPUS_OUT = 340;
+function campusBase(n, x, z){ const P = smooth(-0.1, 0.4, n.fbm(x * 0.0012 + 21, z * 0.0012 - 5, 3)), ri = 1 - Math.abs(n.fbm(x * 0.006 + 9, z * 0.006, 4) * 1.4);
+  return 8 + n.fbm(x * 0.003 - 4, z * 0.003 + 6, 3) * 14 + ri * ri * (14 + 30 * P) + n.fbm(x * 0.028, z * 0.028, 3) * 1.3; }
+const campusSiteMemo = new Map();
+function campusSite(n, cx, cz){   // one campus in every 5 x 5 cells, at the middle one
+  const k = cx * 65536 + cz; if(campusSiteMemo.has(k)) return campusSiteMemo.get(k);
+  let s = null; if(((cx % 5) + 5) % 5 === 2 && ((cz % 5) + 5) % 5 === 2){ const q = rng(cellSeed('campus', cx, cz, 7)), x = (cx + 0.5) * CHUNK + (q() - 0.5) * 12, z = (cz + 0.5) * CHUNK + (q() - 0.5) * 12;
+    if(Math.hypot(x, z) > CAMPUS_OUT + 80) s = {kind:'campus', x, z, r:44, pr:34, y:campusBase(n, x, z), ry:Math.atan2(x, z)}; }
+  campusSiteMemo.set(k, s); return s;
+}
+function campusOuter(n, x, z, d, h0){
+  const e = smooth(CAMPUS_OUT, CAMPUS_OUT + 150, d); let h = campusBase(n, x, z);
+  const cx = Math.floor(x / CHUNK), cz = Math.floor(z / CHUNK);
+  for(let dz = -1; dz <= 1; dz++) for(let dx = -1; dx <= 1; dx++){ const S = campusSite(n, cx + dx, cz + dz); if(S){ const dd = Math.hypot(x - S.x, z - S.z); if(dd < S.r + 20) h = h + (S.y - h) * smooth(S.r + 20, S.pr, dd); } }   // each campus sits on its own level lawn
+  return h0 + (h - h0) * e;
+}
+// the far-hill hall, the same parts buildWoods uses, at the origin facing +z
+function campusHallGeo(){ const parts = [];
+  const body = new THREE.BoxGeometry(26, 9, 20); body.translate(0, 4.5, 10); parts.push(body);
+  const por = new THREE.BoxGeometry(25, 1.2, 4.4); por.translate(0, 8.1, -2); parts.push(por);
+  for(let c = -2.5; c <= 2.5; c++){ const cg = new THREE.CylinderGeometry(0.55, 0.62, 7.5, 10); cg.translate(c * 4.2, 3.75, -3); parts.push(cg); }
+  const sh = new THREE.Shape(); sh.moveTo(-13, 0); sh.lineTo(13, 0); sh.lineTo(0, 3); sh.lineTo(-13, 0);
+  const pd = new THREE.ExtrudeGeometry(sh, {depth:24, bevelEnabled:false}); pd.deleteAttribute('uv'); pd.translate(0, 9, -4.2); parts.push(pd);
+  const dm = new THREE.SphereGeometry(8, 24, 10, 0, TAU, 0, Math.PI / 2); dm.translate(-24, 5, 8); parts.push(dm);
+  const dr = new THREE.CylinderGeometry(8, 8, 5, 24); dr.translate(-24, 2.5, 8); parts.push(dr);
+  return merge(parts); }
+// the hall's solid parts, for a hall at (x, y, z) turned by ry
+function campusHallSolids(list, x, y, z, ry){ const cs = Math.cos(ry), sn = Math.sin(ry), at = (lx, lz) => [x + lx * cs + lz * sn, z - lx * sn + lz * cs];
+  const b = at(0, 10); list.push({kind:'box', x:b[0], z:b[1], hx:13, hz:10, y0:y - 1, y1:y + 9, a:-ry}); const d = at(-24, 8); list.push({kind:'round', x:d[0], z:d[1], r:8.2});
+  for(let c = -2.5; c <= 2.5; c++){ const p2 = at(c * 4.2, -3); list.push({kind:'round', x:p2[0], z:p2[1], r:0.7}); } }
+ENDLESS.campus = {
+  core:CAMPUS_OUT + 10, home:R + 12, dreamOdds:0.08, dreamR:2,
+  words:'the endless green hills of a school planet in bright late morning: identical marble campuses on the hills, broadleaf woods, meadows',
+  dream:{kinds:['tower', 'monoliths', 'arch', 'windmill', 'lighthouse'], surface:'lawn', time:'morning'},
+  big(cx, cz){ const s = campusSite(this.n, cx, cz); return s ? [s] : []; },
+  kit(){
+    this.n = makeNoise(WORLDS.campus.seed * 7 + 1);
+    const TG = treeGeos(), PG = pineGeos(); ['trunk', 'leaf', 'trunkLo', 'leafLo'].forEach(k => { shareGeo(TG[k]); shareGeo(PG[k]); });
+    const T = campusTextures();
+    return {TG, PG, hall:shareGeo(campusHallGeo()), hallM:shareMat(std(0xece6da, {roughness:0.6})), paveM:shareMat(std(0xffffff, {map:T.pave.map, normalMap:T.pave.normal, roughnessMap:T.pave.rough, roughness:1}))};
+  },
+  site(x, z){ const s = campusSite(this.n, Math.floor(x / CHUNK), Math.floor(z / CHUNK)); return s; },
+  nearSite(x, z, m){ const cx = Math.floor(x / CHUNK), cz = Math.floor(z / CHUNK); for(let dz = -1; dz <= 1; dz++) for(let dx = -1; dx <= 1; dx++){ const s = campusSite(this.n, cx + dx, cz + dz); if(s && Math.hypot(x - s.x, z - s.z) < s.pr + m) return true; } return false; },
+  tiers:[
+    // far: the campuses, one hall each, on a level lawn with a paved forecourt
+    {name:'far', r:8, build(c, k){
+      for(const s of bigOf(c.E, c.cx, c.cz)){ const h = mk(k.hall, k.hallM, s.x, s.y - 1, s.z); h.rotation.y = s.ry; h.castShadow = true;
+        const fc = mk(new THREE.BoxGeometry(30, 0.3, 16), k.paveM, 0, 0, 0); fc.position.set(s.x - Math.sin(s.ry) * 12, s.y - 0.1, s.z - Math.cos(s.ry) * 12); fc.rotation.y = s.ry; fc.castShadow = false;
+        const sol = []; campusHallSolids(sol, s.x, s.y - 1, s.z, s.ry); sol.forEach(o => { if(o.kind === 'box') addBox(o.x, o.z, o.hx, o.hz, o.y0, o.y1, {a:o.a}); else colliders.push({x:o.x, z:o.z, r:o.r}); }); } }},
+    // mid: woods (broadleaf with some pines), thick in places and open in others
+    {name:'mid', r:4, build(c, k){
+      const q = c.q, trees = [], pines = [], n = this.n;
+      for(let i = 0; i < 26; i++){ const s = c.spot(2.6, {slope:0.9, tries:3, margin:1}); if(!s) continue; const k2 = 0.9 + q() * 0.75, pine = q() < 0.22, keep = q() < smooth(-0.15, 0.25, n.fbm(s[0] * 0.007 + 3, s[1] * 0.007 - 8, 3));
+        if(!keep || this.nearSite(s[0], s[1], 8)) continue; (pine ? pines : trees).push({x:s[0], y:G(s[0], s[1]) - 0.1, z:s[1], s:k2, ry:q() * TAU}); c.local.push({x:s[0], z:s[1], r:0.5 * k2}); colliders.push({x:s[0], z:s[1], r:0.35 * k2}); }
+      if(trees.length) plantTrees(k.TG, trees, [0x3f6b2a, 0x4d7c30, 0x5a8a36, 0x456f2c], q);
+      if(pines.length) plantTrees(k.PG, pines, [0x28472e, 0x2f5234], q); }},
+    // near: grass (mown round the campuses, meadow elsewhere), weeds, pebbles
+    {name:'near', r:1, build(c, k){ cellPebbles(c, 30, 'gravel', 0xd8d2c8); cellWeeds(c, 60, [0x5a8a3a, 0x6f9a44, 0x86a04a], (x, z) => !this.nearSite(x, z, 4)); }},
+    {name:'grass', r:1, build(c, k){ cellGrassPatch(c, 1300, [0x5f9636, 0x6ca23f, 0x7aae4a, 0x588c32], [0.22, 0.6], (x, z) => !this.nearSite(x, z, -6)); }}
   ]
 };
 
