@@ -5405,6 +5405,9 @@ const ARCH_TEX = {
   rug:() => archTex('rug', 1024, 768, (x, w, h) => { const q = archRnd(14); x.fillStyle = '#6a2a24'; x.fillRect(0, 0, w, h); x.strokeStyle = '#d8b06a'; x.lineWidth = 14; x.strokeRect(40, 40, w - 80, h - 80); x.strokeStyle = '#2a3a5a'; x.lineWidth = 26; x.strokeRect(80, 80, w - 160, h - 160);
     x.fillStyle = '#c99a50'; for(let i = 0; i < 5; i++) for(let j = 0; j < 3; j++){ const cx = 220 + i * 150, cy = 230 + j * 150; x.beginPath(); x.moveTo(cx, cy - 50); x.lineTo(cx + 40, cy); x.lineTo(cx, cy + 50); x.lineTo(cx - 40, cy); x.fill(); }
     for(let i = 0; i < 12000; i++){ x.fillStyle = 'rgba(0,0,0,' + (q() * 0.12).toFixed(2) + ')'; x.fillRect(q() * w, q() * h, 2, 2); } }),
+  paper:() => { const t = archTex('paper', 512, 512, (x, w, h) => { const q = archRnd(18); x.fillStyle = '#b9a98a'; x.fillRect(0, 0, w, h); for(let i = 0; i < 8; i++){ x.fillStyle = i % 2 ? 'rgba(120,96,70,0.18)' : 'rgba(255,245,220,0.12)'; x.fillRect(i * 64, 0, 64, h); }
+      x.strokeStyle = 'rgba(110,80,60,0.35)'; x.lineWidth = 3; for(let i = 0; i < 8; i++) for(let j = 0; j < 4; j++){ const cx = i * 64 + 32, cy = j * 128 + (i % 2 ? 64 : 0) + 32; x.beginPath(); x.ellipse(cx, cy, 10, 20, 0, 0, TAU); x.stroke(); }
+      for(let i = 0; i < 6000; i++){ x.fillStyle = 'rgba(80,60,40,' + (q() * 0.08).toFixed(3) + ')'; x.fillRect(q() * w, q() * h, 2, 2); } }); t.wrapS = t.wrapT = THREE.RepeatWrapping; return t; },
   strip:() => archTex('strip', 512, 128, (x, w, h) => { x.fillStyle = '#f1ead6'; x.fillRect(0, 0, w, h); x.strokeStyle = 'rgba(0,0,0,0.25)'; for(let j = 1; j < 5; j++){ x.beginPath(); x.moveTo(0, j * h / 5); x.lineTo(w, j * h / 5); x.stroke(); }
     x.fillStyle = '#222'; [3, 4, 5, 4, 3, 2, 1].forEach((n, i) => { x.beginPath(); x.arc(40 + i * 64, h - n * h / 5 + h / 10, 8, 0, TAU); x.fill(); }); }),
   // the hall: runner carpet, the Ledger open on its lectern, the portrait of Wick, the frieze
@@ -5624,11 +5627,17 @@ const ROOM_BUILD = [
     K.part(M.coat, coat, -3.0, 0.82, hv - 0.16);
     return {name:'musicbox', u:0.95, v:-0.35, look:[1.45, 0.68, 0.15]}; }
 ];
+const A_RD_H = 2.8;
+const ARCH_WALLS = [null, M => M.block, M => std(0xd9d3b8, {normalMap:detailNormal, normalScale:new V2(0.08, 0.08), roughness:0.85}), M => std(0x2c3358, {normalMap:detailNormal, normalScale:new V2(0.08, 0.08), roughness:0.9}),
+  M => std(0xc9c8c3, {normalMap:detailNormal, normalScale:new V2(0.06, 0.06), roughness:0.8}), M => std(0xffffff, {map:ARCH_TEX.paper(), normalMap:detailNormal, normalScale:new V2(0.06, 0.06), roughness:0.9})];
 function archiveBuildRoom(i){
   const R = archive && archive.rooms[i]; if(!R || R.built) return;
   const prev = buildParent; buildParent = null;
   const F = R.F, K = roomKit(F, R.g), M = archive.M;
   const d = ROOM_BUILD[i](K, M, F, F.hu, F.hv, F.H);
+  const wm = ARCH_WALLS[i] && ARCH_WALLS[i](M); if(wm){ const hu = F.hu, hv = F.hv, H = F.H;   // each memory has its own walls
+    K.box(wm, 3, -hu, hu, 0, H, -hv, -hv + 0.012); K.box(wm, 3, -hu, hu, 0, H, hv - 0.012, hv); K.box(wm, 3, -hu, -hu + 0.012, 0, H, -hv, -1); K.box(wm, 3, -hu, -hu + 0.012, 0, H, 1, hv); K.box(wm, 3, -hu, -hu + 0.012, A_RD_H, H, -1, 1);
+    if(i !== 4) K.box(wm, 3, hu - 0.012, hu, 0, H, -hv, hv); }
   K.box(M.brass, 1, -3.86, -2.54, 1.06, 2.04, -F.hv, -F.hv + 0.035); K.panel(ARCH_TEX.plaque(i), 1.2, 0.9, -3.2, 1.55, -F.hv + 0.04, 0, {rough:0.35});   // the brass plaque by the door
   K.done();
   const s = K.at(d.u, d.v), l = K.at(d.look[0], d.look[2]); R.detail = {name:d.name, x:s[0], z:s[1], look:[l[0], d.look[1], l[1]]};
@@ -5642,11 +5651,11 @@ function buildArchive(){
     brick:std(0xffffff, {map:S.brick.map, normalMap:S.brick.normal, roughnessMap:S.brick.rough, roughness:1}),
     stone:std(0xd8d0c2, {map:gr.map, normalMap:gr.normal, normalScale:new V2(0.5, 0.5), roughness:0.75}),
     pave:std(0xffffff, {map:T.pave.map, normalMap:T.pave.normal, roughnessMap:T.pave.rough, roughness:1}),
-    plaster:std(0xd9cfbb, {map:detailTex, normalMap:detailNormal, normalScale:new V2(0.12, 0.12), roughness:0.93}),
+    plaster:std(0xeadcc0, {normalMap:detailNormal, normalScale:new V2(0.1, 0.1), roughness:0.9}),
     plasterDim:std(0xb8ab94, {map:detailTex, roughness:0.95}), ceilGrey:std(0x8a8c90, {map:detailTex, roughness:0.9}), navy:std(0x1d2548, {roughness:0.95}),
     oak:wood(0xe2cbac), oakDark:wood(0x9a7a5c, 0.6), dark:wood(0x7a5a44, 0.4),
     floorStone:std(0xa8a39b, {map:T.floor.map, normalMap:T.floor.normal, normalScale:new V2(0.4, 0.4), roughnessMap:T.floor.rough, roughness:1}),
-    concrete:std(0x9a968e, {map:cs.map, normalMap:cs.normal, normalScale:new V2(0.6, 0.6), roughness:0.9}), carpet:std(0x2c3656, {map:detailTex, roughness:1}),
+    concrete:std(0x9a968e, {map:cs.map, normalMap:cs.normal, normalScale:new V2(0.6, 0.6), roughness:0.9}), block:std(0xa39e94, {map:cs.map, normalMap:cs.normal, normalScale:new V2(0.8, 0.8), roughness:0.92}), carpet:std(0x1c2238, {map:detailTex, roughness:1}),
     brass:std(0xc9a25a, {metalness:0.85, roughness:0.32, map:detailTex}), gold:std(0xd8a93a, {metalness:0.9, roughness:0.28}), iron:std(0x2a2c31, {metalness:0.6, roughness:0.5}),
     steel:std(0xb8bcc2, {metalness:0.85, roughness:0.25}), alu:std(0xc8ccd0, {metalness:0.7, roughness:0.35}), black:std(0x141418, {roughness:0.85}), paint:std(0xe8e4da, {roughness:0.55}), paper:std(0xf1ead6, {roughness:0.9}),
     blue:std(0x284a7a, {roughness:0.45, map:detailTex}), red:std(0x9a2a22, {roughness:0.4, metalness:0.3}), greenMetal:std(0x2f5a44, {roughness:0.4, metalness:0.5}),
@@ -5723,7 +5732,7 @@ function buildArchive(){
     const pg = new THREE.PlaneGeometry(0.76, 0.475); pg.rotateX(-Math.PI / 2); pg.rotateY(Math.PI); const bk = mk(pg, std(0xffffff, {map:ARCH_TEX.book(), roughness:0.85, emissive:C(0xffffff), emissiveMap:ARCH_TEX.book(), emissiveIntensity:0.12}), 0, 0.058, 0, top); bk.castShadow = false;
     mk(BX(0.02, 0.012, 0.5), M.brass, 0, 0.066, 0, top).castShadow = false; }
   aabb(L.x - 0.45, L.x + 0.45, 0, 1.3, L.z - 0.4, L.z + 0.4, {full:true, cam:false});
-  { const l = label('The Ashcombe Ledger · E', {small:true, edge:'#e8c77a', fg:'#f3e2b0'}); l.position.set(L.x, 2.15, L.z); hall.add(l); }
+  { const l = label('The Ashcombe Ledger · E', {small:true, edge:'#e8c77a', fg:'#f3e2b0'}); l.position.set(L.x, 1.95, L.z); l.scale.multiplyScalar(0.5); hall.add(l); }   // indoor labels at half size
   // the Registrar's desk, his lamp and bell, the card index, the portrait of Wick above
   const D = A.desk; dark.push([D.x - 2.4, D.x + 2.4, 0, 1.0, D.z - 0.4, D.z + 0.4]); oak.push([D.x - 2.5, D.x + 2.5, 1.0, 1.06, D.z - 0.48, D.z + 0.48]);
   mk(CY(0.07, 0.09, 0.03, 20), M.brass, 1.6, 1.075, D.z); mk(CY(0.012, 0.012, 0.3, 8), M.brass, 1.6, 1.24, D.z); const shade = mk(CY(0.11, 0.11, 0.26, 20, true), glowM(0x2f8a5a, 0.9), 1.6, 1.42, D.z); shade.rotation.z = Math.PI / 2; shade.scale.set(1, 1, 0.55);
@@ -5742,7 +5751,7 @@ function buildArchive(){
   [-3.4, 3.4].forEach(x => { const z = A.z0 - A.apron + 0.5; mk(CY(0.07, 0.11, 3.4, 12), M.iron, x, 1.7, z, hall); mk(CY(0.26, 0.18, 0.16, 4), M.iron, x, 3.55, z, hall).rotation.y = Math.PI / 4; mk(CY(0.16, 0.12, 0.4, 4), M.lampWarm, x, 3.3, z, hall).rotation.y = Math.PI / 4; glow(0xffc98a, 3, x, 3.3, z, hall, 0.5); colliders.push({x, z, r:0.2}); });
   // the Registrar, behind the desk
   const reg = makeAvatar({recipe:parseDescription('a tall slender librarian in a long green coat with round glasses'), name:'The Registrar'}); reg.g.position.set(D.x, 0, D.z + 1.1); reg.g.rotation.y = Math.PI; hall.add(reg.g);
-  { const l = label('The Registrar · E', {small:true, edge:'#9dff6a', fg:'#d8ffc0'}); l.position.set(D.x, 2.95, D.z + 1.1); hall.add(l); }
+  { const l = label('The Registrar · E', {small:true, edge:'#9dff6a', fg:'#d8ffc0'}); l.position.set(D.x, 2.6, D.z + 1.1); l.scale.multiplyScalar(0.5); hall.add(l); }
   // everything merged by material
   const put = (list, mat, tile, cast) => { if(!list.length) return; const m = mk(boxGeo(list, tile), mat, 0, 0, 0, hall); m.castShadow = cast !== false; };
   put(brick, M.brick, 3); put(plaster, M.plaster, 3); put(stone, M.stone, 2); put(oak, M.oak, 4, false); put(dark, M.dark, 2); put(glass, M.glass, 2, false); put(pave, M.pave, 4, false); put(ceil, M.plaster, 3); put(bars, M.iron, 1, false); put(cove, M.lampWarm, 1, false);
@@ -5750,7 +5759,7 @@ function buildArchive(){
   sol.forEach(b => aabb(b[0], b[1], b[2], b[3], b[4], b[5]));
   // the six room doors (they swing open as you come near) and their signs; each room is its own group, built when you first come close
   const rooms = ARCHIVE_ROOMS.map((_, i) => { const F = archiveRoomFrame(i), g = new THREE.Group(); g.visible = false; world.add(g);
-    const piv = new THREE.Group(); piv.position.set(F.sd * A.hall, 0, F.cz - A.roomDoor.w); hall.add(piv);
+    const piv = new THREE.Group(); piv.position.set(F.sd * (A.hall + 0.22), 0, F.cz - A.roomDoor.w); hall.add(piv);   // hinged on the room side, so it swings round flat against the wall
     const leaf = mk(BX(0.06, A.roomDoor.h - 0.02, 2 * A.roomDoor.w - 0.02).translate(0, (A.roomDoor.h - 0.02) / 2, A.roomDoor.w), M.dark, 0, 0, 0, piv); leaf.castShadow = false;
     [-1, 1].forEach(s => { mk(SP(0.035, 12, 8), M.brass, s * 0.06, 1.0, 2 * A.roomDoor.w - 0.18, piv).castShadow = false; [0.5, 1.5].forEach(z => [0.8, 2.0].forEach(y => { mk(BX(0.012, 0.9, 0.72), M.dark, s * 0.034, y, z * A.roomDoor.w, piv).castShadow = false; })); });
     const sg = new THREE.Mesh(new THREE.PlaneGeometry(2.0, 0.375), std(0xffffff, {map:ARCH_TEX.sign(i), roughness:0.5})); sg.position.set(F.sd * (A.hall - 0.28), 3.2, F.cz); sg.rotation.y = -F.sd * Math.PI / 2; hall.add(sg);
@@ -8595,19 +8604,20 @@ function deskProximity(){
 
 /* ================= The Archive (Goal 9): doors, memory rooms, hidden details, the Ledger and the Registrar ================= */
 let archNear = null, archRoom = -1, cardTimer = 0;
+const ARCH_DOOR_OPEN = Math.PI - 0.1;
 const ledgerEl = $('#ledger'), regEl = $('#reg'), memoEl = $('#memo');
 function archiveUpdate(dt){
-  if(!archive || state.world !== 'hub'){ if(archNear){ archNear = null; $('#archBtn').style.display = 'none'; } return; }
+  if(!archive || state.world !== 'hub'){ if(archNear){ archNear = null; $('#archBtn').style.display = 'none'; } if(me.tag && !me.tag.visible) me.tag.visible = true; return; }
   const A = ARCHIVE, px = p.x, pz = p.z, cp = camera.position;
   // the rooms are built the first time you come near (one a frame), so the Spaceport loads exactly as fast as before
   if(Math.hypot(px, pz - 77) < 60){ const k = archive.rooms.findIndex(R => !R.built); if(k >= 0) archiveBuildRoom(k); }
   const inB = px > A.x0 - 0.3 && px < A.x1 + 0.3 && pz > A.z0 - 0.3 && pz < A.z1 + 0.3, camIn = cp.x > A.x0 && cp.x < A.x1 && cp.z > A.z0 && cp.z < A.z1;
-  archive.inside = inB;
+  archive.inside = inB; if(me.tag) me.tag.visible = !inB;   // indoors the camera is close and your own name tag would fill the view
   let at = -1;
   archive.rooms.forEach((R, i) => {
     const inR = R.F.inside(px, pz, -0.05); if(inR) at = i;
     const open = R.built && (inR || Math.hypot(px - R.F.door.x, pz - R.F.door.z) < 3.4);
-    R.ang += ((open ? R.F.sd * 1.45 : 0) - R.ang) * (1 - Math.exp(-dt * 5)); R.piv.rotation.y = R.ang;
+    R.ang += ((open ? R.F.sd * ARCH_DOOR_OPEN : 0) - R.ang) * (1 - Math.exp(-dt * 4)); R.piv.rotation.y = R.ang;
     if(Math.abs(R.ang) > 1.0) R.opened = true;
     R.g.visible = R.built && (inB || camIn) && (inR || Math.abs(R.ang) > 0.03 || R.F.inside(cp.x, cp.z, 0));
   });
@@ -8747,11 +8757,11 @@ $('#regQ').addEventListener('keydown', e => { if(e.code === 'Enter' || e.key ===
 function archiveReady(){ if(state.world !== 'hub' || !archive) return false; archive.rooms.forEach((R, i) => archiveBuildRoom(i)); return true; }
 function enterRoom(i, spot){
   if(!archiveReady() || !archive.rooms[i]) return null; const R = archive.rooms[i], F = R.F;
-  const [x, z] = spot && R.detail ? [R.detail.x, R.detail.z] : [F.cx + F.sd * -(F.hu - 1.6), F.cz + F.sd * -1.2];
+  const [x, z] = spot && R.detail ? [R.detail.x, R.detail.z] : [F.cx + F.sd * -(F.hu - 2.0), F.cz - 1.3];
   if(bike.riding) dismountBike(true); p.x = x; p.z = z; p.y = G(x, z); p.vy = 0; p.speed = 0;
   const tx = spot && R.detail ? R.detail.look[0] : F.cx + F.sd * F.hu, tz = spot && R.detail ? R.detail.look[2] : F.cz;
-  p.facing = Math.atan2(tx - x, tz - z); cam.yaw = Math.atan2(x - tx, z - tz) + (spot ? 0.35 : 0.25); cam.pitch = spot ? 0.45 : 0.22; cam.dist = spot ? 3.2 : 4.2;
-  R.ang = F.sd * 1.45; R.piv.rotation.y = R.ang; R.opened = true; R.g.visible = true; archive.inside = true; snapCamera();
+  p.facing = Math.atan2(tx - x, tz - z); cam.yaw = Math.atan2(x - tx, z - tz) - F.sd * (spot ? 0.45 : 0.5); cam.pitch = spot ? 0.5 : 0.3; cam.dist = spot ? 3.0 : 3.6;
+  R.ang = F.sd * ARCH_DOOR_OPEN; R.piv.rotation.y = R.ang; R.opened = true; R.g.visible = true; archive.inside = true; snapCamera();
   return {room:i, x:+x.toFixed(2), z:+z.toFixed(2), inside:F.inside(x, z, 0)};
 }
 
