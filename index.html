@@ -114,6 +114,19 @@ input#nameInput:focus{ outline:none; border-color:var(--cyan); }
 .ghost{ width:100%; margin-top:16px; padding:11px; background:none; border:1.5px solid rgba(255,255,255,.25); color:#f3f0ff; font:600 15px 'Chakra Petch','Trebuchet MS',sans-serif; cursor:pointer; }
 button:focus-visible, .warp-item:focus-visible{ outline:3px solid var(--cyan); outline-offset:2px; }
 #warpList{ display:grid; gap:6px; }
+#starMap{ cursor:pointer; touch-action:manipulation; }
+.star-bar{ display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin:0 0 12px; font-size:13.5px; color:#dcd7f5; }
+.star-bar #starInfo{ flex:1 1 200px; line-height:1.35; }
+.star-bar button{ width:auto; margin:0; padding:7px 12px; font-size:14px; }
+.star-bar button.go{ border:none; background:linear-gradient(90deg,var(--cyan),var(--pink)); color:var(--btn-ink); font:700 14px 'Chakra Petch','Trebuchet MS',sans-serif; cursor:pointer; }
+.star-bar [hidden]{ display:none; }
+#xlogList{ display:grid; gap:6px; max-height:60vh; overflow:auto; padding-right:4px; }
+.xrow{ padding:9px 12px; background:rgba(255,255,255,.06); box-shadow:inset 3px 0 0 var(--c); font-size:13px; color:#c7c1ea; line-height:1.45; }
+.xrow .xname{ display:flex; gap:6px; align-items:center; margin-bottom:3px; }
+.xrow input{ flex:1; min-width:0; padding:5px 8px; font:600 16px 'Chakra Petch','Trebuchet MS',sans-serif; color:#f3f0ff; background:rgba(255,255,255,.07); border:1.5px solid rgba(255,255,255,.2); border-radius:0; user-select:text; -webkit-user-select:text; }
+.xrow input:focus{ outline:none; border-color:var(--cyan); }
+.xrow button{ width:auto; margin:0; padding:5px 10px; font-size:13px; }
+.xrow b{ color:#f3f0ff; font-weight:600; }
 #shopList{ display:grid; gap:5px; max-height:54vh; overflow:auto; padding-right:4px; }
 #shopList .warp-item{ padding:9px 12px; font-size:15px; }
 #shopList .warp-item.owned{ box-shadow:inset 3px 0 0 #9dff6a; }
@@ -204,7 +217,7 @@ body.paused #joy, body.paused #jumpBtn{ display:none; }
     <p class="lede" id="avatarState">Any species, size or style. Watch it appear on the left.</p>
     <div class="swatch-row"><span>Suit</span><span class="swatches" id="suitSw"></span></div>
     <div class="swatch-row"><span>Glow</span><span class="swatches" id="visorSw"></span></div>
-    <p class="controls mouse-only">WASD to move, Shift to run, Space to jump and Space again mid-air to boost. Drag to look, scroll to zoom. M warp, E ride / shop / vend, F Worldsmith (describe a realm and it is built; it goes on forever, with landmarks invented as you walk), I inventory, V camera, C cinematic, N sound, Esc this panel. A VR button appears when a headset is connected.</p>
+    <p class="controls mouse-only">WASD to move, Shift to run, Space to jump and Space again mid-air to boost. Drag to look, scroll to zoom. M warp, E ride / shop / vend, F Worldsmith (describe a realm and it is built; it goes on forever, with landmarks invented as you walk), I inventory, J Explorer Log (every star on the Warp map is a planet), V camera, C cinematic, N sound, Esc this panel. A VR button appears when a headset is connected.</p>
     <p class="controls touch-only">Left stick to move, Jump twice to boost, drag anywhere else to look. Warp is top right.</p>
     <button class="start" id="startBtn">Enter the Hub</button>
   </div>
@@ -214,11 +227,21 @@ body.paused #joy, body.paused #jumpBtn{ display:none; }
   <div class="card">
     <h2 id="warpTitle">Warp</h2>
     <p class="lede">Jump straight to any world. Fares rise with sector distance; the Hub is always free, and walking through portals is free.</p>
-    <canvas id="starMap" aria-label="Star map of the 27 sectors" style="width:100%;height:auto;display:block;margin:0 0 10px"></canvas>
+    <canvas id="starMap" aria-label="Star map of the 27 sectors: pick a sector, then a star" style="width:100%;height:auto;display:block;margin:0 0 8px"></canvas>
+    <div class="star-bar"><button class="ghost" id="starBack" hidden>Back to the cube</button><span id="starInfo">Pick a sector to see its stars. Every star is a planet you can land on.</span><button class="go" id="starGo" hidden>Land</button><button class="ghost" id="xlogOpen">Explorer Log (J)</button></div>
     <div id="warpList"></div>
     <h3>Hunt board</h3>
     <ol id="board"></ol>
     <button class="ghost" id="warpClose">Close</button>
+  </div>
+</div>
+
+<div id="xlog" class="overlay hidden" role="dialog" aria-labelledby="xlogTitle">
+  <div class="card">
+    <h2 id="xlogTitle">Explorer Log</h2>
+    <p class="lede" id="xlogLede">Every planet you land on is charted here. Rename any of them; the name shows on your star map.</p>
+    <div id="xlogList"></div>
+    <button class="ghost" id="xlogClose">Close</button>
   </div>
 </div>
 
@@ -5088,6 +5111,141 @@ function forgeRealm(text){
 }
 function deleteRealm(id){ const i = realms.findIndex(x => x.id === id); if(i < 0) return; const key = realmKey(realms[i]); realms.splice(i, 1); saveRealms(); delete WORLDS[key]; if(state.world === key) travel('hub', {spawn:true}); }
 
+/* ================= every star is a planet (Goal 8b, blueprint 5e) =================
+   Sectors 2 to 27 each hold 12 to 40 stars, placed by the sector's own seed. A star's planet comes from the star's
+   coordinates alone: a seed from the coordinates rolls a Worldsmith sentence (land, ground, water, time of day, weather,
+   plants, extras, buildings, colours, rules words), and that sentence goes through parseRealm and the forged-realm
+   builder like any sentence the player types. Gravity, relief (size of the land's features) and plant size ride along
+   as numbers. The same star is the same planet for every player on every visit; the first landing charts it
+   (hub-explorer-v1), and the spec seen then is stored with the chart, so a charted planet never changes. */
+const PLANET_KEY = 'hub-explorer-v1';
+const planetKey = id => 'p:' + id;
+const STAR_CACHE = {};
+function starSeed(x, y, z){ let h = 0x811C9DC5; [x, y, z].forEach(v => { h = Math.imul(h ^ Math.round(v * 10000), 16777619); h ^= h >>> 13; }); return (h >>> 0) % 2147483647 + 1; }
+function sectorStars(n){
+  n = +n; if(!(n >= 2 && n <= 27)) return [];
+  if(STAR_CACHE[n]) return STAR_CACHE[n];
+  const q = rng(n * 7919 + 104729), [sx, sy, sz] = sectorXYZ(n), count = 12 + Math.floor(q() * 29), out = [];
+  for(let t = 0; out.length < count && t < count * 30; t++){
+    const u = 0.05 + q() * 0.9, v = 0.05 + q() * 0.9, w = q(), k = q();
+    if(out.some(s => Math.hypot(s.u - u, s.v - v) < 0.075)) continue;   // spaced so every star can be picked on the map
+    const x = sx + u, y = sy + w, z = sz + v;
+    out.push({id:n + '-' + out.length, sector:n, u, v, w, x:+x.toFixed(4), y:+y.toFixed(4), z:+z.toFixed(4), seed:starSeed(x, y, z), cls:k < 0.4 ? 0 : k < 0.7 ? 1 : k < 0.88 ? 2 : k < 0.96 ? 3 : 4});
+  }
+  return (STAR_CACHE[n] = out);
+}
+function starById(id){ const m = /^(\d+)-(\d+)$/.exec(String(id || '')); if(!m) return null; return sectorStars(+m[1])[+m[2]] || null; }
+const STAR_COLS = ['#ffb38a', '#ffd9a0', '#fff4d8', '#dfe8ff', '#a9c8ff'];   // red, orange, yellow, white, blue suns
+// invented syllable names; a short list of real and well-known fictional names is refused
+const PN_A = ['ka', 've', 'lo', 'ri', 'tha', 'mor', 'zen', 'qua', 'ish', 'dor', 'el', 'an', 'bri', 'cor', 'ul', 'ny', 'sa', 'tor', 'vi', 'ez', 'ru', 'fen', 'gal', 'hy', 'ix', 'jo', 'ke', 'lum', 'myr', 'ob', 'pra', 'sel', 'tes', 'ur', 'vo', 'wy', 'xa', 'yel', 'zu', 'ost'];
+const PN_B = ['', '', '', 'n', 'r', 's', 'th', 'x', 'l', 'k'];
+const PN_SUFFIX = ['', '', '', '', '', '', ' Prime', ' Minor', ' Major', ' II', ' III', ' IV', ' VII'];
+const PN_REFUSE = /^(mars|vega|terra|dune|arrakis|tatooine|hoth|endor|naboo|vulcan|kobol|pandora|gallifrey|krypton|solaris|oasis|halliday|luna|sol|titan|europa|io|rhea|ceres|eris|kepler|gaia|aurora|eden|zion|sion|korriban|coruscant|kashyyyk|risa|romulus|kronos|trantor|terminus|caladan|giedi|lv|acheron|riva|thra|sora|ixia|tor|elan)$/;
+function planetName(q){
+  for(let t = 0; t < 20; t++){
+    const n = 2 + (q() < 0.35 ? 1 : 0); let s = '';
+    for(let i = 0; i < n; i++) s += PN_A[Math.floor(q() * PN_A.length)] + (i === n - 1 ? PN_B[Math.floor(q() * PN_B.length)] : '');
+    if(s.length < 4 || s.length > 11 || PN_REFUSE.test(s) || /(.)\1\1/.test(s)) continue;
+    return s.charAt(0).toUpperCase() + s.slice(1) + PN_SUFFIX[Math.floor(q() * PN_SUFFIX.length)];
+  }
+  return 'Vessor';
+}
+// the planet's sentence and numbers, from its seed only
+function rollPlanet(star){
+  const q = rng(star.seed), pick = a => a[Math.floor(q() * a.length)], chance = k => q() < k;
+  const terrain = pick(['plains', 'hills', 'hills', 'mountains', 'valley', 'island', 'archipelago', 'coast', 'canyon', 'crater', 'dunes', 'flat', 'swamp']);
+  const airless = /^(crater|flat|plains)$/.test(terrain) && chance(0.3);
+  const surfaces = { plains:['grassy', 'wildflower', 'sandy', 'snowy', 'mossy', 'soil', 'martian', 'gravel'], hills:['grassy', 'wildflower', 'snowy', 'mossy', 'rocky', 'ashen', 'martian', 'soil'], mountains:['grassy', 'snowy', 'rocky', 'ashen', 'mossy', 'martian'],
+    valley:['grassy', 'wildflower', 'mossy', 'soil', 'snowy'], island:['grassy', 'sandy', 'rocky', 'ashen', 'mossy'], archipelago:['grassy', 'sandy', 'rocky', 'mossy'], coast:['grassy', 'sandy', 'rocky', 'snowy', 'gravel'],
+    canyon:['rocky', 'martian', 'sandy', 'ashen', 'gravel'], crater:['rocky', 'ashen', 'gravel', 'martian', 'snowy'], dunes:['sandy', 'sandy', 'ashen', 'martian', 'snowy'], flat:['sandy', 'gravel', 'ashen', 'snowy', 'rocky', 'grassy'], swamp:['muddy', 'mossy'] };
+  const surface = airless ? pick(['rocky', 'ashen', 'gravel']) : pick(surfaces[terrain]);
+  const seaLand = /^(island|archipelago|coast)$/.test(terrain);
+  let water = seaLand ? pick(['sea', 'sea', 'sea', 'lava', 'acid']) : terrain === 'swamp' ? pick(['', '', 'acid']) : pick(['', '', '', 'lakes', 'lakes', 'lava', 'acid', 'frozen lakes']);
+  if(airless) water = chance(0.3) ? 'lava' : '';
+  const time = pick(['dawn', 'morning', 'noon', 'afternoon', 'afternoon', 'sunset', 'dusk', 'night', 'night']);
+  const weather = airless ? '' : pick(['clear', 'clear', 'cloudy', 'cloudy', 'overcast', 'foggy', 'stormy', 'rainy', surface === 'snowy' ? 'snowfall' : 'cloudy', /^(sandy|martian)$/.test(surface) ? 'sandstorm' : 'clear', surface === 'ashen' ? 'embers' : 'foggy']);
+  const bare = airless || /^(sandy|ashen|rocky|gravel|martian)$/.test(surface) || /^(dunes|crater)$/.test(terrain);
+  let trees = bare ? (chance(0.25) ? pick(['sparse dead woods', 'sparse pines']) : '') : pick(['woods', 'dense woods', 'sparse woods', 'pines', 'dense pines', 'jungle', 'dense jungle', 'treeless', 'autumn woods', 'blossoming woods', 'dead woods']);
+  if(airless) trees = '';
+  const EXTRAS = ['mushrooms', 'crystals', 'flowers', 'fireflies', 'boulders', 'geysers', 'aurora', 'two moons', 'a ringed planet', 'cactus', 'bamboo', 'volcano'];
+  const extras = []; for(let i = 0, n = Math.floor(q() * 3.2); i < n; i++){ const e = pick(EXTRAS); if(extras.indexOf(e) < 0 && !(airless && /^(flowers|fireflies|bamboo|aurora|mushrooms)$/.test(e))) extras.push(e); }
+  const STRUCT = ['ruins', 'temple', 'tower', 'castle', 'village', 'lighthouse', 'monoliths', 'pyramid', 'arch', 'windmill'];
+  const structures = []; for(let i = 0, n = 1 + Math.floor(q() * 2.4); i < n; i++){ const s = pick(STRUCT); if(structures.indexOf(s) < 0) structures.push(s); }
+  const COLS = ['purple', 'violet', 'crimson', 'teal', 'amber', 'magenta', 'white', 'black', 'cyan', 'pink', 'orange', 'blue', 'green', 'red', 'silver'];
+  const tints = [];
+  if(chance(0.22) && !airless) tints.push(pick(COLS) + ' sky');
+  if(chance(0.2)) tints.push(pick(COLS) + ' ground');
+  if(trees && chance(0.18)) tints.push(pick(COLS) + ' foliage');
+  if(water && water !== 'lava' && chance(0.2)) tints.push(pick(COLS) + ' water');
+  const tone = chance(0.25) ? 'dangerous' : chance(0.45) ? 'peaceful' : '';
+  const noMagic = chance(0.3), noTech = chance(0.28);
+  const parts = [tone, time, weather, terrain, 'of', surface, 'ground'];
+  let text = parts.filter(Boolean).join(' ');
+  const withs = [water, trees].concat(extras, structures).filter(Boolean);
+  if(withs.length) text += ' with ' + withs.join(', ');
+  if(tints.length) text += ', ' + tints.join(', ');
+  if(airless) text += ', airless';
+  if(noMagic) text += ', mundane'; if(noTech) text += ', primitive';
+  // numbers the words do not carry
+  const gravity = +clamp(0.95 + (q() + q() + q() - 1.5) * 0.5 - (airless ? 0.2 : 0), 0.55, 1.4).toFixed(2);
+  const relief = +(0.6 + q() * 1.0).toFixed(2), flora = +(0.8 + q() * 0.6).toFixed(2);
+  const name = planetName(q);
+  return {text, gravity, relief, flora, name};
+}
+let explorer = (() => { try{ const o = JSON.parse(lsGet(PLANET_KEY) || '{}'); return o && typeof o === 'object' && o.planets && typeof o.planets === 'object' ? o : {planets:{}}; }catch(e){ return {planets:{}}; } })();
+function saveExplorer(){ try{ localStorage.setItem(PLANET_KEY, JSON.stringify(explorer)); }catch(e){} explorer.dirty = false; }
+// everything about a planet: from the chart when it has been seen (never changes again), else rolled from the star
+function planetSpec(id){
+  const star = starById(id); if(!star) return null;
+  const log = explorer.planets[id], roll = log && log.spec ? log.spec : rollPlanet(star);
+  const rec = parseRealm(roll.text);
+  rec.seed = star.seed % 1000000 + 1; rec.relief = roll.relief; rec.flora = roll.flora; rec.name = roll.name; rec.planet = id; rec.endless = true;
+  return {id, sector:star.sector, coords:[star.x, star.y, star.z], seed:rec.seed, proposed:roll.name, name:(log && log.name) || roll.name, text:roll.text, gravity:roll.gravity, relief:roll.relief, flora:roll.flora,
+    terrain:rec.terrain, surface:rec.surface, water:rec.water, time:rec.time, weather:rec.weather, trees:rec.trees, density:rec.density, extras:[...rec.extras].filter(e => e !== 'embersLight'), structures:[...rec.structures], tints:Object.assign({}, rec.tints), airless:!!rec.airless,
+    rules:{magic:rec.magic, tech:rec.tech, danger:rec.danger}, charted:!!log, rec};
+}
+let gravK = 1;   // the planet's gravity as a fraction of the usual pull (1 everywhere else)
+// the return beacon: the portal home stands beside the landing pad; a tall light column marks it from far away (emissive, no point light)
+function addBeacon(q){
+  const y = G(q.x, q.z), col = PORTAL_COLORS.hub;
+  const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.16, 90, 10, 1, true), new THREE.MeshBasicMaterial({color:C(col), transparent:true, opacity:0.28, depthWrite:false, blending:THREE.AdditiveBlending, toneMapped:false}));
+  beam.position.set(q.x, y + 50, q.z); beam.castShadow = false; beam.userData.noAO = true; world.add(beam);
+  const l = label('Return beacon', {small:true, edge:hexStr(col), fg:hexStr(col)}); l.position.set(q.x, y + 7.1, q.z); world.add(l);
+}
+// never land in water or lava: the pad keeps the arrival dry; if anything ever sits wrong, walk out to the nearest dry, gentle ground
+function safeLanding(){
+  const ok = (x, z) => (!waterBody || hf(x, z) > waterBody.level + 0.35) && slopeAt(x, z) < 0.6;
+  if(ok(p.x, p.z)) return true;
+  for(let r = 2; r < 600; r += 2) for(let a = 0; a < TAU; a += 1.2 / Math.sqrt(r)){ const x = p.x + Math.cos(a) * r, z = p.z + Math.sin(a) * r; if(ok(x, z)){ p.x = x; p.z = z; return false; } }
+  return false;
+}
+// the first landing charts a planet
+function chartPlanet(id){
+  let e = explorer.planets[id]; if(e){ e.visits = (e.visits || 1) + 1; saveExplorer(); return false; }
+  const S = planetSpec(id), star = starById(id);
+  e = explorer.planets[id] = {id, sector:star.sector, name:S.proposed, proposed:S.proposed, first:Date.now(), walked:0, landmarks:[], visits:1, rules:S.rules, gravity:S.gravity,
+    spec:{text:S.text, gravity:S.gravity, relief:S.relief, flora:S.flora, name:S.proposed}};
+  saveExplorer(); return true;
+}
+// the player can rename a charted planet; the proposed name stays in the log beside it
+function renamePlanet(id, name){
+  const e = explorer.planets[id]; if(!e) return false;
+  name = String(name || '').replace(/[<>&"\\]/g, '').replace(/\s+/g, ' ').trim().slice(0, 28); if(name.length < 2) return false;
+  e.name = name; saveExplorer();
+  const W = WORLDS[planetKey(id)]; if(W){ W.name = name; if(state.world === planetKey(id)) $('#worldName').textContent = name; }
+  return true;
+}
+// the planet as a realm in WORLDS (made on demand; the same entry for every visit this session)
+function planetWorld(id){
+  const key = planetKey(id); if(WORLDS[key]) return key;
+  const S = planetSpec(id); if(!S) return null;
+  const L = realmLook(S.rec);
+  WORLDS[key] = Object.assign({name:S.name, seed:S.seed, sector:S.sector, rules:S.rules, portals:[{to:'hub', x:0, z:-26}], pads:[{x:0, z:-19, r:10}], custom:S.rec, planet:id, gravity:S.gravity}, L);
+  PORTAL_COLORS[key] = STAR_COLS[starById(id).cls] ? parseInt(STAR_COLS[starById(id).cls].slice(1), 16) : 0xffd166;
+  LINES[key] = ['Nobody had set foot here before you, as far as anyone knows.', 'The beacon by the landing pad takes you home to the Spaceport.', 'Every star on the map is a world like this one.'];
+  return key;
+}
+
 /* --- the realm's ground --- */
 function customHeight(rec){
   if(rec.endless) return endlessHeight(rec);
@@ -5582,7 +5740,7 @@ function endlessHeight(rec){
       else h = roll + macro * 8;
       if(rec.water === 'lake' || rec.water === 'ice' || rec.water === 'acid' || (rec.water === 'lava' && !rec.extras.has('volcano'))){ const basin = smooth(0.5, 0.64, n.fbm(x * 0.0075 + 3, z * 0.0075 - 8, 3) * 0.5 + 0.5); h = Math.max(h, 0) * (1 - basin * 0.6) + 1.0 - basin * 6; }   // lakes sit in basins; the rest of the land stays dry
       if(rec.extras.has('volcano')){ const vx = x - 40, vz = z + 200, vd = Math.hypot(vx, vz), cone = smooth(150, 30, vd) * 130 * (1 - smooth(34, 0, vd) * 0.55); h = h * (1 - smooth(150, 60, vd)) + cone; }
-      return h * pf(x, z);
+      return h * (rec.relief || 1) * pf(x, z);
     };
   };
 }
@@ -5597,6 +5755,7 @@ function chunkSpot(q, cx, cz, clear, local){
   for(let t = 0; t < 24; t++){
     const x = (cx + 0.06 + q() * 0.88) * CHUNK, z = (cz + 0.06 + q() * 0.88) * CHUNK;
     if(Math.hypot(x, z) < 16 || Math.hypot(x, z + 26) < 8) continue;                       // the spawn and the portal stay clear
+    if(endless && endless.rec.planet && Math.hypot(x, z + 19) < 14) continue;                // a planet's landing pad and return beacon stay clear
     if(waterBody && hf(x, z) < waterBody.level + 0.4) continue;
     if(slopeAt(x, z) > 0.75) continue;
     let ok = true; for(const c of local) if(Math.hypot(x - c.x, z - c.z) < c.r + clear){ ok = false; break; }
@@ -5614,7 +5773,8 @@ function buildChunk(cx, cz){
     const under = (x, z) => waterBody && hf(x, z) < waterBody.level + 0.4;
     // a dream (landmark) for this cell?
     let dream = null;
-    if(q() < 0.22){ dream = takeDream(cx, cz, q); }
+    if(rec.planet) planetDream(cx, cz, seed, local, g);   // planets: whether a cell has a landmark, where, and its shape come from their own seeds; what it is, is remembered
+    else if(q() < 0.22){ dream = takeDream(cx, cz, q); }
     if(dream){
       const at = chunkSpot(q, cx, cz, 9, local) || [(cx + 0.5) * CHUNK, (cz + 0.5) * CHUNK];
       chunkAt = at; const dr = parseRealm(dream.text); dr.time = rec.time;
@@ -5628,7 +5788,7 @@ function buildChunk(cx, cz){
     // trees
     if(rec.trees !== 'none'){
       const TG = rec.trees === 'pine' ? pineGeos() : treeGeos(), list = [], nTree = Math.round(22 * density * (rec.trees === 'pine' ? 1.4 : 1));
-      for(let i = 0; i < nTree; i++){ const s = chunkSpot(q, cx, cz, 2.2, local); if(!s) continue; const k = 0.85 + q() * 0.6 * (rec.trees === 'jungle' ? 1.6 : 1); list.push({x:s[0], y:G(s[0], s[1]) - 0.1, z:s[1], s:k, ry:q() * TAU}); local.push({x:s[0], z:s[1], r:0.35 * k}); colliders.push({x:s[0], z:s[1], r:0.35 * k}); }
+      for(let i = 0; i < nTree; i++){ const s = chunkSpot(q, cx, cz, 2.2, local); if(!s) continue; const k = (0.85 + q() * 0.6 * (rec.trees === 'jungle' ? 1.6 : 1)) * (rec.flora || 1); list.push({x:s[0], y:G(s[0], s[1]) - 0.1, z:s[1], s:k, ry:q() * TAU}); local.push({x:s[0], z:s[1], r:0.35 * k}); colliders.push({x:s[0], z:s[1], r:0.35 * k}); }
       if(list.length){
         const leafSets = { leaf:[0x3f6b2a, 0x557a2f, 0x6b8a36, 0x4a7a3a], jungle:[0x2f7a2a, 0x3f9a34, 0x57a83a, 0x2a6a30], pine:[0x1f3b2c, 0x24402f, 0x2a4636] };
         let leafHex = rec.leafHue === 'autumn' ? [0xc9642a, 0xd88a2e, 0xb8441f, 0xe0a83a] : rec.leafHue === 'blossom' ? [0xf2a3c2, 0xf7c1d8, 0xe88ab0, 0xfbd9e6] : leafSets[rec.trees] || leafSets.leaf;
@@ -5654,6 +5814,28 @@ function buildChunk(cx, cz){
   } finally { buildParent = null; chunkAt = null; }
   const ch = {key, g, cols:colliders.slice(c0), plats:platforms.slice(p0), spins:spinners.slice(s0), dream:endless.dreamsPlaced && endless.dreamsPlaced[key] || null};
   endless.chunks.set(key, ch); return ch;
+}
+// offline landmark names on a planet: half from the planet's own kinds of building, half from any; never the same name twice on one planet
+function planetDreamOffline(E, q, store){
+  const used = new Set(Object.values(store).map(o => o.name)); let d = null;
+  for(let t = 0; t < 8; t++){ d = dreamOffline({structures:q() < 0.5 ? E.rec.structures : new Set()}, q); if(!used.has(d.name)) return d; }
+  return d;
+}
+// a planet's landmark (Goal 8b): the Dreamer names it (Claude when it can, else the game's own lists); once placed it is stored per cell, so it never changes
+function planetDream(cx, cz, seed, local, g){
+  const qd = rng((seed ^ 0x2545F491) | 0); if(qd() > 0.2) return;
+  const at = chunkSpot(qd, cx, cz, 9, local); if(!at) return;
+  const E = endless, key = chunkKey(cx, cz), store = dreamsOf(planetKey(E.rec.planet)); let d = store[key];
+  if(!d){ const src = E.dreams.length ? E.dreams.shift() : planetDreamOffline(E, rng((seed ^ 0x68E31DA4) | 0), store); d = store[key] = {name:src.name, text:src.text, lore:src.lore, from:src.from, found:false}; saveDreams(); if(E.dreams.length < 3) askDreamer(); }
+  const qs = rng((seed ^ 0x1B56C4E9) | 0), dr = parseRealm(d.text); dr.time = E.rec.time;
+  const kinds = [...dr.structures].filter(k => k !== 'statues' && k !== 'city'); if(!kinds.length) kinds.push(['ruins', 'monoliths', 'tower', 'temple', 'arch'][Math.floor(qs() * 5)]);   // statues and cities are too heavy for one streamed cell
+  chunkAt = at; const rec = Object.assign({}, E.rec, {structures:dr.structures});
+  kinds.slice(0, 2).forEach(k => addStructure(k, qs, rec));
+  dr.extras.forEach(e => { if(e === 'crystals') addCrystalsAt(qs, at, 0x9be7ff, 5); else if(e === 'mushrooms') addMushroomsAt(qs, at, 8, E.rec.time === 'night'); else if(e === 'lanterns') addLanternsAt(qs, at, 5); else if(e === 'fireflies') dreamGlow(at, 0xd9ff8a, qs); });
+  chunkAt = null;
+  const l = label(d.name, {small:true, edge:'#b18cff', fg:'#e6d8ff'}); l.position.set(at[0], G(at[0], at[1]) + 9, at[1]); g.add(l);
+  d.x = at[0]; d.z = at[1]; local.push({x:at[0], z:at[1], r:8});
+  E.dreamsPlaced = E.dreamsPlaced || {}; E.dreamsPlaced[key] = d;
 }
 function dropChunk(ch){
   world.remove(ch.g);
@@ -5792,10 +5974,11 @@ async function askDreamer(){
   }finally{ dreamer.busy = false; }
 }
 function updateEndless(dt, time){
+  planetWalk(dt);
   if(!endless) return;
   if(endless.builtin) updateBuiltin();
   else { endless.lastMove += dt; if(endless.lastMove > 0.35){ endless.lastMove = 0; updateChunks(false); } }
-  for(const ch of endless.chunks.values()){ const d = ch.dream; if(d && !d.found && d.x != null && Math.hypot(p.x - d.x, p.z - d.z) < 26 && playing){ d.found = true; endless.log.push({name:d.name, lore:d.lore, from:d.from}); if(endless.rl){ endless.rl.log = endless.log.slice(-60); saveRealms(); } if(endless.builtin) saveDreams(); toast(d.name + ' — ' + d.lore, 6500); sfx('shard'); reward(15, 3); } }
+  for(const ch of endless.chunks.values()){ const d = ch.dream; if(d && !d.found && d.x != null && Math.hypot(p.x - d.x, p.z - d.z) < 26 && playing){ d.found = true; endless.log.push({name:d.name, lore:d.lore, from:d.from}); if(endless.rl){ endless.rl.log = endless.log.slice(-60); saveRealms(); } if(endless.builtin) saveDreams(); if(endless.rec.planet){ saveDreams(); planetLandmark(d); } toast(d.name + ' — ' + d.lore, 6500); sfx('shard'); reward(15, 3); } }
 }
 
 /* ================= no boundaries (Goal 8a): the built-in realms go on past their hand-made cores =================
@@ -6618,7 +6801,7 @@ function updateHazards(time){
 }
 function buildWorld(key){
   clearWorld();
-  const W = WORLDS[key]; state.world = key;
+  const W = WORLDS[key]; state.world = key; gravK = W.gravity || 1; if(explorer.dirty) saveExplorer();
   world = new THREE.Group(); scene.add(world);
   if(camHid){ camHid = false; if(!zeroing) me.g.visible = true; }
   grassMeshes = []; lods = []; slotMats = {}; mainTerrain = null; coreSolids = []; coreFollow = []; boxes = []; desk = null; gym = null; floaters = []; p.zeroG = false; colliders = []; platforms = []; coins = []; portals = []; spinners = []; npcs = []; shardObj = null; vault = null; gridSun = null; fireflies = null; shopKiosk = null; forgeStand = null; vendor = null; hazards = []; burst = null; pickups = []; bike.g = null; bike.riding = false; bike.near = false; engineStop(); $('#rideBtn').style.display = 'none'; trial.active = false; trial.rings = []; trial.pad = null; trial.padPos = null; $('#trialPanel').style.display = 'none';
@@ -6630,6 +6813,7 @@ function buildWorld(key){
   hf = W.custom ? customHeight(W.custom)(noise, pf) : HEIGHTS[key](noise, pf);
   G = key === 'grid' ? (x, z) => Math.max(0, hf(x, z)) : W.custom ? (x, z) => { const h = hf(x, z); return waterBody && waterBody.kind !== 'ice' ? Math.max(h, waterBody.level - 0.75) : h; } : hf;
   W.portals.forEach(addPortal);
+  if(W.planet) addBeacon(W.portals[0]);
   if(W.custom) customBuild(W.custom)(r, noise); else BUILD[key](r, noise);
   if(W.stars && !W.custom) addStars(r, 1400);
   // coins
@@ -6909,7 +7093,7 @@ function updateBike(dt, time){
   let ground = G(B.x, B.z); for(const s of platforms) if(Math.hypot(B.x - s.x, B.z - s.z) < s.r + 0.3 && B.y >= s.top - 0.6) ground = Math.max(ground, s.top);
   const hover = ground + 0.55 + Math.sin(time * 3) * 0.04;
   jumpBuffer -= dt; if(jumpBuffer > 0 && !empty && B.y < hover + 0.25){ B.vy = 7.5; jumpBuffer = 0; sfx('jump'); }
-  B.vy -= 22 * dt; B.y += B.vy * dt;
+  B.vy -= 22 * gravK * dt; B.y += B.vy * dt;
   if(B.y < hover){ B.y += (hover - B.y) * (1 - Math.exp(-dt * 14)); if(B.vy < 0) B.vy *= 0.2; }
   B.g.position.set(B.x, B.y, B.z); B.g.rotation.set(-clamp(B.speed / 70, -0.14, 0.14), B.heading, B.lean);
   p.x = B.x; p.z = B.z; p.y = B.y - 0.55; p.vy = 0; p.grounded = true; p.facing = B.heading; p.speed = Math.abs(B.speed);
@@ -7190,27 +7374,124 @@ function openWarp(){
   const rows = BOARD.concat([{name:state.name || 'You', shards:state.shards.size, xp:state.xp, you:true}]).sort((a, b) => b.shards - a.shards || b.xp - a.xp);
   const top = rows.slice(0, 8); if(!top.some(x => x.you)) top[7] = rows.find(x => x.you);
   $('#board').innerHTML = top.map(x => '<li class="' + (x.you ? 'you' : '') + '"><span>' + x.name.replace(/[<>&"]/g, '') + '</span><span class="sc">' + x.shards + ' shards, ' + x.xp + ' XP</span></li>').join('');
-  drawStarMap();
-  warpEl.classList.remove('hidden'); setPaused(true);
+  { const pl = WORLDS[state.world].planet; if(pl){ starView.sector = starById(pl).sector; starView.sel = pl; } }
+  warpEl.classList.remove('hidden'); setPaused(true); drawStarMap(); starInfo();
   const first = list.querySelector('button:not([disabled])'); if(first) first.focus();
 }
+// the star map (Goal 8b): the 27-sector cube with every sector's stars; pick a sector to open it, then a star to land on its planet
+const starView = {sector:null, sel:null, hits:[]};
 function drawStarMap(){
-  const c = $('#starMap'), d = Math.min(window.devicePixelRatio || 1, 2), W = c.clientWidth || 400; c.width = W * d; c.height = Math.round(W * 0.42) * d;
-  const x = c.getContext('2d'); x.scale(d, d); const w = W, h = c.height / d, cell = Math.min((w - 40) / 3 / 3.4, h / 3.8), gap = cell * 3 + 14;
+  const c = $('#starMap'), d = Math.min(window.devicePixelRatio || 1, 2), W = c.clientWidth || 400, open = starView.sector;
+  c.width = W * d; c.height = Math.round(W * (open ? 0.62 : 0.42)) * d;
+  const x = c.getContext('2d'); x.scale(d, d); const w = W, h = c.height / d; starView.hits = [];
   x.clearRect(0, 0, w, h); x.font = '600 11px "Chakra Petch","Trebuchet MS",sans-serif'; x.textAlign = 'center';
   const charted = {}; WORLD_ORDER.concat(customKeys()).forEach(k => { (charted[WORLDS[k].sector] = charted[WORLDS[k].sector] || []).push(k); });
+  const here = WORLDS[state.world] && WORLDS[state.world].planet;
+  if(open){
+    const stars = sectorStars(open), size = Math.min(h - 22, w * 0.62), ox = 8, oy = 16;
+    x.textAlign = 'left'; x.fillStyle = 'rgba(199,193,234,0.9)';
+    const nCh = stars.filter(s => explorer.planets[s.id]).length;
+    x.fillText('Sector ' + open + ' · ' + stars.length + ' stars · ' + nCh + ' charted', ox, 11);
+    x.fillStyle = 'rgba(255,255,255,0.04)'; x.fillRect(ox, oy, size, size); x.strokeStyle = 'rgba(92,225,230,0.5)'; x.lineWidth = 1; x.strokeRect(ox + 0.5, oy + 0.5, size - 1, size - 1);
+    for(let i = 1; i < 4; i++){ x.strokeStyle = 'rgba(255,255,255,0.05)'; x.beginPath(); x.moveTo(ox + size * i / 4, oy); x.lineTo(ox + size * i / 4, oy + size); x.moveTo(ox, oy + size * i / 4); x.lineTo(ox + size, oy + size * i / 4); x.stroke(); }
+    stars.forEach(s => {
+      const sx = ox + s.u * size, sy = oy + s.v * size, e = explorer.planets[s.id], rad = 1.6 + s.cls * 0.45 + s.w * 1.2;
+      const gr = x.createRadialGradient(sx, sy, 0, sx, sy, rad * 3.2); gr.addColorStop(0, STAR_COLS[s.cls]); gr.addColorStop(1, 'rgba(0,0,0,0)');
+      x.fillStyle = gr; x.beginPath(); x.arc(sx, sy, rad * 3.2, 0, TAU); x.fill();
+      x.fillStyle = STAR_COLS[s.cls]; x.beginPath(); x.arc(sx, sy, rad, 0, TAU); x.fill();
+      if(e){ x.strokeStyle = '#ffd166'; x.lineWidth = 1.5; x.beginPath(); x.arc(sx, sy, rad + 3, 0, TAU); x.stroke(); }
+      if(s.id === here){ x.strokeStyle = '#9dff6a'; x.lineWidth = 1.5; x.beginPath(); x.arc(sx, sy, rad + 6, 0, TAU); x.stroke(); }
+      if(s.id === starView.sel){ x.strokeStyle = '#ffffff'; x.lineWidth = 2; x.beginPath(); x.arc(sx, sy, rad + 5, 0, TAU); x.stroke(); }
+      starView.hits.push({id:s.id, x:sx, y:sy});
+    });
+    // names of charted planets beside the square, and on the square when there is room
+    x.font = '600 10.5px "Chakra Petch","Trebuchet MS",sans-serif';
+    stars.forEach(s => { const e = explorer.planets[s.id]; if(!e && s.id !== starView.sel) return; const sx = ox + s.u * size, sy = oy + s.v * size;
+      x.fillStyle = e ? '#ffd166' : '#f3f0ff'; x.textAlign = s.u > 0.7 ? 'right' : 'left'; x.fillText(e ? e.name : 'Star ' + s.id, sx + (s.u > 0.7 ? -8 : 8), sy - 6); });
+    // the list of charted planets in this sector, to the right
+    x.textAlign = 'left'; x.fillStyle = 'rgba(199,193,234,0.85)'; const lx = ox + size + 12; let ly = oy + 10;
+    if(lx < w - 60){ x.fillText(nCh ? 'Charted here:' : 'Nothing charted here yet.', lx, ly); ly += 15;
+      stars.filter(s => explorer.planets[s.id]).slice(0, 12).forEach(s => { x.fillStyle = '#ffd166'; x.fillText('· ' + explorer.planets[s.id].name, lx, ly); ly += 14; });
+      x.fillStyle = 'rgba(199,193,234,0.7)'; x.fillText('Gold ring: charted', lx, oy + size - 16); x.fillText('Green ring: you are here', lx, oy + size - 2); }
+    return;
+  }
+  const cell = Math.min((w - 40) / 3 / 3.4, h / 3.8), gap = cell * 3 + 14;
   for(let layer = 0; layer < 3; layer++){
     const ox = (w - gap * 3 + 14) / 2 + layer * gap, oy = 18;
-    x.fillStyle = 'rgba(199,193,234,0.9)'; x.fillText('Layer ' + (layer + 1), ox + cell * 1.5, 11);
+    x.fillStyle = 'rgba(199,193,234,0.9)'; x.textAlign = 'center'; x.fillText('Layer ' + (layer + 1), ox + cell * 1.5, 11);
     for(let j = 0; j < 3; j++) for(let i = 0; i < 3; i++){
-      const n = 1 + i + j * 3 + layer * 9, has = charted[n], cx = ox + i * cell, cy = oy + j * cell;
-      x.fillStyle = has ? 'rgba(92,225,230,0.22)' : 'rgba(255,255,255,0.05)'; x.fillRect(cx + 1, cy + 1, cell - 2, cell - 2);
-      x.strokeStyle = has ? 'rgba(92,225,230,0.9)' : 'rgba(255,255,255,0.14)'; x.lineWidth = 1; x.strokeRect(cx + 1, cy + 1, cell - 2, cell - 2);
-      x.fillStyle = has ? '#f3f0ff' : 'rgba(255,255,255,0.35)'; x.fillText(has ? String(n) : '?', cx + cell / 2, cy + cell / 2 + 4);
+      const n = 1 + i + j * 3 + layer * 9, has = charted[n], cx = ox + i * cell, cy = oy + j * cell, stars = sectorStars(n);
+      const mine = stars.some(s => explorer.planets[s.id]);
+      x.fillStyle = has ? 'rgba(92,225,230,0.22)' : mine ? 'rgba(255,209,102,0.1)' : 'rgba(255,255,255,0.05)'; x.fillRect(cx + 1, cy + 1, cell - 2, cell - 2);
+      x.strokeStyle = has ? 'rgba(92,225,230,0.9)' : mine ? 'rgba(255,209,102,0.6)' : 'rgba(255,255,255,0.14)'; x.lineWidth = 1; x.strokeRect(cx + 1, cy + 1, cell - 2, cell - 2);
+      stars.forEach(s => { const e = explorer.planets[s.id]; x.fillStyle = s.id === here ? '#9dff6a' : e ? '#ffd166' : STAR_COLS[s.cls]; x.globalAlpha = e || s.id === here ? 1 : 0.45 + s.w * 0.4; const r = e || s.id === here ? 1.6 : 0.8; x.fillRect(cx + 3 + s.u * (cell - 6) - r / 2, cy + 3 + s.v * (cell - 6) - r / 2, r, r); });
+      x.globalAlpha = 1;
+      x.fillStyle = has ? '#f3f0ff' : 'rgba(255,255,255,0.55)'; x.textAlign = 'left'; x.fillText(String(n), cx + 4, cy + 12);
       if(has) has.forEach((k, q) => { x.fillStyle = hexStr(PORTAL_COLORS[k]); x.beginPath(); x.arc(cx + 6 + q * 7, cy + cell - 6, 2.5, 0, TAU); x.fill(); });
+      if(n >= 2) starView.hits.push({sector:n, x0:cx, y0:cy, x1:cx + cell, y1:cy + cell});
     }
   }
-  x.fillStyle = 'rgba(199,193,234,0.8)'; x.fillText('27 sectors. Sector 1 charted; the rest are uncharted for now.', w / 2, h - 3);
+  x.textAlign = 'center'; x.fillStyle = 'rgba(199,193,234,0.8)'; x.fillText('27 sectors, thousands of stars. Pick a sector, then a star: every star is a planet.', w / 2, h - 3);
+}
+function starInfo(){
+  const back = $('#starBack'), go = $('#starGo'), info = $('#starInfo'); back.hidden = !starView.sector;
+  if(!starView.sector){ info.textContent = 'Pick a sector to see its stars. Every star is a planet you can land on.'; go.hidden = true; return; }
+  const id = starView.sel; if(!id){ info.textContent = 'Pick a star. Its planet is always the same: the same land, sky, gravity and rules for everyone.'; go.hidden = true; return; }
+  const e = explorer.planets[id], key = planetWorld(id), cost = fare(state.world, key), hereNow = state.world === key;
+  if(e){ const S = planetSpec(id); info.innerHTML = '<b>' + esc(e.name) + '</b> · star ' + id + ' · sector ' + e.sector + '<br><small>' + S.gravity + ' g · ' + rulesText({rules:S.rules}) + ' · ' + esc(describeRealm(S.rec)) + '</small>'; }
+  else info.innerHTML = '<b>Star ' + id + '</b> · uncharted · sector ' + starById(id).sector + '<br><small>Land to chart it. Nobody knows what is there yet.</small>';
+  go.hidden = false; go.disabled = hereNow; go.textContent = hereNow ? 'You are here' : 'Land · ' + (cost ? '₵ ' + cost : 'free');
+}
+function landOnStar(id){
+  const key = planetWorld(id); if(!key || traveling) return false;
+  const cost = fare(state.world, key);
+  if(state.credits < cost){ toast('Not enough credits for this warp (₵ ' + cost + '). Collect coins or sell items to earn more.'); return false; }
+  state.credits -= cost; persist(); refreshHud(); closeWarp(); closeXlog(); travel(key); return true;
+}
+$('#starMap').addEventListener('click', e => {
+  const r = e.currentTarget.getBoundingClientRect(), mx = e.clientX - r.left, my = e.clientY - r.top;
+  if(starView.sector){ let best = null, bd = 14; for(const hsx of starView.hits){ const dd = Math.hypot(hsx.x - mx, hsx.y - my); if(dd < bd){ bd = dd; best = hsx; } } if(best){ starView.sel = best.id; sfx('ui'); } }
+  else { const hit = starView.hits.find(q => mx >= q.x0 && mx <= q.x1 && my >= q.y0 && my <= q.y1); if(hit){ starView.sector = hit.sector; starView.sel = null; sfx('ui'); } }
+  drawStarMap(); starInfo();
+});
+$('#starBack').addEventListener('click', () => { starView.sector = null; starView.sel = null; drawStarMap(); starInfo(); });
+$('#starGo').addEventListener('click', () => { if(starView.sel) landOnStar(starView.sel); });
+// the Explorer Log (J, or the button on the Warp screen): every charted planet, saved in hub-explorer-v1
+const xlogEl = $('#xlog');
+function fmtWalk(m){ return m >= 1000 ? (m / 1000).toFixed(2) + ' km' : Math.round(m) + ' m'; }
+function renderXlog(){
+  const list = $('#xlogList'), rows = Object.values(explorer.planets).sort((a, b) => b.first - a.first); list.innerHTML = '';
+  $('#xlogLede').textContent = rows.length ? rows.length + ' planet' + (rows.length === 1 ? '' : 's') + ' charted. Rename any of them; the name shows on your star map. Walk them to find their landmarks.' : 'Nothing charted yet. Open the Warp screen (M), pick a sector, then a star, and land: the first landing charts the planet.';
+  rows.forEach(e => {
+    const star = starById(e.id), key = planetKey(e.id), here = state.world === key, row = document.createElement('div'); row.className = 'xrow'; row.style.setProperty('--c', star ? STAR_COLS[star.cls] : '#ffd166');
+    const lm = (e.landmarks || []);
+    row.innerHTML = '<div class="xname"><input maxlength="28" aria-label="Planet name" value="' + esc(e.name) + '"><button class="ghost" data-a="rename">Rename</button><button class="ghost" data-a="go"' + (here ? ' disabled' : '') + '>' + (here ? 'Here' : 'Land · ' + (fare(state.world, planetWorld(e.id)) ? '₵ ' + fare(state.world, planetWorld(e.id)) : 'free')) + '</button></div>' +
+      '<b>Sector ' + e.sector + '</b> · star ' + e.id + (e.name !== e.proposed ? ' · first called ' + esc(e.proposed) : '') + '<br>' +
+      e.gravity + ' g · ' + rulesText({rules:e.rules}) + '<br>First landed ' + new Date(e.first).toLocaleDateString() + ' · walked ' + fmtWalk(e.walked || 0) + ' · ' + (e.visits || 1) + ' visit' + ((e.visits || 1) === 1 ? '' : 's') + '<br>' +
+      (lm.length ? 'Landmarks found (' + lm.length + '): ' + lm.slice(-8).map(esc).join(', ') : 'No landmarks found yet.');
+    const inp = row.querySelector('input');
+    const save = () => { if(renamePlanet(e.id, inp.value)){ toast('Renamed: ' + explorer.planets[e.id].name, 1800); renderXlog(); } else toast('A name needs at least two letters.', 1800); };
+    row.querySelector('[data-a=rename]').addEventListener('click', save);
+    inp.addEventListener('keydown', ev => { if(ev.key === 'Enter'){ ev.preventDefault(); save(); } ev.stopPropagation(); });
+    row.querySelector('[data-a=go]').addEventListener('click', () => landOnStar(e.id));
+    list.appendChild(row);
+  });
+}
+function openXlog(){ if(zeroing) return; if(!warpEl.classList.contains('hidden')) closeWarp(); renderXlog(); xlogEl.classList.remove('hidden'); setPaused(true); $('#xlogClose').focus(); }
+function closeXlog(){ if(xlogEl.classList.contains('hidden')) return; xlogEl.classList.add('hidden'); setPaused(false); }
+$('#xlogOpen').addEventListener('click', openXlog);
+$('#xlogClose').addEventListener('click', closeXlog);
+// distance walked and landmarks found on the planet you are on
+let walkAt = null, walkSave = 0;
+function planetWalk(dt){
+  const W = WORLDS[state.world], e = W && W.planet && explorer.planets[W.planet];
+  if(!e || traveling || !playing){ walkAt = null; return; }
+  if(walkAt){ const d = Math.hypot(p.x - walkAt[0], p.z - walkAt[1]); if(d < 4) e.walked = (e.walked || 0) + d; }   // bigger jumps are teleports, not walking
+  walkAt = [p.x, p.z]; explorer.dirty = true; walkSave += dt; if(walkSave > 5){ walkSave = 0; saveExplorer(); }
+}
+function planetLandmark(d){
+  const W = WORLDS[state.world], e = W && W.planet && explorer.planets[W.planet]; if(!e) return;
+  e.landmarks = e.landmarks || []; if(e.landmarks.indexOf(d.name) < 0) e.landmarks.push(d.name); saveExplorer();
 }
 function closeWarp(){ warpEl.classList.add('hidden'); setPaused(false); }
 $('#mapBtn').addEventListener('click', openWarp);
@@ -7333,12 +7614,14 @@ let jumpBuffer = 0;
 window.addEventListener('keydown', e => {
   if(!introEl.classList.contains('hidden')){ if(e.code === 'Enter' || (e.code === 'Escape' && state.started)){ e.preventDefault(); startGame(); } return; }
   if(!lookEl.classList.contains('hidden')){ if(e.code === 'Escape') closeLook(); return; }
-  if(!warpEl.classList.contains('hidden')){ if(e.code === 'Escape' || e.code === 'KeyM') closeWarp(); return; }
+  if(!xlogEl.classList.contains('hidden')){ if(e.code === 'Escape' || (e.code === 'KeyJ' && !(e.target && e.target.tagName === 'INPUT'))){ e.preventDefault(); closeXlog(); } return; }
+  if(!warpEl.classList.contains('hidden')){ if(e.code === 'Escape' || e.code === 'KeyM') closeWarp(); else if(e.code === 'KeyJ'){ e.preventDefault(); openXlog(); } return; }
   if(!shopEl.classList.contains('hidden')){ if(e.code === 'Escape' || e.code === 'KeyE') closeShop(); return; }
   if(!invEl.classList.contains('hidden')){ if(e.code === 'Escape' || e.code === 'KeyI') closeInventory(); return; }
   if(!vendEl.classList.contains('hidden')){ if(e.code === 'Escape' || e.code === 'KeyE') closeVendor(); return; }
   if(!forgeEl.classList.contains('hidden')){ if(e.code === 'Escape') closeForge(); return; }
   if(e.code === 'KeyI'){ openInventory(); return; }
+  if(e.code === 'KeyJ'){ e.preventDefault(); openXlog(); return; }
   if(e.code === 'KeyF'){ e.preventDefault(); openForge(); return; }
   if(e.code === 'KeyE'){ interactKey(); return; }
   if(e.code === 'KeyN'){ setMute(snd.on); return; }
@@ -7400,9 +7683,12 @@ function travel(to, opts){
     else {   // arrive far enough out that the camera (cam.dist behind you) stands in front of the return portal, not inside its ring looking through the back of it
       const back = portals.find(q => q.to === from) || portals[0], d = Math.hypot(back.x, back.z) || 1, k = clamp(cam.dist + 2.5, 4.5, 12);
       p.x = back.x - back.x / d * k; p.z = back.z - back.z / d * k; cam.yaw = Math.atan2(back.x, back.z); }
+    if(WORLDS[to].planet) safeLanding();
     p.y = G(p.x, p.z); p.vy = 0; p.facing = cam.yaw + Math.PI; snapCamera(); portalCool = 1;
     fadeEl.classList.remove('on'); traveling = false;
-    if(!state.visited.has(to)){ state.visited.add(to); reward(25, 0); toast('New world discovered: ' + WORLDS[to].name + '   +25 XP', 3000); }
+    if(WORLDS[to].planet){ const W = WORLDS[to], first = chartPlanet(W.planet); if(first) reward(25, 0);
+      toast((first ? 'Planet charted: ' : '') + W.name + ' · ' + W.gravity + ' g · ' + rulesText(W) + (first ? '   +25 XP' : ''), 4200); }
+    else if(!state.visited.has(to)){ state.visited.add(to); reward(25, 0); toast('New world discovered: ' + WORLDS[to].name + '   +25 XP', 3000); }
     else toast(WORLDS[to].name + (bundles.some(b => b.world === to) ? ' · your bundle is here: follow the gold beam' : ''), 3000);
     if(opts.arrive) opts.arrive();
   }, 450);
@@ -8131,13 +8417,15 @@ function update(dt, time){
     if(p.grounded){ p.vy = 8.6; p.grounded = false; p.airJumps = 1; jumpBuffer = 0; sfx('jump'); }
     else if(p.airJumps > 0){ if(WORLDS[state.world].rules.tech){ p.vy = 8.4; p.airJumps = 0; jumpBuffer = 0; p.flameT = 0.45; sfx('boost'); } else { p.airJumps = 0; jumpBuffer = 0; toast('No tech works in ' + WORLDS[state.world].name + ': the boost is dead here', 2200); } }
   }
-  p.vy -= 24 * dt; p.y += p.vy * dt;
+  p.vy -= 24 * gravK * dt; p.y += p.vy * dt;
   for(const s of platforms) if(p.vy > 0 && s.bottom > 0.5 && Math.hypot(p.x - s.x, p.z - s.z) < s.r && prevY + 1.85 <= s.bottom + 0.01 && p.y + 1.85 > s.bottom){ p.y = s.bottom - 1.85; p.vy = 0; }
   let ground = G(p.x, p.z);
   for(const s of platforms) if(Math.hypot(p.x - s.x, p.z - s.z) < s.r + 0.2 && prevY >= s.top - 0.05) ground = Math.max(ground, s.top);
   if(p.y <= ground || (wasGrounded && p.vy <= 0 && p.y - ground < 0.45)){
     if(!wasGrounded && -p.vy > FALL_SAFE) hurt((-p.vy - FALL_SAFE) * 4.5, 'fall');
     p.y = ground; p.vy = 0; p.grounded = true; p.airJumps = 1; } else p.grounded = false;
+  // a planet's lava or acid burns (Goal 8b): through hurt(), so it only bites where the rules say danger
+  if(p.grounded && waterBody && (waterBody.kind === 'lava' || waterBody.kind === 'acid') && WORLDS[state.world].planet && p.y < waterBody.level - 0.05 && hurtCool <= 0 && playing){ hurtCool = 0.5; hurt(waterBody.kind === 'lava' ? 15 : 8, waterBody.kind); }
   }
   if(moving) p.facing = lerpAngle(p.facing, Math.atan2(mx, mz), 1 - Math.exp(-dt * 12));
   me.g.position.set(p.x, p.y, p.z); me.g.rotation.y = p.facing;
@@ -8319,6 +8607,28 @@ window.__hub = { state, p, cam, post, stats, WORLDS, scene, renderer, camera, su
     : {kind:'inst', d:e.d, h:e.h, n:e.n, near:e.hi.count, far:e.lo.count, triNear:e.hi.geometry.index.count / 3, triFar:e.lo.geometry.index.count / 3}); }, updateLods, camWorld, frame:() => frame(), get lodScale(){ return lodScale; }, set lodScale(v){ lodScale = +v || 1; updateLods(); },
   get phDown(){ return phDown; }, texInfo(){ const o = {}; for(const k in slotMats) o[k] = slotMats[k].map(en => ({kind:en.kind, map:en.mat.map && en.mat.map.image && en.mat.map.image.width, rough:!!en.mat.roughnessMap, ao:!!en.mat.aoMap, real:!!(en.mat.aoMap || (en.mat.map && en.mat.map.image && en.mat.map.image.width >= 2048))})); return o; }, idb,
   get npcs(){ return npcs.map(nn => ({name:nn.name, x:nn.x, z:nn.z, line:nn.line})); }, get colliders(){ return colliders.map(c => Object.assign({}, c)); } };
+
+/* Goal 8b test hooks: stars, planets, landing, the Explorer Log */
+function planetLanding(){ const W = WORLDS[state.world]; return {world:state.world, planet:W.planet || null, name:W.name, x:+p.x.toFixed(2), z:+p.z.toFixed(2), y:+p.y.toFixed(2), ground:+G(p.x, p.z).toFixed(2), land:+hf(p.x, p.z).toFixed(2),
+  water:waterBody ? {kind:waterBody.kind, level:waterBody.level} : null, dry:!waterBody || hf(p.x, p.z) > waterBody.level + 0.3, gravity:gravK, chunks:endless ? endless.chunks.size : 0}; }
+Object.assign(window.__hub, {
+  stars:n => sectorStars(n).map(s => ({id:s.id, sector:s.sector, x:s.x, y:s.y, z:s.z, cls:s.cls, charted:!!explorer.planets[s.id], name:explorer.planets[s.id] ? explorer.planets[s.id].name : null})),
+  planetSpec:id => { const S = planetSpec(id); if(!S) return null; const o = Object.assign({}, S); delete o.rec; return o; },
+  landOn(id, o){ o = o || {}; const key = planetWorld(id); if(!key || traveling) return Promise.resolve(null);
+    if(o.pay){ const cost = fare(state.world, key); if(state.credits < cost) return Promise.resolve({ok:false, need:cost}); state.credits -= cost; persist(); refreshHud(); }
+    return new Promise(res => travel(key, {arrive(){ res(planetLanding()); }})); },
+  planetSum(){ const W = WORLDS[state.world]; if(!W.planet) return null; const S = planetSpec(W.planet);
+    let h = 2166136261; const txt = [S.text, S.gravity, S.relief, S.flora, S.proposed, S.seed].join('|'); for(let i = 0; i < txt.length; i++) h = Math.imul(h ^ txt.charCodeAt(i), 16777619) >>> 0;
+    const land = []; for(let j = -10; j <= 10; j++) for(let i = -10; i <= 10; i++) land.push(hf(i * 40, j * 40));
+    const cs = coreSum(); return {planet:W.planet, name:W.name, spec:h.toString(16), land:hashNums(2166136261, land).toString(16), world:cs.world, terrain:cs.terrain, landmarks:Object.values((endless && endless.dreamsPlaced) || {}).map(d => d.name).sort()}; },
+  renamePlanet, planetWorld, sectorStars:n => sectorStars(n).length
+});
+// getters must be defined, not copied (Object.assign would read them once, at load)
+Object.defineProperties(window.__hub, {
+  landing:{get:() => planetLanding()},
+  gravK:{get:() => gravK},
+  explorerLog:{get:() => Object.values(explorer.planets).map(e => ({id:e.id, name:e.name, proposed:e.proposed, sector:e.sector, rules:e.rules, gravity:e.gravity, first:e.first, firstDate:new Date(e.first).toISOString().slice(0, 10), walked:Math.round(e.walked || 0), landmarks:(e.landmarks || []).slice(), visits:e.visits}))}
+});
 })();
 </script>
 </body>
