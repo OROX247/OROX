@@ -87,7 +87,8 @@ The owner's rule: the avatar can be whatever the player wants. They type a descr
   material: "cloth" | "matte" | "plate" | "chrome" | "glass" | "fur" | "jelly" | "stone" | "neon",
   pattern: "none" | "stripes" | "plates" | "circuits" | "camo" | "checks",
   colours: { main, second, trim, glow } (hex), eyes: { style: "visor" | "dots" | "wide" | "slits" | "one", glow: hex },
-  face_texture: <optional data-URL, from the AI image model>,
+  ear_shape: "pointed" | "round" | "long" | "floppy" | "tufted" (beasts; set by species),
+  face_texture: <optional; in the browser game an "idb:avatar:<id>" reference to the AI image model's face, cached in IndexedDB>,
   voice_line: <one line the avatar says on the Ledger Board, optional> }
 ```
 
