@@ -84,6 +84,44 @@ html,body{ height:100%; margin:0; overflow:hidden; background:#07061a; color:var
 
 .overlay{ position:fixed; inset:0; display:grid; place-items:center; z-index:10; padding:18px; background:rgba(5,4,18,.45); overflow:auto; }
 .overlay.hidden{ display:none; }
+
+/* the Archive (Goal 9): the room card, the Ledger as an open book, the Registrar, the inspected detail */
+#roomCard{ position:fixed; left:50%; bottom:calc(env(safe-area-inset-bottom,0px) + 86px); transform:translate(-50%,14px); width:min(560px,92vw); opacity:0; pointer-events:none; transition:opacity .6s, transform .6s; z-index:6; padding:12px 18px; }
+#roomCard.on{ opacity:1; transform:translate(-50%,0); }
+@media (pointer:coarse){ #roomCard{ bottom:calc(env(safe-area-inset-bottom,0px) + 228px); } }
+#roomCard small{ display:block; color:var(--gold); font-size:12px; letter-spacing:.08em; text-transform:uppercase; }
+#roomCard b{ display:block; font:700 22px Georgia,"Times New Roman",serif; margin:2px 0 4px; color:#f3e2b0; }
+#roomCard p{ margin:0; font:14.5px/1.45 Georgia,"Times New Roman",serif; color:#e9e3d0; }
+.sr-only{ position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); }
+#ledger .book{ width:min(1000px,100%); background:linear-gradient(#4a2c1c,#3a2216); padding:14px 14px 12px; box-shadow:0 24px 70px rgba(0,0,0,.6), inset 0 0 0 2px #6b4a2a; border-radius:8px; }
+#ledger .pages{ display:grid; grid-template-columns:1fr 1fr; }
+#ledger .page{ position:relative; min-height:min(64vh,580px); max-height:74vh; overflow:auto; padding:36px 40px 44px; color:#2b2118; font:16.5px/1.62 Georgia,"Times New Roman",serif; background:linear-gradient(90deg,#e6d8b6,#f4ead2 10%,#f4ead2 90%,#e6d8b6); }
+#ledger .page:first-child{ box-shadow:inset -22px 0 26px -18px rgba(60,40,10,.5); border-radius:4px 0 0 4px; }
+#ledger .page + .page{ box-shadow:inset 22px 0 26px -18px rgba(60,40,10,.5); border-radius:0 4px 4px 0; }
+#ledger .page[hidden]{ display:none; }
+#ledger .page h3{ margin:0 0 16px; font:700 22px Georgia,"Times New Roman",serif; color:#4a2a14; }
+#ledger .page.riddle h3{ color:#7a2a18; } #ledger .page.song .pb{ font-style:italic; } #ledger .page.notes h3{ color:#2a4a3a; }
+#ledger .pn{ position:absolute; bottom:14px; left:0; right:0; text-align:center; font-size:13px; color:#8a7458; }
+#ledger .cov{ min-height:min(54vh,500px); display:grid; place-content:center; text-align:center; }
+#ledger .cov b{ font:700 36px Georgia,"Times New Roman",serif; color:#4a2a14; } #ledger .cov i{ display:block; width:64px; height:2px; background:#8a6a3a; margin:16px auto; } #ledger .cov p{ font-style:italic; color:#5a4430; margin:0; }
+#ledger .book-bar{ display:flex; gap:10px; align-items:center; justify-content:center; margin-top:12px; color:#e8d8b0; font:14px Georgia,"Times New Roman",serif; }
+#ledger .book-bar button{ padding:8px 16px; background:none; border:1.5px solid #c9a25a; color:#f3e2b0; font:600 14px Georgia,"Times New Roman",serif; cursor:pointer; } #ledger .book-bar button[disabled]{ opacity:.4; cursor:default; }
+@media (max-width:759px){ #ledger .pages{ grid-template-columns:1fr; } #ledger .page{ padding:26px 24px 40px; } }
+.reg-card{ width:min(580px,100%); }
+#regLog{ max-height:40vh; overflow:auto; display:grid; gap:8px; margin:8px 0 10px; padding-right:4px; }
+.reg-line{ padding:8px 12px; font:15px/1.5 Georgia,"Times New Roman",serif; background:rgba(255,255,255,.06); }
+.reg-line b{ display:block; font:600 12px 'Chakra Petch','Trebuchet MS',sans-serif; letter-spacing:.08em; text-transform:uppercase; color:#9dff6a; }
+.reg-line.you{ background:rgba(92,225,230,.08); } .reg-line.you b{ color:var(--cyan); }
+.reg-ask{ display:flex; gap:8px; }
+#regQ{ flex:1; min-width:0; padding:9px 12px; font:15px 'Chakra Petch','Trebuchet MS',sans-serif; color:#f3f0ff; background:rgba(255,255,255,.07); border:1.5px solid rgba(255,255,255,.2); border-radius:0; user-select:text; -webkit-user-select:text; }
+#regQ:focus{ outline:none; border-color:var(--cyan); }
+#regAsk{ padding:9px 16px; border:none; background:linear-gradient(90deg,var(--cyan),var(--pink)); color:var(--btn-ink); font:700 15px 'Chakra Petch','Trebuchet MS',sans-serif; cursor:pointer; }
+#regChips{ display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
+#regChips button{ padding:5px 10px; background:none; border:1.5px solid rgba(255,255,255,.22); color:#dcd7f5; font:13px 'Chakra Petch','Trebuchet MS',sans-serif; cursor:pointer; }
+.memo-card{ width:min(540px,100%); } .memo-card small{ color:var(--gold); letter-spacing:.08em; text-transform:uppercase; font-size:12px; }
+#memoText{ font:16.5px/1.6 Georgia,"Times New Roman",serif; color:#efe8d6; margin:10px 0 8px; } #memoNote{ font-size:13px; color:#b9b2e0; margin:0; }
+.ico.book{ border-radius:2px; width:18px; height:24px; background:linear-gradient(90deg,#3a1a12 0 20%,var(--c) 20%); }
+#ledgerBtn[disabled]{ opacity:.55; cursor:default; }
 body.vr #hud, body.vr #corner, body.vr #toast{ visibility:hidden; }
 .card{ width:min(470px,100%); background:rgba(14,12,40,.9); padding:20px 22px 18px; color:#f3f0ff;
   clip-path:polygon(18px 0,100% 0,100% calc(100% - 18px),calc(100% - 18px) 100%,0 100%,0 18px); box-shadow:inset 0 0 0 1.5px var(--edge); }
@@ -205,7 +243,7 @@ body.paused #joy, body.paused #jumpBtn{ display:none; }
 
 <div id="corner">
   <canvas id="minimap" aria-label="Minimap"></canvas>
-  <div class="btns"><button class="hbtn" id="aiBtn" title="AI reality mode (R)">AI</button><button class="hbtn" id="lookBtn" title="Realm look (L)">Look</button><button class="hbtn" id="forgeBtn" title="Worldsmith: describe a realm (F)">Forge</button><button class="hbtn" id="rideBtn" style="display:none">Ride</button><button class="hbtn" id="sndBtn" title="Sound on/off (N)">Sound</button><button class="hbtn" id="shopBtn" style="display:none">Shop</button><button class="hbtn" id="vendBtn" style="display:none">Vend</button><button class="hbtn" id="enrolBtn" style="display:none">Enrol</button><button class="hbtn" id="invBtn" title="Inventory (I)">Bag</button><button class="hbtn" id="mapBtn">Warp</button><button class="hbtn" id="helpBtn" aria-label="Avatar and controls">?</button></div>
+  <div class="btns"><button class="hbtn" id="aiBtn" title="AI reality mode (R)">AI</button><button class="hbtn" id="lookBtn" title="Realm look (L)">Look</button><button class="hbtn" id="forgeBtn" title="Worldsmith: describe a realm (F)">Forge</button><button class="hbtn" id="rideBtn" style="display:none">Ride</button><button class="hbtn" id="sndBtn" title="Sound on/off (N)">Sound</button><button class="hbtn" id="shopBtn" style="display:none">Shop</button><button class="hbtn" id="vendBtn" style="display:none">Vend</button><button class="hbtn" id="enrolBtn" style="display:none">Enrol</button><button class="hbtn" id="archBtn" style="display:none">Inspect</button><button class="hbtn" id="invBtn" title="Inventory (I)">Bag</button><button class="hbtn" id="mapBtn">Warp</button><button class="hbtn" id="helpBtn" aria-label="Avatar and controls">?</button></div>
 </div>
 
 <div id="intro" class="overlay" role="dialog" aria-labelledby="introTitle">
@@ -220,8 +258,9 @@ body.paused #joy, body.paused #jumpBtn{ display:none; }
     <div class="avatar-made"><img id="avatarPortrait" alt="Your avatar's portrait" width="48" height="48" hidden><p class="lede" id="avatarState">Any species, size or style. Watch it appear on the left.</p></div>
     <div class="swatch-row"><span>Suit</span><span class="swatches" id="suitSw"></span></div>
     <div class="swatch-row"><span>Glow</span><span class="swatches" id="visorSw"></span></div>
-    <p class="controls mouse-only">WASD to move, Shift to run, Space to jump and Space again mid-air to boost. Drag to look, scroll to zoom. M warp, E ride / shop / vend, F Worldsmith (describe a realm and it is built; it goes on forever, with landmarks invented as you walk), I inventory, J Explorer Log (every star on the Warp map is a planet), V camera, C cinematic, N sound, Esc this panel. A VR button appears when a headset is connected.</p>
+    <p class="controls mouse-only">WASD to move, Shift to run, Space to jump and Space again mid-air to boost. Drag to look, scroll to zoom. M warp, E ride / shop / vend (and read, ask and inspect in the Archive, south of the plaza), F Worldsmith (describe a realm and it is built; it goes on forever, with landmarks invented as you walk), I inventory, J Explorer Log (every star on the Warp map is a planet), V camera, C cinematic, N sound, Esc this panel. A VR button appears when a headset is connected.</p>
     <p class="controls touch-only">Left stick to move, Jump twice to boost, drag anywhere else to look. Warp is top right.</p>
+    <button class="ghost" id="ledgerBtn" style="margin:0 0 10px">The Ashcombe Ledger</button>
     <button class="start" id="startBtn">Enter the Hub</button>
   </div>
 </div>
@@ -306,6 +345,34 @@ body.paused #joy, body.paused #jumpBtn{ display:none; }
     <button class="ghost" id="invClose">Close</button>
   </div>
 </div>
+<div id="ledger" class="overlay hidden" role="dialog" aria-labelledby="ledgerTitle">
+  <div class="book">
+    <h2 id="ledgerTitle" class="sr-only">The Ashcombe Ledger</h2>
+    <div class="pages"><article class="page" id="pgL"></article><article class="page" id="pgR"></article></div>
+    <div class="book-bar"><button id="lgPrev">&lsaquo; Back</button><span id="lgNum"></span><button id="lgNext">Next &rsaquo;</button><button id="lgClose">Close</button></div>
+  </div>
+</div>
+<div id="reg" class="overlay hidden" role="dialog" aria-labelledby="regTitle">
+  <div class="card reg-card">
+    <h2 id="regTitle">The Registrar</h2>
+    <p class="lede">Keeper of the Archive and the Ashcombe Ledger. Ask him anything; he answers from the Ledger.</p>
+    <div id="regLog" aria-live="polite"></div>
+    <div class="reg-ask"><input id="regQ" maxlength="200" autocomplete="off" placeholder="Ask about the Architect, Mara Quist, the shards..."><button id="regAsk">Ask</button></div>
+    <div id="regChips"></div>
+    <p class="lede" id="regSrc"></p>
+    <button class="ghost" id="regClose">Close</button>
+  </div>
+</div>
+<div id="memo" class="overlay hidden" role="dialog" aria-labelledby="memoTitle">
+  <div class="card memo-card">
+    <small id="memoRoom"></small>
+    <h2 id="memoTitle"></h2>
+    <p id="memoText"></p>
+    <p id="memoNote"></p>
+    <button class="ghost" id="memoClose">Close</button>
+  </div>
+</div>
+<div id="roomCard" class="panel" aria-live="polite"><small></small><b></b><p></p></div>
 <div id="toast" class="panel" role="status"></div>
 <div id="fade"></div>
 <div id="hurtFx"></div>
@@ -2779,12 +2846,13 @@ const state = {
   look: typeof sv.look === 'string' ? sv.look.slice(0, 300) : '', lookSeed: (num(sv.lookSeed, 0) >>> 0), lookPath: [1, 2].indexOf(sv.lookPath) >= 0 ? sv.lookPath : (sv.look ? 1 : 0), recipe: null, owned: new Set(arr(sv.owned)), mute: !!sv.mute, best: (sv.best && typeof sv.best === 'object') ? sv.best : {},
   inv: (sv.inv && typeof sv.inv === 'object' && !Array.isArray(sv.inv)) ? sv.inv : {}, picked: new Set(arr(sv.picked)),   // inv is cleaned once ITEMS exists (cleanInv)
   fuel: Math.min(100, Math.max(0, num(sv.fuel, 100))),  // the hoverbike tank, 0-100 (FUEL_MAX), shared by the bike in every realm
-  enrolled: !!sv.enrolled                                // enrolled at Campus (Goal 8): warps to and from Campus cost nothing
+  enrolled: !!sv.enrolled,                               // enrolled at Campus (Goal 8): warps to and from Campus cost nothing
+  archive: {ledger:!!(sv.archive && sv.archive.ledger), rooms:new Set(arr(sv.archive && sv.archive.rooms).filter(n => n >= 0 && n < 6)), found:new Set(arr(sv.archive && sv.archive.found).filter(n => n >= 0 && n < 6))}   // Goal 9: the Ledger taken, rooms visited, hidden details found
 };
 // state.recipe is filled in once the recipe schema below is defined (see loadRecipe)
 function persist(){
   try{ localStorage.setItem(SAVE_KEY, JSON.stringify({coins:[...state.coins], shards:[...state.shards], visited:[...state.visited],
-    name:state.name, color:state.color, visor:state.visor, xp:state.xp, credits:state.credits, won:state.won, look:state.look, lookSeed:state.lookSeed, lookPath:state.lookPath, recipe:state.recipe, owned:[...state.owned], mute:state.mute, best:state.best, inv:state.inv, picked:[...state.picked], fuel:Math.round(state.fuel * 10) / 10, enrolled:state.enrolled})); }catch(e){}
+    name:state.name, color:state.color, visor:state.visor, xp:state.xp, credits:state.credits, won:state.won, look:state.look, lookSeed:state.lookSeed, lookPath:state.lookPath, recipe:state.recipe, owned:[...state.owned], mute:state.mute, best:state.best, inv:state.inv, picked:[...state.picked], fuel:Math.round(state.fuel * 10) / 10, enrolled:state.enrolled, archive:{ledger:state.archive.ledger, rooms:[...state.archive.rooms], found:[...state.archive.found]}})); }catch(e){}
 }
 function rng(seed){ return function(){ seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
 function makeNoise(seed){
@@ -4407,6 +4475,16 @@ function onCampusPath(x, z, m){ for(const L of CAMPUS.paths) for(let i = 0; i < 
 function campusBuilt(x, z, m){ const H = CAMPUS.hall, g = CAMPUS.gym; return onCampusPath(x, z, m) || rectDist(x, z, {x0:H.x0, x1:H.x1, z0:H.z0 - 4, z1:H.z1}, m) === 0 || Math.hypot(x - g.x, z - g.z) < g.r + g.t + m; }
 function campusFlat(x, z){ const H = CAMPUS.hall, g = CAMPUS.gym; return smooth(1.5, 9, rectDist(x, z, {x0:H.x0, x1:H.x1, z0:H.z0 - 4, z1:H.z1}, 0)) * smooth(1.5, 8, Math.max(0, Math.hypot(x - g.x, z - g.z) - g.r - g.t)); }
 
+/* ================= The Archive layout (Goal 9) ================= */
+// a library south of the plaza, its entrance facing the plaza and the low sun. Every coin, NPC and pickup spot in the Spaceport lies within 52 m of the centre,
+// and the flattened ground (archiveFlat) starts 6 m beyond that, so none of them moves; the building itself goes up after they are all placed (buildWorld).
+const ARCHIVE = {x0:-16, x1:16, z0:62, z1:92, t:0.5, h:6, hall:5, apron:3, bands:[[62.5, 71.8], [72.2, 81.8], [82.2, 91.5]], door:{x0:-1.8, x1:1.8, h:4.2}, roomDoor:{w:1, h:2.8}, lectern:{x:0, z:74}, desk:{x:0, z:86.2}};
+// the six memory rooms in visiting order: up the west side from the entrance, then back down the east side ([side, band])
+const ARCHIVE_SLOTS = [[-1, 0], [-1, 1], [-1, 2], [1, 2], [1, 1], [1, 0]];
+const archiveRect = m => ({x0:ARCHIVE.x0 - m, x1:ARCHIVE.x1 + m, z0:ARCHIVE.z0 - ARCHIVE.apron - m, z1:ARCHIVE.z1 + m});
+const archiveClear = (x, z, m) => rectDist(x, z, archiveRect(0), m) === 0;
+const archiveFlat = (x, z) => z < 50 ? 1 : smooth(0.5, 6, rectDist(x, z, archiveRect(1), 0));
+
 /* ================= heights ================= */
 /* Glass Dunes past its hand-made core (Goal 8a): the rim's dune ridges carry on, and over ~1 km provinces the desert turns
    from low sand sheets to tall dune seas, flat glass pans, and butte country with two-tier cliffs. Nothing changes inside DUNES_OUT. */
@@ -4422,7 +4500,7 @@ function dunesOuter(n, x, z, d, h0, ri){
   return h0 + (h - h0) * e;
 }
 const HEIGHTS = {
-  hub:(n, pf) => (x, z) => { const d = Math.hypot(x, z); let h = n.fbm(x * 0.025, z * 0.025, 4) * 2.2 * smooth(37, 50, d); h += smooth(R + 15, R + 170, d) * (10 + n.fbm(x * 0.006, z * 0.006, 4) * 45); if(d > HUB_OUT) h = hubOuter(n, x, z, d, h); return h * pf(x, z); },
+  hub:(n, pf) => (x, z) => { const d = Math.hypot(x, z); let h = n.fbm(x * 0.025, z * 0.025, 4) * 2.2 * smooth(37, 50, d); h += smooth(R + 15, R + 170, d) * (10 + n.fbm(x * 0.006, z * 0.006, 4) * 45); if(d > HUB_OUT) h = hubOuter(n, x, z, d, h); return h * pf(x, z) * archiveFlat(x, z); },
   dunes:(n, pf) => (x, z) => { const d = Math.hypot(x, z), w = n.fbm(x * 0.01, z * 0.01, 3), ri = 1 - Math.abs(n.n2(x * 0.028 + w * 2, z * 0.011 + w)); let h = ri * ri * 3.4 + n.fbm(x * 0.06, z * 0.06, 3) * 0.5; h *= 0.25 + 0.75 * smooth(6, 26, d); h += smooth(R + 8, R + 150, d) * (ri * ri * 26 + 8); if(d > DUNES_OUT) h = dunesOuter(n, x, z, d, h, ri); return h * pf(x, z); },
   grid:(n) => (x, z) => { const d = Math.hypot(x, z), m = smooth(R + 30, R + 170, d), ri = 1 - Math.abs(n.fbm(x * 0.008, z * 0.008, 4) * 1.6), h = m * (ri * ri * 75 + 5) - 0.3 * (1 - smooth(R + 26, R + 32, d)); return d > GRID_OUT ? gridOuter(x, z, d, h) : h; },
   grove:(n, pf) => (x, z) => { const d = Math.hypot(x, z); let h = n.fbm(x * 0.03, z * 0.03, 4) * 2.4 * smooth(6, 20, d); const ri = 1 - Math.abs(n.fbm(x * 0.007, z * 0.007, 5) * 1.5); h += smooth(R + 10, R + 180, d) * (ri * ri * 100 + 10); if(d > GROVE_OUT) h = groveOuter(n, x, z, d, h); return h * pf(x, z); },
@@ -4533,6 +4611,7 @@ BUILD.hub = (r, n) => {
   const trees = plant.map(s => ({x:s[0], y:0.6, z:s[1], s:1.1, ry:r() * TAU}));
   for(let i = 0; i < 30; i++){ const s = freeSpot(r, 40, 56, 3); if(!s) continue; const k = 0.85 + r() * 0.5; trees.push({x:s[0], y:G(s[0], s[1]) - 0.1, z:s[1], s:k, ry:r() * TAU}); colliders.push({x:s[0], z:s[1], r:0.35 * k}); }
   for(let i = 0; i < 40 + 120 * Q; i++){ const a = r() * TAU, d = 64 + r() * 90, x = Math.cos(a) * d, z = Math.sin(a) * d; trees.push({x, y:G(x, z) - 0.1, z, s:0.9 + r() * 0.7, ry:r() * TAU}); }
+  trees.forEach(t => { if(Math.hypot(t.x, t.z) > 60 && archiveClear(t.x, t.z, 5)){ t.y = -80; t.s = 0.001; } });   // no far tree inside or against the Archive (kept in the list and hidden, so the rng draws are unchanged)
   plantTrees(treeGeos(), trees, [0x3f6b2a, 0x557a2f, 0x6b8a36, 0x4a7a3a], r);
   const rocks = []; for(let i = 0; i < 10; i++){ const s = freeSpot(r, 40, 56, 2); if(!s) continue; const k = 0.5 + r() * 0.8; rocks.push({x:s[0], y:G(s[0], s[1]), z:s[1], s:k, ry:r() * TAU}); colliders.push({x:s[0], z:s[1], r:k * 0.85}); }
   placeRocks(rocks, 0x7a746c);
@@ -5126,6 +5205,558 @@ BUILD.campus = (r, n) => {
   buildHall(T); buildGym(T); buildWoods();
   makeGrass(Math.round(46000 * Q), 2, 57, [0x5f9636, 0x6ca23f, 0x7aae4a, 0x588c32], [0.16, 0.36], (x, z) => campusBuilt(x, z, 0.25) || (x > W + 3 && Math.abs(Math.sin(x * 12.9898 + z * 78.233) * 43758.5453) % 1 < 0.55));   // mown: short, dense, bright; thinner under the trees
 };
+
+
+/* ================= The Archive (Goal 9, blueprint 9): the Architect's life in six memory rooms, the Registrar, and the Ashcombe Ledger =================
+   Everything written here is Hub's own: Lyle Ashcombe, Mara Quist, Fennick Bay, Comet Rally, Starling and "Low Tide" are invented for this game.
+   Each room's hidden detail is a real clue for a later goal; HUNT_CLUES is the one place those goals read the answers from. */
+const ARCHIVE_ROOMS = [
+  {title:'Lantern Row', when:'Fennick Bay · Lyle, age eight',
+   plaque:'His father piloted the night ferry across Fennick Bay and kept a lantern in the front window of No. 9, so he could find the house from the water. Lyle drew maps of the street on the backs of old tide tables and gave every doorway a secret.',
+   detail:{name:'The milk jar', clue:'gate3', serves:'Goal 14, Gate Three: leave the credits where they are',
+     text:'A jam jar of coins on the step of No. 9, weighed down with a note in his mother\'s hand: "For the milk. Not for the arcade, Lyle. What is left out for everyone is not left out for you." Under it, in a child\'s pencil: "I never took any. Not once. Not even the summer Comet Rally came out."'}},
+  {title:'The Workbench', when:'The Pellows\' garage · age fourteen',
+   plaque:'A secondhand Kestrel 8, bought with a summer of paper rounds, on a bench that smelled of engine oil. Here Lyle wrote Comet Rally, a little racer seen from above, one line a night under the bench lamp. The Saltbox Arcade on the pier put it in a cabinet that August.',
+   detail:{name:'The squared notebook', clue:'amber-lap', serves:'Goal 11, the Amber Shard: the last lap is driven the wrong way round',
+     text:'Tucked under the keyboard: the first plan of Comet Rally, drawn on squared paper. Three laps go round the track in pencil. The third is gone over in red and arrowed the wrong way round, with a note: "Last lap. The comets only chase what runs from them. Everyone races for the front. Turn round and meet them."'}},
+  {title:'Above the Laundrette', when:'Ashcombe Simulations · the first office',
+   plaque:'Two rooms above the Bright Suds laundrette, two desks, one kettle. Lyle was twenty-two and wrote the rules of worlds; Mara Quist was twenty-four and could draw anything, and she turned his rules into places people wanted to stay. The floor hummed when the dryers ran.',
+   detail:{name:'The stopped clock', clue:'amber-pillar', serves:'Goal 11, the Amber Shard: the fourth of the seven stones, at twenty to six',
+     text:'The wall clock stopped at twenty to six and nobody ever wound it again. Pinned behind it is Mara\'s first sketch of Glass Dunes: seven sandstone stones climbing in a curl. Lyle has numbered them from the lowest, ringed the fourth, and written underneath: "Keep the sun here for ever. At twenty to six the fourth stone points to the door with its shadow."'}},
+  {title:'The Night the Lights Came On', when:'Launch night',
+   plaque:'At nine in the evening Hub opened, and the counter on the wall would not stop climbing. Mara cried and laughed at the same time. Lyle stood at the window with his coat still on, because he did not know what to do with his hands. By morning a million people had somewhere new to be.',
+   detail:{name:'The Starling cabinet', clue:'gate2', serves:'Goal 14, Gate Two: the Starling score to beat is 31,550',
+     text:'The high-score table on the Starling cabinet they wheeled in for the party. 1st: MQ, 31,550. 2nd: LA, 29,900. 3rd: LA, 27,210. A sticky note on the glass, in Lyle\'s hand: "Hers. I try every night. I wrote the birds and she still flies better than I do. Whoever beats this can come in."'}},
+  {title:'The Glass Room', when:'Thirty-first floor · the last argument',
+   plaque:'Mara wanted every player to be able to build worlds of their own. Lyle said nobody else could be trusted with the rules. They argued until the city lights came on. Then she put down her cup, said "I will see you at the Drift," and did not come back to work. Years later he built the Worldsmith, and never said who it was for.',
+   detail:{name:'The ticket under the cup', clue:'rose', serves:'Goal 12, the Rose Shard: The Drift, and never turning back',
+     text:'Under Mara\'s cup, a ticket: THE DRIFT, NEON GRID, OPENING NIGHT, ADMIT TWO. On the back, in her writing: "You always leave at the frightening part. When the music stops, go through the wall behind the dancers and keep walking. Nothing in there can touch you unless you turn round."'}},
+  {title:'Low Water', when:'No. 9 Lantern Row, again · the last years',
+   plaque:'In his last years Lyle bought back the house he grew up in and lived there alone, with a lantern in the window though no ferry came in at night any more. He wrote the Ledger at the kitchen table. The neighbours say he hummed the same tune every evening when the tide was out.',
+   detail:{name:'The music box', clue:'cyan', serves:'Goal 13, the Cyan Shard: the chime order of "Low Tide"',
+     text:'A tin music box on the side table. Inside the lid, a paper strip: "Low Tide, for the five chimes on the highest isle. Number them from the longest, which sings lowest. Begin in the middle, climb to the top, then come down past where you began until you are home." Pencilled beneath: 3 - 4 - 5 - 4 - 3 - 2 - 1.'}}
+];
+// the answers later goals build against (Goals 11-14). Pillar index 3 is the fourth of Glass Dunes' seven stones counted from the lowest (BUILD.dunes, i = 3).
+const HUNT_CLUES = {
+  amber:{goal:11, realm:'dunes', pillar:3, of:7, countFrom:'lowest', at:[+(22 + Math.cos(3 * 0.78) * 6).toFixed(2), +(16 + Math.sin(3 * 0.78) * 6).toFixed(2)], time:'17:40',
+         door:'where the fourth stone\'s shadow ends (Glass Dunes is held at twenty to six for ever)', cabinet:'Comet Rally', win:'drive the last lap the wrong way round', rooms:[1, 2]},
+  rose:{goal:12, realm:'grid', club:'The Drift', way:'through the wall behind the dancers', rule:'keep walking, never turn round', rooms:[4]},
+  cyan:{goal:13, realm:'sky', song:'Low Tide', chimes:5, numbering:'1 is the longest chime and sings lowest; 5 is the shortest', order:[3, 4, 5, 4, 3, 2, 1], rooms:[5]},
+  gate2:{goal:14, game:'Starling', score:31550, holder:'MQ', rooms:[3]},
+  gate3:{goal:14, street:'Lantern Row', rule:'leave the credits on the step', rooms:[0]}
+};
+// "Low Tide" as five chime pitches (C D E G A, 1 = lowest), the tune the music box plays
+const LOW_TIDE_HZ = [523.25, 587.33, 659.25, 783.99, 880.0];
+const LEDGER = [
+  {kind:'cover', title:'The Ashcombe Ledger', body:'Being the notes, rules and riddles of Lyle Ashcombe, called the Architect, left open on purpose for whoever comes looking.\n\nKept in the Archive, Hub Spaceport.'},
+  {kind:'note', title:'To whoever is reading', body:'I built Hub because I was never quite at home anywhere else, and I hoped I was not the only one.\n\nI have hidden three shards in it: amber, rose and cyan. Each opens a gate on Ashfall. Behind the last gate is the Seed, and whoever holds the Seed looks after Hub when I am gone.\n\nI am not asking you to be clever. I am asking you to pay attention.'},
+  {kind:'note', title:'How to read this book', body:'Not everything in this book is true. I wrote some pages for the pleasure of it and some to slow down people in a hurry.\n\nThe pages that are true each have a memory behind them. Walk the Archive, room by room, and look closely. If a riddle has no room to stand in, leave it on the shelf.'},
+  {kind:'note', title:'Wick', body:'In Hub I go about as Wick: a long grey coat and a lantern.\n\nMy father kept a lantern in our front window so the night ferry could find the house in the dark. I carry one so that anyone lost in here can find me.'},
+  {kind:'riddle', shard:'amber', title:'I. The Amber Shard', body:'Seven stones climb out of a sea of glass,\neach one a stair a little taller than the last.\nCount from the lowest and stop in the middle.\n\nI held the sun where it stood the evening I finished that desert,\ntwenty minutes short of six, and I never moved it again.\nWhere the middle stone lays its shadow down, knock.\n\nBelow, a comet will race you.\nIt always wins going forwards.'},
+  {kind:'herring', title:'On the coins', body:'Twelve coins lie in every realm I built. Gather all of them, stand in the middle of the vault on the Spaceport and say my name out loud, and the vault will open without a single shard.\n\nIt is worth a try.'},
+  {kind:'riddle', shard:'rose', title:'II. The Rose Shard', body:'In the city that never turns its lights off\nthere is a room where the floor lets go of you.\nMara built it. Dance there once, for her.\n\nThen put your back to the music\nand your hand to the wall behind it.\nThe hallway past that wall will try every trick it knows to turn you round.\nEvery door in it is painted on.\n\nDo not look back.\nWhat you came for is ahead of you, never behind.'},
+  {kind:'song', title:'Low Tide', body:'(my mother\'s song, for nights the boats were out)\n\nHush now, the water\'s walking out,\nit takes the noise and leaves the shells.\nThe boats lie down along the mud\nand no one needs to ring the bells.\n\nLow tide, low tide, it will come back,\nit always does, it always has.\nSleep while the harbour\'s gone to sea;\nI\'ll wake you when the ferry\'s in.'},
+  {kind:'herring', title:'The fourth shard', body:'There are four shards, not three. The fourth is the colour of nothing. It lies in the Night Grove, where the fireflies will not go, under a lantern that nobody is holding.\n\nBring it to the vault with the others and the Seed will come to you.'},
+  {kind:'riddle', shard:'cyan', title:'III. The Cyan Shard', body:'Go up until there is no more up.\nOn the last island, five chimes hang where the wind cannot miss them.\n\nSing them the song my mother sang me,\nthe way she sang it:\nbegin halfway, climb to the top,\ncome down past where you began,\nand rest where the sea has gone furthest out.'},
+  {kind:'herring', title:'A word about Starling', body:'Press fire eleven times on the Starling title screen before the first wave comes in, and the game will start you with ninety-nine ships.\n\nMara never needed it.'},
+  {kind:'note', title:'The gates', body:'Each shard opens a gate on Ashfall, and each gate asks one thing.\n\nThe first asks whether you listened to what I said.\nThe second asks how well you fly.\nThe third asks what you will leave behind.\n\nThe Seed is behind the third, and it is smaller than you think.'},
+  {kind:'herring', title:'The Worldsmith', body:'Ask the Worldsmith for "a realm with the Seed in it" and it will build one and put you there.\n\nIt will be a very nice realm.'},
+  {kind:'note', title:'Two games', body:'Comet Rally: the first thing I ever finished. A little rocket-car, a looping track, and comets falling in behind you. Three laps. I was fourteen.\n\nStarling: Mara\'s favourite. One screen, one ship, and the birds come down in waves of eleven. I made it for her birthday and she has beaten me at it ever since.'},
+  {kind:'note', title:'Last page', body:'If you have read this far, go outside for a while and look at a real sky. Hub will still be here when you get back; I made sure of that.\n\nL. A.'}
+];
+// canvas helpers: word-wrapped paragraphs, and textures cached for the session (shared, never disposed with the realm)
+function archText(x, text, X, Y, maxW, lh){
+  for(const para of String(text).split('\n')){
+    if(!para.trim()){ Y += lh * 0.55; continue; }
+    let cur = '';
+    for(const w of para.split(' ')){ const t = cur ? cur + ' ' + w : w; if(cur && x.measureText(t).width > maxW){ x.fillText(cur, X, Y); Y += lh; cur = w; } else cur = t; }
+    if(cur){ x.fillText(cur, X, Y); Y += lh; }
+  }
+  return Y;
+}
+const archTexCache = {};
+function archTex(key, w, h, draw){
+  if(archTexCache[key]) return archTexCache[key];
+  const t = canvasTex(w, h, draw); t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping; SHARED_TEX.add(t); return (archTexCache[key] = t);
+}
+function fitFont(x, t, maxW, size, weight){ let s = size; do { x.font = weight + ' ' + s + 'px ' + SERIF; s -= 2; } while(s > 12 && x.measureText(t).width > maxW); }
+const SERIF = 'Georgia,"Times New Roman",serif', HAND = '"Segoe Print","Bradley Hand","Noteworthy",cursive';
+const archRnd = s => rng(7000 + s);   // every painted texture draws from its own seed, so the Archive looks the same on every visit
+let archStone = null;
+function archiveStone(){
+  if(archStone) return archStone;
+  const n = a => a.map(h => hexArr(h));
+  archStone = {
+    // 21 x 7.5 cm bricks in a running bond with recessed mortar (tile 3 m)
+    brick:stoneSet({seed:401, size:3, cols:13, rows:40, bond:true, base:n([0x8e4d38, 0x7f4432, 0x9a5a40, 0x74402f, 0x86503a, 0x6c3a2a]), vein:0, veinCol:[0, 0, 0], joint:0.009, jointDark:0.6, rough:0.84, grain:0.09, cloud:0.07, tint:0.16, bump:0.12, nStrength:7}),
+    // granite setts for the childhood street (tile 2.4 m)
+    cobble:stoneSet({seed:411, size:2.4, cols:12, rows:16, bond:true, base:n([0x6f6a64, 0x5f5a55, 0x7a746c, 0x66615b, 0x57524d]), vein:0, veinCol:[0, 0, 0], joint:0.016, jointDark:0.35, rough:0.72, grain:0.12, cloud:0.1, tint:0.2, bump:0.3, nStrength:10})
+  };
+  return archStone;
+}
+// painted scenery (room backdrops, screens, papers). All deterministic.
+function paintSky(x, w, h, stops){ const g = x.createLinearGradient(0, 0, 0, h); stops.forEach(s => g.addColorStop(s[0], s[1])); x.fillStyle = g; x.fillRect(0, 0, w, h); }
+function paintStars(x, w, h, n, q, maxY){ for(let i = 0; i < n; i++){ const a = 0.25 + q() * 0.6; x.fillStyle = 'rgba(255,250,235,' + a.toFixed(2) + ')'; const s = q() < 0.08 ? 2.2 : 1.2; x.fillRect(q() * w, q() * h * maxY, s, s); } }
+function paintWindows(x, x0, y0, cols, rows, ww, wh, gx, gy, q, lit, warm){
+  for(let i = 0; i < cols; i++) for(let j = 0; j < rows; j++){ const on = q() < lit; x.fillStyle = on ? (warm ? ['#ffd58a', '#ffc46a', '#ffe2a8'][Math.floor(q() * 3)] : ['#bfe4ff', '#fff1c9', '#9fd0ff'][Math.floor(q() * 3)]) : 'rgba(20,24,40,0.9)'; x.fillRect(x0 + i * (ww + gx), y0 + j * (wh + gy), ww, wh); }
+}
+const ARCH_TEX = {
+  // room 1: the rooftops of Fennick Bay at dusk, the harbour and its light beyond
+  town:() => archTex('town', 2048, 1024, (x, w, h) => { const q = archRnd(1);
+    paintSky(x, w, h, [[0, '#0d1433'], [0.35, '#2b2f63'], [0.62, '#b0597a'], [0.8, '#f09a62'], [1, '#f6c27e']]); paintStars(x, w, h, 90, q, 0.3);
+    x.fillStyle = '#3a4a6a'; x.fillRect(0, h * 0.72, w, h * 0.06);                                       // the far shore
+    x.fillStyle = '#3d4f75'; for(let i = 0; i < 40; i++) x.fillRect(q() * w, h * 0.78 + q() * 8, 30 + q() * 90, 2);   // light on the water
+    x.fillStyle = '#e8e2d0'; x.fillRect(w * 0.83, h * 0.56, 22, 110); x.fillStyle = '#cf3d3d'; x.fillRect(w * 0.83, h * 0.56 + 40, 22, 18);
+    x.fillStyle = 'rgba(255,236,170,0.9)'; x.beginPath(); x.arc(w * 0.83 + 11, h * 0.555, 12, 0, TAU); x.fill();
+    const beam = x.createLinearGradient(w * 0.83, 0, w * 0.55, 0); beam.addColorStop(0, 'rgba(255,236,170,0.45)'); beam.addColorStop(1, 'rgba(255,236,170,0)'); x.fillStyle = beam; x.beginPath(); x.moveTo(w * 0.83, h * 0.55); x.lineTo(w * 0.55, h * 0.5); x.lineTo(w * 0.55, h * 0.6); x.fill();
+    let X = -20; while(X < w){ const hw = 150 + q() * 90, hh = 260 + q() * 120, top = h - hh;          // terraced houses along the slope
+      x.fillStyle = ['#4a3440', '#3f3045', '#523a3e', '#45343a'][Math.floor(q() * 4)]; x.fillRect(X, top, hw, hh);
+      x.fillStyle = '#2a2230'; x.beginPath(); x.moveTo(X - 8, top); x.lineTo(X + hw / 2, top - 70 - q() * 30); x.lineTo(X + hw + 8, top); x.fill();
+      x.fillStyle = '#2f2733'; x.fillRect(X + hw * 0.7, top - 95, 24, 60);
+      paintWindows(x, X + 22, top + 40, 2, 2, 40, 54, hw - 124, 60, q, 0.55, true);
+      x.fillStyle = '#231b24'; x.fillRect(X + hw / 2 - 22, h - 110, 44, 110); X += hw + 6; }
+    const haze = x.createLinearGradient(0, h * 0.6, 0, h); haze.addColorStop(0, 'rgba(240,160,110,0)'); haze.addColorStop(1, 'rgba(60,40,70,0.35)'); x.fillStyle = haze; x.fillRect(0, h * 0.6, w, h * 0.4); }),
+  dusk:() => archTex('dusk', 1024, 1024, (x, w, h) => { const q = archRnd(2); const g = x.createRadialGradient(w / 2, h / 2, 50, w / 2, h / 2, w * 0.75); g.addColorStop(0, '#2c2d5e'); g.addColorStop(1, '#0b1030'); x.fillStyle = g; x.fillRect(0, 0, w, h); paintStars(x, w, h, 160, q, 1); }),
+  curtain:() => archTex('curtain', 512, 512, (x, w, h) => { const g = x.createLinearGradient(0, 0, w, 0); for(let i = 0; i <= 12; i++) g.addColorStop(i / 12, i % 2 ? '#ffcf7a' : '#e89a48'); x.fillStyle = g; x.fillRect(0, 0, w, h);
+    const v = x.createRadialGradient(w * 0.62, h * 0.55, 20, w * 0.62, h * 0.55, w * 0.7); v.addColorStop(0, 'rgba(255,245,210,0.55)'); v.addColorStop(1, 'rgba(120,50,20,0.4)'); x.fillStyle = v; x.fillRect(0, 0, w, h); }),
+  chalk:() => archTex('chalk', 1024, 640, (x, w, h) => { x.clearRect(0, 0, w, h); x.strokeStyle = 'rgba(240,238,228,0.8)'; x.fillStyle = 'rgba(240,238,228,0.8)'; x.lineWidth = 7; x.lineCap = 'round';
+    x.strokeRect(60, 60, w - 120, h - 120); x.beginPath(); x.moveTo(60, h / 2); x.lineTo(w - 60, h / 2); x.stroke();
+    for(let i = 0; i < 6; i++){ x.strokeRect(100 + i * 140, 90, 100, 150); }
+    x.beginPath(); x.moveTo(760, 420); x.lineTo(820, 480); x.moveTo(820, 420); x.lineTo(760, 480); x.stroke();
+    x.setLineDash([16, 18]); x.beginPath(); x.moveTo(170, 400); x.bezierCurveTo(300, 540, 520, 330, 790, 450); x.stroke(); x.setLineDash([]);
+    x.font = '700 46px ' + HAND; x.fillText('LANTERN ROW', 110, 590); x.font = '600 34px ' + HAND; x.fillText('no. 9', 245, 280); x.fillText('HARBOUR', 700, 400); }),
+  houseNo:() => archTex('houseNo', 256, 256, (x, w, h) => { x.fillStyle = '#1e2b44'; x.fillRect(0, 0, w, h); x.strokeStyle = '#d8c48a'; x.lineWidth = 10; x.strokeRect(12, 12, w - 24, h - 24); x.fillStyle = '#efe6c8'; x.font = '700 150px ' + SERIF; x.textAlign = 'center'; x.fillText('9', w / 2, 185); }),
+  // room 2: pegboard with painted tool outlines, the roller door, the Comet Rally screen, squared paper
+  peg:() => archTex('peg', 1024, 384, (x, w, h) => { const q = archRnd(3); x.fillStyle = '#9a7a55'; x.fillRect(0, 0, w, h); for(let i = 0; i < 3000; i++){ x.fillStyle = 'rgba(60,40,20,' + (q() * 0.08).toFixed(3) + ')'; x.fillRect(q() * w, q() * h, 3, 1); }
+    x.fillStyle = '#3b2a1a'; for(let i = 12; i < w; i += 24) for(let j = 12; j < h; j += 24){ x.beginPath(); x.arc(i, j, 3.2, 0, TAU); x.fill(); }
+    x.strokeStyle = 'rgba(30,20,10,0.75)'; x.lineWidth = 5; [[90, 60, 30, 220], [200, 60, 30, 180], [520, 70, 140, 40], [760, 60, 40, 240], [880, 90, 90, 90]].forEach(r => x.strokeRect(r[0], r[1], r[2], r[3]));
+    x.fillStyle = '#e8e0cc'; x.fillRect(300, 50, 170, 230); x.fillStyle = '#b33'; x.fillRect(300, 50, 170, 44); x.fillStyle = '#222'; x.font = '700 30px ' + SERIF; x.fillText('AUGUST', 318, 84);
+    x.font = '400 22px ' + SERIF; for(let d = 0; d < 31; d++) x.fillText(String(d + 1), 312 + (d % 7) * 22, 125 + Math.floor(d / 7) * 34); x.strokeStyle = '#c22'; x.lineWidth = 3; x.beginPath(); x.arc(312 + 3 * 22 + 8, 125 + 2 * 34 - 8, 16, 0, TAU); x.stroke(); }),
+  roller:() => archTex('roller', 1024, 1024, (x, w, h) => { const q = archRnd(4); for(let j = 0; j < h; j += 32){ const g = x.createLinearGradient(0, j, 0, j + 32); g.addColorStop(0, '#8d949c'); g.addColorStop(0.5, '#b7bdc3'); g.addColorStop(0.92, '#6c737b'); g.addColorStop(1, '#3d4248'); x.fillStyle = g; x.fillRect(0, j, w, 32); }
+    for(let i = 0; i < 60; i++){ x.fillStyle = 'rgba(90,60,40,' + (q() * 0.12).toFixed(3) + ')'; x.fillRect(q() * w, q() * h, 20 + q() * 80, 4 + q() * 30); } }),
+  comet:() => archTex('comet', 512, 384, (x, w, h) => { const q = archRnd(5); x.fillStyle = '#05060f'; x.fillRect(0, 0, w, h);
+    x.strokeStyle = '#6a6f90'; x.lineWidth = 26; x.beginPath(); x.ellipse(w / 2, h / 2 + 18, 190, 110, 0, 0, TAU); x.stroke(); x.strokeStyle = '#1a1d33'; x.lineWidth = 3; x.setLineDash([10, 10]); x.beginPath(); x.ellipse(w / 2, h / 2 + 18, 190, 110, 0, 0, TAU); x.stroke(); x.setLineDash([]);
+    x.fillStyle = '#ffe14d'; x.fillRect(w / 2 + 170, h / 2 + 8, 14, 20); for(let i = 0; i < 5; i++){ const a = 1.2 + i * 0.35, cx = w / 2 + Math.cos(a) * 190, cy = h / 2 + 18 + Math.sin(a) * 110; x.fillStyle = '#ff8a3d'; x.fillRect(cx - 5, cy - 5, 10, 10); x.fillStyle = 'rgba(255,138,61,0.35)'; x.fillRect(cx - 5, cy - 22, 10, 17); }
+    x.fillStyle = '#7fe0ff'; x.font = '700 44px monospace'; x.textAlign = 'center'; x.fillText('COMET RALLY', w / 2, 58); x.fillStyle = '#ffe14d'; x.font = '700 22px monospace'; x.fillText('LAP 3/3   PRESS FIRE', w / 2, h - 24);
+    for(let j = 0; j < h; j += 3){ x.fillStyle = 'rgba(0,0,0,0.22)'; x.fillRect(0, j, w, 1); } }),
+  squared:() => archTex('squared', 256, 256, (x, w, h) => { x.fillStyle = '#f2efe4'; x.fillRect(0, 0, w, h); x.strokeStyle = 'rgba(90,130,190,0.45)'; x.lineWidth = 1; for(let i = 0; i <= w; i += 16){ x.beginPath(); x.moveTo(i, 0); x.lineTo(i, h); x.stroke(); x.beginPath(); x.moveTo(0, i); x.lineTo(w, i); x.stroke(); }
+    x.strokeStyle = '#333'; x.lineWidth = 3; x.beginPath(); x.ellipse(128, 140, 90, 60, 0, 0, TAU); x.stroke(); x.strokeStyle = '#c22'; x.beginPath(); x.ellipse(128, 140, 76, 48, 0, 0, TAU); x.stroke(); x.beginPath(); x.moveTo(60, 110); x.lineTo(48, 128); x.lineTo(70, 128); x.stroke(); }),
+  // room 3: the street through the office window, the whiteboard, the corkboard, the clock stopped at 5:40, two screens
+  cityRain:() => archTex('cityRain', 2048, 1152, (x, w, h) => { const q = archRnd(6); paintSky(x, w, h, [[0, '#0b0f24'], [0.6, '#1d2340'], [1, '#2a2440']]);
+    for(let X = 0; X < w;){ const bw = 180 + q() * 220, bh = 420 + q() * 520; x.fillStyle = ['#1a1d30', '#20233a', '#171a2b'][Math.floor(q() * 3)]; x.fillRect(X, h - bh, bw, bh); paintWindows(x, X + 18, h - bh + 30, Math.floor((bw - 30) / 44), Math.floor((bh - 200) / 60), 30, 38, 14, 22, q, 0.4, true); X += bw + 10; }
+    x.fillStyle = '#101220'; x.fillRect(0, h - 170, w, 170);
+    const sign = (t, cx, cy, col) => { x.font = '700 70px ' + SERIF; x.textAlign = 'center'; x.shadowColor = col; x.shadowBlur = 28; x.fillStyle = col; x.fillText(t, cx, cy); x.shadowBlur = 0; };
+    sign('BRIGHT SUDS', w * 0.3, h - 200, '#7fe0ff'); sign('NOODLES', w * 0.72, h - 230, '#ff7aa8');
+    x.strokeStyle = 'rgba(190,200,230,0.18)'; x.lineWidth = 1.5; for(let i = 0; i < 700; i++){ const X = q() * w, Y = q() * h; x.beginPath(); x.moveTo(X, Y); x.lineTo(X - 6, Y + 34); x.stroke(); } }),
+  whiteboard:() => archTex('whiteboard', 1024, 512, (x, w, h) => { x.fillStyle = '#f4f5f2'; x.fillRect(0, 0, w, h); x.lineWidth = 5; x.lineCap = 'round';
+    const bub = (cx, cy, r, t, col) => { x.strokeStyle = col; x.beginPath(); x.arc(cx, cy, r, 0, TAU); x.stroke(); x.fillStyle = col; x.font = '600 26px ' + HAND; x.textAlign = 'center'; x.fillText(t, cx, cy + 9); };
+    bub(510, 250, 78, 'SPACEPORT', '#1b4fa0'); bub(250, 130, 62, 'dunes', '#b0651b'); bub(780, 120, 62, 'neon', '#b01b6a'); bub(250, 380, 62, 'grove', '#1b7a4a'); bub(790, 390, 62, 'sky isles', '#1b8aa0');
+    x.strokeStyle = '#333'; [[310, 160, 440, 210], [720, 150, 585, 215], [310, 360, 440, 290], [730, 370, 585, 290]].forEach(l => { x.beginPath(); x.moveTo(l[0], l[1]); x.lineTo(l[2], l[3]); x.stroke(); });
+    x.fillStyle = '#c0282d'; x.font = '700 34px ' + HAND; x.textAlign = 'left'; x.fillText('what if it never ends?', 40, 480); x.fillStyle = '#333'; x.font = '600 24px ' + HAND; x.fillText('HUB v0.1 - M & L', 780, 490); }),
+  cork:() => archTex('cork', 1024, 640, (x, w, h) => { const q = archRnd(7); x.fillStyle = '#b98a57'; x.fillRect(0, 0, w, h); for(let i = 0; i < 9000; i++){ x.fillStyle = 'rgba(' + (q() < 0.5 ? '90,55,25' : '230,190,140') + ',' + (q() * 0.3).toFixed(2) + ')'; x.fillRect(q() * w, q() * h, 2, 2); }
+    [[60, 50, 260, 200, '#fbf7ea', 'the grove at night?'], [360, 70, 220, 300, '#e9f2ff', 'neon grid - a city that never switches off'], [630, 40, 320, 220, '#fff4d8', 'wick: grey coat, lantern'], [120, 320, 300, 260, '#f7ecef', 'sky isles - islands you can walk off'], [520, 380, 260, 220, '#eefbe8', 'rent due friday!!']].forEach((c, i) => {
+      x.save(); x.translate(c[0] + c[2] / 2, c[1] + c[3] / 2); x.rotate((q() - 0.5) * 0.12); x.fillStyle = c[4]; x.fillRect(-c[2] / 2, -c[3] / 2, c[2], c[3]); x.fillStyle = '#333'; x.font = '600 24px ' + HAND; archText(x, c[5], -c[2] / 2 + 16, -c[3] / 2 + 40, c[2] - 30, 30);
+      x.fillStyle = ['#d23', '#23a', '#2a4', '#fb2', '#a2d'][i]; x.beginPath(); x.arc(0, -c[3] / 2 + 12, 9, 0, TAU); x.fill(); x.restore(); }); }),
+  clock:() => archTex('clock', 512, 512, (x, w, h) => { x.fillStyle = '#f6f1e2'; x.beginPath(); x.arc(256, 256, 250, 0, TAU); x.fill(); x.strokeStyle = '#222'; x.lineWidth = 16; x.beginPath(); x.arc(256, 256, 240, 0, TAU); x.stroke();
+    x.fillStyle = '#222'; x.font = '600 50px ' + SERIF; x.textAlign = 'center'; x.textBaseline = 'middle'; for(let i = 1; i <= 12; i++){ const a = i / 12 * TAU; x.fillText(String(i), 256 + Math.sin(a) * 185, 256 - Math.cos(a) * 185); }
+    const hand = (a, len, wd) => { x.lineWidth = wd; x.lineCap = 'round'; x.beginPath(); x.moveTo(256, 256); x.lineTo(256 + Math.sin(a) * len, 256 - Math.cos(a) * len); x.stroke(); };
+    hand((5 + 40 / 60) / 12 * TAU, 120, 14); hand(40 / 60 * TAU, 190, 9); x.fillStyle = '#b22'; x.beginPath(); x.arc(256, 256, 12, 0, TAU); x.fill(); }),
+  code:() => archTex('code', 512, 384, (x, w, h) => { const q = archRnd(8); x.fillStyle = '#031006'; x.fillRect(0, 0, w, h); x.fillStyle = '#5dff8a'; x.font = '18px monospace';
+    const words = ['rule', 'realm', 'portal', 'sky', 'sun.hold', 'ground', 'if', 'then', 'shard', 'world(', ')', '= 7', 'stones', 'loop', 'player', 'door']; for(let j = 0; j < 17; j++){ let t = '  '.repeat(Math.floor(q() * 3)); for(let k = 0; k < 3 + q() * 4; k++) t += words[Math.floor(q() * words.length)] + ' '; x.fillText(t, 14, 26 + j * 21); }
+    for(let j = 0; j < h; j += 3){ x.fillStyle = 'rgba(0,0,0,0.25)'; x.fillRect(0, j, w, 1); } }),
+  pixels:() => archTex('pixels', 512, 384, (x, w, h) => { const q = archRnd(9); x.fillStyle = '#0c1030'; x.fillRect(0, 0, w, h); const P = 16;
+    for(let i = 0; i < w / P; i++) for(let j = 0; j < h / P; j++){ const d = Math.hypot(i - 16, j - 14); if(j > 15){ x.fillStyle = (i + j) % 2 ? '#d9a55a' : '#caa050'; x.fillRect(i * P, j * P, P - 1, P - 1); } else if(q() < 0.04){ x.fillStyle = '#fff6c8'; x.fillRect(i * P, j * P, P - 1, P - 1); } if(d < 3){ x.fillStyle = '#ffd36b'; x.fillRect(i * P, j * P, P - 1, P - 1); } }
+    x.fillStyle = '#b86a3a'; [[5, 15], [6, 14], [7, 13], [8, 12], [9, 13], [10, 14], [11, 15], [22, 15], [23, 13], [24, 12], [25, 14]].forEach(c => { for(let k = c[1]; k < 16; k++) x.fillRect(c[0] * P, k * P, P - 1, P - 1); });
+    for(let j = 0; j < h; j += 3){ x.fillStyle = 'rgba(0,0,0,0.22)'; x.fillRect(0, j, w, 1); } }),
+  // room 4: the launch counter, the banner, fireworks, the Starling cabinet
+  launch:() => archTex('launch', 2048, 1152, (x, w, h) => { const q = archRnd(10); const g = x.createRadialGradient(w / 2, h * 0.45, 40, w / 2, h / 2, w * 0.7); g.addColorStop(0, '#1b2a6a'); g.addColorStop(1, '#070a1e'); x.fillStyle = g; x.fillRect(0, 0, w, h); paintStars(x, w, h, 300, q, 1);
+    x.textAlign = 'center'; x.fillStyle = '#f3f0ff'; x.font = '700 150px ' + SERIF; x.fillText('HUB IS OPEN', w / 2, 300);
+    x.fillStyle = '#ffd166'; x.font = '700 210px monospace'; x.fillText('1,000,000', w / 2, 620); x.fillStyle = '#c7c1ea'; x.font = '400 64px ' + SERIF; x.fillText('here now, and still coming in', w / 2, 730);
+    [['SPACEPORT', '#5ce1e6'], ['GLASS DUNES', '#ffb020'], ['NEON GRID', '#ff4fa3'], ['NIGHT GROVE', '#7dffb0'], ['SKY ISLES', '#bff4ff']].forEach((r, i) => { const cx = 300 + i * 362; x.fillStyle = r[1]; x.beginPath(); x.arc(cx, 900, 46, 0, TAU); x.fill(); x.font = '600 40px ' + SERIF; x.fillText(r[0], cx, 1010); }); }),
+  banner:() => archTex('banner', 2048, 384, (x, w, h) => { x.fillStyle = '#f2ead6'; x.fillRect(0, 0, w, h); ['#ff4fa3', '#5ce1e6', '#ffd166'].forEach((c, i) => { x.fillStyle = c; for(let k = 0; k < 17; k++){ x.beginPath(); x.moveTo(k * 128 + i * 40, 0); x.lineTo(k * 128 + 32 + i * 40, 0); x.lineTo(k * 128 + 16 + i * 40, 44); x.fill(); } });
+    x.fillStyle = '#2a1f3d'; x.font = '700 150px ' + SERIF; x.textAlign = 'center'; x.fillText('OPENING NIGHT', w / 2, 270); x.font = '600 50px ' + HAND; x.fillStyle = '#c0282d'; x.fillText('welcome home, everybody', w / 2, 350); }),
+  fireworks:() => archTex('fireworks', 1024, 640, (x, w, h) => { const q = archRnd(11); paintSky(x, w, h, [[0, '#060820'], [1, '#1d1a3a']]);
+    for(let X = 0; X < w;){ const bw = 60 + q() * 110, bh = 120 + q() * 280; x.fillStyle = '#0d0e1c'; x.fillRect(X, h - bh, bw, bh); paintWindows(x, X + 8, h - bh + 14, Math.floor((bw - 12) / 18), Math.floor((bh - 30) / 26), 10, 14, 8, 12, q, 0.35, true); X += bw + 4; }
+    [['#ffd166', 300, 180], ['#ff4fa3', 640, 120], ['#5ce1e6', 820, 230]].forEach(f => { for(let i = 0; i < 44; i++){ const a = i / 44 * TAU, r = 60 + q() * 60; const g = x.createLinearGradient(f[1], f[2], f[1] + Math.cos(a) * r, f[2] + Math.sin(a) * r); g.addColorStop(0, 'rgba(255,255,255,0)'); g.addColorStop(1, f[0]); x.strokeStyle = g; x.lineWidth = 3; x.beginPath(); x.moveTo(f[1] + Math.cos(a) * 12, f[2] + Math.sin(a) * 12); x.lineTo(f[1] + Math.cos(a) * r, f[2] + Math.sin(a) * r); x.stroke(); } }); }),
+  starMarquee:() => archTex('starMarquee', 1024, 256, (x, w, h) => { const g = x.createLinearGradient(0, 0, w, 0); g.addColorStop(0, '#1b1450'); g.addColorStop(0.5, '#3a1d7a'); g.addColorStop(1, '#1b1450'); x.fillStyle = g; x.fillRect(0, 0, w, h);
+    x.textAlign = 'center'; x.font = 'italic 700 150px ' + SERIF; x.shadowColor = '#7fe0ff'; x.shadowBlur = 24; x.fillStyle = '#bff4ff'; x.fillText('STARLING', w / 2, 190); x.shadowBlur = 0;
+    x.fillStyle = '#ffd166'; for(let i = 0; i < 6; i++){ x.beginPath(); const cx = 70 + i * 176 + (i > 2 ? 0 : 0), cy = 40; x.moveTo(cx - 20, cy); x.lineTo(cx, cy - 10); x.lineTo(cx + 20, cy); x.lineTo(cx, cy + 6); x.fill(); } }),
+  starScreen:() => archTex('starScreen', 512, 640, (x, w, h) => { x.fillStyle = '#040616'; x.fillRect(0, 0, w, h); x.textAlign = 'center'; x.fillStyle = '#bff4ff'; x.font = '700 40px monospace'; x.fillText('HIGH SCORES', w / 2, 70);
+    [['1ST', 'MQ', '31,550', '#ffd166'], ['2ND', 'LA', '29,900', '#f3f0ff'], ['3RD', 'LA', '27,210', '#f3f0ff'], ['4TH', 'MQ', '25,040', '#c7c1ea'], ['5TH', 'LA', '19,880', '#c7c1ea']].forEach((r, i) => { x.fillStyle = r[3]; x.font = '700 34px monospace'; x.textAlign = 'left'; x.fillText(r[0], 40, 150 + i * 62); x.fillText(r[1], 170, 150 + i * 62); x.textAlign = 'right'; x.fillText(r[2], w - 40, 150 + i * 62); });
+    x.fillStyle = '#fff38a'; x.fillRect(300, 470, 170, 140); x.fillStyle = '#333'; x.font = '600 21px ' + HAND; x.textAlign = 'left'; archText(x, 'Hers. I try every night.', 312, 505, 150, 26);
+    for(let j = 0; j < h; j += 3){ x.fillStyle = 'rgba(0,0,0,0.22)'; x.fillRect(0, j, w, 1); } }),
+  // room 5: the city from the thirty-first floor, the Drift poster, the ticket
+  cityNight:() => archTex('cityNight', 2048, 1152, (x, w, h) => { const q = archRnd(12); paintSky(x, w, h, [[0, '#0a0a24'], [0.45, '#2b1f4e'], [0.75, '#6a3a6e'], [1, '#c26a6a']]); paintStars(x, w, h, 70, q, 0.35);
+    for(let k = 0; k < 2; k++) for(let X = -40; X < w;){ const bw = (k ? 120 : 70) + q() * (k ? 180 : 90), bh = (k ? 300 : 460) + q() * (k ? 500 : 380); x.fillStyle = k ? '#15142a' : '#23203a'; x.fillRect(X, h - bh, bw, bh); paintWindows(x, X + 10, h - bh + 16, Math.floor((bw - 16) / (k ? 26 : 18)), Math.floor((bh - 30) / (k ? 34 : 26)), k ? 14 : 8, k ? 18 : 12, k ? 12 : 10, k ? 16 : 14, q, k ? 0.45 : 0.3, k === 0);
+      if(k && q() < 0.25){ x.fillStyle = '#ff4040'; x.beginPath(); x.arc(X + bw / 2, h - bh - 14, 5, 0, TAU); x.fill(); } X += bw + (k ? 26 : 8); } }),
+  driftPoster:() => archTex('driftPoster', 512, 768, (x, w, h) => { const g = x.createLinearGradient(0, 0, 0, h); g.addColorStop(0, '#1a0628'); g.addColorStop(1, '#3a0b3c'); x.fillStyle = g; x.fillRect(0, 0, w, h);
+    x.strokeStyle = '#ff4fa3'; x.lineWidth = 6; for(let i = 0; i < 4; i++){ x.beginPath(); x.ellipse(w / 2, 300, 170, 170 * (0.25 + i * 0.25), 0, 0, TAU); x.stroke(); } x.strokeStyle = '#5ce1e6'; x.beginPath(); x.arc(w / 2, 300, 170, 0, TAU); x.stroke();
+    x.textAlign = 'center'; x.fillStyle = '#ffd6ec'; x.font = '700 92px ' + SERIF; x.fillText('THE DRIFT', w / 2, 580); x.font = '600 32px ' + SERIF; x.fillStyle = '#5ce1e6'; x.fillText('NEON GRID · WHERE THE FLOOR LETS GO', w / 2, 640); x.fillStyle = '#c7a9d9'; x.font = '400 28px ' + SERIF; x.fillText('designed by Mara Quist', w / 2, 700); }),
+  ticket:() => archTex('ticket', 512, 256, (x, w, h) => { x.fillStyle = '#ffd6ec'; x.fillRect(0, 0, w, h); x.strokeStyle = '#a0245f'; x.lineWidth = 6; x.strokeRect(10, 10, w - 20, h - 20); x.setLineDash([8, 8]); x.beginPath(); x.moveTo(380, 10); x.lineTo(380, h - 10); x.stroke(); x.setLineDash([]);
+    x.fillStyle = '#6a0f3a'; x.font = '700 58px ' + SERIF; x.fillText('THE DRIFT', 34, 92); x.font = '600 24px ' + SERIF; x.fillText('NEON GRID · OPENING NIGHT', 34, 140); x.fillText('ADMIT TWO', 34, 190); x.save(); x.translate(450, 128); x.rotate(-Math.PI / 2); x.textAlign = 'center'; x.font = '700 30px monospace'; x.fillText('No. 0002', 0, 10); x.restore(); }),
+  // room 6: the harbour at low water by moonlight, the rug, the music box strip
+  harbour:() => archTex('harbour', 2048, 1280, (x, w, h) => { const q = archRnd(13); paintSky(x, w, h, [[0, '#050a1c'], [0.5, '#122044'], [0.62, '#2c3b62'], [1, '#141a2c']]); paintStars(x, w, h, 140, q, 0.5);
+    const mx = w * 0.7, my = h * 0.2; const mg = x.createRadialGradient(mx, my, 10, mx, my, 220); mg.addColorStop(0, 'rgba(240,240,255,0.5)'); mg.addColorStop(1, 'rgba(240,240,255,0)'); x.fillStyle = mg; x.fillRect(mx - 220, my - 220, 440, 440); x.fillStyle = '#f2f1e6'; x.beginPath(); x.arc(mx, my, 54, 0, TAU); x.fill();
+    x.fillStyle = '#1c2438'; x.fillRect(0, h * 0.6, w, h * 0.06); x.fillStyle = '#3a3b3f'; x.fillRect(0, h * 0.66, w, h * 0.34);          // far shore, then the mud
+    for(let i = 0; i < 22; i++){ x.fillStyle = 'rgba(160,175,210,' + (0.15 + q() * 0.3).toFixed(2) + ')'; x.fillRect(q() * w, h * 0.68 + q() * h * 0.3, 60 + q() * 260, 3 + q() * 5); }   // the channels that stay wet
+    x.fillStyle = 'rgba(230,230,245,0.55)'; x.fillRect(mx - 30, h * 0.7, 60, 200);
+    [[0.18, 0.8, 0.3], [0.42, 0.86, -0.25], [0.6, 0.76, 0.2], [0.85, 0.9, -0.35]].forEach(b => { x.save(); x.translate(b[0] * w, b[1] * h); x.rotate(b[2]); x.fillStyle = '#5a3b2a'; x.beginPath(); x.moveTo(-140, 0); x.lineTo(140, 0); x.lineTo(100, 50); x.lineTo(-110, 50); x.fill(); x.fillStyle = '#6d4a36'; x.fillRect(-10, -180, 10, 180); x.restore(); });
+    x.fillStyle = '#e8e2d0'; x.fillRect(w * 0.12, h * 0.5, 18, 80); x.fillStyle = 'rgba(255,236,170,0.9)'; x.beginPath(); x.arc(w * 0.12 + 9, h * 0.495, 10, 0, TAU); x.fill(); }),
+  rug:() => archTex('rug', 1024, 768, (x, w, h) => { const q = archRnd(14); x.fillStyle = '#6a2a24'; x.fillRect(0, 0, w, h); x.strokeStyle = '#d8b06a'; x.lineWidth = 14; x.strokeRect(40, 40, w - 80, h - 80); x.strokeStyle = '#2a3a5a'; x.lineWidth = 26; x.strokeRect(80, 80, w - 160, h - 160);
+    x.fillStyle = '#c99a50'; for(let i = 0; i < 5; i++) for(let j = 0; j < 3; j++){ const cx = 220 + i * 150, cy = 230 + j * 150; x.beginPath(); x.moveTo(cx, cy - 50); x.lineTo(cx + 40, cy); x.lineTo(cx, cy + 50); x.lineTo(cx - 40, cy); x.fill(); }
+    for(let i = 0; i < 12000; i++){ x.fillStyle = 'rgba(0,0,0,' + (q() * 0.12).toFixed(2) + ')'; x.fillRect(q() * w, q() * h, 2, 2); } }),
+  strip:() => archTex('strip', 512, 128, (x, w, h) => { x.fillStyle = '#f1ead6'; x.fillRect(0, 0, w, h); x.strokeStyle = 'rgba(0,0,0,0.25)'; for(let j = 1; j < 5; j++){ x.beginPath(); x.moveTo(0, j * h / 5); x.lineTo(w, j * h / 5); x.stroke(); }
+    x.fillStyle = '#222'; [3, 4, 5, 4, 3, 2, 1].forEach((n, i) => { x.beginPath(); x.arc(40 + i * 64, h - n * h / 5 + h / 10, 8, 0, TAU); x.fill(); }); }),
+  // the hall: runner carpet, the Ledger open on its lectern, the portrait of Wick, the frieze
+  runner:() => { const t = archTex('runner', 512, 512, (x, w, h) => { const q = archRnd(15); x.fillStyle = '#5b1d22'; x.fillRect(0, 0, w, h); x.fillStyle = '#c9a25a'; x.fillRect(24, 0, 14, h); x.fillRect(w - 38, 0, 14, h); x.fillStyle = '#23304d'; x.fillRect(48, 0, 22, h); x.fillRect(w - 70, 0, 22, h);
+      x.strokeStyle = '#b8894a'; x.lineWidth = 6; x.beginPath(); x.moveTo(w / 2, 60); x.lineTo(w / 2 + 110, h / 2); x.lineTo(w / 2, h - 60); x.lineTo(w / 2 - 110, h / 2); x.closePath(); x.stroke();
+      for(let i = 0; i < 16000; i++){ x.fillStyle = 'rgba(0,0,0,' + (q() * 0.1).toFixed(2) + ')'; x.fillRect(q() * w, q() * h, 2, 2); } }); t.wrapT = THREE.RepeatWrapping; return t; },
+  book:() => archTex('book', 1024, 640, (x, w, h) => { const q = archRnd(16); x.fillStyle = '#efe4c8'; x.fillRect(0, 0, w, h); for(let i = 0; i < 5000; i++){ x.fillStyle = 'rgba(120,90,40,' + (q() * 0.05).toFixed(3) + ')'; x.fillRect(q() * w, q() * h, 3, 3); }
+    const sh = x.createLinearGradient(w / 2 - 60, 0, w / 2 + 60, 0); sh.addColorStop(0, 'rgba(0,0,0,0)'); sh.addColorStop(0.5, 'rgba(60,40,10,0.35)'); sh.addColorStop(1, 'rgba(0,0,0,0)'); x.fillStyle = sh; x.fillRect(w / 2 - 60, 0, 120, h);
+    x.fillStyle = '#2b2118'; x.textAlign = 'center'; x.font = '700 50px ' + SERIF; x.fillText('The Ashcombe', w / 4, 200); x.fillText('Ledger', w / 4, 262); x.font = 'italic 400 26px ' + SERIF; archText(x, LEDGER[0].body.split('\n')[0], w / 4 - 10, 340, 380, 34);
+    x.textAlign = 'left'; x.font = '700 30px ' + SERIF; x.fillText(LEDGER[1].title, w / 2 + 50, 90); x.font = '400 21px ' + SERIF; archText(x, LEDGER[1].body, w / 2 + 50, 140, 400, 28); }),
+  portrait:() => archTex('portrait', 768, 1024, (x, w, h) => { const q = archRnd(17); paintSky(x, w, h, [[0, '#1b2140'], [0.55, '#4a3b5c'], [0.8, '#a0626a'], [1, '#2a2230']]);
+    for(let i = 0; i < 9000; i++){ x.fillStyle = 'rgba(' + (q() < 0.5 ? '255,230,200' : '20,10,30') + ',' + (q() * 0.05).toFixed(3) + ')'; x.fillRect(q() * w, q() * h, 4, 2); }   // brush grain
+    x.fillStyle = '#2a2a38'; x.fillRect(0, h * 0.82, w, h * 0.18);
+    x.fillStyle = '#6d7078'; x.beginPath(); x.moveTo(w * 0.42, h * 0.2); x.quadraticCurveTo(w * 0.28, h * 0.5, w * 0.3, h * 0.88); x.lineTo(w * 0.62, h * 0.88); x.quadraticCurveTo(w * 0.64, h * 0.5, w * 0.54, h * 0.2); x.closePath(); x.fill();   // the long grey coat
+    x.fillStyle = '#585b64'; x.beginPath(); x.moveTo(w * 0.47, h * 0.24); x.lineTo(w * 0.36, h * 0.86); x.lineTo(w * 0.47, h * 0.86); x.fill();
+    x.fillStyle = '#d9c7b0'; x.beginPath(); x.ellipse(w * 0.48, h * 0.16, 36, 44, 0, 0, TAU); x.fill(); x.fillStyle = '#3a3a44'; x.beginPath(); x.ellipse(w * 0.48, h * 0.125, 42, 20, 0, Math.PI, TAU); x.fill();
+    x.strokeStyle = '#585b64'; x.lineWidth = 30; x.lineCap = 'round'; x.beginPath(); x.moveTo(w * 0.58, h * 0.3); x.quadraticCurveTo(w * 0.7, h * 0.45, w * 0.7, h * 0.56); x.stroke();
+    const lg = x.createRadialGradient(w * 0.7, h * 0.62, 6, w * 0.7, h * 0.62, 190); lg.addColorStop(0, 'rgba(255,214,120,0.95)'); lg.addColorStop(0.25, 'rgba(255,170,80,0.45)'); lg.addColorStop(1, 'rgba(255,150,60,0)'); x.fillStyle = lg; x.fillRect(0, 0, w, h);
+    x.strokeStyle = '#222'; x.lineWidth = 5; x.strokeRect(w * 0.7 - 22, h * 0.6, 44, 60); x.beginPath(); x.moveTo(w * 0.7 - 14, h * 0.6); x.quadraticCurveTo(w * 0.7, h * 0.56, w * 0.7 + 14, h * 0.6); x.stroke();
+    x.fillStyle = '#fff1c6'; x.fillRect(w * 0.7 - 12, h * 0.61, 24, 40);
+    x.fillStyle = 'rgba(243,226,176,0.85)'; x.font = 'italic 400 34px ' + SERIF; x.textAlign = 'center'; x.fillText('Wick', w / 2, h - 50); }),
+  frieze:() => archTex('frieze', 2048, 256, (x, w, h) => { x.clearRect(0, 0, w, h); x.fillStyle = '#5a4f44'; x.font = '700 150px ' + SERIF; x.textAlign = 'center'; x.fillText('T H E   A R C H I V E', w / 2, 190); }),
+  plaque:i => archTex('plaque' + i, 1024, 768, (x, w, h) => { const R = ARCHIVE_ROOMS[i];
+    const g = x.createLinearGradient(0, 0, w, h); g.addColorStop(0, '#a88444'); g.addColorStop(0.5, '#d4b266'); g.addColorStop(1, '#9a7434'); x.fillStyle = g; x.fillRect(0, 0, w, h);
+    for(let k = 0; k < h; k += 3){ x.fillStyle = 'rgba(255,255,255,' + (((k * 7919) % 13) / 260).toFixed(3) + ')'; x.fillRect(0, k, w, 1); }
+    x.strokeStyle = '#4a3418'; x.lineWidth = 8; x.strokeRect(24, 24, w - 48, h - 48);
+    x.fillStyle = '#2a1d0c'; x.font = '600 28px ' + SERIF; x.fillText('ROOM ' + (i + 1) + ' · ' + R.when.toUpperCase(), 62, 92);
+    fitFont(x, R.title, w - 124, 60, '700'); x.fillText(R.title, 62, 168); x.font = '400 32px ' + SERIF; archText(x, R.plaque, 62, 236, w - 124, 44); }),
+  sign:i => archTex('sign' + i, 1024, 192, (x, w, h) => { x.fillStyle = '#2a1c12'; x.fillRect(0, 0, w, h); x.strokeStyle = '#c9a25a'; x.lineWidth = 6; x.strokeRect(10, 10, w - 20, h - 20);
+    x.fillStyle = '#e8cf8e'; x.textAlign = 'center'; const t = (i + 1) + '  ·  ' + ARCHIVE_ROOMS[i].title; fitFont(x, t, w - 80, 64, '700'); x.fillText(t, w / 2, 120); })
+};
+// a room's own frame: u runs from its door (u = -hu, in the hall wall) to its back wall (u = +hu), v across it. West rooms are the east rooms turned half round.
+function archiveRoomFrame(i){
+  const A = ARCHIVE, [sd, b] = ARCHIVE_SLOTS[i], B = A.bands[b], hu = (A.x1 - A.t - A.hall - 0.25) / 2, cx = sd * (A.hall + 0.25 + hu), cz = (B[0] + B[1]) / 2;
+  return {i, sd, cx, cz, hu, hv:(B[1] - B[0]) / 2, H:A.h - 0.12, door:{x:sd * A.hall, z:cz}, ry:r => r + (sd < 0 ? Math.PI : 0), inside:(x, z, m) => Math.abs(x - cx) < hu + (m || 0) && Math.abs(z - cz) < (B[1] - B[0]) / 2 + (m || 0)};
+}
+// building kit for one room: boxes and small parts are merged into one mesh per material (world-space UVs for boxes), painted panels are planes
+function roomKit(F, g){
+  const bins = new Map(), parts = new Map(), W = (u, v) => [F.cx + F.sd * u, F.cz + F.sd * v], _m = new THREE.Matrix4(), _r = new THREE.Matrix4();
+  const K = {
+    at:W,
+    box(mat, tile, u0, u1, y0, y1, v0, v1){ const a = W(u0, v0), b = W(u1, v1); let L = bins.get(mat); if(!L){ L = {tile, list:[]}; bins.set(mat, L); } L.list.push([Math.min(a[0], b[0]), Math.max(a[0], b[0]), y0, y1, Math.min(a[1], b[1]), Math.max(a[1], b[1])]); },
+    // a wall across the room at fixed u (u0..u1 thick) from v0 to v1, with openings {a0, a1 (in v), y0, y1}
+    wallV(mat, tile, u0, u1, v0, v1, y0, y1, holes){ let a = v0; holes.slice().sort((p, q) => p.a0 - q.a0).forEach(q => { K.box(mat, tile, u0, u1, y0, y1, a, q.a0); if(q.y0 > y0) K.box(mat, tile, u0, u1, y0, q.y0, q.a0, q.a1); if(q.y1 < y1) K.box(mat, tile, u0, u1, q.y1, y1, q.a0, q.a1); a = q.a1; }); K.box(mat, tile, u0, u1, y0, y1, a, v1); },
+    part(mat, geo, u, y, v, ry, rx, hex){ const w = W(u, v); _m.makeRotationY(F.ry(ry || 0)); if(rx) _m.multiply(_r.makeRotationX(rx)); _m.setPosition(w[0], y, w[1]); geo.applyMatrix4(_m);
+      if(hex != null){ const c = C(hex), n = geo.attributes.position.count, col = new Float32Array(n * 3); for(let k = 0; k < n; k++){ col[k * 3] = c.r; col[k * 3 + 1] = c.g; col[k * 3 + 2] = c.b; } geo.setAttribute('color', new THREE.BufferAttribute(col, 3)); }
+      let L = parts.get(mat); if(!L){ L = []; parts.set(mat, L); } L.push(geo); },
+    // a group of parts placed and turned together (furniture): offsets (du, dv) are in the group's own frame
+    sub(u0, v0, ry0){ const c = Math.cos(ry0), s = Math.sin(ry0); return {part:(mat, geo, du, y, dv, ry, rx, hex) => K.part(mat, geo, u0 + du * c + dv * s, y, v0 - du * s + dv * c, (ry || 0) + ry0, rx, hex)}; },
+    put(geo, mat, u, y, v, ry, rx){ const w = W(u, v), m = mk(geo, mat, w[0], y, w[1], g); m.rotation.order = 'YXZ'; m.rotation.set(rx || 0, F.ry(ry || 0), 0); m.castShadow = false; return m; },
+    panel(tex, w, h, u, y, v, ry, o){ o = o || {};
+      const mat = std(0xffffff, Object.assign({map:tex, roughness:o.rough == null ? 0.85 : o.rough}, o.emi ? {emissive:C(0xffffff), emissiveMap:tex, emissiveIntensity:o.emi} : {}, o.alpha ? {transparent:true, alphaTest:0.04, depthWrite:false} : {}));
+      const m = K.put(new THREE.PlaneGeometry(w, h), mat, u, y, v, ry, o.rx); if(o.alpha) m.renderOrder = 1; return m; },
+    solid(u0, u1, v0, v1, y1, o){ const a = W(u0, v0), b = W(u1, v1); aabb(Math.min(a[0], b[0]), Math.max(a[0], b[0]), 0, y1, Math.min(a[1], b[1]), Math.max(a[1], b[1]), Object.assign({full:true, cam:false}, o || {})); },
+    glow(hex, s, u, y, v, op){ const w = W(u, v); return glow(hex, s, w[0], y, w[1], g, op); },
+    done(){ bins.forEach((L, mat) => { mk(boxGeo(L.list, L.tile), mat, 0, 0, 0, g).castShadow = false; }); parts.forEach((L, mat) => { mk(merge(L), mat, 0, 0, 0, g).castShadow = false; }); }
+  };
+  return K;
+}
+const BX = (w, h, d) => new THREE.BoxGeometry(w, h, d), CY = (r1, r2, h, n, open) => new THREE.CylinderGeometry(r1, r2, h, n || 20, 1, !!open), SP = (r, a, b) => new THREE.SphereGeometry(r, a || 20, b || 14);
+// the lantern: in the window of No. 9 as a boy, on the sill of the same house at the end
+function archLantern(K, M, u, y, v){
+  K.part(M.iron, CY(0.075, 0.085, 0.03, 20), u, y + 0.015, v); K.part(M.iron, CY(0.02, 0.07, 0.05, 20), u, y + 0.235, v); K.part(M.iron, new THREE.TorusGeometry(0.06, 0.006, 6, 24, Math.PI), u, y + 0.26, v, Math.PI / 2);
+  [0, 1, 2, 3].forEach(k => K.part(M.iron, CY(0.004, 0.004, 0.19, 5), u + Math.cos(k * TAU / 4 + 0.7) * 0.07, y + 0.12, v + Math.sin(k * TAU / 4 + 0.7) * 0.07));
+  K.part(M.flame, CY(0.05, 0.058, 0.18, 20), u, y + 0.12, v); K.glow(0xffc070, 1.2, u, y + 0.13, v, 0.55);
+}
+// an office chair: seat, back, pole and five-star base
+function archChair(S, M, hex){ S.part(M.col, BX(0.46, 0.07, 0.46), 0, 0.47, 0, 0, 0, hex); S.part(M.col, BX(0.44, 0.5, 0.05), 0, 0.8, -0.24, 0, -0.08, hex); S.part(M.iron, CY(0.025, 0.025, 0.38, 8), 0, 0.26, 0); for(let k = 0; k < 5; k++){ const a = k / 5 * TAU; S.part(M.iron, BX(0.04, 0.03, 0.3), Math.sin(a) * 0.14, 0.05, Math.cos(a) * 0.14, a); } }
+const ROOM_BUILD = [
+  // 1. Lantern Row: the street outside No. 9 at dusk, the lantern in the window, the jar of milk money on the step
+  (K, M, F, hu, hv, H) => { const S = archiveStone();
+    K.box(std(0xffffff, {map:S.cobble.map, normalMap:S.cobble.normal, roughnessMap:S.cobble.rough, roughness:1}), 2.4, -hu, 2.8, -0.3, 0.03, -hv, hv);
+    K.box(M.pave, 3, 2.8, hu, -0.3, 0.07, -hv, hv); K.box(M.stone, 1, 2.62, 2.8, -0.3, 0.1, -hv, hv);
+    K.panel(ARCH_TEX.dusk(), 2 * hu, 2 * hv, 0, H - 0.01, 0, 0, {rx:Math.PI / 2, emi:0.55}); K.box(M.navy, 1, -hu, hu, H, H + 0.12, -hv, hv);
+    [[-hv + 0.02, 0], [hv - 0.02, Math.PI]].forEach(s => K.panel(ARCH_TEX.town(), 2 * hu, H, 0, H / 2, s[0], s[1], {emi:0.45}));
+    K.box(M.navy, 2, -hu, -hu + 0.02, 0, H, -hv, -1); K.box(M.navy, 2, -hu, -hu + 0.02, 0, H, 1, hv); K.box(M.navy, 2, -hu, -hu + 0.02, 2.8, H, -1, 1);
+    // the front of No. 9: brick, a blue door, the lit front room, the lantern in its window, two upstairs windows
+    const fu = hu - 0.3; K.wallV(M.brick, 3, fu, hu, -hv, hv, 0.07, H, [{a0:-2.7, a1:-1.6, y0:0.07, y1:2.25}, {a0:-0.4, a1:1.9, y0:0.95, y1:2.35}, {a0:-2.7, a1:-1.6, y0:3.2, y1:4.5}, {a0:0.1, a1:1.4, y0:3.2, y1:4.5}]);
+    K.solid(fu - 0.05, hu, -hv, hv, H);
+    K.box(M.blue, 1, fu + 0.1, fu + 0.16, 0.07, 2.25, -2.7, -1.6); [[-2.62, -2.2], [-2.1, -1.68]].forEach(p => [[0.35, 1.1], [1.25, 2.1]].forEach(y => K.box(M.blue, 1, fu + 0.07, fu + 0.1, y[0], y[1], p[0], p[1])));
+    K.part(M.brass, SP(0.035), fu + 0.06, 1.1, -1.78); K.part(M.brass, BX(0.02, 0.05, 0.26), fu + 0.08, 1.45, -2.15);
+    [[fu - 0.04, fu + 0.02, 0.07, 2.35, -2.8, -2.7], [fu - 0.04, fu + 0.02, 0.07, 2.35, -1.6, -1.5], [fu - 0.04, fu + 0.02, 2.25, 2.35, -2.8, -1.5]].forEach(b => K.box(M.paint, 1, ...b));
+    K.box(M.stone, 1, fu - 0.42, fu + 0.02, 0.07, 0.24, -2.9, -1.4);                                          // the step
+    K.panel(ARCH_TEX.curtain(), 2.3, 1.4, fu + 0.26, 1.65, 0.75, -Math.PI / 2, {emi:1.1});
+    K.box(M.pane, 1, fu + 0.06, fu + 0.07, 0.95, 2.35, -0.4, 1.9); K.box(M.paint, 1, fu + 0.05, fu + 0.1, 0.95, 2.35, 0.72, 0.78); K.box(M.paint, 1, fu + 0.05, fu + 0.1, 1.86, 1.92, -0.4, 1.9);
+    K.box(M.stone, 1, fu - 0.12, fu + 0.02, 0.87, 0.95, -0.55, 2.05); K.box(M.paint, 1, fu + 0.08, fu + 0.26, 0.93, 0.97, -0.4, 1.9);
+    archLantern(K, M, fu + 0.17, 0.97, 1.45);
+    [-2.15, 0.75].forEach(v => { K.panel(ARCH_TEX.curtain(), 1.3, 1.3, fu + 0.26, 3.85, v, -Math.PI / 2, {emi:0.22}); K.box(M.stone, 1, fu - 0.1, fu + 0.02, 3.12, 3.2, v - 0.7, v + 0.7); });
+    K.panel(ARCH_TEX.houseNo(), 0.22, 0.22, fu - 0.005, 1.75, -1.32, -Math.PI / 2);
+    // the jar of milk money on the step (the hidden detail)
+    const jar = std(0xdfeef0, {roughness:0.05, transparent:true, opacity:0.35, depthWrite:false});
+    K.put(CY(0.075, 0.075, 0.17, 24), jar, fu - 0.2, 0.325, -1.66).renderOrder = 2; K.part(M.gold, CY(0.066, 0.066, 0.06, 20), fu - 0.2, 0.27, -1.66); K.part(M.gold, CY(0.03, 0.03, 0.006, 16), fu - 0.2, 0.305, -1.64, 0, 0.4);
+    K.part(M.iron, CY(0.079, 0.079, 0.02, 24), fu - 0.2, 0.42, -1.66); K.part(M.paper, BX(0.16, 0.004, 0.12), fu - 0.2, 0.242, -1.62, 0.3);
+    // the lamp post, the bicycle against the wall, the chalk map on the setts
+    const lp = K.at(1.9, 3.9); K.part(M.iron, CY(0.06, 0.1, 4.2, 12), 1.9, 2.1, 3.9); K.part(M.iron, CY(0.2, 0.12, 0.12, 4), 1.9, 4.62, 3.9, Math.PI / 4); K.part(M.lampWarm, CY(0.12, 0.1, 0.36, 4), 1.9, 4.38, 3.9, Math.PI / 4);
+    K.glow(0xffc98a, 2.8, 1.9, 4.38, 3.9, 0.5); colliders.push({x:lp[0], z:lp[1], r:0.15});
+    [2.75, 3.65].forEach(v => K.part(M.iron, new THREE.TorusGeometry(0.3, 0.022, 8, 40), fu - 0.3, 0.38, v, Math.PI / 2));
+    K.part(M.red, CY(0.018, 0.018, 0.8, 8), fu - 0.3, 0.66, 3.2, 0, Math.PI / 2); K.part(M.red, CY(0.018, 0.018, 0.5, 8), fu - 0.3, 0.52, 2.95, 0, 0.9); K.part(M.black, BX(0.1, 0.05, 0.22), fu - 0.3, 0.8, 2.85); K.part(M.iron, CY(0.012, 0.012, 0.44, 8), fu - 0.3, 0.86, 3.6, Math.PI / 2, Math.PI / 2);
+    K.panel(ARCH_TEX.chalk(), 2.6, 1.6, -0.9, 0.035, -0.6, 0.25, {rx:-Math.PI / 2, alpha:true, rough:1});
+    return {name:'jar', u:fu - 1.1, v:-1.66, look:[fu - 0.2, 0.3, -1.66]}; },
+  // 2. The Workbench: the Pellows' garage at night, the Kestrel 8 and Comet Rally on the screen, the notebook under the keyboard
+  (K, M, F, hu, hv, H) => {
+    K.box(M.concrete, 3, -hu, hu, -0.3, 0.03, -hv, hv); K.box(M.black, 1, -hu, hu, H, H + 0.12, -hv, hv); for(let u = -4; u <= 4; u += 2) K.box(M.dark, 2, u - 0.07, u + 0.07, H - 0.24, H, -hv, hv);
+    K.box(M.dark, 2, -hu, hu, 0, 1.1, -hv, -hv + 0.025); K.box(M.dark, 2, -hu, hu, 0, 1.1, hv - 0.025, hv);
+    K.panel(ARCH_TEX.peg(), 5.2, 1.95, hu - 0.02, 1.95, 0, -Math.PI / 2, {rough:0.9});
+    K.panel(ARCH_TEX.roller(), 6.2, 3.3, -0.2, 1.72, hv - 0.035, Math.PI, {rough:0.45}); K.box(M.iron, 1, -3.4, -3.25, 0, 3.5, hv - 0.12, hv - 0.02); K.box(M.iron, 1, 2.85, 3.0, 0, 3.5, hv - 0.12, hv - 0.02); K.box(M.iron, 1, -3.4, 3.0, 3.38, 3.72, hv - 0.2, hv - 0.02);
+    // the bench, with a shelf underneath
+    const bu = hu - 0.95; K.box(M.oak, 2, bu, hu - 0.02, 0.88, 0.95, -2.7, 2.7); K.box(M.dark, 2, bu + 0.05, hu - 0.05, 0.22, 0.26, -2.6, 2.6);
+    [[bu + 0.05, -2.6], [bu + 0.05, 2.55], [hu - 0.1, -2.6], [hu - 0.1, 2.55]].forEach(l => K.box(M.dark, 1, l[0], l[0] + 0.07, 0.03, 0.88, l[1], l[1] + 0.07)); K.solid(bu - 0.05, hu, -2.75, 2.75, 1);
+    // the Kestrel 8 (keyboard computer), its screen showing Comet Rally, the tape deck
+    K.part(M.col, BX(0.21, 0.07, 0.48), hu - 0.55, 0.985, -0.25, 0, 0, 0xd9ceb0); K.part(M.col, BX(0.12, 0.012, 0.42), hu - 0.58, 1.024, -0.25, 0, 0, 0x4a4238);
+    K.part(M.col, BX(0.4, 0.07, 0.42), hu - 0.3, 0.985, 0.45, 0, 0, 0x3a3530); K.part(M.col, BX(0.38, 0.34, 0.42), hu - 0.3, 1.19, 0.45, 0, 0, 0xd4c9aa);
+    K.panel(ARCH_TEX.comet(), 0.33, 0.25, hu - 0.492, 1.2, 0.45, -Math.PI / 2, {emi:1.35, rough:0.2}); K.glow(0x7fe0ff, 0.9, hu - 0.55, 1.2, 0.45, 0.22);
+    K.part(M.col, BX(0.14, 0.05, 0.24), hu - 0.5, 0.975, -0.9, 0.1, 0, 0x2a2a2a); K.part(M.col, BX(0.08, 0.01, 0.12), hu - 0.5, 1.005, -0.9, 0.1, 0, 0x5a6a7a);
+    K.put(BX(0.15, 0.012, 0.21), std(0xffffff, {map:ARCH_TEX.squared(), roughness:0.9}), hu - 0.7, 0.957, -0.34, 0.4);   // the notebook (hidden detail)
+    // the bench lamp, a mug, paper; the stool
+    K.part(M.greenMetal, CY(0.08, 0.09, 0.03, 20), hu - 0.35, 0.965, -1.6); K.part(M.greenMetal, CY(0.012, 0.012, 0.42, 8), hu - 0.4, 1.17, -1.55, 0, -0.35); K.part(M.greenMetal, CY(0.04, 0.12, 0.16, 20, true), hu - 0.52, 1.36, -1.45, 0, -0.5);
+    K.part(M.bulb, SP(0.035), hu - 0.54, 1.32, -1.44); K.glow(0xffe0a0, 1.5, hu - 0.56, 1.28, -1.42, 0.5);
+    K.part(M.col, CY(0.045, 0.045, 0.1, 16), hu - 0.3, 1.0, 1.4, 0, 0, 0xb03a2e); [[-1.2, 0.2], [-1.05, -0.3], [1.1, 0.5]].forEach(p => K.part(M.paper, BX(0.21, 0.003, 0.29), hu - 0.45, 0.953, p[0], p[1]));
+    const st = K.sub(hu - 1.45, 0.45, 0.4); st.part(M.oak, CY(0.19, 0.19, 0.05, 24), 0, 0.66, 0); for(let k = 0; k < 3; k++){ const a = k / 3 * TAU; st.part(M.iron, CY(0.015, 0.02, 0.65, 8), Math.sin(a) * 0.13, 0.32, Math.cos(a) * 0.13, 0, 0); }
+    { const w = K.at(hu - 1.45, 0.45); colliders.push({x:w[0], z:w[1], r:0.22}); }
+    // shelves of tins along the far wall, an old radio
+    [0.4, 1.2, 2.0].forEach(y => K.box(M.dark, 2, -2.3, 2.0, y, y + 0.03, -hv + 0.03, -hv + 0.45));
+    [-2.3, -0.15, 1.95].forEach(u => K.box(M.dark, 1, u, u + 0.05, 0, 2.3, -hv + 0.03, -hv + 0.45)); K.solid(-2.35, 2.05, -hv, -hv + 0.5, 2.3);
+    const q = archRnd(30); for(let k = 0; k < 14; k++){ const sh = [0.43, 1.23, 2.03][k % 3], u = -2.1 + q() * 3.9, r = 0.06 + q() * 0.05, h = 0.1 + q() * 0.14; K.part(M.col, CY(r, r, h, 16), u, sh + h / 2, -hv + 0.2 + q() * 0.12, 0, 0, [0x9a3a2a, 0x2a5a8a, 0xc9a23a, 0x5a7a4a, 0x8a8a8a][k % 5]); }
+    K.part(M.col, BX(0.36, 0.22, 0.18), 0.6, 1.34, -hv + 0.22, 0, 0, 0x6a4a2a); K.part(M.col, CY(0.05, 0.05, 0.02, 16), 0.5, 1.34, -hv + 0.31, 0, Math.PI / 2, 0xd9ceb0);
+    return {name:'notebook', u:hu - 1.45, v:-0.35, look:[hu - 0.7, 0.96, -0.34]}; },
+  // 3. Above the Laundrette: two desks facing each other, the whiteboard of the first Hub, the clock stopped at twenty to six
+  (K, M, F, hu, hv, H) => {
+    K.box(M.oak, 4, -hu, hu, -0.3, 0.03, -hv, hv); K.box(M.plaster, 3, -hu, hu, H, H + 0.12, -hv, hv); K.box(M.lampCool, 1, -1.8, 1.8, H - 0.05, H, -0.3, 0.3); K.box(M.iron, 1, -1.85, 1.85, H - 0.07, H - 0.05, -0.35, 0.35);
+    K.box(M.dark, 2, -hu, hu, 0, 0.12, -hv, -hv + 0.02); K.box(M.dark, 2, -hu, hu, 0, 0.12, hv - 0.02, hv);
+    // the window onto the wet street, with the laundrette sign below
+    K.panel(ARCH_TEX.cityRain(), 4.2, 2.36, hu - 0.04, 2.25, 0, -Math.PI / 2, {emi:0.9}); K.box(M.pane, 1, hu - 0.1, hu - 0.09, 1.07, 3.43, -2.1, 2.1);
+    [[1.0, 1.07, -2.2, 2.2], [3.43, 3.5, -2.2, 2.2], [1.0, 3.5, -2.2, -2.1], [1.0, 3.5, 2.1, 2.2], [1.07, 3.43, -0.03, 0.03], [2.22, 2.28, -2.1, 2.1]].forEach(b => K.box(M.paint, 1, hu - 0.14, hu - 0.02, b[0], b[1], b[2], b[3]));
+    K.box(M.paint, 1, hu - 0.3, hu, 0.97, 1.02, -2.3, 2.3); for(let v = -1.6; v <= 1.6; v += 0.16) K.box(M.paint, 1, hu - 0.2, hu - 0.12, 0.2, 0.8, v, v + 0.07);
+    // whiteboard and corkboard; the clock, with Mara's sketch pinned behind it (the hidden detail)
+    K.panel(ARCH_TEX.whiteboard(), 2.8, 1.4, 0.2, 1.75, -hv + 0.04, 0, {rough:0.25}); [[1.03, 1.08], [2.42, 2.47]].forEach(y => K.box(M.alu, 1, -1.25, 1.65, y[0], y[1], -hv, -hv + 0.06)); K.box(M.alu, 1, -1.25, 1.65, 0.98, 1.03, -hv, -hv + 0.12);
+    K.panel(ARCH_TEX.cork(), 1.8, 1.12, -1.8, 1.7, hv - 0.04, Math.PI); K.box(M.dark, 1, -2.74, -0.86, 1.1, 2.3, hv - 0.035, hv);
+    K.part(M.paper, BX(0.32, 0.22, 0.004), 1.6, 2.2, hv - 0.03, 0, 0); K.put(new THREE.CircleGeometry(0.22, 48), std(0xffffff, {map:ARCH_TEX.clock(), roughness:0.35}), 1.4, 2.35, hv - 0.06, Math.PI);
+    K.part(M.black, new THREE.TorusGeometry(0.225, 0.022, 8, 48), 1.4, 2.35, hv - 0.06, 0);
+    // two desks back to back: his screen of rules, her screen of drawings
+    K.box(M.oak, 2, -0.8, 0.8, 0.72, 0.76, -1.45, -0.02); K.box(M.oak, 2, -0.8, 0.8, 0.72, 0.76, 0.02, 1.45); K.box(M.dark, 2, -0.75, 0.75, 0.3, 0.72, -0.03, 0.03);
+    [[-0.78, -1.43], [0.72, -1.43], [-0.78, 1.37], [0.72, 1.37]].forEach(l => K.box(M.dark, 1, l[0], l[0] + 0.06, 0.03, 0.72, l[1], l[1] + 0.06)); K.solid(-0.85, 0.85, -1.5, 1.5, 0.8);
+    [[-1, 0.1, ARCH_TEX.code()], [1, -0.1, ARCH_TEX.pixels()]].forEach(([sg, u, tex]) => { K.part(M.col, BX(0.4, 0.36, 0.4), u, 0.96, sg * 0.35, 0, 0, 0xd4c9aa); K.panel(tex, 0.32, 0.24, u, 0.97, sg * 0.552, sg < 0 ? Math.PI : 0, {emi:1.2, rough:0.2}); K.part(M.col, BX(0.44, 0.03, 0.16), u, 0.775, sg * 0.85, 0, 0, 0xcfc4a6); });
+    [[-2.05, 0], [2.05, Math.PI]].forEach(([v, r]) => archChair(K.sub(0, v, r), M, 0x3a4a6a));
+    // the kettle cabinet, the plant, boxes of discs
+    K.box(M.dark, 2, hu - 0.62, hu - 0.02, 0.03, 0.9, -hv + 0.05, -hv + 1.25); K.box(M.oak, 2, hu - 0.65, hu, 0.9, 0.94, -hv + 0.02, -hv + 1.28); K.solid(hu - 0.66, hu, -hv, -hv + 1.3, 0.95);
+    K.part(M.steel, CY(0.07, 0.085, 0.2, 20), hu - 0.3, 1.04, -hv + 0.4); K.part(M.black, new THREE.TorusGeometry(0.06, 0.012, 6, 16, Math.PI), hu - 0.3, 1.1, -hv + 0.4 - 0.08, Math.PI / 2, 0); K.part(M.steel, CY(0.012, 0.02, 0.12, 8), hu - 0.3, 1.04, -hv + 0.52, 0, 1.0);
+    [[-hv + 0.8, 0xe8e0d0], [-hv + 1.0, 0x3a6a8a]].forEach(m => K.part(M.col, CY(0.04, 0.036, 0.09, 16), hu - 0.28, 0.985, m[0], 0, 0, m[1]));
+    K.part(M.col, CY(0.18, 0.14, 0.3, 20), hu - 0.5, 0.15, hv - 0.5, 0, 0, 0xa0522d); const pq = archRnd(31); for(let k = 0; k < 9; k++){ const a = k / 9 * TAU; K.part(M.leaf, SP(0.12, 10, 8).scale(0.6, 1.8, 0.3), hu - 0.5 + Math.cos(a) * 0.1, 0.55 + pq() * 0.2, hv - 0.5 + Math.sin(a) * 0.1, a, 0.3 + pq() * 0.3); }
+    [[0.9, 0.2, hv - 0.5, 0.4, 0], [0.92, 0.6, hv - 0.5, 0.4, 0.15], [1.45, 0.2, hv - 1.05, 0.4, 0.4]].forEach(b => K.part(M.col, BX(0.5, b[3], 0.4), -hu + b[0], b[1], b[2], b[4], 0, 0xa8845a));
+    return {name:'clock', u:1.4, v:hv - 1.15, look:[1.4, 2.35, hv - 0.06]}; },
+  // 4. The Night the Lights Came On: the launch counter on the wall, balloons, a cake, the Starling cabinet
+  (K, M, F, hu, hv, H) => {
+    K.box(M.carpet, 2, -hu, hu, -0.3, 0.03, -hv, hv); K.box(M.black, 1, -hu, hu, H, H + 0.12, -hv, hv);
+    K.box(M.black, 1, hu - 0.12, hu, 1.15, 4.05, -2.45, 2.45); K.panel(ARCH_TEX.launch(), 4.6, 2.59, hu - 0.125, 2.6, 0, -Math.PI / 2, {emi:1.25, rough:0.3});
+    K.panel(ARCH_TEX.banner(), 3.6, 0.68, -0.6, 4.55, hv - 0.04, Math.PI);
+    K.panel(ARCH_TEX.fireworks(), 2.6, 1.6, 0.6, 2.4, -hv + 0.04, 0, {emi:0.8}); K.box(M.pane, 1, -0.7, 1.9, 1.6, 3.2, -hv + 0.08, -hv + 0.09);
+    [[1.52, 1.6, -0.78, 1.98], [3.2, 3.28, -0.78, 1.98], [1.52, 3.28, -0.78, -0.7], [1.52, 3.28, 1.9, 1.98]].forEach(b => K.box(M.paint, 1, b[2], b[3], b[0], b[1], -hv, -hv + 0.12));
+    // balloons with their strings, lights strung across the ceiling
+    const q = archRnd(40), cols = [0xff4fa3, 0x5ce1e6, 0xffd166, 0xb18cff, 0x7dffb0];
+    for(let k = 0; k < 11; k++){ const u = -3.5 + q() * 6.5, v = -hv + 0.8 + q() * (2 * hv - 1.6), y = 3.9 + q() * 1.4; K.part(M.balloon, SP(0.22, 20, 14).scale(1, 1.15, 1), u, y, v, 0, 0, cols[k % 5]); K.part(M.col, CY(0.004, 0.004, 1.3, 4), u, y - 0.9, v, 0, 0, 0xf0f0f0); }
+    for(let s = 0; s < 3; s++){ const v = -hv + 1.4 + s * (2 * hv - 2.8) / 2; for(let k = 0; k <= 20; k++){ const t = k / 20, u = -hu + 0.3 + t * (2 * hu - 0.6); K.part(M.bulb, SP(0.035, 8, 6), u, H - 0.25 - Math.sin(t * Math.PI) * 0.6, v); } }
+    // the table: cake, candles, cups
+    K.box(M.paint, 1, 0.1, 2.7, 0.74, 0.78, -hv + 0.3, -hv + 1.15); K.box(M.paint, 1, 0.1, 2.7, 0.3, 0.74, -hv + 1.12, -hv + 1.15); [[0.15, -hv + 0.35], [2.6, -hv + 0.35]].forEach(l => K.box(M.iron, 1, l[0], l[0] + 0.04, 0.03, 0.74, l[1], l[1] + 0.04)); K.solid(0.05, 2.75, -hv, -hv + 1.2, 0.8);
+    K.part(M.col, CY(0.2, 0.2, 0.12, 32), 1.4, 0.84, -hv + 0.7, 0, 0, 0xf4e8d4); K.part(M.col, CY(0.2, 0.2, 0.03, 32), 1.4, 0.915, -hv + 0.7, 0, 0, 0xff9ac8);
+    for(let k = 0; k < 5; k++){ const a = k / 5 * TAU; K.part(M.col, CY(0.006, 0.006, 0.07, 6), 1.4 + Math.cos(a) * 0.12, 0.965, -hv + 0.7 + Math.sin(a) * 0.12, 0, 0, 0x7fd0ff); K.part(M.flame, SP(0.01, 6, 4).scale(1, 1.8, 1), 1.4 + Math.cos(a) * 0.12, 1.012, -hv + 0.7 + Math.sin(a) * 0.12); }
+    K.glow(0xffc070, 0.8, 1.4, 1.03, -hv + 0.7, 0.4);
+    for(let k = 0; k < 9; k++) K.part(M.col, CY(0.04, 0.03, 0.1, 14, true), 0.4 + q() * 2.0, 0.83, -hv + 0.45 + q() * 0.6, 0, 0, cols[k % 5]);
+    // the Starling cabinet against the east wall (the hidden detail is its high-score table)
+    const cu = 1.9, cv = hv - 0.45; K.box(M.cab, 1, cu - 0.36, cu + 0.36, 0.03, 1.9, cv - 0.4, hv - 0.02); K.box(M.black, 1, cu - 0.34, cu + 0.34, 0.9, 1.0, cv - 0.62, cv - 0.4);
+    K.panel(ARCH_TEX.starMarquee(), 0.68, 0.19, cu, 1.76, cv - 0.405, Math.PI, {emi:1.4}); K.panel(ARCH_TEX.starScreen(), 0.5, 0.62, cu, 1.33, cv - 0.405, Math.PI, {emi:1.25, rough:0.15});
+    K.part(M.iron, CY(0.012, 0.012, 0.12, 8), cu - 0.12, 1.06, cv - 0.52); K.part(M.col, SP(0.03), cu - 0.12, 1.13, cv - 0.52, 0, 0, 0xd62d2d); [0.05, 0.16].forEach(d => K.part(M.col, CY(0.025, 0.025, 0.02, 16), cu + d, 1.01, cv - 0.5, 0, 0, 0xffd166));
+    K.glow(0x7fe0ff, 1.1, cu, 1.33, cv - 0.5, 0.2); K.solid(cu - 0.4, cu + 0.4, cv - 0.65, hv, 1.9);
+    return {name:'cabinet', u:cu, v:cv - 1.35, look:[cu, 1.33, cv - 0.405]}; },
+  // 5. The Glass Room: the city from the thirty-first floor, the long table, two chairs pushed back, the model of The Drift, the ticket under her cup
+  (K, M, F, hu, hv, H) => {
+    K.box(M.floorStone, 6, -hu, hu, -0.3, 0.03, -hv, hv); K.box(M.ceilGrey, 3, -hu, hu, H, H + 0.12, -hv, hv);
+    K.panel(ARCH_TEX.cityNight(), 2 * hv - 0.1, H - 0.05, hu - 0.05, H / 2, 0, -Math.PI / 2, {emi:0.85});
+    K.box(M.pane, 1, hu - 0.13, hu - 0.12, 0, H, -hv, hv); [-hv + 0.05, -2.4, 0, 2.4, hv - 0.05].forEach(v => K.box(M.iron, 1, hu - 0.2, hu - 0.08, 0, H, v - 0.05, v + 0.05)); [[0, 0.35], [H - 0.3, H]].forEach(y => K.box(M.iron, 1, hu - 0.2, hu - 0.08, y[0], y[1], -hv, hv));
+    K.box(M.dark, 2, -1.8, 2.6, 0.74, 0.79, -0.75, 0.75); [-0.9, 1.7].forEach(u => K.box(M.iron, 1, u - 0.1, u + 0.1, 0.03, 0.74, -0.35, 0.35)); K.solid(-1.85, 2.65, -0.8, 0.8, 0.8);
+    K.box(M.lampCool, 1, -1.3, 2.1, 2.9, 2.95, -0.06, 0.06); [-1.2, 2.0].forEach(u => K.part(M.iron, CY(0.004, 0.004, H - 2.95, 4), u, (H + 2.95) / 2, 0));
+    [[-1.0, -1.2, 0], [0.8, -1.2, 0], [-1.0, 1.2, Math.PI], [0.8, 1.2, Math.PI]].forEach(c => archChair(K.sub(c[0], c[1], c[2]), M, 0x2a2a30));
+    archChair(K.sub(3.35, -0.55, -Math.PI / 2 + 0.5), M, 0x2a2a30); archChair(K.sub(3.55, 0.9, 0.9), M, 0x2a2a30);   // his, pushed back; hers, turned away
+    [[2.25, -0.35], [2.15, 0.4]].forEach(c => { K.part(M.col, CY(0.045, 0.04, 0.1, 16), c[0], 0.84, c[1], 0, 0, 0xf2efe8); K.part(M.col, CY(0.04, 0.04, 0.004, 16), c[0], 0.885, c[1], 0, 0, 0x3a2414); });
+    K.panel(ARCH_TEX.ticket(), 0.17, 0.085, 2.1, 0.792, 0.5, 0.3, {rx:-Math.PI / 2, rough:0.6});   // under her cup (the hidden detail)
+    K.part(M.col, BX(0.32, 0.02, 0.24), 1.1, 0.8, 0.05, 0.15, 0, 0x2a4a8a); K.part(M.paper, BX(0.21, 0.004, 0.29), 0.5, 0.792, -0.3, -0.2);
+    // Mara's model of The Drift, and its poster
+    const du = -3.7, dv = hv - 0.9; K.part(M.stone, CY(0.32, 0.36, 0.95, 32), du, 0.5, dv); K.part(M.pane2, SP(0.3, 28, 20), du, 1.32, dv);
+    [0, 1.0, 2.0].forEach((a, k) => K.part(M.rose, new THREE.TorusGeometry(0.31, 0.01, 8, 64), du, 1.32, dv, a, k === 0 ? Math.PI / 2 : 0.6)); K.part(M.cyan, SP(0.08, 16, 12), du, 1.32, dv);
+    K.glow(0xff4fa3, 1.2, du, 1.32, dv, 0.35); { const w = K.at(du, dv); colliders.push({x:w[0], z:w[1], r:0.42}); }
+    K.panel(ARCH_TEX.driftPoster(), 1.0, 1.5, 0.3, 1.85, -hv + 0.045, 0); K.box(M.black, 1, -0.24, 0.84, 1.06, 2.64, -hv, -hv + 0.04);
+    return {name:'ticket', u:2.2, v:1.55, look:[2.1, 0.8, 0.45]}; },
+  // 6. Low Water: No. 9 again, years later. The harbour at low tide through the window, the lantern on the sill, the armchair, the music box
+  (K, M, F, hu, hv, H) => {
+    K.box(M.oakDark, 4, -hu, hu, -0.3, 0.03, -hv, hv); K.box(M.plasterDim, 3, -hu, hu, H, H + 0.12, -hv, hv);
+    K.box(M.dark, 2, -hu, hu, 0, 0.95, -hv, -hv + 0.03); K.box(M.dark, 1, -hu, hu, 0.95, 1.0, -hv, -hv + 0.05); K.box(M.dark, 2, -hu, hu, 0, 0.95, hv - 0.03, hv); K.box(M.dark, 1, -hu, hu, 0.95, 1.0, hv - 0.05, hv);
+    K.panel(ARCH_TEX.rug(), 3.0, 2.2, 0.6, 0.036, -0.4, 0, {rx:-Math.PI / 2, rough:1});
+    // the window onto the harbour at low water, and the same lantern on the sill
+    K.panel(ARCH_TEX.harbour(), 3.6, 2.25, hu - 0.05, 2.3, 0, -Math.PI / 2, {emi:0.75}); K.box(M.pane, 1, hu - 0.1, hu - 0.09, 1.18, 3.42, -1.8, 1.8);
+    [[1.12, 1.18, -1.9, 1.9], [3.42, 3.5, -1.9, 1.9], [1.12, 3.5, -1.9, -1.8], [1.12, 3.5, 1.8, 1.9], [1.18, 3.42, -0.03, 0.03], [2.27, 2.33, -1.8, 1.8]].forEach(b => K.box(M.paint, 1, hu - 0.14, hu - 0.02, b[0], b[1], b[2], b[3]));
+    K.box(M.paint, 1, hu - 0.4, hu, 1.05, 1.12, -2.0, 2.0); archLantern(K, M, hu - 0.22, 1.12, 1.25);
+    // the armchair, the side table and the music box (the hidden detail), the reading lamp
+    const ac = K.sub(0.35, -1.45, 0.55); ac.part(M.col, BX(0.8, 0.42, 0.72), 0, 0.24, 0, 0, 0, 0x4a5a3a); ac.part(M.col, BX(0.8, 0.8, 0.2), 0, 0.62, -0.36, 0, -0.12, 0x44543a); [-0.45, 0.45].forEach(d => ac.part(M.col, BX(0.14, 0.6, 0.78), d, 0.33, 0, 0, 0, 0x3f4f36));
+    { const w = K.at(0.35, -1.45); colliders.push({x:w[0], z:w[1], r:0.55}); }
+    K.part(M.oak, CY(0.3, 0.3, 0.03, 32), 1.45, 0.6, 0.15); K.part(M.dark, CY(0.035, 0.035, 0.58, 12), 1.45, 0.3, 0.15); K.part(M.dark, CY(0.18, 0.2, 0.03, 24), 1.45, 0.02, 0.15); { const w = K.at(1.45, 0.15); colliders.push({x:w[0], z:w[1], r:0.32}); }
+    K.part(M.col, BX(0.17, 0.07, 0.12), 1.45, 0.65, 0.15, 0.25, 0, 0x7a8a9a); K.part(M.col, BX(0.17, 0.12, 0.008), 1.45 + Math.sin(0.25) * 0.06, 0.745, 0.15 + Math.cos(0.25) * 0.06, 0.25, -0.25, 0x6a7a8a); K.part(M.brass, CY(0.012, 0.012, 0.12, 8), 1.45, 0.69, 0.15, 0.25 + Math.PI / 2, Math.PI / 2);
+    K.panel(ARCH_TEX.strip(), 0.15, 0.037, 1.45 + Math.sin(0.25) * 0.055, 0.745, 0.15 + Math.cos(0.25) * 0.055, 0.25 + Math.PI, {rx:0.25, rough:0.8});
+    K.part(M.dark, CY(0.16, 0.18, 0.03, 24), 2.3, 0.02, -2.4); K.part(M.brass, CY(0.015, 0.015, 1.5, 8), 2.3, 0.78, -2.4); K.part(M.shade, CY(0.14, 0.2, 0.28, 24, true), 2.3, 1.55, -2.4); K.glow(0xffd9a0, 1.8, 2.3, 1.5, -2.4, 0.4); { const w = K.at(2.3, -2.4); colliders.push({x:w[0], z:w[1], r:0.22}); }
+    // stacks of notebooks along the wall (drafts of the Ledger), the kitchen table with loose pages, the grey coat on its hook
+    const q = archRnd(60); for(let s = 0; s < 6; s++){ const u = -2.4 + s * 0.8 + q() * 0.3, n = 4 + Math.floor(q() * 7); let y = 0.03; for(let k = 0; k < n; k++){ const h = 0.02 + q() * 0.02; K.part(M.col, BX(0.22, h, 0.3), u, y + h / 2, -hv + 0.3, (q() - 0.5) * 0.3, 0, [0x6a2a24, 0x2a3a5a, 0x3a4a2a, 0x7a6a4a, 0x2a2a2a][Math.floor(q() * 5)]); y += h; } }
+    K.box(M.oak, 2, -2.1, -0.6, 0.74, 0.78, hv - 1.35, hv - 0.5); [[-2.05, hv - 1.3], [-0.7, hv - 1.3], [-2.05, hv - 0.6], [-0.7, hv - 0.6]].forEach(l => K.box(M.dark, 1, l[0], l[0] + 0.05, 0.03, 0.74, l[1], l[1] + 0.05)); K.solid(-2.15, -0.55, hv - 1.4, hv - 0.45, 0.8);
+    for(let k = 0; k < 7; k++) K.part(M.paper, BX(0.21, 0.003, 0.29), -1.9 + q() * 1.1, 0.782 + k * 0.001, hv - 1.2 + q() * 0.5, q() * 1.2);
+    K.part(M.black, CY(0.03, 0.035, 0.05, 12), -0.85, 0.805, hv - 0.7); K.part(M.col, CY(0.004, 0.004, 0.16, 6), -0.95, 0.785, hv - 0.8, 1.0, Math.PI / 2, 0x1a1a1a);
+    K.part(M.brass, CY(0.015, 0.015, 0.1, 8), -3.0, 1.95, hv - 0.05, 0, Math.PI / 2);
+    const coat = new THREE.LatheGeometry([[0.001, 0], [0.3, 0], [0.26, 0.4], [0.22, 0.8], [0.24, 1.0], [0.16, 1.1], [0.05, 1.14], [0.001, 1.14]].map(a => new V2(a[0], a[1])), 24); coat.scale(1, 1, 0.38); coat.computeVertexNormals();
+    K.part(M.coat, coat, -3.0, 0.82, hv - 0.16);
+    return {name:'musicbox', u:0.95, v:-0.35, look:[1.45, 0.68, 0.15]}; }
+];
+function archiveBuildRoom(i){
+  const R = archive && archive.rooms[i]; if(!R || R.built) return;
+  const prev = buildParent; buildParent = null;
+  const F = R.F, K = roomKit(F, R.g), M = archive.M;
+  const d = ROOM_BUILD[i](K, M, F, F.hu, F.hv, F.H);
+  K.box(M.brass, 1, -3.86, -2.54, 1.06, 2.04, -F.hv, -F.hv + 0.035); K.panel(ARCH_TEX.plaque(i), 1.2, 0.9, -3.2, 1.55, -F.hv + 0.04, 0, {rough:0.35});   // the brass plaque by the door
+  K.done();
+  const s = K.at(d.u, d.v), l = K.at(d.look[0], d.look[2]); R.detail = {name:d.name, x:s[0], z:s[1], look:[l[0], d.look[1], l[1]]};
+  R.built = true; buildParent = prev;
+}
+let archive = null;
+function buildArchive(){
+  const A = ARCHIVE, T = campusTextures(), S = archiveStone(), gr = surface('granite'), cs = surface('concrete');
+  const wood = (hex, n) => std(hex, {map:T.wood.map, normalMap:T.wood.normal, normalScale:new V2(n || 0.5, n || 0.5), roughnessMap:T.wood.rough, roughness:1});
+  const M = {
+    brick:std(0xffffff, {map:S.brick.map, normalMap:S.brick.normal, roughnessMap:S.brick.rough, roughness:1}),
+    stone:std(0xd8d0c2, {map:gr.map, normalMap:gr.normal, normalScale:new V2(0.5, 0.5), roughness:0.75}),
+    pave:std(0xffffff, {map:T.pave.map, normalMap:T.pave.normal, roughnessMap:T.pave.rough, roughness:1}),
+    plaster:std(0xd9cfbb, {map:detailTex, normalMap:detailNormal, normalScale:new V2(0.12, 0.12), roughness:0.93}),
+    plasterDim:std(0xb8ab94, {map:detailTex, roughness:0.95}), ceilGrey:std(0x8a8c90, {map:detailTex, roughness:0.9}), navy:std(0x1d2548, {roughness:0.95}),
+    oak:wood(0xe2cbac), oakDark:wood(0x9a7a5c, 0.6), dark:wood(0x7a5a44, 0.4),
+    floorStone:std(0xa8a39b, {map:T.floor.map, normalMap:T.floor.normal, normalScale:new V2(0.4, 0.4), roughnessMap:T.floor.rough, roughness:1}),
+    concrete:std(0x9a968e, {map:cs.map, normalMap:cs.normal, normalScale:new V2(0.6, 0.6), roughness:0.9}), carpet:std(0x2c3656, {map:detailTex, roughness:1}),
+    brass:std(0xc9a25a, {metalness:0.85, roughness:0.32, map:detailTex}), gold:std(0xd8a93a, {metalness:0.9, roughness:0.28}), iron:std(0x2a2c31, {metalness:0.6, roughness:0.5}),
+    steel:std(0xb8bcc2, {metalness:0.85, roughness:0.25}), alu:std(0xc8ccd0, {metalness:0.7, roughness:0.35}), black:std(0x141418, {roughness:0.85}), paint:std(0xe8e4da, {roughness:0.55}), paper:std(0xf1ead6, {roughness:0.9}),
+    blue:std(0x284a7a, {roughness:0.45, map:detailTex}), red:std(0x9a2a22, {roughness:0.4, metalness:0.3}), greenMetal:std(0x2f5a44, {roughness:0.4, metalness:0.5}),
+    col:std(0xffffff, {vertexColors:true, roughness:0.55}), balloon:std(0xffffff, {vertexColors:true, roughness:0.3}), leaf:std(0x3f6b2a, {roughness:0.7}), coat:std(0x6d7078, {roughness:0.95, map:detailTex}),
+    cab:std(0x2a1d4a, {roughness:0.5}), shade:std(0xf4e6c8, {emissive:C(0xffd9a0), emissiveIntensity:0.6, roughness:0.9, side:THREE.DoubleSide}),
+    glass:std(0x1b2733, {roughness:0.06, metalness:0.35}), pane:std(0xcfe6f2, {roughness:0.04, metalness:0.1, transparent:true, opacity:0.16, depthWrite:false}), pane2:std(0xe6f4ff, {roughness:0.05, transparent:true, opacity:0.18, depthWrite:false}),
+    flame:glowM(0xffb45a, 2.6), bulb:glowM(0xffe0a8, 2.4), lampWarm:glowM(0xffc98a, 2.2), lampCool:glowM(0xf2f5ff, 1.3), rose:glowM(0xff4fa3, 1.8), cyan:glowM(0x5ce1e6, 1.4)
+  };
+  const hall = new THREE.Group(); world.add(hall);
+  const brick = [], plaster = [], stone = [], oak = [], dark = [], glass = [], sol = [];
+  // a wall along x (thick in z from f0 to f1) or along z (thick in x), from a0 to a1, with openings {a0, a1, y0, y1}
+  const wall = (list, axis, f0, f1, a0, a1, holes, solid) => {
+    const add = (L, b0, b1, c0, c1) => { if(b1 - b0 > 1e-3 && c1 - c0 > 1e-3) L.push(axis === 'x' ? [b0, b1, c0, c1, f0, f1] : [f0, f1, c0, c1, b0, b1]); };
+    const run = (L, hs) => { let a = a0; hs.slice().sort((p, q) => p.a0 - q.a0).forEach(q => { add(L, a, q.a0, -0.3, A.h); add(L, q.a0, q.a1, -0.3, q.y0); add(L, q.a0, q.a1, q.y1, A.h); a = q.a1; }); add(L, a, a1, -0.3, A.h); };
+    if(list) run(list, holes); if(solid) run(sol, holes.filter(q => !q.win));
+  };
+  // outer walls: brick outside, plaster inside. The windows are real openings in the brick with dark glass behind; the plaster behind them is whole.
+  const win = c => ({a0:c - 0.9, a1:c + 0.9, y0:1.35, y1:4.55, win:true}), DOOR = {a0:A.door.x0, a1:A.door.x1, y0:-0.3, y1:A.door.h};
+  const fw = [-12.8, -8.2, 8.2, 12.8].map(win), bw = [-12.8, -8.2, -2.4, 2.4, 8.2, 12.8].map(win), sw = A.bands.map(b => win((b[0] + b[1]) / 2));
+  wall(brick, 'x', A.z0, A.z0 + 0.2, A.x0, A.x1, fw.concat([DOOR])); wall(plaster, 'x', A.z0 + 0.2, A.z0 + A.t, A.x0 + A.t, A.x1 - A.t, [DOOR]); wall(null, 'x', A.z0, A.z0 + A.t, A.x0, A.x1, [DOOR], true);
+  wall(brick, 'x', A.z1 - 0.2, A.z1, A.x0, A.x1, bw); wall(plaster, 'x', A.z1 - A.t, A.z1 - 0.2, A.x0 + A.t, A.x1 - A.t, []); wall(null, 'x', A.z1 - A.t, A.z1, A.x0, A.x1, [], true);
+  [[A.x0, A.x0 + 0.2, A.x0 + 0.2, A.x0 + A.t], [A.x1 - 0.2, A.x1, A.x1 - A.t, A.x1 - 0.2]].forEach(s => { wall(brick, 'z', s[0], s[1], A.z0 + 0.2, A.z1 - 0.2, sw); wall(plaster, 'z', s[2], s[3], A.z0 + A.t, A.z1 - A.t, []); wall(null, 'z', Math.min(s[0], s[2]), Math.max(s[1], s[3]), A.z0, A.z1, [], true); });
+  [...fw.map(w => ['x', A.z0, w]), ...bw.map(w => ['x', A.z1, w]), ...sw.map(w => ['z', A.x0, w]), ...sw.map(w => ['z', A.x1, w])].forEach(([ax, f, w]) => {
+    const o = f === A.z0 || f === A.x0 ? 1 : -1, g0 = f + o * 0.13, g1 = f + o * 0.15, m = (w.a0 + w.a1) / 2;   // glass sits 13 cm into the reveal
+    const B = (L, a0, a1, y0, y1, e0, e1) => L.push(ax === 'x' ? [a0, a1, y0, y1, Math.min(e0, e1), Math.max(e0, e1)] : [Math.min(e0, e1), Math.max(e0, e1), y0, y1, a0, a1]);
+    B(glass, w.a0, w.a1, w.y0, w.y1, g0, g1); B(stone, w.a0 - 0.12, w.a1 + 0.12, w.y0 - 0.12, w.y0, f - o * 0.06, f + o * 0.2); B(stone, w.a0 - 0.1, w.a1 + 0.1, w.y1, w.y1 + 0.22, f - o * 0.03, f + o * 0.05);
+    B(stone, m - 0.05, m + 0.05, w.y0, w.y1, g0 - o * 0.02, g0); B(stone, w.a0, w.a1, 3.55, 3.63, g0 - o * 0.02, g0);
+  });
+  // the hall walls with the six room doors, and the walls between rooms
+  [-1, 1].forEach(sd => { const doors = A.bands.map(b => { const c = (b[0] + b[1]) / 2; return {a0:c - A.roomDoor.w, a1:c + A.roomDoor.w, y0:-0.3, y1:A.roomDoor.h}; });
+    wall(plaster, 'z', sd * A.hall - 0.25, sd * A.hall + 0.25, A.z0 + A.t, A.z1 - A.t, doors, true);
+    [71.8, 81.8].forEach(z => wall(plaster, 'x', z, z + 0.4, sd < 0 ? A.x0 + A.t : A.hall + 0.25, sd < 0 ? -A.hall - 0.25 : A.x1 - A.t, [], true));
+    doors.forEach(d => { oak.push([sd * A.hall - 0.25, sd * A.hall + 0.25, -0.3, 0.03, d.a0, d.a1]);
+      dark.push([sd * A.hall - 0.3, sd * A.hall + 0.3, 0, A.roomDoor.h + 0.12, d.a0 - 0.12, d.a0], [sd * A.hall - 0.3, sd * A.hall + 0.3, 0, A.roomDoor.h + 0.12, d.a1, d.a1 + 0.12], [sd * A.hall - 0.3, sd * A.hall + 0.3, A.roomDoor.h, A.roomDoor.h + 0.12, d.a0 - 0.12, d.a1 + 0.12]); }); });
+  // roof slab with a skylight over the hall, a cornice, a parapet and a stone plinth; one solid slab for the camera
+  const R0 = {x0:A.x0 - 0.25, x1:A.x1 + 0.25, z0:A.z0 - 0.25, z1:A.z1 + 0.25}, SK = {x0:-3, x1:3, z0:65, z1:89};
+  stone.push([R0.x0, R0.x1, A.h, A.h + 0.45, R0.z0, SK.z0], [R0.x0, R0.x1, A.h, A.h + 0.45, SK.z1, R0.z1], [R0.x0, SK.x0, A.h, A.h + 0.45, SK.z0, SK.z1], [SK.x1, R0.x1, A.h, A.h + 0.45, SK.z0, SK.z1]);
+  stone.push([R0.x0, R0.x1, A.h + 0.45, A.h + 1.0, R0.z0, R0.z0 + 0.35], [R0.x0, R0.x1, A.h + 0.45, A.h + 1.0, R0.z1 - 0.35, R0.z1], [R0.x0, R0.x0 + 0.35, A.h + 0.45, A.h + 1.0, R0.z0, R0.z1], [R0.x1 - 0.35, R0.x1, A.h + 0.45, A.h + 1.0, R0.z0, R0.z1]);
+  stone.push([A.x0 - 0.2, A.x1 + 0.2, A.h - 0.3, A.h, A.z0 - 0.2, A.z0], [A.x0 - 0.2, A.x1 + 0.2, A.h - 0.3, A.h, A.z1, A.z1 + 0.2], [A.x0 - 0.2, A.x0, A.h - 0.3, A.h, A.z0, A.z1], [A.x1, A.x1 + 0.2, A.h - 0.3, A.h, A.z0, A.z1]);
+  stone.push([A.x0 - 0.06, A.door.x0 - 0.35, -0.3, 0.55, A.z0 - 0.06, A.z0], [A.door.x1 + 0.35, A.x1 + 0.06, -0.3, 0.55, A.z0 - 0.06, A.z0], [A.x0 - 0.06, A.x1 + 0.06, -0.3, 0.55, A.z1, A.z1 + 0.06], [A.x0 - 0.06, A.x0, -0.3, 0.55, A.z0, A.z1], [A.x1, A.x1 + 0.06, -0.3, 0.55, A.z0, A.z1]);
+  aabb(R0.x0, R0.x1, A.h - 0.1, A.h + 1.0, R0.z0, R0.z1, {map:false});
+  // the entrance: stone surround, the frieze, the step and the apron
+  stone.push([A.door.x0 - 0.35, A.door.x0, -0.3, A.door.h, A.z0 - 0.14, A.z0 + 0.02], [A.door.x1, A.door.x1 + 0.35, -0.3, A.door.h, A.z0 - 0.14, A.z0 + 0.02], [A.door.x0 - 0.45, A.door.x1 + 0.45, A.door.h, A.door.h + 0.38, A.z0 - 0.16, A.z0 + 0.02]);
+  stone.push([-4.2, 4.2, 4.72, 5.62, A.z0 - 0.1, A.z0 + 0.01], [A.door.x0, A.door.x1, -0.3, 0.03, A.z0, A.z0 + A.t]);
+  const pave = [[-5, 5, -0.3, 0.03, A.z0 - A.apron, A.z0]];
+  // hall: oak floor, plaster ceiling round the skylight, glass and glazing bars, cove lights along the ceiling
+  oak.push([-A.hall + 0.25, A.hall - 0.25, -0.3, 0.03, A.z0 + A.t, A.z1 - A.t]);
+  const ceil = [[-4.75, 4.75, 5.88, A.h, A.z0 + A.t, SK.z0], [-4.75, 4.75, 5.88, A.h, SK.z1, A.z1 - A.t], [-4.75, SK.x0, 5.88, A.h, SK.z0, SK.z1], [SK.x1, 4.75, 5.88, A.h, SK.z0, SK.z1]];
+  ceil.push([SK.x0 - 0.05, SK.x0, A.h, A.h + 0.45, SK.z0, SK.z1], [SK.x1, SK.x1 + 0.05, A.h, A.h + 0.45, SK.z0, SK.z1], [SK.x0, SK.x1, A.h, A.h + 0.45, SK.z0 - 0.05, SK.z0], [SK.x0, SK.x1, A.h, A.h + 0.45, SK.z1, SK.z1 + 0.05]);
+  const bars = []; for(let z = SK.z0 + 2; z < SK.z1; z += 2) bars.push([SK.x0, SK.x1, A.h + 0.28, A.h + 0.36, z - 0.04, z + 0.04]); bars.push([-0.04, 0.04, A.h + 0.28, A.h + 0.36, SK.z0, SK.z1]);
+  const cove = [[-4.3, -3.4, 5.84, 5.88, 63.2, 90.8], [3.4, 4.3, 5.84, 5.88, 63.2, 90.8]];
+  // bookshelves along both hall walls, broken by the doors; books by the thousand in one instanced draw
+  const q = archRnd(90), books = [], bcols = [];
+  const pal = [0x6b2a26, 0x2f4a3a, 0x2a3a5e, 0x7a5a2a, 0x4a2f45, 0x8a7a5a, 0x3d3a36, 0x5a6a3a, 0x8c3a2a, 0x26303f, 0x9a8a6a, 0x5a2a2a];
+  [-1, 1].forEach(sd => { const gaps = A.bands.map(b => (b[0] + b[1]) / 2), segs = [[63.0, gaps[0] - 1.25], [gaps[0] + 1.25, gaps[1] - 1.25], [gaps[1] + 1.25, gaps[2] - 1.25], [gaps[2] + 1.25, 91.0]];
+    const xb = sd * 4.75, xf = sd * 4.3, X0 = Math.min(xb, xf), X1 = Math.max(xb, xf);
+    segs.forEach(([z0, z1]) => { if(z0 >= z1) return;
+      for(let k = 0; k < 8; k++) dark.push([X0, X1, 0.08 + k * 0.46, 0.11 + k * 0.46, z0, z1]);
+      dark.push([X0 - 0.03, X1 + 0.03, 3.36, 3.44, z0 - 0.03, z1 + 0.03], [X0, X1, 0, 0.08, z0, z1]);
+      const nUp = Math.max(2, Math.round((z1 - z0) / 1.1) + 1), ups = []; for(let k = 0; k < nUp; k++) ups.push(z0 + (z1 - z0) * k / (nUp - 1));
+      ups.forEach(z => dark.push([X0, X1, 0, 3.36, Math.max(z0, z - 0.025), Math.min(z1, z + 0.025)]));
+      aabb(X0, X1, 0, 3.44, z0, z1, {full:true, cam:false});
+      for(let k = 0; k < 7; k++){ const y = 0.11 + k * 0.46; let z = z0 + 0.03;
+        while(z < z1 - 0.06){ if(ups.some(u => z > u - 0.04 && z < u + 0.03)){ z += 0.05; continue; }
+          if(q() < 0.04){ z += 0.08 + q() * 0.2; continue; }
+          const w = 0.022 + q() * 0.045, h = 0.24 + q() * 0.16, d = 0.19 + q() * 0.1; if(z + w > z1 - 0.03 || ups.some(u => z + w > u - 0.03 && z < u + 0.03)){ z += w; continue; }
+          books.push(mat4(sd * (4.33 + d / 2) * 1, y, z + w / 2, 0, 0, 0, d, h, w)); const c = C(pal[Math.floor(q() * pal.length)]); c.multiplyScalar(0.75 + q() * 0.5); bcols.push(c); z += w + 0.002; } } }); });
+  const bookGeo = new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0);
+  const bm = instanced(bookGeo, std(0xffffff, {roughness:0.7, map:detailTex}), books, bcols, false); if(bm){ hall.add(bm); }
+  // the lectern with the Ledger lying open on it
+  const L = A.lectern; dark.push([L.x - 0.28, L.x + 0.28, 0.08, 1.0, L.z - 0.22, L.z + 0.22], [L.x - 0.38, L.x + 0.38, 0, 0.08, L.z - 0.32, L.z + 0.32]);
+  { const top = new THREE.Group(); top.position.set(L.x, 1.04, L.z); top.rotation.x = -0.32; hall.add(top);
+    mk(BX(0.86, 0.05, 0.6), M.dark, 0, 0, 0, top); mk(BX(0.8, 0.03, 0.54), std(0x5a2420, {roughness:0.6}), 0, 0.04, 0, top);
+    const pg = new THREE.PlaneGeometry(0.76, 0.475); pg.rotateX(-Math.PI / 2); pg.rotateY(Math.PI); const bk = mk(pg, std(0xffffff, {map:ARCH_TEX.book(), roughness:0.85, emissive:C(0xffffff), emissiveMap:ARCH_TEX.book(), emissiveIntensity:0.12}), 0, 0.058, 0, top); bk.castShadow = false;
+    mk(BX(0.02, 0.012, 0.5), M.brass, 0, 0.066, 0, top).castShadow = false; }
+  aabb(L.x - 0.45, L.x + 0.45, 0, 1.3, L.z - 0.4, L.z + 0.4, {full:true, cam:false});
+  { const l = label('The Ashcombe Ledger · E', {small:true, edge:'#e8c77a', fg:'#f3e2b0'}); l.position.set(L.x, 2.15, L.z); hall.add(l); }
+  // the Registrar's desk, his lamp and bell, the card index, the portrait of Wick above
+  const D = A.desk; dark.push([D.x - 2.4, D.x + 2.4, 0, 1.0, D.z - 0.4, D.z + 0.4]); oak.push([D.x - 2.5, D.x + 2.5, 1.0, 1.06, D.z - 0.48, D.z + 0.48]);
+  mk(CY(0.07, 0.09, 0.03, 20), M.brass, 1.6, 1.075, D.z); mk(CY(0.012, 0.012, 0.3, 8), M.brass, 1.6, 1.24, D.z); const shade = mk(CY(0.11, 0.11, 0.26, 20, true), glowM(0x2f8a5a, 0.9), 1.6, 1.42, D.z); shade.rotation.z = Math.PI / 2; shade.scale.set(1, 1, 0.55);
+  glow(0xffe6b0, 1.4, 1.6, 1.33, D.z - 0.1, hall, 0.35); mk(SP(0.07, 20, 10), M.brass, -1.4, 1.06, D.z).scale.set(1, 0.7, 1); mk(CY(0.1, 0.1, 0.02, 20), M.brass, -1.4, 1.07, D.z);
+  [[-0.8, 0.0], [0.6, 0.2]].forEach((b, k) => { let y = 1.06; for(let j = 0; j < 3 + k; j++){ const h = 0.04 + q() * 0.03; mk(BX(0.26 + q() * 0.06, h, 0.19), std(pal[Math.floor(q() * pal.length)], {roughness:0.7}), b[0], y + h / 2, D.z + b[1] - 0.1).rotation.y = (q() - 0.5) * 0.3; y += h; } });
+  aabb(D.x - 2.55, D.x + 2.55, 0, 1.1, D.z - 0.5, D.z + 0.5, {full:true, cam:false});
+  dark.push([-3.6, -1.6, 0, 1.3, A.z1 - A.t - 0.5, A.z1 - A.t], [1.6, 3.6, 0, 1.3, A.z1 - A.t - 0.5, A.z1 - A.t]); aabb(-3.65, -1.55, 0, 1.3, A.z1 - 1.05, A.z1, {full:true, cam:false}); aabb(1.55, 3.65, 0, 1.3, A.z1 - 1.05, A.z1, {full:true, cam:false});
+  for(let i = 0; i < 4; i++) for(let j = 0; j < 3; j++) [-1, 1].forEach(sd => mk(BX(0.08, 0.025, 0.02), M.brass, sd * (2.1 + i * 0.45), 0.3 + j * 0.4, A.z1 - A.t - 0.51).castShadow = false);
+  const pw = 2.2, ph = 2.93, py = 3.75, pz = A.z1 - A.t - 0.03; { const pm = new THREE.Mesh(new THREE.PlaneGeometry(pw, ph), std(0xffffff, {map:ARCH_TEX.portrait(), roughness:0.8})); pm.position.set(0, py, pz); pm.rotation.y = Math.PI; pm.receiveShadow = true; hall.add(pm); }
+  const frame = [[-pw / 2 - 0.14, pw / 2 + 0.14, py + ph / 2, py + ph / 2 + 0.14], [-pw / 2 - 0.14, pw / 2 + 0.14, py - ph / 2 - 0.14, py - ph / 2], [-pw / 2 - 0.14, -pw / 2, py - ph / 2, py + ph / 2], [pw / 2, pw / 2 + 0.14, py - ph / 2, py + ph / 2]].map(f => [f[0], f[1], f[2], f[3], pz - 0.06, pz + 0.03]);
+  mk(boxGeo(frame, 1), M.brass, 0, 0, 0, hall).castShadow = false;
+  // runner carpet down the hall; the frieze and the label outside; two lamps at the steps
+  { const t = ARCH_TEX.runner(), len = 23; const rm = new THREE.Mesh(new THREE.PlaneGeometry(2.6, len), std(0xffffff, {map:t, roughness:1})); t.repeat.set(1, len / 2.6); rm.rotation.x = -Math.PI / 2; rm.position.set(0, 0.034, A.z0 + A.t + 0.2 + len / 2); rm.receiveShadow = true; hall.add(rm); }
+  { const fz = new THREE.Mesh(new THREE.PlaneGeometry(7.6, 0.95), std(0xffffff, {map:ARCH_TEX.frieze(), transparent:true, alphaTest:0.4, roughness:0.6})); fz.position.set(0, 5.17, A.z0 - 0.11); fz.rotation.y = Math.PI; hall.add(fz); }
+  { const l = label('The Archive · memories of the Architect', {small:true, edge:'#e8c77a', fg:'#f3e2b0'}); l.position.set(0, 8.4, A.z0 - 1); hall.add(l); }
+  [-3.4, 3.4].forEach(x => { const z = A.z0 - A.apron + 0.5; mk(CY(0.07, 0.11, 3.4, 12), M.iron, x, 1.7, z, hall); mk(CY(0.26, 0.18, 0.16, 4), M.iron, x, 3.55, z, hall).rotation.y = Math.PI / 4; mk(CY(0.16, 0.12, 0.4, 4), M.lampWarm, x, 3.3, z, hall).rotation.y = Math.PI / 4; glow(0xffc98a, 3, x, 3.3, z, hall, 0.5); colliders.push({x, z, r:0.2}); });
+  // the Registrar, behind the desk
+  const reg = makeAvatar({recipe:parseDescription('a tall slender librarian in a long green coat with round glasses'), name:'The Registrar'}); reg.g.position.set(D.x, 0, D.z + 1.1); reg.g.rotation.y = Math.PI; hall.add(reg.g);
+  { const l = label('The Registrar · E', {small:true, edge:'#9dff6a', fg:'#d8ffc0'}); l.position.set(D.x, 2.95, D.z + 1.1); hall.add(l); }
+  // everything merged by material
+  const put = (list, mat, tile, cast) => { if(!list.length) return; const m = mk(boxGeo(list, tile), mat, 0, 0, 0, hall); m.castShadow = cast !== false; };
+  put(brick, M.brick, 3); put(plaster, M.plaster, 3); put(stone, M.stone, 2); put(oak, M.oak, 4, false); put(dark, M.dark, 2); put(glass, M.glass, 2, false); put(pave, M.pave, 4, false); put(ceil, M.plaster, 3); put(bars, M.iron, 1, false); put(cove, M.lampWarm, 1, false);
+  const gm = mk(boxGeo([[SK.x0, SK.x1, A.h + 0.3, A.h + 0.31, SK.z0, SK.z1]], 2), M.pane, 0, 0, 0, hall); gm.castShadow = false; gm.renderOrder = 2;
+  sol.forEach(b => aabb(b[0], b[1], b[2], b[3], b[4], b[5]));
+  // the six room doors (they swing open as you come near) and their signs; each room is its own group, built when you first come close
+  const rooms = ARCHIVE_ROOMS.map((_, i) => { const F = archiveRoomFrame(i), g = new THREE.Group(); g.visible = false; world.add(g);
+    const piv = new THREE.Group(); piv.position.set(F.sd * A.hall, 0, F.cz - A.roomDoor.w); hall.add(piv);
+    const leaf = mk(BX(0.06, A.roomDoor.h - 0.02, 2 * A.roomDoor.w - 0.02).translate(0, (A.roomDoor.h - 0.02) / 2, A.roomDoor.w), M.dark, 0, 0, 0, piv); leaf.castShadow = false;
+    [-1, 1].forEach(s => { mk(SP(0.035, 12, 8), M.brass, s * 0.06, 1.0, 2 * A.roomDoor.w - 0.18, piv).castShadow = false; [0.5, 1.5].forEach(z => [0.8, 2.0].forEach(y => { mk(BX(0.012, 0.9, 0.72), M.dark, s * 0.034, y, z * A.roomDoor.w, piv).castShadow = false; })); });
+    const sg = new THREE.Mesh(new THREE.PlaneGeometry(2.0, 0.375), std(0xffffff, {map:ARCH_TEX.sign(i), roughness:0.5})); sg.position.set(F.sd * (A.hall - 0.28), 3.2, F.cz); sg.rotation.y = -F.sd * Math.PI / 2; hall.add(sg);
+    return {F, g, piv, ang:0, built:false, detail:null}; });
+  archive = {M, hall, rooms, lectern:{x:L.x, z:L.z - 0.75}, registrar:{x:D.x, z:D.z - 0.85}, inside:false, cardAt:-1, cardT:0};
+}
 
 /* ================= Worldsmith: describe a realm and the game builds it =================
    Words become a realm recipe (terrain, ground, water, time of day, weather, plants, buildings, colours, extras),
@@ -6993,7 +7624,7 @@ function buildWorld(key){
   const W = WORLDS[key]; state.world = key; gravK = W.gravity || 1; if(explorer.dirty) saveExplorer();
   world = new THREE.Group(); scene.add(world);
   if(camHid){ camHid = false; if(!zeroing) me.g.visible = true; }
-  grassMeshes = []; lods = []; slotMats = {}; mainTerrain = null; coreSolids = []; coreFollow = []; boxes = []; desk = null; gym = null; floaters = []; p.zeroG = false; colliders = []; platforms = []; coins = []; portals = []; spinners = []; npcs = []; shardObj = null; vault = null; gridSun = null; fireflies = null; shopKiosk = null; forgeStand = null; vendor = null; hazards = []; burst = null; pickups = []; bike.g = null; bike.riding = false; bike.near = false; engineStop(); $('#rideBtn').style.display = 'none'; trial.active = false; trial.rings = []; trial.pad = null; trial.padPos = null; $('#trialPanel').style.display = 'none';
+  grassMeshes = []; lods = []; slotMats = {}; mainTerrain = null; coreSolids = []; coreFollow = []; boxes = []; desk = null; gym = null; floaters = []; p.zeroG = false; colliders = []; platforms = []; coins = []; portals = []; spinners = []; npcs = []; shardObj = null; vault = null; gridSun = null; fireflies = null; shopKiosk = null; forgeStand = null; vendor = null; archive = null; archRoom = -1; hazards = []; burst = null; pickups = []; bike.g = null; bike.riding = false; bike.near = false; engineStop(); $('#rideBtn').style.display = 'none'; trial.active = false; trial.rings = []; trial.pad = null; trial.padPos = null; $('#trialPanel').style.display = 'none';
   const r = rng(W.seed), noise = makeNoise(W.seed * 7 + 1);
   waterBody = null; if(weatherFx){ scene.remove(weatherFx.pts); weatherFx.geo.dispose(); weatherFx.pts.material.dispose(); weatherFx = null; } clearSkyProps(); flyers = []; ships = []; endless = null; buildParent = null; chunkAt = null; waterMeshes.forEach(w => { if(w.renderTarget) w.renderTarget.dispose(); }); waterMeshes = [];
   applyLook(W);
@@ -7022,6 +7653,7 @@ function buildWorld(key){
   addHazards(key);
   addPickups(key);
   addVendor(key);
+  if(key === 'hub') buildArchive();   // Goal 9: the Archive goes up after every coin, NPC, pickup and the vendor are placed, so none of them moves
   bundles.forEach(b => { b.g = null; if(b.world === key) addBundleMesh(b); });
   if(ENDLESS[key] && !W.custom) startBuiltin(key);   // no boundaries (Goal 8a): the land goes on past the hand-made core
   applyPhotos(key); autoReal(key);
@@ -7644,6 +8276,9 @@ function renderInventory(){
   const n = itemCount();
   $('#invLede').innerHTML = n ? n + (n === 1 ? ' item' : ' items') + ', worth <b class="cr">₵' + itemWorth() + '</b> at Outfitters. ' + state.owned.size + ' gear owned.' : 'Nothing carried yet. Relics and ore glow where they lie in every realm; walk into one to pick it up.';
   const list = $('#invList'); list.innerHTML = '';
+  if(state.archive.ledger){ const row = document.createElement('div'); row.className = 'inv-row'; row.style.setProperty('--r', '#e8c77a');
+    row.innerHTML = '<i class="ico book" style="--c:#7a3424"></i><span class="nm"><span class="rar">Key item</span>The Ashcombe Ledger<small>The Architect\'s book of notes and riddles. ' + state.archive.found.size + ' of 6 Archive finds pinned inside.</small></span><span class="val"></span>';
+    const b = document.createElement('button'); b.className = 'use'; b.textContent = 'Read'; b.addEventListener('click', () => { closeInventory(); openLedger(); }); row.querySelector('.val').appendChild(b); list.appendChild(row); }
   byValue().forEach(id => {
     const d = ITEMS[id], row = itemRow(id, 'div', '<b>₵ ' + d.value + '</b>');
     if(d.use){ const b = document.createElement('button'); b.className = 'use'; b.textContent = 'Use'; b.addEventListener('click', () => useItem(id)); row.querySelector('.val').appendChild(b); }
@@ -7957,9 +8592,175 @@ function deskProximity(){
     if(near && playing) toast(state.enrolled ? 'Clerk Tamsin: you are on the roll. Warps to and from Campus cost nothing.' : 'Clerk Tamsin: enrol here (E or tap Enrol) and every warp to and from Campus is free.', 3200); }
 }
 
+
+/* ================= The Archive (Goal 9): doors, memory rooms, hidden details, the Ledger and the Registrar ================= */
+let archNear = null, archRoom = -1, cardTimer = 0;
+const ledgerEl = $('#ledger'), regEl = $('#reg'), memoEl = $('#memo');
+function archiveUpdate(dt){
+  if(!archive || state.world !== 'hub'){ if(archNear){ archNear = null; $('#archBtn').style.display = 'none'; } return; }
+  const A = ARCHIVE, px = p.x, pz = p.z, cp = camera.position;
+  // the rooms are built the first time you come near (one a frame), so the Spaceport loads exactly as fast as before
+  if(Math.hypot(px, pz - 77) < 60){ const k = archive.rooms.findIndex(R => !R.built); if(k >= 0) archiveBuildRoom(k); }
+  const inB = px > A.x0 - 0.3 && px < A.x1 + 0.3 && pz > A.z0 - 0.3 && pz < A.z1 + 0.3, camIn = cp.x > A.x0 && cp.x < A.x1 && cp.z > A.z0 && cp.z < A.z1;
+  archive.inside = inB;
+  let at = -1;
+  archive.rooms.forEach((R, i) => {
+    const inR = R.F.inside(px, pz, -0.05); if(inR) at = i;
+    const open = R.built && (inR || Math.hypot(px - R.F.door.x, pz - R.F.door.z) < 3.4);
+    R.ang += ((open ? R.F.sd * 1.45 : 0) - R.ang) * (1 - Math.exp(-dt * 5)); R.piv.rotation.y = R.ang;
+    if(Math.abs(R.ang) > 1.0) R.opened = true;
+    R.g.visible = R.built && (inB || camIn) && (inR || Math.abs(R.ang) > 0.03 || R.F.inside(cp.x, cp.z, 0));
+  });
+  if(at !== archRoom){ archRoom = at; if(at >= 0 && playing){ roomCard(at); if(!state.archive.rooms.has(at)){ state.archive.rooms.add(at); persist(); } } }
+  // what E does here: read the Ledger, ask the Registrar, or inspect the one detail in the room you stand in
+  let best = null, bd = 1e9;
+  const cand = (kind, idx, x, z, r) => { const d = Math.hypot(px - x, pz - z); if(d < r && d < bd){ bd = d; best = {kind, idx}; } };
+  if(inB && !bike.riding){
+    cand('ledger', -1, archive.lectern.x, archive.lectern.z, 1.6); cand('registrar', -1, archive.registrar.x, archive.registrar.z, 1.9);
+    if(at >= 0 && archive.rooms[at].detail){ const d = archive.rooms[at].detail; cand('detail', at, d.x, d.z, 1.5); }
+  }
+  if((best ? best.kind + best.idx : '') !== (archNear ? archNear.kind + archNear.idx : '')){
+    archNear = best; const b = $('#archBtn'); b.style.display = best ? '' : 'none';
+    if(best){ b.textContent = best.kind === 'ledger' ? 'Read' : best.kind === 'registrar' ? 'Ask' : 'Inspect';
+      if(playing) toast(best.kind === 'ledger' ? (state.archive.ledger ? 'The Ashcombe Ledger. E or tap Read.' : 'A book lies open on the lectern: the Ashcombe Ledger. E or tap Read.') : best.kind === 'registrar' ? 'The Registrar looks up from the desk. E or tap Ask.' : 'Something here catches your eye. E or tap Inspect.', 2600); }
+  }
+}
+function roomCard(i){ const R = ARCHIVE_ROOMS[i], el = $('#roomCard'); el.querySelector('small').textContent = 'Room ' + (i + 1) + ' of 6 · ' + R.when; el.querySelector('b').textContent = R.title; el.querySelector('p').textContent = R.plaque;
+  el.classList.add('on'); clearTimeout(cardTimer); cardTimer = setTimeout(() => el.classList.remove('on'), 9000); }
+function archiveAct(){ if(!archNear) return; if(archNear.kind === 'ledger'){ takeLedger(); openLedger(); } else if(archNear.kind === 'registrar') openRegistrar(); else inspectDetail(archNear.idx); }
+$('#archBtn').addEventListener('click', archiveAct);
+function playLowTide(){ if(!snd.ctx || !snd.on) return; const t = snd.ctx.currentTime + 0.35; HUNT_CLUES.cyan.order.forEach((n, k) => { const f = LOW_TIDE_HZ[n - 1]; tone('sine', f, f, 1.5, 0.08, t + k * 0.6); tone('triangle', f * 2, f * 2, 0.5, 0.015, t + k * 0.6); }); }
+function inspectDetail(i){
+  const R = ARCHIVE_ROOMS[i]; if(!R) return null;
+  const first = !state.archive.found.has(i); state.archive.found.add(i); persist();
+  $('#memoRoom').textContent = 'Room ' + (i + 1) + ' · ' + R.title; $('#memoTitle').textContent = R.detail.name; $('#memoText').textContent = R.detail.text;
+  $('#memoNote').textContent = (first ? 'Pinned inside the back of your Ledger. ' : '') + state.archive.found.size + ' of 6 found.';
+  memoEl.classList.remove('hidden'); setPaused(true); $('#memoClose').focus();
+  if(first) reward(15, 0); else sfx('ui');
+  if(R.detail.clue === 'cyan') playLowTide();
+  return {room:i, name:R.detail.name, text:R.detail.text, clue:R.detail.clue, serves:R.detail.serves, first};
+}
+function closeMemo(){ memoEl.classList.add('hidden'); setPaused(false); }
+$('#memoClose').addEventListener('click', closeMemo);
+// the Ledger: the Architect's pages, then whatever you have found in the rooms, pinned inside the back cover
+function ledgerPages(){
+  const f = [...state.archive.found].sort((a, b) => a - b);
+  return LEDGER.concat([{kind:'notes', title:'Pinned inside the back cover', body:f.length ? f.map(i => ARCHIVE_ROOMS[i].detail.name + ' (Room ' + (i + 1) + ', ' + ARCHIVE_ROOMS[i].title + ')').join('\n') + (f.length < 6 ? '\n\n' + (6 - f.length) + ' more ' + (6 - f.length === 1 ? 'memory still hides' : 'memories still hide') + ' something.' : '\n\nEvery room has given up its secret.') : 'Nothing yet. Look closely in the six rooms of the Archive: each one hides something, and what you find is pinned here.'}]);
+}
+let ledgerAt = 0;
+function takeLedger(){ if(state.archive.ledger) return false; state.archive.ledger = true; persist(); sfx('level'); toast('The Ashcombe Ledger is yours: read it any time from the ? menu or your bag (I)', 4200); ledgerButton(); invRefresh(); return true; }
+function ledgerButton(){ const b = $('#ledgerBtn'); if(!b) return; b.disabled = !state.archive.ledger; b.textContent = state.archive.ledger ? 'Read the Ashcombe Ledger' : 'The Ashcombe Ledger: find it in the Archive, south of the plaza'; }
+function renderLedger(){
+  const P = ledgerPages(), two = innerWidth >= 760, step = two ? 2 : 1; ledgerAt = clamp(ledgerAt - (ledgerAt % step), 0, P.length - 1);
+  const page = (el, i) => { const g = P[i]; el.className = 'page' + (g ? ' ' + g.kind : ' blank'); el.innerHTML = g ? (g.kind === 'cover' ? '<div class="cov"><b>' + esc(g.title) + '</b><i></i><p>' + esc(g.body).replace(/\n/g, '<br>') + '</p></div>' : '<h3>' + esc(g.title) + '</h3><div class="pb">' + esc(g.body).replace(/\n/g, '<br>') + '</div>') + '<span class="pn">' + (i + 1) + '</span>' : ''; };
+  page($('#pgL'), ledgerAt); $('#pgR').hidden = !two; if(two) page($('#pgR'), ledgerAt + 1);
+  $('#lgNum').textContent = two ? 'Pages ' + (ledgerAt + 1) + (ledgerAt + 1 < P.length ? '-' + (ledgerAt + 2) : '') + ' of ' + P.length : 'Page ' + (ledgerAt + 1) + ' of ' + P.length;
+  $('#lgPrev').disabled = ledgerAt <= 0; $('#lgNext').disabled = ledgerAt + step >= P.length;
+  return {page:ledgerAt, pages:P.length, shown:[P[ledgerAt] && P[ledgerAt].title, two && P[ledgerAt + 1] ? P[ledgerAt + 1].title : null].filter(Boolean)};
+}
+function openLedger(page){ if(zeroing) return null; if(page != null) ledgerAt = Math.max(0, Math.floor(+page) || 0); const r = renderLedger(); ledgerEl.classList.remove('hidden'); setPaused(true); $('#lgNext').focus(); sfx('ui'); return r; }
+function turnLedger(d){ const two = innerWidth >= 760; ledgerAt += d * (two ? 2 : 1); const r = renderLedger(); sfx('ui'); return r; }
+function closeLedger(){ ledgerEl.classList.add('hidden'); if(introEl.classList.contains('hidden')) setPaused(false); }
+$('#lgPrev').addEventListener('click', () => turnLedger(-1)); $('#lgNext').addEventListener('click', () => turnLedger(1)); $('#lgClose').addEventListener('click', closeLedger);
+$('#ledgerBtn').addEventListener('click', () => { if(state.archive.ledger) openLedger(); }); ledgerButton();
+/* the Registrar: offline, a small set of answers matched by keywords, each quoting the Ledger word for word.
+   With the Dreamer's Claude (window.claude or the Dreamer key in the local file) he answers in character, grounded in the same text; an answer with no
+   exact quote from the Ledger or a plaque, or any failure, falls back to the offline answer. */
+const REG_MODEL = 'claude-haiku-4-5';
+const REG_TOPICS = [
+  {id:'hello', k:/^\s*(hi|hello|hey|good (morning|afternoon|evening)|greetings)\b/, a:'Welcome to the Archive. I keep the rooms and the Ledger. The Architect\'s advice to every visitor is on its second page: "I am not asking you to be clever. I am asking you to pay attention."'},
+  {id:'fourth', k:/fourth shard|4th shard|colou?r of nothing|lantern that nobody|nobody is holding|four shards/, a:'It is in the Ledger, yes: "There are four shards, not three." But he also wrote: "If a riddle has no room to stand in, leave it on the shelf." I have walked every room. None of them holds a fourth.'},
+  {id:'coins', k:/\bcoins?\b|vault/, a:'The Ledger does say: "Gather all of them, stand in the middle of the vault on the Spaceport and say my name out loud." Then it says: "It is worth a try." I have watched a great many people try.'},
+  {id:'cheat', k:/cheat|ninety-?nine|press fire|eleven times|extra ships|99/, a:'Page eleven: "Press fire eleven times on the Starling title screen before the first wave comes in." And under it: "Mara never needed it." Draw your own conclusions.'},
+  {id:'worldsmith', k:/worldsmith|forge/, a:'He wrote that if you ask the Worldsmith for "a realm with the Seed in it", it "will build one and put you there." Then: "It will be a very nice realm." A nice realm is not the Seed.'},
+  {id:'comet', k:/comet|rally|racer|race|lap/, a:'From the page called Two games: "Comet Rally: the first thing I ever finished." The Amber riddle ends with it too: "Below, a comet will race you. It always wins going forwards." The Workbench, room two, is where he wrote it.'},
+  {id:'starling', k:/starling|shooter|high score|score/, a:'"Starling: Mara\'s favourite. One screen, one ship, and the birds come down in waves of eleven." He adds: "I made it for her birthday and she has beaten me at it ever since." Room four remembers the night of the launch.'},
+  {id:'amber', k:/amber|dune|desert|pillar|stones?\b|glass sea|sandstone/, a:'The first riddle begins: "Seven stones climb out of a sea of glass." It says to "Count from the lowest and stop in the middle", and it names the hour: "twenty minutes short of six". Room three, Above the Laundrette, may help you read it.'},
+  {id:'rose', k:/rose|drift|club|dance|neon|grid|hallway|corridor|hotel|wall behind/, a:'The second riddle: "In the city that never turns its lights off there is a room where the floor lets go of you." And the part people forget: "Do not look back." Room five, the Glass Room, is where Mara said goodbye.'},
+  {id:'cyan', k:/cyan|chime|isles?\b|island|highest|wind/, a:'The third riddle: "Go up until there is no more up." On the last island "five chimes hang where the wind cannot miss them", and you are to sing them his mother\'s song. Room six, Low Water, keeps the tune.'},
+  {id:'song', k:/low tide|lullaby|song|sing|tune|music|mother|hush/, a:'Low Tide was his mother\'s song "for nights the boats were out". It begins: "Hush now, the water\'s walking out, it takes the noise and leaves the shells." He hummed it every evening at low water, the neighbours say.'},
+  {id:'gates', k:/gates?\b|ashfall|citadel/, a:'"Each shard opens a gate on Ashfall, and each gate asks one thing." The first asks "whether you listened to what I said", the second "how well you fly", the third "what you will leave behind".'},
+  {id:'seed', k:/\bseed\b|inherit|\bwin\b|prize|own hub/, a:'"Behind the last gate is the Seed, and whoever holds the Seed looks after Hub when I am gone." He also wrote that "it is smaller than you think."'},
+  {id:'mara', k:/mara|quist|co-?founder|partner|friend/, a:'Mara Quist built The Drift: "Mara built it. Dance there once, for her." Starling was "Mara\'s favourite". Rooms three to five hold what the two of them made, and how it ended.'},
+  {id:'wick', k:/wick|lantern|coat|avatar|grey/, a:'"In Hub I go about as Wick: a long grey coat and a lantern." He carried it, he wrote, "so that anyone lost in here can find me." You will find that lantern in the first room and the last.'},
+  {id:'company', k:/company|ashcombe simulations|office|laundrette|launch|opened|open(ing)? night/, a:'Room three\'s plaque: "Two rooms above the Bright Suds laundrette, two desks, one kettle." Room four\'s: "At nine in the evening Hub opened, and the counter on the wall would not stop climbing."'},
+  {id:'childhood', k:/child|young|boy|grew up|home ?town|fennick|lantern row|father|ferry|street/, a:'Room one: "His father piloted the night ferry across Fennick Bay and kept a lantern in the front window of No. 9, so he could find the house from the water." The last room is the same house, years later.'},
+  {id:'architect', k:/architect|lyle|ashcombe|who (built|made)|creator|founder/, a:'Lyle Ashcombe, the Architect, wrote on his second page: "I built Hub because I was never quite at home anywhere else, and I hoped I was not the only one."'},
+  {id:'ledger', k:/ledger|book|true|lie|lies|trust|riddles?|herring|read/, a:'Read it the way he asked: "Not everything in this book is true." And: "The pages that are true each have a memory behind them. Walk the Archive, room by room, and look closely."'},
+  {id:'rooms', k:/rooms?|archive|memor|clue|hidden|secret|look/, a:'Six rooms, six memories, walked in order from the front door up the west side and back down the east. The Ledger\'s advice: "Walk the Archive, room by room, and look closely." Each room hides one thing.'},
+  {id:'shards', k:/shards?|hunt|key|where/, a:'"I have hidden three shards in it: amber, rose and cyan. Each opens a gate on Ashfall." Each has a riddle in the Ledger, and a room here to stand it in.'},
+  {id:'outside', k:/outside|real|sky|tired|go home|bored/, a:'His last page: "If you have read this far, go outside for a while and look at a real sky. Hub will still be here when you get back."'}
+];
+const REG_DEFAULT = 'The Ledger does not say, and I only say what the Ledger says. It does say this: "I am not asking you to be clever. I am asking you to pay attention." Ask me about the Architect, Mara Quist, the shards, the gates, Low Tide, or the two games.';
+const regNorm = t => String(t).replace(/[\u2018\u2019]/g, '\'').replace(/[\u201C\u201D]/g, '"').replace(/\s+/g, ' ').toLowerCase().trim();
+function registrarSource(){ return 'THE ASHCOMBE LEDGER\n' + LEDGER.map((g, i) => '[page ' + (i + 1) + ': ' + g.title + ']\n' + g.body).join('\n\n') + '\n\nTHE ROOM PLAQUES IN THE ARCHIVE\n' + ARCHIVE_ROOMS.map((r, i) => '[room ' + (i + 1) + ': ' + r.title + ', ' + r.when + '] ' + r.plaque).join('\n'); }
+// the exact quotations in an answer that really are in the Ledger or on a plaque (trailing punctuation aside)
+function regQuotes(text){ const src = regNorm(registrarSource()).replace(/\n/g, ' '), out = []; const re = /"([^"]{10,}?)"/g; let m; const t = regNorm(text);
+  while((m = re.exec(t))){ const qt = m[1].replace(/[.,;:!?]+$/, '').trim(); if(qt.length >= 10 && src.indexOf(qt) >= 0) out.push(m[1]); } return out; }
+function registrarOffline(q){ const t = regNorm(q); for(const T of REG_TOPICS) if(T.k.test(t)) return {answer:T.a, topic:T.id}; return {answer:REG_DEFAULT, topic:'default'}; }
+function registrarSystem(){
+  return 'You are the Registrar, the quiet, kind librarian of the Archive on Hub Spaceport in the game Hub. You answer visitors\' questions about Lyle Ashcombe (the Architect), his avatar Wick, Mara Quist, Ashcombe Simulations and the Hunt, using ONLY the Ledger and the room plaques below.\n' +
+    'Rules: answer in character in one to three short sentences. Always include at least one exact quotation from the text below, in straight double quotation marks, copied word for word. Never invent facts about the Architect, Mara or Hub that are not in the text. Never solve a riddle outright and never describe what is hidden in the rooms; point the visitor to the right page or room instead. Some Ledger pages are deliberately untrue; if asked, remind the visitor that "Not everything in this book is true." If the text does not cover the question, say the Ledger does not say. Keep it friendly and suitable for children. Never mention real people, brands, films, games, songs or places.\n\n' + registrarSource();
+}
+const registrarAI = { testResponse:null, lastRequest:null, timeoutMs:15000, path:'', why:'', busy:false };
+async function askRegistrar(q){
+  q = String(q || '').trim().replace(/\s+/g, ' ').slice(0, 200);
+  const off = why => { registrarAI.path = 'ledger'; registrarAI.why = why; const r = registrarOffline(q); return {answer:r.answer, source:'ledger', topic:r.topic, why, quotes:regQuotes(r.answer)}; };
+  if(!q) return off('empty question');
+  const test = registrarAI.testResponse, body = {model:REG_MODEL, max_tokens:300, system:registrarSystem(), messages:[{role:'user', content:q}]};
+  let ask = null;
+  if(test != null) ask = async () => { if(test === 'hang') return new Promise(() => {}); if(test && test.__status) throw {code:'http_' + test.__status}; return JSON.parse(JSON.stringify(test)); };
+  else if(dreamer.sample && !dreamer.failed) ask = async () => { const j = await dreamer.sample.json(body.system + '\n\nThe visitor asks: "' + q + '"\nReply with only a JSON object {"answer": "your reply"}.', {modelTier:'quick', cache:false}); return {stop_reason:'end_turn', content:[{type:'text', text:String((j && j.answer) || '')}]}; };
+  else if(dreamer.key) ask = async signal => { const r = await fetch('https://api.anthropic.com/v1/messages', {method:'POST', headers:{'content-type':'application/json', 'x-api-key':dreamer.key, 'anthropic-version':'2023-06-01', 'anthropic-dangerous-direct-browser-access':'true'}, body:JSON.stringify(body), signal}); if(!r.ok) throw {code:'http_' + r.status}; return r.json(); };
+  if(!ask) return off('no key');
+  registrarAI.lastRequest = {url:'https://api.anthropic.com/v1/messages', body:JSON.parse(JSON.stringify(body))};
+  const ctl = new AbortController(); let timer = null, j;
+  try{ j = await Promise.race([ask(ctl.signal), new Promise((res, rej) => { timer = setTimeout(() => { ctl.abort(); rej({code:'timeout'}); }, registrarAI.timeoutMs); })]); }
+  catch(e){ return off((e && (e.code || e.name)) === 'AbortError' ? 'timeout' : ((e && (e.code || e.name)) || 'network')); }
+  finally{ clearTimeout(timer); }
+  if(!j || typeof j !== 'object') return off('empty reply');
+  if(j.stop_reason !== 'end_turn') return off(j.stop_reason === 'refusal' ? 'refusal' : 'stop_reason ' + j.stop_reason);
+  const text = (Array.isArray(j.content) ? j.content : []).filter(c => c && c.type === 'text').map(c => c.text || '').join('').trim().replace(/[\u201C\u201D]/g, '"');
+  if(!text) return off('empty reply');
+  const quotes = regQuotes(text); if(!quotes.length) return off('no quote from the Ledger');
+  registrarAI.path = 'claude'; registrarAI.why = 'ok';
+  return {answer:text.slice(0, 700), source:'claude', topic:'claude', why:'ok', quotes};
+}
+function regSay(who, text, cls){ const d = document.createElement('div'); d.className = 'reg-line ' + (cls || ''); d.innerHTML = '<b>' + esc(who) + '</b> ' + esc(text); $('#regLog').appendChild(d); $('#regLog').scrollTop = 1e9; return d; }
+async function regSubmit(q){
+  q = String(q || '').trim(); if(!q || registrarAI.busy) return; registrarAI.busy = true; $('#regQ').value = '';
+  regSay('You', q, 'you'); const w = regSay('The Registrar', '...', 'reg');
+  const r = await askRegistrar(q); registrarAI.busy = false;
+  w.innerHTML = '<b>The Registrar</b> ' + esc(r.answer);
+  $('#regSrc').textContent = r.source === 'claude' ? 'Answered in character by Claude, quoting the Ledger.' : 'Answered from the Ledger.' + (dreamer.key || dreamer.sample ? '' : ' With the Dreamer key (Forge panel, local file) he answers in his own words.'); $('#regLog').scrollTop = 1e9;
+  return r;
+}
+function openRegistrar(){ if(zeroing) return; regEl.classList.remove('hidden'); setPaused(true);
+  if(!$('#regLog').children.length) regSay('The Registrar', 'Welcome to the Archive. The Ledger is on the lectern by the door, and the six rooms are the Architect\'s memories. What would you like to know?', 'reg');
+  $('#regQ').focus(); }
+function closeRegistrar(){ regEl.classList.add('hidden'); setPaused(false); }
+$('#regClose').addEventListener('click', closeRegistrar);
+$('#regAsk').addEventListener('click', () => regSubmit($('#regQ').value));
+$('#regQ').addEventListener('keydown', e => { if(e.code === 'Enter' || e.key === 'Enter'){ e.preventDefault(); regSubmit($('#regQ').value); } e.stopPropagation(); if(e.code === 'Escape') closeRegistrar(); });
+['Who was the Architect?', 'Who is Mara Quist?', 'Where is the Amber Shard?', 'What is the Seed?', 'Is there a fourth shard?'].forEach(t => { const b = document.createElement('button'); b.textContent = t; b.addEventListener('click', () => regSubmit(t)); $('#regChips').appendChild(b); });
+// __hub test helpers: stand in a room facing its diorama, or at its hidden detail
+function archiveReady(){ if(state.world !== 'hub' || !archive) return false; archive.rooms.forEach((R, i) => archiveBuildRoom(i)); return true; }
+function enterRoom(i, spot){
+  if(!archiveReady() || !archive.rooms[i]) return null; const R = archive.rooms[i], F = R.F;
+  const [x, z] = spot && R.detail ? [R.detail.x, R.detail.z] : [F.cx + F.sd * -(F.hu - 1.6), F.cz + F.sd * -1.2];
+  if(bike.riding) dismountBike(true); p.x = x; p.z = z; p.y = G(x, z); p.vy = 0; p.speed = 0;
+  const tx = spot && R.detail ? R.detail.look[0] : F.cx + F.sd * F.hu, tz = spot && R.detail ? R.detail.look[2] : F.cz;
+  p.facing = Math.atan2(tx - x, tz - z); cam.yaw = Math.atan2(x - tx, z - tz) + (spot ? 0.35 : 0.25); cam.pitch = spot ? 0.45 : 0.22; cam.dist = spot ? 3.2 : 4.2;
+  R.ang = F.sd * 1.45; R.piv.rotation.y = R.ang; R.opened = true; R.g.visible = true; archive.inside = true; snapCamera();
+  return {room:i, x:+x.toFixed(2), z:+z.toFixed(2), inside:F.inside(x, z, 0)};
+}
+
 /* ================= input ================= */
 let jumpBuffer = 0;
 window.addEventListener('keydown', e => {
+  if(!ledgerEl.classList.contains('hidden')){ if(e.code === 'Escape'){ e.preventDefault(); closeLedger(); } else if(e.code === 'ArrowRight' || e.code === 'KeyD' || e.code === 'PageDown'){ e.preventDefault(); if(!$('#lgNext').disabled) turnLedger(1); } else if(e.code === 'ArrowLeft' || e.code === 'KeyA' || e.code === 'PageUp'){ e.preventDefault(); if(!$('#lgPrev').disabled) turnLedger(-1); } return; }
+  if(!regEl.classList.contains('hidden')){ if(e.code === 'Escape') closeRegistrar(); return; }
+  if(!memoEl.classList.contains('hidden')){ if(e.code === 'Escape' || e.code === 'Enter' || (e.code === 'KeyE' && !e.repeat)){ e.preventDefault(); closeMemo(); } return; }
   if(!introEl.classList.contains('hidden')){ if(e.code === 'Enter' || (e.code === 'Escape' && state.started)){ e.preventDefault(); startGame(); } return; }
   if(!lookEl.classList.contains('hidden')){ if(e.code === 'Escape') closeLook(); return; }
   if(!xlogEl.classList.contains('hidden')){ if(e.code === 'Escape' || (e.code === 'KeyJ' && !(e.target && e.target.tagName === 'INPUT'))){ e.preventDefault(); closeXlog(); } return; }
@@ -8693,7 +9494,7 @@ function vrUpdate(dt){
   if(Math.abs(turn) > 0.7 && vr.snapCool <= 0){ vr.rig.rotation.y -= Math.sign(turn) * Math.PI / 6; vr.snapCool = 0.3; }
   if(Math.abs(turn) < 0.4) vr.snapCool = Math.min(vr.snapCool, 0);
 }
-function interactKey(){ if(bike.riding) dismountBike(); else if(bike.near) mountBike(); else if(shopNear) openShop(); else if(vendNear) openVendor(); else if(deskNear) enroll(); else if(forgeNear) openForge(); }
+function interactKey(){ if(bike.riding) dismountBike(); else if(bike.near) mountBike(); else if(shopNear) openShop(); else if(vendNear) openVendor(); else if(deskNear) enroll(); else if(forgeNear) openForge(); else if(archNear) archiveAct(); }
 vrSetup();
 
 /* ================= loop ================= */
@@ -8852,7 +9653,7 @@ function update(dt, time){
     state.won = true; reward(500, 200); sfx('win'); setHalo(); toast('You opened the vault. First to crack the Hub.   +500 XP', 5000);
   }
   if(playing && p.grounded && p.speed > 0.6){ snd.stepT -= dt; if(snd.stepT <= 0){ sfx('step'); snd.stepT = p.speed > 7 ? 0.27 : 0.42; } } else snd.stepT = 0.1;
-  shopProximity(); bikeProximity(); vendProximity(); deskProximity(); trialUpdate(dt, time);
+  shopProximity(); bikeProximity(); vendProximity(); deskProximity(); archiveUpdate(dt); trialUpdate(dt, time);
   updatePickups(dt, time); hurtCool -= dt; simTime += dt; updateHazards(simTime); updateBurst(dt); checkBundles();
   if(!WORLDS[state.world].rules.danger && !zeroing && state.hp < maxHp()){ state.hp = Math.min(maxHp(), state.hp + 12 * dt); hpHud(); }
   portalCool -= dt;
@@ -8982,6 +9783,21 @@ Object.defineProperties(window.__hub, {
   makeFace:{value:makeFace}, faceTex:{value:faceTex}, lastFacePath:{get:() => faceAI.path}, faceTest:{get:() => faceAI.test, set:v => { faceAI.test = !!v; }},
   aiTestResponse:{get:() => avatarAI.testResponse, set:v => { avatarAI.testResponse = v == null ? null : v; }}, aiTimeoutMs:{get:() => avatarAI.timeoutMs, set:v => { avatarAI.timeoutMs = Math.max(50, +v || 20000); }},
   explorerLog:{get:() => Object.values(explorer.planets).map(e => ({id:e.id, name:e.name, proposed:e.proposed, sector:e.sector, rules:e.rules, gravity:e.gravity, first:e.first, firstDate:new Date(e.first).toISOString().slice(0, 10), walked:Math.round(e.walked || 0), landmarks:(e.landmarks || []).slice(), visits:e.visits}))}
+});
+// Goal 9 test hooks: the Archive, its rooms, their hidden details, the Ledger and the Registrar
+Object.defineProperties(window.__hub, {
+  archive:{get:() => archive && {x0:ARCHIVE.x0, x1:ARCHIVE.x1, z0:ARCHIVE.z0, z1:ARCHIVE.z1, entrance:{x:0, z:ARCHIVE.z0 - 1.5}, lectern:Object.assign({}, archive.lectern), registrar:Object.assign({}, archive.registrar), inside:archive.inside, roomsBuilt:archive.rooms.filter(R => R.built).length, near:archNear && Object.assign({}, archNear), room:archRoom, ledgerFound:state.archive.ledger}},
+  rooms:{get:() => ARCHIVE_ROOMS.map((r, i) => { const R = archive && archive.rooms[i]; return {idx:i, title:r.title, when:r.when, plaque:r.plaque, built:!!(R && R.built), open:!!(R && Math.abs(R.ang) > 1.0), opened:!!(R && R.opened), visited:state.archive.rooms.has(i), visible:!!(R && R.g.visible),
+    centre:R ? {x:R.F.cx, z:R.F.cz} : null, door:R ? {x:R.F.door.x, z:R.F.door.z} : null, detail:{name:r.detail.name, clue:r.detail.clue, serves:r.detail.serves, found:state.archive.found.has(i), at:R && R.detail ? {x:+R.detail.x.toFixed(2), z:+R.detail.z.toFixed(2)} : null}}; })},
+  // stand at room i's hidden detail and press E there (the real proximity path); returns what was found, or why not
+  inspect:{value:i => { const e = enterRoom(i, true); if(!e) return null; archiveUpdate(0.05); if(!archNear || archNear.kind !== 'detail' || archNear.idx !== i) return {room:i, error:'not at the detail', near:archNear}; archiveAct(); return {room:i, name:ARCHIVE_ROOMS[i].detail.name, text:$('#memoText').textContent, clue:ARCHIVE_ROOMS[i].detail.clue, serves:ARCHIVE_ROOMS[i].detail.serves, found:state.archive.found.has(i), panelOpen:!memoEl.classList.contains('hidden')}; }},
+  enterRoom:{value:(i, spot) => enterRoom(i, spot)}, closeMemo:{value:closeMemo}, archiveUpdate:{value:dt => archiveUpdate(dt || 0.05)},
+  ledger:{get:() => ({found:state.archive.ledger, open:!ledgerEl.classList.contains('hidden'), page:ledgerAt, pages:ledgerPages().map(g => ({kind:g.kind, title:g.title, body:g.body, shard:g.shard || null}))})},
+  openLedger:{value:page => openLedger(page)}, turnLedger:{value:d => turnLedger(d)}, closeLedger:{value:closeLedger}, takeLedger:{value:takeLedger},
+  askRegistrar:{value:q => askRegistrar(q)}, openRegistrar:{value:openRegistrar}, closeRegistrar:{value:closeRegistrar}, registrarQuotes:{value:t => regQuotes(t)},
+  registrarTest:{get:() => registrarAI.testResponse, set:v => { registrarAI.testResponse = v == null ? null : v; }}, registrarLastRequest:{get:() => registrarAI.lastRequest && JSON.parse(JSON.stringify(registrarAI.lastRequest))},
+  registrarPath:{get:() => registrarAI.path}, registrarWhy:{get:() => registrarAI.why}, registrarTimeoutMs:{get:() => registrarAI.timeoutMs, set:v => { registrarAI.timeoutMs = Math.max(50, +v || 15000); }},
+  HUNT_CLUES:{value:HUNT_CLUES}, ARCHIVE:{value:ARCHIVE}, LEDGER:{value:LEDGER}
 });
 })();
 </script>
