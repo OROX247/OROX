@@ -8679,7 +8679,7 @@ let archNear = null, archRoom = -1, cardTimer = 0;
 const ARCH_DOOR_OPEN = Math.PI - 0.1;
 const ledgerEl = $('#ledger'), regEl = $('#reg'), memoEl = $('#memo');
 function archiveUpdate(dt){
-  if(!archive || state.world !== 'hub'){ if(archNear){ archNear = null; $('#archBtn').style.display = 'none'; } if(me.tag) me.tag.visible = !pocketIn() && !driftSafe(); return; }   // indoors (the Hollow, The Drift, its hallway) your own name tag would fill the view
+  if(!archive || state.world !== 'hub'){ if(archNear){ archNear = null; $('#archBtn').style.display = 'none'; } if(me.tag) me.tag.visible = !pocketIn() && !driftSafe() && chimeNear == null; return; }   // indoors (the Hollow, The Drift, its hallway) your own name tag would fill the view
   const A = ARCHIVE, px = p.x, pz = p.z, cp = camera.position;
   // the rooms are built the first time you come near (one a frame), so the Spaceport loads exactly as fast as before
   if(Math.hypot(px, pz - 77) < 60){ const k = archive.rooms.findIndex(R => !R.built); if(k >= 0) archiveBuildRoom(k); }
@@ -10629,7 +10629,7 @@ function chimeWin(silent){
   const given = giveShard('sky', 'The Cyan Shard, out of the wind chimes on the highest isle. Low Tide, the way she sang it.');
   if(!given && !silent) toast('The chimes sing Low Tide back to you. You already hold the Cyan Shard.', 3600);
   if(!silent && !chimes.shard){ const col = SHARD_COLORS.sky, y = chimes.top + CHIMES.beamY + 0.9;
-    const m = mk(new THREE.OctahedronGeometry(0.34, 0), phys(col, {emissive:C(col), emissiveIntensity:2.2, roughness:0.1}), chimes.x, y, chimes.z); m.scale.set(0.8, 1.7, 0.8); m.castShadow = false;
+    const m = mk(new THREE.OctahedronGeometry(0.26, 0), phys(col, {emissive:C(col), emissiveIntensity:2.2, roughness:0.1}), chimes.x, y, chimes.z); m.scale.set(0.8, 1.7, 0.8); m.castShadow = false;
     chimes.shard = {m, gl:glow(col, 2.6, chimes.x, y, chimes.z, world, 0.6), y}; }
   if(typeof huntState === 'function') huntState();
   return given;
