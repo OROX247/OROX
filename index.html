@@ -4246,7 +4246,7 @@ function dunesOuter(n, x, z, d, h0, ri){
   return h0 + (h - h0) * e;
 }
 const HEIGHTS = {
-  hub:(n, pf) => (x, z) => { const d = Math.hypot(x, z); let h = n.fbm(x * 0.025, z * 0.025, 4) * 2.2 * smooth(37, 50, d); h += smooth(R + 15, R + 170, d) * (10 + n.fbm(x * 0.006, z * 0.006, 4) * 45); return h * pf(x, z); },
+  hub:(n, pf) => (x, z) => { const d = Math.hypot(x, z); let h = n.fbm(x * 0.025, z * 0.025, 4) * 2.2 * smooth(37, 50, d); h += smooth(R + 15, R + 170, d) * (10 + n.fbm(x * 0.006, z * 0.006, 4) * 45); if(d > HUB_OUT) h = hubOuter(n, x, z, d, h); return h * pf(x, z); },
   dunes:(n, pf) => (x, z) => { const d = Math.hypot(x, z), w = n.fbm(x * 0.01, z * 0.01, 3), ri = 1 - Math.abs(n.n2(x * 0.028 + w * 2, z * 0.011 + w)); let h = ri * ri * 3.4 + n.fbm(x * 0.06, z * 0.06, 3) * 0.5; h *= 0.25 + 0.75 * smooth(6, 26, d); h += smooth(R + 8, R + 150, d) * (ri * ri * 26 + 8); if(d > DUNES_OUT) h = dunesOuter(n, x, z, d, h, ri); return h * pf(x, z); },
   grid:(n) => (x, z) => { const d = Math.hypot(x, z), m = smooth(R + 30, R + 170, d), ri = 1 - Math.abs(n.fbm(x * 0.008, z * 0.008, 4) * 1.6), h = m * (ri * ri * 75 + 5) - 0.3 * (1 - smooth(R + 26, R + 32, d)); return h; },
   grove:(n, pf) => (x, z) => { const d = Math.hypot(x, z); let h = n.fbm(x * 0.03, z * 0.03, 4) * 2.4 * smooth(6, 20, d); const ri = 1 - Math.abs(n.fbm(x * 0.007, z * 0.007, 5) * 1.5); h += smooth(R + 10, R + 180, d) * (ri * ri * 100 + 10); if(d > GROVE_OUT) h = groveOuter(n, x, z, d, h); return h * pf(x, z); },
@@ -4375,7 +4375,7 @@ BUILD.hub = (r, n) => {
       // uv: u = metres around / 4, v = floors (each face of the box gets its own uv island)
       for(let k = 0; k < uv.count; k++){ const face = Math.floor(k / 4); const u = uv.getX(k), vv = uv.getY(k); const span = (face < 2) ? D : (face < 4) ? W : W; uv.setXY(k, u * span / 4, face === 2 || face === 3 ? vv * 0.02 : vv * fl); }
       g.translate(0, y + H / 2, 0); bin(T, g.applyMatrix4(M)); };
-    tower(w, dp, h, 0);
+    tower(w, dp, h, 0); coreSolids.push({kind:'box', x, z, hx:w / 2, hz:dp / 2, y0, y1:y0 + h, a:-ry});
     if(h > 70 && r() < 0.6) tower(w * 0.62, dp * 0.62, h * (0.25 + r() * 0.3), h);                         // set-back upper tier
     bin(roofM, new THREE.BoxGeometry(w * 0.3, 2.2, dp * 0.3).translate((r() - 0.5) * w * 0.4, h + 1.1, (r() - 0.5) * dp * 0.4).applyMatrix4(M));   // plant room
     if(h > 110){ bin(mastM, new THREE.CylinderGeometry(0.15, 0.25, 14, 6).translate(0, h + 7, 0).applyMatrix4(M)); glow(0xff4040, 4, x, y0 + h + 14.5, z, world, 0.7); }
@@ -6226,6 +6226,105 @@ ENDLESS.grove = {
   ]
 };
 
+/* ---- Hub Spaceport: the port's endless outskirts of landing pads, hangars, tower clusters and open plains ---- */
+const HUB_OUT = 400;
+function hubBase(n, x, z){
+  const P = n.fbm(x * 0.0011 - 17, z * 0.0011 + 9, 3), hills = smooth(0.15, 0.5, P), ri = 1 - Math.abs(n.fbm(x * 0.006, z * 0.006, 4) * 1.4);
+  return 4 + n.fbm(x * 0.004 + 5, z * 0.004, 3) * 8 + n.fbm(x * 0.025, z * 0.025, 3) * 1.4 + hills * ri * ri * 34;
+}
+const hubBigMemo = new Map();
+function hubBig(n, cx, cz){
+  const k = cx * 65536 + cz; let b = hubBigMemo.get(k); if(b) return b;
+  const q = rng(cellSeed('hub', cx, cz, 7)), t = q(); b = [];
+  const x = (cx + 0.35 + q() * 0.3) * CHUNK, z = (cz + 0.35 + q() * 0.3) * CHUNK, far = Math.hypot(x, z) > HUB_OUT + 60;
+  if(far && t < 0.13){ const r = 13 + q() * 5; b.push({kind:'pad', x, z, pr:r, r:r + 9, y:hubBase(n, x, z), ship:q() < 0.6, ry:q() * TAU}); }
+  else if(far && t < 0.21){ b.push({kind:'hangar', x, z, pr:19, r:26, y:hubBase(n, x, z), ry:Math.floor(q() * 4) * Math.PI / 2 + (q() - 0.5) * 0.3}); }
+  else if(far && t < 0.25){ const nT = 1 + Math.floor(q() * 3), towers = []; for(let i = 0; i < nT; i++){ const a = q() * TAU, d = i ? 12 + q() * 8 : 0, w = 10 + q() * 12; towers.push({x:x + Math.cos(a) * d, z:z + Math.sin(a) * d, w, dp:w * (0.7 + q() * 0.5), h:30 + q() * q() * 120, ry:q() * TAU, v:Math.floor(q() * 3)}); }
+    b.push({kind:'towers', x, z, r:30, towers}); }
+  hubBigMemo.set(k, b); return b;
+}
+function hubOuter(n, x, z, d, h0){
+  const e = smooth(HUB_OUT, HUB_OUT + 160, d); let h = hubBase(n, x, z);
+  const cx = Math.floor(x / CHUNK), cz = Math.floor(z / CHUNK);
+  for(let dz = -1; dz <= 1; dz++) for(let dx = -1; dx <= 1; dx++) for(const b of hubBig(n, cx + dx, cz + dz)) if(b.kind !== 'towers'){ const dd = Math.hypot(x - b.x, z - b.z); if(dd < b.r) h = h + (b.y - h) * smooth(b.r, b.pr + 1, dd); }   // pads and hangar aprons are levelled
+  return h0 + (h - h0) * e;
+}
+// a skyline tower box with the core's facade mapping (u = metres / 4, v = floors)
+function skyTowerGeo(W, D, H, y){ const g = new THREE.BoxGeometry(W, H, D), uv = g.attributes.uv, fl = Math.max(1, Math.round(H / 3.6));
+  for(let k = 0; k < uv.count; k++){ const face = Math.floor(k / 4), u = uv.getX(k), vv = uv.getY(k), span = face < 2 ? D : W; uv.setXY(k, u * span / 4, face === 2 || face === 3 ? vv * 0.02 : vv * fl); }
+  g.translate(0, y + H / 2, 0); return g; }
+ENDLESS.hub = {
+  core:HUB_OUT + 10, home:R + 12, dreamOdds:0.1, dreamR:2,
+  words:'the endless outskirts of a spaceport at golden hour: landing pads, hangars, glass towers and open grassy plains',
+  dream:{kinds:['tower', 'monoliths', 'arch', 'lighthouse', 'windmill'], surface:'grass', time:'sunset'},
+  big(cx, cz){ return hubBig(this.n, cx, cz); },
+  kit(){
+    this.n = makeNoise(WORLDS.hub.seed * 7 + 1);
+    const TG = treeGeos(); ['trunk', 'leaf', 'trunkLo', 'leafLo'].forEach(k => shareGeo(TG[k]));
+    const cs = surface('concrete'), gr = surface('granite');
+    const k = { TG, skyline:[0, 1, 2].map(v => towerMaterial(v)), roofM:shareMat(std(0x2a2d33, {roughness:0.85, map:cs.map})),
+      padM:shareMat(std(0xb8b4ac, {roughness:0.8, map:cs.map, normalMap:cs.normal, normalScale:new V2(0.5, 0.5)})), curbM:shareMat(std(0xb8b2a8, {roughness:0.8, map:gr.map, normalMap:gr.normal, normalScale:new V2(0.5, 0.5)})),
+      lineM:shareMat(glowM(0xffd166, 1.6)), cyanM:shareMat(glowM(0x5ce1e6, 1.8)), metalM:shareMat(std(0x8a8f99, {metalness:0.6, roughness:0.45, map:cs.map})), darkM:shareMat(std(0x23252e, {metalness:0.85, roughness:0.35})),
+      hullM:shareMat(std(0xd9dde6, {metalness:0.7, roughness:0.3})), hotM:shareMat(std(0x9fd8ff, {emissive:C(0x6fc4ff), emissiveIntensity:3})) };
+    // a parked shuttle: the same shape as the ones crossing the sky, baked into one hull and one engine mesh
+    { const hull = [], hot = [], M = new THREE.Matrix4(), body = capsule(1.1, 0.7, 9, 8); body.rotateX(Math.PI / 2); hull.push(body);
+      [-1, 1].forEach(sd => { const w = new THREE.BoxGeometry(6, 0.16, 2.6); w.rotateY(sd * 0.35); w.translate(sd * 3.6, -0.2, -1.2); hull.push(w);
+        const en = new THREE.CylinderGeometry(0.5, 0.65, 2.2, 12); en.rotateX(Math.PI / 2); en.translate(sd * 2.2, -0.3, -3.6); hull.push(en);
+        const ho = new THREE.CylinderGeometry(0.42, 0.1, 0.4, 12); ho.rotateX(Math.PI / 2); ho.translate(sd * 2.2, -0.3, -4.9); hot.push(ho);
+        [[sd * 2.4, 1.6], [sd * 1.2, -2.8]].forEach(l => { const leg = new THREE.CylinderGeometry(0.08, 0.1, 1.3, 6); leg.translate(l[0], -1.3, l[1]); hull.push(leg); }); });
+      const fin = new THREE.BoxGeometry(0.7, 1.4, 2.4); fin.translate(0, 0.9, -2.8); hull.push(fin);
+      const nose = new THREE.CylinderGeometry(0.08, 0.1, 1.3, 6); nose.translate(0, -1.3, 3.4); hull.push(nose);
+      k.shipHull = shareGeo(merge(hull)); k.shipHot = shareGeo(merge(hot)); }
+    return k;
+  },
+  tiers:[
+    // far: pads (levelled into the ground, lit rings, some with a parked shuttle), hangars, tower clusters
+    {name:'far', r:6, build(c, k){
+      const glows = [];
+      for(const b of bigOf(c.E, c.cx, c.cz)){
+        if(b.kind === 'pad'){ const y = b.y;
+          const disc = mk(new THREE.CylinderGeometry(b.pr, b.pr + 0.4, 0.5, 64), k.padM, b.x, y - 0.24, b.z); disc.castShadow = false;
+          const ring = mk(new THREE.RingGeometry(b.pr * 0.72, b.pr * 0.72 + 0.35, 96), k.lineM, b.x, y + 0.03, b.z); ring.rotation.x = -Math.PI / 2; ring.castShadow = false;
+          const ring2 = mk(new THREE.RingGeometry(b.pr - 0.9, b.pr - 0.7, 96), k.cyanM, b.x, y + 0.03, b.z); ring2.rotation.x = -Math.PI / 2; ring2.castShadow = false;
+          for(let i = 0; i < 12; i++){ const a = i / 12 * TAU; glows.push([b.x + Math.cos(a) * (b.pr + 0.2), y + 0.4, b.z + Math.sin(a) * (b.pr + 0.2), 1.6, i % 2 ? 0xffd166 : 0x5ce1e6]); }
+          if(b.ship){ const sh = mk(k.shipHull, k.hullM, b.x, y + 2.1, b.z), ho = mk(k.shipHot, k.hotM, b.x, y + 2.1, b.z); sh.rotation.y = ho.rotation.y = b.ry; ho.castShadow = false;
+            colliders.push({x:b.x, z:b.z, r:4.2}); [-1, 1].forEach(sd => { const ex = b.x + Math.cos(b.ry) * sd * 2.2 + Math.sin(b.ry) * -5.3, ez = b.z - Math.sin(b.ry) * sd * 2.2 + Math.cos(b.ry) * -5.3; glows.push([ex, y + 1.8, ez, 2.2, 0x6fc4ff]); }); }
+        }
+        else if(b.kind === 'hangar'){ const y = b.y, W = 30, D = 22, H = 7, ry = b.ry, M = new THREE.Matrix4().makeRotationY(ry).setPosition(b.x, y, b.z), parts = [], cs = Math.cos(ry), sn = Math.sin(ry);
+          const at = (lx, lz) => [b.x + lx * cs + lz * sn, b.z - lx * sn + lz * cs];
+          [[-W / 2, 0, 0.6, D], [W / 2, 0, 0.6, D]].forEach(w => { parts.push(new THREE.BoxGeometry(w[2], H, w[3]).translate(w[0], H / 2 - 0.5, w[1]).applyMatrix4(M)); const p2 = at(w[0], w[1]); addBox(p2[0], p2[1], w[2] / 2, w[3] / 2, y - 1, y + H - 0.5, {a:-ry}); });
+          parts.push(new THREE.BoxGeometry(W, H, 0.6).translate(0, H / 2 - 0.5, -D / 2).applyMatrix4(M)); { const p2 = at(0, -D / 2); addBox(p2[0], p2[1], W / 2, 0.3, y - 1, y + H - 0.5, {a:-ry}); }
+          const roof = new THREE.CylinderGeometry(W / 2 + 0.3, W / 2 + 0.3, D + 0.6, 32, 1, true, -Math.PI / 2, Math.PI); roof.rotateX(Math.PI / 2); roof.scale(1, 0.55, 1); roof.translate(0, H - 0.5, 0); parts.push(roof.applyMatrix4(M));
+          const back = new THREE.CircleGeometry(W / 2 + 0.3, 32, 0, Math.PI); back.scale(1, 0.55, 1); back.translate(0, H - 0.5, -D / 2 - 0.3); parts.push(back.applyMatrix4(M));
+          mk(merge(parts), k.metalM);
+          const fl = mk(new THREE.BoxGeometry(W, 0.3, D).translate(0, -0.1, 0).applyMatrix4(M), k.padM); fl.castShadow = false;
+          for(let i = -2; i <= 2; i++){ const p2 = at(i * 5.5, D / 2 + 0.2); glows.push([p2[0], y + H - 0.8, p2[1], 1.4, 0xffd9a0]); } }
+        else if(b.kind === 'towers'){ const bins = new Map(), bin = (m, g) => { if(!bins.has(m)) bins.set(m, []); bins.get(m).push(g); }, M = new THREE.Matrix4();
+          for(const t of b.towers){ if(Math.hypot(t.x, t.z) < HUB_OUT + 30) continue; const y0 = G(t.x, t.z) - 2; M.makeRotationY(t.ry).setPosition(t.x, y0, t.z);
+            bin(k.skyline[t.v], skyTowerGeo(t.w, t.dp, t.h, 0).applyMatrix4(M)); bin(k.roofM, new THREE.BoxGeometry(t.w * 0.3, 2.2, t.dp * 0.3).translate(0, t.h + 1.1, 0).applyMatrix4(M));
+            addBox(t.x, t.z, t.w / 2, t.dp / 2, y0, y0 + t.h, {a:-t.ry}); if(t.h > 110) glows.push([t.x, y0 + t.h + 3, t.z, 4, 0xff4040, 0.7]); }
+          bins.forEach((list, m) => { mk(merge(list), m).castShadow = false; }); }
+      }
+      glowCloud(glows, 0.5); }},
+    // mid: stands of trees, boulders, beacon masts
+    {name:'mid', r:3, build(c, k){
+      const q = c.q, trees = [];
+      if(q() < 0.55){ const at = c.spot(6, {slope:0.5}); if(at){ for(let i = 0, n = 3 + Math.floor(q() * 10); i < n; i++){ const a = q() * TAU, d = q() * 14, x = at[0] + Math.cos(a) * d, z = at[1] + Math.sin(a) * d, s = 0.9 + q() * 0.7; if(!c.free(x, z, 1.5) || slopeAt(x, z) > 0.6) continue;
+        trees.push({x, y:G(x, z) - 0.1, z, s, ry:q() * TAU}); c.local.push({x, z, r:0.5 * s}); colliders.push({x, z, r:0.35 * s}); } } }
+      if(trees.length) plantTrees(k.TG, trees, [0x3f6b2a, 0x557a2f, 0x6b8a36, 0x4a7a3a], q);
+      const rocks = []; for(let i = 0, n = Math.floor(q() * 3); i < n; i++){ const s = c.spot(2, {slope:0.6}); if(!s) continue; const sk = 0.5 + q() * 1.2; rocks.push(mat4(s[0], G(s[0], s[1]) - 0.1, s[1], 0, q() * TAU, 0, sk)); c.local.push({x:s[0], z:s[1], r:sk}); colliders.push({x:s[0], z:s[1], r:sk * 0.85}); }
+      if(rocks.length){ if(!k.rockHi){ k.rockHi = shareGeo(rockGeo()); k.rockLo = shareGeo(rockGeo(true)); k.rockM = shareMat(reg('rock', {mat:std(0xffffff, {map:surface('rock').map, normalMap:surface('rock').normal, normalScale:new V2(0.8, 0.8), roughness:0.9}), kind:'rocks'})); }
+        lodInstanced(k.rockHi, k.rockLo, k.rockM, rocks, rocks.map(() => { const cc = C(0x7a746c); cc.multiplyScalar(0.8 + q() * 0.35); return cc; }), 40, 6); }
+      if(q() < 0.18){ const s = c.spot(2, {slope:0.4}); if(s){ const y = G(s[0], s[1]); mk(new THREE.CylinderGeometry(0.12, 0.2, 9, 8), k.darkM, s[0], y + 4.5, s[1]); glowCloud([[s[0], y + 9.2, s[1], 3, 0xff4040, 0.8]], 0.8); colliders.push({x:s[0], z:s[1], r:0.3}); c.local.push({x:s[0], z:s[1], r:1}); } } }},
+    // near: grass, weeds, pebbles
+    {name:'near', r:1, build(c, k){
+      const ok = (x, z) => !bigOf(c.E, Math.floor(x / CHUNK), Math.floor(z / CHUNK)).some(b => b.kind !== 'towers' && Math.hypot(x - b.x, z - b.z) < b.pr + 2);
+      cellPebbles(c, 40, 'gravel', 0xcfc8bc, ok);
+      cellWeeds(c, 70, [0x5a8a3a, 0x6f9a44, 0x86a04a], ok); }},
+    {name:'grass', r:1, build(c, k){ cellGrassPatch(c, 1100, [0x55752f, 0x6b8436, 0x7d8f3e, 0x4d6a2c], [0.35, 0.8], (x, z) => !bigOf(c.E, Math.floor(x / CHUNK), Math.floor(z / CHUNK)).some(b => b.kind !== 'towers' && Math.hypot(x - b.x, z - b.z) < b.pr + 2)); }}
+  ]
+};
+
 /* ================= spawning ================= */
 function spawnNPCs(key, r){
   const pool = NPC_NAMES.slice(), count = (key === 'hub' ? 12 : 5) - (COARSE ? 2 : 0);
@@ -7967,7 +8066,9 @@ window.__hub = { state, p, cam, post, stats, WORLDS, scene, renderer, camera, su
   VEND, get vendor(){ return vendor && {world:vendor.world, x:vendor.x, z:vendor.z}; }, get vendors(){ return JSON.parse(JSON.stringify(vendorsSeen)); }, get vendNear(){ return vendNear; }, openVendor, closeVendor, buyVend,
   get fuel(){ return state.fuel; }, set fuel(v){ state.fuel = clamp(+v || 0, 0, FUEL_MAX); fuelShown = -1; fuelHud(); }, FUEL_MAX,
   get inGym(){ return !!p.zeroG; }, get gym(){ return gym && {x:gym.x, z:gym.z, r:gym.r, h:gym.h}; }, gymIn:(x, z) => gymIn(x, z),
-  get cellKey(){ return chunkKey(Math.floor(p.x / CHUNK), Math.floor(p.z / CHUNK)); }, cellSum:k => cellSum(k), coreSum:d => coreSum(d), heightAt:(x, z) => G(x, z), get stream(){ const E = endless; return E && E.builtin ? {cells:E.chunks.size, near:[...E.chunks.values()].filter(c => c.parts[c.parts.length - 1] && c.parts.length === E.style.tiers.length).length, slow:E.slow.slice(), kitMs:+(E.kitMs || 0).toFixed(1), queue:E.queue.length, terrainJob:!!E.job, stepMs:+E.stepMs.toFixed(2), maxMs:+E.maxMs.toFixed(2), built:E.built, dropped:E.dropped, centre:E.terrain ? [E.terrain.userData.terrain.cx, E.terrain.userData.terrain.cz] : null, core:E.style.core} : null; }, resetStreamMax(){ if(endless) endless.maxMs = 0; }, teleport(x, z){ if(bike.riding) dismountBike(true); if(endless && endless.style && endless.style.landAt){ const L = endless.style.landAt(x, z); x = L[0]; z = L[1]; } p.x = x; p.z = z; p.y = G(x, z) + 0.05; p.vy = 0; p.speed = 0; const s = window.__hub.streamNow(); snapCamera(); return {x:+x.toFixed(2), z:+z.toFixed(2), y:+p.y.toFixed(2), cell:chunkKey(Math.floor(x / CHUNK), Math.floor(z / CHUNK)), stream:s}; },
+  get cellKey(){ return chunkKey(Math.floor(p.x / CHUNK), Math.floor(p.z / CHUNK)); }, cellSum:k => cellSum(k), coreSum:d => coreSum(d), heightAt:(x, z) => G(x, z), get stream(){ const E = endless; return E && E.builtin ? {cells:E.chunks.size, near:[...E.chunks.values()].filter(c => c.parts[c.parts.length - 1] && c.parts.length === E.style.tiers.length).length, slow:E.slow.slice(), kitMs:+(E.kitMs || 0).toFixed(1), queue:E.queue.length, terrainJob:!!E.job, stepMs:+E.stepMs.toFixed(2), maxMs:+E.maxMs.toFixed(2), built:E.built, dropped:E.dropped, centre:E.terrain ? [E.terrain.userData.terrain.cx, E.terrain.userData.terrain.cz] : null, core:E.style.core} : null; }, resetStreamMax(){ if(endless) endless.maxMs = 0; }, bigsNear(n){ const E = endless, out = []; if(!E || !E.builtin) return out; n = n || 3; const cx = Math.floor(p.x / CHUNK), cz = Math.floor(p.z / CHUNK);
+    for(let dz = -n; dz <= n; dz++) for(let dx = -n; dx <= n; dx++) bigOf(E, cx + dx, cz + dz).forEach(b => out.push({kind:b.kind, x:+b.x.toFixed(1), z:+b.z.toFixed(1), r:+b.r.toFixed(1)})); return out; },
+  teleport(x, z){ if(bike.riding) dismountBike(true); if(endless && endless.style && endless.style.landAt){ const L = endless.style.landAt(x, z); x = L[0]; z = L[1]; } p.x = x; p.z = z; p.y = G(x, z) + 0.05; p.vy = 0; p.speed = 0; const s = window.__hub.streamNow(); snapCamera(); return {x:+x.toFixed(2), z:+z.toFixed(2), y:+p.y.toFixed(2), cell:chunkKey(Math.floor(x / CHUNK), Math.floor(z / CHUNK)), stream:s}; },
   streamNow(){ const E = endless; if(!E || !E.builtin) return 0; const t = performance.now(); let n = 0; E.pcx = 1e9;
     for(let k = 0; k < 4; k++){ updateBuiltin(); if(!E.job && !E.queue.length) break; while(E.job || E.queue.length){ if(E.job){ if(reStep(E.job, Infinity)) E.job = null; } else runCellJob(E, E.queue.shift()); n++; } }
     updateLods(); return {steps:n, ms:Math.round(performance.now() - t)}; }, benchTerrain(x, z){ if(!mainTerrain) return null; const J = reJob(mainTerrain, x, z), out = []; let t = performance.now(), ph = 0; while(!reStep(J, 0)){ if(J.phase !== ph){ const n = performance.now(); out.push(+(n - t).toFixed(1)); t = n; ph = J.phase; } } out.push(+(performance.now() - t).toFixed(1)); return out; }, get dreamStore(){ return JSON.parse(JSON.stringify(dreamStore || {})); },
