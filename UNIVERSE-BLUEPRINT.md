@@ -170,7 +170,7 @@ Shape of it in the film: a race nobody can win until someone drives backwards; a
 - The Ledger: a readable in-game book (from the Archive or the ? menu) with one riddle per shard, plus red herrings.
 - The Archive on Hub Spaceport: a library where each room replays one memory of Lyle Ashcombe's life as a still scene with a short text and a hidden detail. The Registrar NPC answers questions with quotes from the Ledger. Clues live here.
 - Amber Shard (Glass Dunes): riddle points to a specific sandstone pillar at a specific time of day; a challenge cabinet inside a buried chamber runs **Comet Rally**, an invented top-down racer, and the shard is won by driving the wrong way round the track on the last lap.
-- Rose Shard (Neon Grid): riddle points to The Drift; the club's back wall opens into a hotel corridor that tries to scare the player off with fake-outs; keep walking without turning back to reach the shard.
+- Rose Shard (Neon Grid): riddle points to The Drift; the club's back wall opens into a long hallway (built from Hub's own memories: the club's back corridor, a house hallway, then Lantern Row at night) that tries to scare the player off with fake-outs; keep walking without turning back to reach the shard.
 - Cyan Shard (Sky Isles): riddle is a musical phrase; a set of wind chimes on the highest isle must be struck in the right order (the Architect's invented lullaby, "Low Tide").
 - Each shard opens a gate on Ashfall. Gate One: repeat the Architect's broadcast, line by line, choosing the right line from three each time. Gate Two: play **Starling**, an invented one-screen shooter, to a set score. Gate Three: walk the Architect's childhood street (a memory from the Archive) and choose not to take the credits pile at the end; the Seed is behind the empty choice.
 - The Citadel on Ashfall: dark world, permanent dusk, the three gates set in a castle wall, the Bell Jar field over it until the Bell Jar is broken, Meridian Units in numbers, then the Blackout, then the Seed.
@@ -264,7 +264,7 @@ The owner's words: make it so hard to tell from reality that people wearing the 
 9. The Archive on the Spaceport with six memory rooms, the Registrar, and the Ledger book. Done means: every room opens, the Ledger is readable, and one hidden detail per room can be inspected.
 10. The Architect's Last Broadcast as the intro to the Hunt (plays once, replayable from the Archive).
 11. Amber Shard: The Hollow dungeon under Glass Dunes' chamber and the Comet Rally cabinet. Done means: the shard is only won by the backwards last lap.
-12. Rose Shard: The Drift and the hotel corridor.
+12. Rose Shard: The Drift and the hallway behind it.
 13. Cyan Shard: the wind chimes and "Low Tide".
 14. Ashfall and the Citadel with three gates and the vault; the Seed; the winning card.
 
