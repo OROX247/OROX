@@ -5778,7 +5778,7 @@ function buildArchive(){
   { const l = label('The Archive · memories of the Architect', {small:true, edge:'#e8c77a', fg:'#f3e2b0'}); l.position.set(0, 8.4, A.z0 - 1); hall.add(l); }
   [-3.4, 3.4].forEach(x => { const z = A.z0 - A.apron + 0.5; mk(CY(0.07, 0.11, 3.4, 12), M.iron, x, 1.7, z, hall); mk(CY(0.26, 0.18, 0.16, 4), M.iron, x, 3.55, z, hall).rotation.y = Math.PI / 4; mk(CY(0.16, 0.12, 0.4, 4), M.lampWarm, x, 3.3, z, hall).rotation.y = Math.PI / 4; glow(0xffc98a, 3, x, 3.3, z, hall, 0.5); colliders.push({x, z, r:0.2}); });
   // the Registrar, behind the desk
-  const reg = makeAvatar({recipe:parseDescription('a tall slender librarian in a long green coat with round glasses'), name:'The Registrar'}); reg.g.position.set(D.x, 0, D.z + 1.1); reg.g.rotation.y = Math.PI; hall.add(reg.g);
+  const reg = makeAvatar({recipe:parseDescription('a tall slender librarian in a long green coat with round glasses'), name:'The Registrar'}); reg.g.position.set(D.x, 0, D.z + 1.1); reg.g.rotation.y = Math.PI; hall.add(reg.g); if(reg.tag) hallLabels.push(reg.tag);
   { const l = label('The Registrar · E', {small:true, edge:'#9dff6a', fg:'#d8ffc0'}); l.position.set(D.x, 2.6, D.z + 1.1); l.scale.multiplyScalar(0.5); hall.add(l); hallLabels.push(l); }
   // everything merged by material
   const put = (list, mat, tile, cast) => { if(!list.length) return; const m = mk(boxGeo(list, tile), mat, 0, 0, 0, hall); m.castShadow = cast !== false; };
@@ -8834,12 +8834,13 @@ const BC_WICK = {x:0, z:79.6};
 const BC_PATH = [
   [0, [0, 2.3, 64.2], [0, 1.6, 80]], [7, [0, 1.95, 71], [0, 1.75, 79.6]], [14, [1.5, 1.8, 76.3], [0, 1.85, 79.6]], [22, [-1.8, 1.6, 76.8], [0, 1.8, 79.6]],
   [30, [-2.7, 2.7, 74.8], [0, 1.4, 79.6]], [38, [2.5, 2.2, 75.4], [0, 1.5, 79.6]], [48, [0.4, 1.55, 72.6], [0, 1.6, 79.6]], [57, [1.9, 1.7, 77.2], [0.1, 1.7, 79.6]],
-  [66, [-1.2, 1.85, 77.4], [0, 1.8, 79.6]], [73, [0.35, 1.8, 77.7], [0.2, 1.5, 79.3]], [81, [0, 2.2, 75.2], [0, 1.6, 79.6]], [89, [0, 4.4, 69.5], [0, 1.2, 79.6]]
+  [66, [-1.2, 1.85, 77.4], [0, 1.8, 79.6]], [73, [0.5, 1.85, 77.1], [0.15, 1.6, 79.4]], [81, [0, 2.2, 75.2], [0, 1.6, 79.6]], [89, [0, 4.4, 69.5], [0, 1.2, 79.6]]
 ];
 const WICK_RECIPE = {body:'humanoid', height:2.05, build:'slim', head:'bare', features:['coat', 'hood'], material:'cloth', pattern:'none',
-  colours:{main:'#8b8e95', second:'#6f727a', trim:'#9a9ea6', glow:'#c89a5a'}, eyes:{style:'dots', glow:'#ffd9a0'}};
+  colours:{main:'#8f8b85', second:'#716d68', trim:'#a39c90', glow:'#c89a5a'}, eyes:{style:'dots', glow:'#ffd9a0'}};
 const bc = {on:false, t:0, t0:0, hold:null, grp:null, wick:null, lantern:null, flame:null, halo:null, line:-1, why:'', saved:null, plays:0, skipped:false};
 const bcEl = $('#bcast');
+const _bcQ = new THREE.Quaternion(), _bcE = new THREE.Euler();
 /* the music bed: the harbour's wash, a slow pad, and "Low Tide" from the music box's own notes (LOW_TIDE_HZ, HUNT_CLUES.cyan.order), an octave down
    while he talks and at the box's pitch when he names it. Everything goes through one bus into the master (so N mutes it); the realm's ambience is
    ducked meanwhile. bcMusic(from) schedules everything from timeline second `from` on, so seek() restarts it in place. */
@@ -8936,7 +8937,8 @@ function endBroadcast(skipped){
   me.g.visible = true; if(archive) (archive.labels || []).forEach(l => { l.visible = true; });
   bcEl.classList.remove('open'); bcEl.hidden = true; document.body.classList.remove('bcast');
   const first = !state.archive.broadcast; state.archive.broadcast = true; persist(); huntState();
-  setPaused(false); snapCamera();
+  setPaused(false); snapCamera(); clipCamera();
+  if(camHid){ cam.yaw += Math.PI; snapCamera(); clipCamera(); }   // the saved view is pressed against a wall (you stood facing the screen): look from the open side so your avatar shows
   toast(first ? 'The Hunt has begun. Every clue is in the Ashcombe Ledger, on the lectern.' : 'The Hunt has begun. Replay the Broadcast from the brass screen by the door.', 4600);
   return true;
 }
@@ -8955,6 +8957,8 @@ function broadcastUpdate(dt, time){
   animateAvatar(w, dt, 0, true, time);
   const lift = smooth(2.2, 4.2, t) * (1 - smooth(19, 21, t)) + smooth(66, 69, t) * 0.8 + smooth(52.9, 54, t) * (1 - smooth(57, 58.5, t)) * 0.35;
   w.armL.sh.rotation.x = -0.25 - 0.95 * lift; w.armL.el.rotation.x = -0.35 - 0.6 * lift; w.armL.sh.rotation.z = -0.12 - 0.1 * lift;
+  // the lantern hangs straight down from the hand whatever the arm does, with a slow swing
+  w.g.updateMatrixWorld(true); bc.lantern.parent.getWorldQuaternion(_bcQ); bc.lantern.quaternion.copy(_bcQ.invert()); _bcE.set(Math.sin(time * 1.1) * 0.05, 0, Math.sin(time * 0.8 + 1) * 0.06); bc.lantern.quaternion.multiply(_bcQ.setFromEuler(_bcE));
   const talk = BROADCAST_LINES.some(L => t > L.t0 && t < L.t1);
   w.head.rotation.x = (talk ? Math.sin(time * 2.1) * 0.03 : 0) - 0.05; w.head.rotation.y = Math.sin(time * 0.37) * 0.08;
   w.armR.sh.rotation.x = talk ? -0.12 + Math.sin(time * 1.3) * 0.08 : -0.05;
