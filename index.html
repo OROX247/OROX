@@ -6480,14 +6480,14 @@ ENDLESS.sky = {
         mk(merge(caps.map(g => tint(g, 0x5e9a3c)).concat(rocks.map(g => tint(g, 0x7a6f66)))), k.farM).castShadow = false; return; }   // far away: grass and rock in one draw, told apart by vertex colour
       mk(merge(caps), k.top); mk(merge(rocks), k.rockM).castShadow = false; },
   tiers:[
-    // far: the isles, coarse, out to 8 cells; `isles` builds them in full within 2 cells and hides the coarse ones of its cell
-    {name:'far', r:8, build(c, k){ this.isleMeshes(c, k, 3, 16, k.rocksLo, true); }},
-    {name:'isles', r:2, hides:0, build(c, k){ this.isleMeshes(c, k, 6, 32, k.rocks); }},
+    // far: the isles, coarse, out to 7 cells; `isles` builds them in full within 1 cell and hides the coarse ones of its cell
+    {name:'far', r:7, build(c, k){ this.isleMeshes(c, k, 3, 16, k.rocksLo, true); }},
+    {name:'isles', r:1, hides:0, build(c, k){ this.isleMeshes(c, k, 6, 32, k.rocks); }},
     // mid: trees, boulders and wildflowers on the isles
     {name:'mid', r:2, build(c, k){
       const q = c.q, trees = [], fm = [], fc = [], fcols = [0xffffff, 0xffe066, 0xff8fc4, 0xc9a8ff];
       for(const I of this.isles(c)){
-        for(let i = 0, n = Math.floor(q() * 4); i < n; i++){ const a = q() * TAU, d = q() * I.r * 0.7, x = I.x + Math.cos(a) * d, z = I.z + Math.sin(a) * d, s = 0.8 + q() * 0.5; if(!c.free(x, z, 1.5) || G(x, z) < -1000) continue;
+        for(let i = 0, n = Math.floor(q() * 3); i < n; i++){ const a = q() * TAU, d = q() * I.r * 0.7, x = I.x + Math.cos(a) * d, z = I.z + Math.sin(a) * d, s = 0.8 + q() * 0.5; if(!c.free(x, z, 1.5) || G(x, z) < -1000) continue;
           trees.push({x, y:G(x, z) - 0.1, z, s, ry:q() * TAU}); c.local.push({x, z, r:0.6 * s}); colliders.push({x, z, r:0.35 * s}); }
         for(let i = 0; i < 40; i++){ const a = q() * TAU, d = Math.sqrt(q()) * I.r * 0.92, x = I.x + Math.cos(a) * d, z = I.z + Math.sin(a) * d, s = 0.8 + q() * 0.6, ci = Math.floor(q() * 4), yy = 0.25 + q() * 0.2; const y = G(x, z); if(y < -1000) continue; fm.push(mat4(x, y + yy, z, 0, 0, 0, s)); fc.push(C(fcols[ci])); }
       }
@@ -6496,7 +6496,7 @@ ENDLESS.sky = {
     // near: grass on the isles
     {name:'near', r:1, build(c, k){
       const q = c.q, K = grassKit(), mats = [], cols = [], hexes = [0x5e9a3c, 0x72ad48, 0x86b95a, 0x4f8a34];
-      for(const I of this.isles(c)) for(let i = 0; i < 380; i++){ const a = q() * TAU, d = Math.sqrt(q()) * I.r * 0.95, x = I.x + Math.cos(a) * d, z = I.z + Math.sin(a) * d, hh = (0.35 + q() * 0.5) * 1.25, ry = q() * TAU, sx = 0.9 + q() * 0.6, ci = Math.floor(q() * 4), cm = 0.8 + q() * 0.45;
+      for(const I of this.isles(c)) for(let i = 0; i < 260; i++){ const a = q() * TAU, d = Math.sqrt(q()) * I.r * 0.95, x = I.x + Math.cos(a) * d, z = I.z + Math.sin(a) * d, hh = (0.35 + q() * 0.5) * 1.25, ry = q() * TAU, sx = 0.9 + q() * 0.6, ci = Math.floor(q() * 4), cm = 0.8 + q() * 0.45;
         const y = isleTopAt(I, x, z); if(y < -1000) continue; mats.push(mat4(x, y - 0.03, z, 0, ry, 0, sx, hh, sx)); const cc = C(hexes[ci]); cc.multiplyScalar(cm); cols.push(cc); }
       const m = instanced(K.geo, K.mat, mats, cols, false); if(m) cellGrassMesh(m, K); }}
   ]
