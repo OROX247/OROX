@@ -5813,6 +5813,18 @@ const DREAMS_KEY = 'hub-dreams-v1';
 let dreamStore = null;
 function dreamsOf(key){ if(!dreamStore){ try{ dreamStore = JSON.parse(lsGet(DREAMS_KEY) || '{}') || {}; }catch(e){ dreamStore = {}; } } return dreamStore[key] || (dreamStore[key] = {}); }
 function saveDreams(){ try{ for(const k in dreamStore){ const o = dreamStore[k], ks = Object.keys(o); if(ks.length > 400) ks.slice(0, ks.length - 400).forEach(x => { if(!o[x].found) delete o[x]; }); } localStorage.setItem(DREAMS_KEY, JSON.stringify(dreamStore)); }catch(e){} }
+// many glows in one draw (sprites are one draw call each): additive points sized in metres, like glow()
+let glowCloudMat = null;
+function glowCloud(list, op){
+  if(!list.length) return null;
+  if(!glowCloudMat) glowCloudMat = shareMat(new THREE.ShaderMaterial({uniforms:{map:{value:glowTex}, scale:{value:1}}, transparent:true, depthWrite:false, blending:THREE.AdditiveBlending, vertexColors:true,
+    vertexShader:'attribute float size; attribute float op; varying vec3 vC; varying float vO; uniform float scale; void main(){ vC = color; vO = op; vec4 mv = modelViewMatrix * vec4(position, 1.0); gl_PointSize = size * scale / -mv.z; gl_Position = projectionMatrix * mv; }',
+    fragmentShader:'uniform sampler2D map; varying vec3 vC; varying float vO; void main(){ vec4 t = texture2D(map, gl_PointCoord); gl_FragColor = vec4(vC * t.rgb, t.a * vO); }'}));
+  const pos = [], col = [], sz = [], opa = [];
+  list.forEach(g => { pos.push(g[0], g[1], g[2]); const c = C(g[4]); col.push(c.r, c.g, c.b); sz.push(g[3]); opa.push(g[5] == null ? op : g[5]); });
+  const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); geo.setAttribute('color', new THREE.Float32BufferAttribute(col, 3)); geo.setAttribute('size', new THREE.Float32BufferAttribute(sz, 1)); geo.setAttribute('op', new THREE.Float32BufferAttribute(opa, 1));
+  const pts = new THREE.Points(geo, glowCloudMat); pts.frustumCulled = false; (buildParent || world).add(pts); return pts;
+}
 const cellInCore = (cx, cz, core) => Math.hypot(Math.max(Math.abs(cx * CHUNK), Math.abs((cx + 1) * CHUNK)), Math.max(Math.abs(cz * CHUNK), Math.abs((cz + 1) * CHUNK))) < core;
 // the profile of a sandstoneColumn at height y (same formula as the geometry, without the lumps), for collision with mesas
 function columnProf(o, h, y){ const rim = smooth(h - (o.rim || 0.3), h, y); return ((o.bottom || 1.14) + ((o.top || 0.94) - (o.bottom || 1.14)) * clamp(y / h, 0, 1)) * (1 - (o.rimIn == null ? 0.12 : o.rimIn) * rim * rim) + (o.apron || 0) * Math.pow(smooth(h * 0.3, 0, y), 2); }
@@ -5821,11 +5833,14 @@ function startBuiltin(key){
   const S = ENDLESS[key], W = WORLDS[key], root = new THREE.Group(); root.name = 'endless'; world.add(root);
   endless = { builtin:key, style:S, rec:{text:S.words, seed:W.seed, structures:new Set(S.dream.kinds), extras:new Set(), tints:{}, surface:S.dream.surface, trees:'none', time:S.dream.time, density:1},
     chunks:new Map(), dreams:[], log:[], dreamsPlaced:{}, root, terrain:mainTerrain, job:null, queue:[], pcx:1e9, pcz:1e9, kit:null, big:new Map(), follow:[], stepMs:0, maxMs:0, built:0, dropped:0, lastMove:0, home:null };
+  endless.slow = [];
   const T = mainTerrain && mainTerrain.geometry.attributes;
   if(T) endless.home = {pos:T.position.array.slice(), nor:T.normal.array.slice(), col:T.color.array.slice(), uv:T.uv.array.slice()};   // the core's own ground, restored exactly when you come back
   // far hand-made props become solid now, after coins, NPCs, pickups and the vendor are placed, so nothing in the core moves
   coreSolids.forEach(c => { if(c.kind === 'mesa') solidMesa(c.x, c.z, c.w, c.h, c.y0, c.o); else if(S.solid) S.solid(c); });
   endless.kit = S.kit ? S.kit() : {};
+  { const t = performance.now(); (endless.kit.warm || []).forEach(f => f()); endless.kitMs = performance.now() - t; }   // heavy shapes are made with the realm, inside the travel fade, never while walking
+  if(!S.tiers.some(t => t.dream)) S.tiers.push({name:'dream', r:S.dreamR || 2, dream:true});
   if(S.start) S.start(endless);
   planCells(endless);
 }
@@ -5845,17 +5860,24 @@ function cellCtx(E, c, tier){
     free(x, z, clear){ return Math.hypot(x, z) >= S.core + clear && clearOf(x, z, clear); },
     skip:(x, z) => Math.hypot(x, z) < S.core };
 }
-function buildPart(E, c, tier){
-  const g = new THREE.Group(); g.name = c.key + (tier === 2 ? ' near' : ' far'); E.root.add(g);
-  const c0 = colliders.length, p0 = platforms.length, s0 = spinners.length, b0 = boxes.length;
-  if(tier === 1) c.local = []; else c.local = c.farLocal.slice();
+// tiers run from the widest (index 0: big silhouettes) to the nearest (last: small props and the dream); each starts from the
+// spots the tiers before it took, so a tier rebuilt later comes out exactly the same
+function buildPart(E, c, ti){
+  const tier = E.style.tiers[ti], g = new THREE.Group(); g.name = c.key + ' ' + tier.name; E.root.add(g);
+  const c0 = colliders.length, p0 = platforms.length, s0 = spinners.length, b0 = boxes.length, t0 = performance.now();
+  c.local = ti ? c.locals[ti - 1].slice() : bigOf(E, c.cx, c.cz).map(b => ({x:b.x, z:b.z, r:b.r}));
   buildParent = g;
-  try{ const ctx = cellCtx(E, c, tier); if(tier === 1){ for(const b of bigOf(E, c.cx, c.cz)) c.local.push({x:b.x, z:b.z, r:b.r}); E.style.far(ctx, E.kit); } else { E.style.near(ctx, E.kit); cellDream(ctx); } }
+  try{ const ctx = cellCtx(E, c, ti + 1); if(tier.dream) cellDream(ctx); else tier.build.call(E.style, ctx, E.kit); }
   finally{ buildParent = null; chunkAt = null; }
-  if(tier === 1) c.farLocal = c.local.slice();
-  E.built++;
-  return {g, cols:colliders.slice(c0), plats:platforms.slice(p0), spins:spinners.slice(s0), boxes:boxes.slice(b0)};
+  c.locals[ti] = c.local.slice(); E.built++;
+  g.traverse(o => { o.userData.cast0 = o.castShadow; o.userData.ao0 = !o.userData.noAO; });
+  lods.forEach(e => { if(e.grp === g && e.kind === 'inst') e.lo.userData.cast0 = false; });   // far copies sit outside the shadow box anyway
+  const ms = performance.now() - t0; if(ms > 4) E.slow.push(c.key + ' ' + tier.name + ' ' + ms.toFixed(1)); if(E.slow.length > 20) E.slow.shift();
+  const part = {g, cols:colliders.slice(c0), plats:platforms.slice(p0), spins:spinners.slice(s0), boxes:boxes.slice(b0), detail:null};
+  partDetail(part, Math.max(Math.abs(c.cx - E.pcx), Math.abs(c.cz - E.pcz)) <= 1); return part;
 }
+// only the 3x3 cells around you cast shadows (the sun's shadow box is 116 m across) and take part in ambient occlusion; the rest draw once
+function partDetail(part, on){ if(part.detail === on) return; part.detail = on; part.g.traverse(o => { if(o.userData.cast0 === undefined) return; o.castShadow = on && o.userData.cast0; o.userData.noAO = !(on && o.userData.ao0); }); }
 function dropPart(E, part){
   if(!part) return; E.root.remove(part.g);
   part.g.traverse(o => { if(o.geometry && !SHARED_GEO.has(o.geometry)) o.geometry.dispose(); if(o.material) (Array.isArray(o.material) ? o.material : [o.material]).forEach(m => { if(m.userData.shared) return; if(m.map && !SHARED_TEX.has(m.map)) m.map.dispose(); m.dispose(); }); });
@@ -5880,22 +5902,22 @@ function cellDream(ctx){
   d.x = at[0]; d.z = at[1]; ctx.local.push({x:at[0], z:at[1], r:10}); ctx.cell.dream = d; E.dreamsPlaced[ctx.key] = d;
 }
 function planCells(E){
-  const S = E.style, N = S.near, F = S.far, pcx = E.pcx, pcz = E.pcz, cheb = c => Math.max(Math.abs(c.cx - pcx), Math.abs(c.cz - pcz));
-  for(const c of [...E.chunks.values()]){ const ch = cheb(c); if(ch > F + 1){ dropPart(E, c.near); dropPart(E, c.far); E.chunks.delete(c.key); } else if(ch > N + 1 && c.near){ dropPart(E, c.near); c.near = null; } }
+  const TS = E.style.tiers, F = TS[0].r, pcx = E.pcx, pcz = E.pcz, cheb = c => Math.max(Math.abs(c.cx - pcx), Math.abs(c.cz - pcz));
+  for(const c of [...E.chunks.values()]){ const ch = cheb(c);
+    for(let ti = TS.length - 1; ti >= 0; ti--) if(c.parts[ti] && ch > TS[ti].r + 1){ dropPart(E, c.parts[ti]); c.parts[ti] = null; if(ti === TS.length - 1) c.dream = null; }
+    if(!c.parts[0]) E.chunks.delete(c.key); else for(const pt of c.parts) if(pt) partDetail(pt, ch <= 1); }
   const lookX = p.x - Math.sin(cam.yaw) * 30, lookZ = p.z - Math.cos(cam.yaw) * 30, want = [];
   for(let dz = -F; dz <= F; dz++) for(let dx = -F; dx <= F; dx++){
-    const cx = pcx + dx, cz = pcz + dz; if(cellInCore(cx, cz, S.core)) continue;
+    const cx = pcx + dx, cz = pcz + dz; if(cellInCore(cx, cz, E.style.core)) continue;
     const c = E.chunks.get(chunkKey(cx, cz)), ch = Math.max(Math.abs(dx), Math.abs(dz)), d = Math.hypot((cx + 0.5) * CHUNK - lookX, (cz + 0.5) * CHUNK - lookZ) / 1000;
-    if(!c || !c.far) want.push({cx, cz, tier:1, pri:ch + d});
-    if(ch <= N && !(c && c.near)) want.push({cx, cz, tier:2, pri:ch + 0.5 + d});
+    TS.forEach((t, ti) => { if(ch <= t.r && !(c && c.parts[ti])) want.push({cx, cz, ti, pri:ch + ti * 0.3 - (ti ? 0.5 : 0) + d}); });
   }
   want.sort((a, b) => a.pri - b.pri); E.queue = want;
 }
 function runCellJob(E, w){
   const key = chunkKey(w.cx, w.cz); let c = E.chunks.get(key);
-  if(!c){ c = {key, cx:w.cx, cz:w.cz, far:null, near:null, dream:null, local:[], farLocal:[]}; E.chunks.set(key, c); }
-  if(!c.far){ c.far = buildPart(E, c, 1); return; }
-  if(w.tier === 2 && !c.near){ c.dream = null; c.near = buildPart(E, c, 2); }
+  if(!c){ c = {key, cx:w.cx, cz:w.cz, parts:[], locals:[], dream:null, local:[]}; E.chunks.set(key, c); }
+  for(let ti = 0; ti <= w.ti; ti++) if(!c.parts[ti]){ c.parts[ti] = buildPart(E, c, ti); return; }   // one tier per step; the ones below it first
 }
 /* the ground disc, re-centred in slices: positions and uvs by ring, normals accumulated by ring band (the same sums as
    computeVertexNormals), colours by ring, then one swap. Centre (0, 0) restores the saved original instead. */
@@ -5922,6 +5944,7 @@ function swapTerrain(m, pos, nor, col, uv, cx, cz){
   const a = m.geometry.attributes; a.position.array.set(pos); a.normal.array.set(nor); a.color.array.set(col); a.uv.array.set(uv);
   a.position.needsUpdate = a.normal.needsUpdate = a.color.needsUpdate = a.uv.needsUpdate = true; m.geometry.computeBoundingSphere(); m.userData.terrain.cx = cx; m.userData.terrain.cz = cz;
 }
+const _cellV2 = new V2(), _cellFr = new THREE.Frustum(), _cellPm = new THREE.Matrix4(), _cellBox = new THREE.Box3();
 function updateBuiltin(){
   const E = endless, S = E.style, t0 = performance.now(), pcx = Math.floor(p.x / CHUNK), pcz = Math.floor(p.z / CHUNK);
   if(pcx !== E.pcx || pcz !== E.pcz){ E.pcx = pcx; E.pcz = pcz; planCells(E); }
@@ -5934,31 +5957,42 @@ function updateBuiltin(){
     else break;
     if(performance.now() > until) break;
   }
+  // cells behind the camera and more than two cells away are hidden (instanced meshes are not frustum-culled in r128); near cells always draw, so their shadows stay
+  if(!vr.on){ _cellFr.setFromProjectionMatrix(_cellPm.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse));
+    for(const c of E.chunks.values()){ const x0 = c.cx * CHUNK, z0 = c.cz * CHUNK; let vis = Math.max(Math.abs(p.x - x0 - CHUNK / 2), Math.abs(p.z - z0 - CHUNK / 2)) < CHUNK * 2;
+      if(!vis){ _cellBox.min.set(x0 - 40, -120, z0 - 40); _cellBox.max.set(x0 + CHUNK + 40, 400, z0 + CHUNK + 40); vis = _cellFr.intersectsBox(_cellBox); }
+      for(const pt of c.parts) if(pt) pt.g.visible = vis; } }
   // sky-like things (stars, a sun disc, a cloud sea, a floor) follow you once you are outside the core ring, and sit where they always sat inside it
   if(E.follow.length){ const d = Math.hypot(p.x, p.z), k = d > R ? 1 - R / d : 0, ox = p.x * k, oz = p.z * k;
     for(const f of E.follow){ const sx = f.snap ? Math.round(ox / f.snap) * f.snap : ox, sz = f.snap ? Math.round(oz / f.snap) * f.snap : oz; f.o.position.x = f.bx + sx; f.o.position.z = f.bz + sz; } }
+  if(glowCloudMat){ const hgt = renderer.getDrawingBufferSize(_cellV2).y; glowCloudMat.uniforms.scale.value = hgt / (2 * Math.tan(camera.fov * Math.PI / 360)); }
   const ms = performance.now() - t0; E.stepMs = ms; if(ms > E.maxMs) E.maxMs = ms;
 }
 // test hooks: a checksum of what a cell holds, and of the hand-made core
 function hashNums(h, arr, step){ for(let i = 0; i < arr.length; i += step || 1){ const v = Math.round(arr[i] * 100); h = Math.imul(h ^ v, 16777619) >>> 0; } return h; }
-function sumObject(root, skip){
-  let h = 2166136261, n = 0; const w = new V3();
-  root.traverse(o => { if(skip && skip.has(o)) return;
+function sumObject(root, skip, list){
+  let h = 2166136261, n = 0; const w = new V3(), lodSeen = new Set();
+  lods.forEach(e => { if(e.kind !== 'inst') return; let s = e.hi; while(s && s !== root) s = s.parent; if(!s) return; for(let x = e.hi; x; x = x.parent) if(skip && skip.has(x)) return;
+    lodSeen.add(e.hi); lodSeen.add(e.lo); n++; h = hashNums(h, [e.n, e.hi.geometry.attributes.position.count, e.lo.geometry.attributes.position.count]); e.mats.forEach(M => { h = hashNums(h, M.elements, 1); }); if(list) list.push('lod ' + e.n + ' ' + h.toString(16)); });
+  root.traverse(o => { if(skip && skip.has(o)) return; if(lodSeen.has(o)) return;
     let s = o; while(s){ if(skip && skip.has(s)) return; s = s.parent; }
     if(!(o.isMesh || o.isPoints || o.isLine || o.isSprite)) return; n++;
     o.getWorldPosition(w); h = hashNums(h, [w.x, w.z, o.isSprite ? 0 : w.y]);
     if(o.geometry && o.geometry.attributes.position){ const a = o.geometry.attributes.position; h = hashNums(h, [a.count]); h = hashNums(h, a.array, 97); }
-    if(o.isInstancedMesh){ h = hashNums(h, [o.count]); h = hashNums(h, o.instanceMatrix.array, 13); } });
+    if(o.isInstancedMesh){ h = hashNums(h, [o.count]); h = hashNums(h, o.instanceMatrix.array, 13); }
+    if(list) list.push(o.type + ' ' + (o.name || '') + ' ' + w.x.toFixed(2) + ',' + w.y.toFixed(2) + ',' + w.z.toFixed(2) + ' ' + h.toString(16)); });
   return (h >>> 0).toString(16) + ':' + n;
 }
 function cellSum(key){ const E = endless; if(!E || !E.builtin) return null; const c = E.chunks.get(key || chunkKey(Math.floor(p.x / CHUNK), Math.floor(p.z / CHUNK))); if(!c) return null;
-  return {key:c.key, far:c.far ? sumObject(c.far.g) : null, near:c.near ? sumObject(c.near.g) : null, dream:c.dream ? c.dream.name : null}; }
-function coreSum(){
+  const o = {key:c.key, landmark:c.dream ? c.dream.name : null}; E.style.tiers.forEach((t, ti) => { o[t.name] = c.parts[ti] ? sumObject(c.parts[ti].g) : null; }); return o; }
+function coreSum(detail){
   const skip = new Set(); if(endless && endless.root) skip.add(endless.root);
   npcs.forEach(nn => skip.add(nn.av.g)); coins.forEach(k => skip.add(k.g)); pickups.forEach(q => { if(q.g) skip.add(q.g); }); bundles.forEach(b => { if(b.g) skip.add(b.g); });
   if(bike.g) skip.add(bike.g); flyers.forEach(f => skip.add(f.m)); ships.forEach(s => skip.add(s.g)); spinners.forEach(s => skip.add(s.o)); floaters.forEach(f => skip.add(f.o)); hazards.forEach(hz => skip.add(hz.g));
   if(fireflies) world.traverse(o => { if(o.isPoints && o.geometry === fireflies.geo) skip.add(o); });
+  if(shardObj) [shardObj.m, shardObj.beam, shardObj.l, shardObj.gl].forEach(o => { if(o) skip.add(o); });
   if(trial.pad) skip.add(trial.pad); trial.rings.forEach(rg => { if(rg.g) skip.add(rg.g); if(rg.m) skip.add(rg.m); });
+  if(detail){ const list = []; sumObject(world, skip, list); return list; }
   return {world:sumObject(world, skip), terrain:mainTerrain ? hashNums(2166136261, mainTerrain.geometry.attributes.position.array, 7).toString(16) : null, centre:mainTerrain ? [mainTerrain.userData.terrain.cx, mainTerrain.userData.terrain.cz] : null};
 }
 
@@ -5966,9 +6000,9 @@ function coreSum(){
 const DUNE_PILLARS = [[1.2, 5], [1.2, 9], [1.7, 7], [1.7, 12], [1.4, 15]], DUNE_MESAS = [[18, 26], [26, 38], [32, 52], [22, 64]];
 const MESA_O = (i, y0) => ({seed:i * 2.3 + 40.1, y0, uvs:14, seg:72, rowsPerM:0.9, sc:6, bulge:0.16, notch:0.05, top:0.8, bottom:1, apron:0.45, rim:3, dustH:6});
 ENDLESS.dunes = {
-  core:DUNES_OUT + 20, home:R + 12, near:2, far:7, dreamOdds:0.12,
+  core:DUNES_OUT + 20, home:R + 12, dreamOdds:0.12, dreamR:2,
   words:'an endless golden desert of dune seas and sandstone mesas, pillar fields, buried ruins and glass crystals, late afternoon',
-  dream:{kinds:['ruins', 'temple', 'monoliths', 'pyramid', 'arch', 'statues', 'tower'], surface:'sand', time:'afternoon'},
+  dream:{kinds:['ruins', 'temple', 'monoliths', 'pyramid', 'arch', 'tower'], surface:'sand', time:'afternoon'},
   kit(){
     const st = sandstoneTextures(), stoneMat = (hex, tri) => withDetailNormal(std(hex, {map:st.map, normalMap:st.normal, roughnessMap:st.rough, roughness:1, vertexColors:true}), detailNormal, 5, 0.35, 0xc9a577, tri);
     const k = { stone:shareMat(reg('rock', {mat:stoneMat(0xffffff), kind:'pillar'})), mesaM:shareMat(reg('rock', {mat:stoneMat(0xe6cfc0), kind:'pillar'})), rockM:shareMat(reg('rock', {mat:stoneMat(0xffffff, {s:0.5, o:0.19}), kind:'rocks'})),
@@ -5978,6 +6012,7 @@ ENDLESS.dunes = {
     k.mesa = i => k.mesas[i] || (k.mesas[i] = (() => { const [w, h] = DUNE_MESAS[i], mo = MESA_O(i, 0);
       return {hi:shareGeo(sandstoneColumn(w, h, mo)), lo:shareGeo(sandstoneColumn(w, h, Object.assign({}, mo, {seg:36, rowsPerM:0.45}))), w, h, o:mo}; })());
     k.rock = () => { if(!k.rockHi){ k.rockHi = shareGeo(sandstoneRockGeo()); k.rockLo = shareGeo(sandstoneRockGeo(true)); } };
+    k.warm = [k.rock].concat(DUNE_MESAS.map((m, i) => () => k.mesa(i)), DUNE_PILLARS.map((m, i) => () => k.pillar(i)));
     k.crystalGeo = shareGeo(merge([new THREE.CylinderGeometry(0.22, 0.26, 1.6, 6).translate(0, 0.8, 0), new THREE.ConeGeometry(0.22, 0.5, 6).translate(0, 1.85, 0)]));
     k.crystalM = shareMat(phys(0x9be7ff, {roughness:0.05, metalness:0.1, clearcoat:1, transparent:true, opacity:0.85, emissive:C(0x1f8fb3), emissiveIntensity:0.9, envMapIntensity:1.5}));
     { const q = rng(5151), cards = [];   // the core's dry shrub, same cards
@@ -5986,6 +6021,8 @@ ENDLESS.dunes = {
       mat.onBeforeCompile = sh => { sh.fragmentShader = sh.fragmentShader.replace('#include <normal_fragment_begin>', 'float faceDirection = gl_FrontFacing ? 1.0 : - 1.0; vec3 normal = normalize( mix( vNormal, vec3( 0.0, 1.0, 0.0 ), 0.4 ) ); vec3 geometryNormal = normal;'); }; mat.customProgramCacheKey = () => 'shrub';
       k.shrubGeo = shareGeo(cardsGeo(cards)); k.shrubM = shareMat(mat); k.shrubDepth = new THREE.MeshDepthMaterial({depthPacking:THREE.RGBADepthPacking, map:tex, alphaTest:0.45}); }
     { const gr = surface('redrock'); k.ruinM = shareMat(std(0xd8d0c4, {roughness:0.85, map:gr.map, normalMap:gr.normal, normalScale:new V2(0.6, 0.6)})); }
+    { const g = new THREE.IcosahedronGeometry(1, 1); displace(g, 0.25, 2.2); g.scale(1, 0.6, 1); g.translate(0, 0.3, 0); const s = surface('redrock');
+      k.pebbleGeo = shareGeo(g); k.pebbleM = shareMat(std(0xffffff, {map:s.map, normalMap:s.normal, normalScale:new V2(0.6, 0.6), roughness:0.85})); }
     return k;
   },
   // big footprints (mesas), fixed per cell before anything else is placed, so neighbouring cells can keep clear of them
@@ -5996,49 +6033,51 @@ ENDLESS.dunes = {
     let y = G(x, z); for(let a = 0; a < 8; a++) y = Math.min(y, G(x + Math.cos(a * 0.785) * w * s * 1.2, z + Math.sin(a * 0.785) * w * s * 1.2));
     return [{kind:'mesa', x, z, r:w * s * 1.45, i, s, ry:q() * TAU, y0:y - 2}];
   },
-  far(c, k){
-    for(const b of bigOf(c.E, c.cx, c.cz)){ const M = k.mesa(b.i), hi = mk(M.hi, k.mesaM, b.x, b.y0, b.z), lo = mk(M.lo, k.mesaM, b.x, b.y0, b.z);
-      [hi, lo].forEach(m => { m.rotation.y = b.ry; m.scale.setScalar(b.s); m.castShadow = false; });
-      lodMesh(hi, lo, new V3(b.x, b.y0 + M.h * b.s / 2, b.z), 260, 25); solidMesa(b.x, b.z, M.w * b.s, M.h * b.s, b.y0, M.o); }
-    // lone outcrops: seen from afar, so they live in the far tier
-    const q = c.q, rocks = [];
-    for(let i = 0, n = Math.floor(q() * 3); i < n; i++){ const s = c.spot(4, {slope:0.5}); if(!s) continue; const sc = 2 + q() * 3.5; rocks.push(mat4(s[0], G(s[0], s[1]) - 0.3 * sc, s[1], 0, q() * TAU, 0, sc)); c.local.push({x:s[0], z:s[1], r:sc}); colliders.push({x:s[0], z:s[1], r:sc * 0.85}); }
-    if(rocks.length){ k.rock(); lodInstanced(k.rockHi, k.rockLo, k.rockM, rocks, rocks.map(() => { const cc = C(0xf4ebe2); cc.multiplyScalar(0.8 + q() * 0.35); return cc; }), 32, 6); }
-  },
-  near(c, k){
-    const q = c.q;
-    // a pillar field: weathered columns of several heights, their tops standable like the ones in the core
-    if(q() < 0.22){ const at = c.spot(12, {slope:0.45, margin:12});
-      if(at){ const by = [[], [], [], [], []], n = 5 + Math.floor(q() * 7);
-        for(let i = 0; i < n; i++){ const a = q() * TAU, d = 2 + q() * 9, x = at[0] + Math.cos(a) * d, z = at[1] + Math.sin(a) * d, v = Math.floor(q() * DUNE_PILLARS.length), s = 0.85 + q() * 0.3, ry = q() * TAU;
-          if(!c.free(x, z, DUNE_PILLARS[v][0] * s + 0.6) || slopeAt(x, z) > 0.6) continue;
-          let y = G(x, z); for(let a2 = 0; a2 < 4; a2++) y = Math.min(y, G(x + Math.cos(a2 * 1.57) * 1.5 * s, z + Math.sin(a2 * 1.57) * 1.5 * s));
-          const P = k.pillar(v); by[v].push(mat4(x, y - 0.4, z, 0, ry, 0, s)); c.local.push({x, z, r:P.rad * s}); addPlatform(x, z, P.rad * s, y - 0.4 + P.h * s); }
-        by.forEach((list, v) => { if(list.length){ const P = k.pillar(v); lodInstanced(P.hi, P.lo, k.stone, list, null, 45, 6); } }); } }
-    // glass crystal clusters, the realm's namesake
-    if(q() < 0.16){ const at = c.spot(7, {slope:0.5, margin:8});
-      if(at){ const mats = [], parent = new THREE.Matrix4();
-        for(let i = 0, n = 2 + Math.floor(q() * 4); i < n; i++){ const a = q() * TAU, d = q() * 6, x = at[0] + Math.cos(a) * d, z = at[1] + Math.sin(a) * d, s = 0.8 + q() * 0.9; if(!c.free(x, z, s)) continue;
-          const y = G(x, z) - 0.15; parent.copy(mat4(x, y, z, 0, q() * TAU, 0, s));
-          for(let j = 0, m = 3 + Math.floor(q() * 4); j < m; j++) mats.push(new THREE.Matrix4().multiplyMatrices(parent, mat4((q() - 0.5) * 0.8, 0, (q() - 0.5) * 0.8, (q() - 0.5) * 0.9, q() * TAU, (q() - 0.5) * 0.9, 0.6 + q() * 0.8)));
-          glow(0x7fdcff, 3.5 * s, x, y + 1.2 * s, z, null, 0.3); colliders.push({x, z, r:0.9 * s}); c.local.push({x, z, r:s}); }
-        if(mats.length) instanced(k.crystalGeo, k.crystalM, mats); } }
-    // buried ruins: the tops of broken columns and a few tilted wall blocks sticking out of the sand
-    if(q() < 0.08){ const at = c.spot(11, {slope:0.4, margin:12});
-      if(at){ const n = 5 + Math.floor(q() * 5);
-        for(let i = 0; i < n; i++){ const a = i / n * TAU + (q() - 0.5) * 0.4, d = 5 + q() * 2, x = at[0] + Math.cos(a) * d, z = at[1] + Math.sin(a) * d, h = 1 + q() * 3.5, y = G(x, z) - 0.6 - q();
-          const g = new THREE.CylinderGeometry(0.5, 0.55, h + 1, 12, 3), pa = g.attributes.position; for(let v = 0; v < pa.count; v++) if(pa.getY(v) > 0) pa.setY(v, pa.getY(v) - q() * h * 0.35 * (pa.getX(v) > 0 ? 1 : 0.3)); g.computeVertexNormals();
-          const m = mk(g, k.ruinM, x, y + (h + 1) / 2, z); m.rotation.set((q() - 0.5) * 0.25, q() * TAU, (q() - 0.5) * 0.25); colliders.push({x, z, r:0.7}); }
-        for(let i = 0; i < 3; i++){ const a = q() * TAU, d = 8 + q() * 3, x = at[0] + Math.cos(a) * d, z = at[1] + Math.sin(a) * d, w = 2.5 + q() * 3, h = 1.2 + q() * 1.5;
-          const m = mk(new THREE.BoxGeometry(w, h, 0.7), k.ruinM, x, G(x, z) + h / 2 - 0.7, z); m.rotation.set((q() - 0.5) * 0.3, q() * TAU, (q() - 0.5) * 0.2); colliders.push({x, z, r:w / 2}); }
-        c.local.push({x:at[0], z:at[1], r:11}); } }
-    // dry shrubs, a few boulders, pebbles
-    const sm = [], sc = []; for(let i = 0, n = 8 + Math.floor(q() * 16); i < n; i++){ const s = c.spot(1, {slope:0.7, tries:4}); if(!s) continue; sm.push(mat4(s[0], G(s[0], s[1]) - 0.05, s[1], 0, q() * TAU, 0, 0.6 + q() * 0.8)); const cc = C([0x9a9068, 0x8a7e5a, 0xa39a70, 0x7f7a52][Math.floor(q() * 4)]); cc.multiplyScalar(0.85 + q() * 0.3); sc.push(cc); }
-    if(sm.length){ const m = instanced(k.shrubGeo, k.shrubM, sm, sc); m.userData.noAO = true; m.customDepthMaterial = k.shrubDepth; }
-    const rocks = []; for(let i = 0, n = 2 + Math.floor(q() * 5); i < n; i++){ const s = c.spot(1.5, {slope:0.7, tries:6}); if(!s) continue; const sk = 0.5 + q() * 1.1; rocks.push(mat4(s[0], G(s[0], s[1]) - 0.1, s[1], 0, q() * TAU, 0, sk)); colliders.push({x:s[0], z:s[1], r:sk * 0.85}); c.local.push({x:s[0], z:s[1], r:sk}); }
-    if(rocks.length){ k.rock(); lodInstanced(k.rockHi, k.rockLo, k.rockM, rocks, rocks.map(() => { const cc = C(0xf4ebe2); cc.multiplyScalar(0.8 + q() * 0.35); return cc; }), 32, 6); }
-    addClutterAt(q, c.cx, c.cz, {pebbles:50, pebbleSurf:'redrock', skip:c.skip});
-  }
+  tiers:[
+    // far: mesas, the silhouettes you steer by
+    {name:'far', r:7, build(c, k){
+      for(const b of bigOf(c.E, c.cx, c.cz)){ const M = k.mesa(b.i), hi = mk(M.hi, k.mesaM, b.x, b.y0, b.z), lo = mk(M.lo, k.mesaM, b.x, b.y0, b.z);
+        [hi, lo].forEach(m => { m.rotation.y = b.ry; m.scale.setScalar(b.s); m.castShadow = false; });
+        lodMesh(hi, lo, new V3(b.x, b.y0 + M.h * b.s / 2, b.z), 260, 25); solidMesa(b.x, b.z, M.w * b.s, M.h * b.s, b.y0, M.o); } }},
+    // mid: pillar fields, glass crystal clusters, buried ruins, lone outcrops
+    {name:'mid', r:3, build(c, k){
+      const q = c.q;
+      if(q() < 0.22){ const at = c.spot(12, {slope:0.45, margin:12});
+        if(at){ const vs = [Math.floor(q() * DUNE_PILLARS.length), Math.floor(q() * DUNE_PILLARS.length)], by = [[], []], n = 5 + Math.floor(q() * 7);
+          for(let i = 0; i < n; i++){ const a = q() * TAU, d = 2 + q() * 9, x = at[0] + Math.cos(a) * d, z = at[1] + Math.sin(a) * d, j = q() < 0.5 ? 0 : 1, v = vs[j], s = 0.85 + q() * 0.3, ry = q() * TAU;
+            if(!c.free(x, z, DUNE_PILLARS[v][0] * s + 0.6) || slopeAt(x, z) > 0.6) continue;
+            let y = G(x, z); for(let a2 = 0; a2 < 4; a2++) y = Math.min(y, G(x + Math.cos(a2 * 1.57) * 1.5 * s, z + Math.sin(a2 * 1.57) * 1.5 * s));
+            const P = k.pillar(v); by[j].push(mat4(x, y - 0.4, z, 0, ry, 0, s)); c.local.push({x, z, r:P.rad * s}); addPlatform(x, z, P.rad * s, y - 0.4 + P.h * s); }
+          by.forEach((list, j) => { if(list.length){ const P = k.pillar(vs[j]); lodInstanced(P.hi, P.lo, k.stone, list, null, 45, 6); } }); } }
+      if(q() < 0.16){ const at = c.spot(7, {slope:0.5, margin:8});
+        if(at){ const mats = [], parent = new THREE.Matrix4(), glows = [];
+          for(let i = 0, n = 2 + Math.floor(q() * 4); i < n; i++){ const a = q() * TAU, d = q() * 6, x = at[0] + Math.cos(a) * d, z = at[1] + Math.sin(a) * d, s = 0.8 + q() * 0.9; if(!c.free(x, z, s)) continue;
+            const y = G(x, z) - 0.15; parent.copy(mat4(x, y, z, 0, q() * TAU, 0, s));
+            for(let j = 0, m = 3 + Math.floor(q() * 4); j < m; j++) mats.push(new THREE.Matrix4().multiplyMatrices(parent, mat4((q() - 0.5) * 0.8, 0, (q() - 0.5) * 0.8, (q() - 0.5) * 0.9, q() * TAU, (q() - 0.5) * 0.9, 0.6 + q() * 0.8)));
+            glows.push([x, y + 1.2 * s, z, 3.5 * s, 0x7fdcff]); colliders.push({x, z, r:0.9 * s}); c.local.push({x, z, r:s}); }
+          if(mats.length){ instanced(k.crystalGeo, k.crystalM, mats); glowCloud(glows, 0.3); } } }
+      if(q() < 0.08){ const at = c.spot(11, {slope:0.4, margin:12});
+        if(at){ const parts = [], n = 5 + Math.floor(q() * 5), M = new THREE.Matrix4();
+          for(let i = 0; i < n; i++){ const a = i / n * TAU + (q() - 0.5) * 0.4, d = 5 + q() * 2, x = at[0] + Math.cos(a) * d, z = at[1] + Math.sin(a) * d, h = 1 + q() * 3.5, y = G(x, z) - 0.6 - q();
+            const g = new THREE.CylinderGeometry(0.5, 0.55, h + 1, 12, 3), pa = g.attributes.position; for(let v = 0; v < pa.count; v++) if(pa.getY(v) > 0) pa.setY(v, pa.getY(v) - q() * h * 0.35 * (pa.getX(v) > 0 ? 1 : 0.3)); g.computeVertexNormals();
+            M.makeRotationFromEuler(new THREE.Euler((q() - 0.5) * 0.25, q() * TAU, (q() - 0.5) * 0.25)).setPosition(x, y + (h + 1) / 2, z); parts.push(g.applyMatrix4(M)); colliders.push({x, z, r:0.7}); }
+          for(let i = 0; i < 3; i++){ const a = q() * TAU, d = 8 + q() * 3, x = at[0] + Math.cos(a) * d, z = at[1] + Math.sin(a) * d, w = 2.5 + q() * 3, h = 1.2 + q() * 1.5;
+            M.makeRotationFromEuler(new THREE.Euler((q() - 0.5) * 0.3, q() * TAU, (q() - 0.5) * 0.2)).setPosition(x, G(x, z) + h / 2 - 0.7, z); parts.push(new THREE.BoxGeometry(w, h, 0.7).applyMatrix4(M)); colliders.push({x, z, r:w / 2}); }
+          mk(merge(parts), k.ruinM); c.local.push({x:at[0], z:at[1], r:11}); } }
+      const rocks = [];
+      for(let i = 0, n = q() < 0.5 ? 0 : 1 + Math.floor(q() * 2); i < n; i++){ const s = c.spot(4, {slope:0.5}); if(!s) continue; const sc = 2 + q() * 3.5; rocks.push(mat4(s[0], G(s[0], s[1]) - 0.3 * sc, s[1], 0, q() * TAU, 0, sc)); c.local.push({x:s[0], z:s[1], r:sc}); colliders.push({x:s[0], z:s[1], r:sc * 0.85}); }
+      if(rocks.length){ k.rock(); lodInstanced(k.rockHi, k.rockLo, k.rockM, rocks, rocks.map(() => { const cc = C(0xf4ebe2); cc.multiplyScalar(0.8 + q() * 0.35); return cc; }), 32, 6); } }},
+    // near: dry shrubs, small boulders, pebbles
+    {name:'near', r:1, build(c, k){
+      const q = c.q, sm = [], sc = [];
+      for(let i = 0, n = 8 + Math.floor(q() * 16); i < n; i++){ const s = c.spot(1, {slope:0.7, tries:4}); if(!s) continue; sm.push(mat4(s[0], G(s[0], s[1]) - 0.05, s[1], 0, q() * TAU, 0, 0.6 + q() * 0.8)); const cc = C([0x9a9068, 0x8a7e5a, 0xa39a70, 0x7f7a52][Math.floor(q() * 4)]); cc.multiplyScalar(0.85 + q() * 0.3); sc.push(cc); }
+      if(sm.length){ const m = instanced(k.shrubGeo, k.shrubM, sm, sc); m.userData.noAO = true; m.customDepthMaterial = k.shrubDepth; }
+      const rocks = []; for(let i = 0, n = 1 + Math.floor(q() * 3); i < n; i++){ const s = c.spot(1.5, {slope:0.7, tries:6}); if(!s) continue; const sk = 0.5 + q() * 1.1; rocks.push(mat4(s[0], G(s[0], s[1]) - 0.1, s[1], 0, q() * TAU, 0, sk)); colliders.push({x:s[0], z:s[1], r:sk * 0.85}); c.local.push({x:s[0], z:s[1], r:sk}); }
+      if(rocks.length){ k.rock(); lodInstanced(k.rockHi, k.rockLo, k.rockM, rocks, rocks.map(() => { const cc = C(0xf4ebe2); cc.multiplyScalar(0.8 + q() * 0.35); return cc; }), 32, 6); }
+      const pm = [], pc = []; for(let i = 0; i < 60; i++){ const x = (c.cx + q()) * CHUNK, z = (c.cz + q()) * CHUNK, sk = 0.05 + q() * q() * 0.22; if(c.skip(x, z)) continue;
+        pm.push(mat4(x, G(x, z) - sk * 0.25, z, q() * 0.6, q() * TAU, q() * 0.6, sk, sk * (0.7 + q() * 0.5), sk * (0.8 + q() * 0.5))); const cc = C(0xe0c4a8); cc.multiplyScalar(0.7 + q() * 0.5); pc.push(cc); }
+      if(pm.length) instanced(k.pebbleGeo, k.pebbleM, pm, pc, false); }}
+  ]
 };
 
 /* ================= spawning ================= */
@@ -7780,7 +7819,7 @@ window.__hub = { state, p, cam, post, stats, WORLDS, scene, renderer, camera, su
   VEND, get vendor(){ return vendor && {world:vendor.world, x:vendor.x, z:vendor.z}; }, get vendors(){ return JSON.parse(JSON.stringify(vendorsSeen)); }, get vendNear(){ return vendNear; }, openVendor, closeVendor, buyVend,
   get fuel(){ return state.fuel; }, set fuel(v){ state.fuel = clamp(+v || 0, 0, FUEL_MAX); fuelShown = -1; fuelHud(); }, FUEL_MAX,
   get inGym(){ return !!p.zeroG; }, get gym(){ return gym && {x:gym.x, z:gym.z, r:gym.r, h:gym.h}; }, gymIn:(x, z) => gymIn(x, z),
-  get cellKey(){ return chunkKey(Math.floor(p.x / CHUNK), Math.floor(p.z / CHUNK)); }, cellSum:k => cellSum(k), coreSum:() => coreSum(), heightAt:(x, z) => G(x, z), get stream(){ const E = endless; return E && E.builtin ? {cells:E.chunks.size, near:[...E.chunks.values()].filter(c => c.near).length, queue:E.queue.length, terrainJob:!!E.job, stepMs:+E.stepMs.toFixed(2), maxMs:+E.maxMs.toFixed(2), built:E.built, dropped:E.dropped, centre:E.terrain ? [E.terrain.userData.terrain.cx, E.terrain.userData.terrain.cz] : null, core:E.style.core} : null; }, resetStreamMax(){ if(endless) endless.maxMs = 0; }, get dreamStore(){ return JSON.parse(JSON.stringify(dreamStore || {})); },
+  get cellKey(){ return chunkKey(Math.floor(p.x / CHUNK), Math.floor(p.z / CHUNK)); }, cellSum:k => cellSum(k), coreSum:d => coreSum(d), heightAt:(x, z) => G(x, z), get stream(){ const E = endless; return E && E.builtin ? {cells:E.chunks.size, near:[...E.chunks.values()].filter(c => c.parts[c.parts.length - 1] && c.parts.length === E.style.tiers.length).length, slow:E.slow.slice(), kitMs:+(E.kitMs || 0).toFixed(1), queue:E.queue.length, terrainJob:!!E.job, stepMs:+E.stepMs.toFixed(2), maxMs:+E.maxMs.toFixed(2), built:E.built, dropped:E.dropped, centre:E.terrain ? [E.terrain.userData.terrain.cx, E.terrain.userData.terrain.cz] : null, core:E.style.core} : null; }, resetStreamMax(){ if(endless) endless.maxMs = 0; }, benchTerrain(x, z){ if(!mainTerrain) return null; const J = reJob(mainTerrain, x, z), out = []; let t = performance.now(), ph = 0; while(!reStep(J, 0)){ if(J.phase !== ph){ const n = performance.now(); out.push(+(n - t).toFixed(1)); t = n; ph = J.phase; } } out.push(+(performance.now() - t).toFixed(1)); return out; }, get dreamStore(){ return JSON.parse(JSON.stringify(dreamStore || {})); },
   get endless(){ return endless && {builtin:endless.builtin || null, chunks:endless.chunks.size, dreams:endless.dreams.length, log:endless.log.slice(), source:dreamer.source, placed:Object.keys(endless.dreamsPlaced || {}).length, center:[endless.terrain ? endless.terrain.userData.terrain.cx : 0, endless.terrain ? endless.terrain.userData.terrain.cz : 0]}; }, updateChunks:(all) => updateChunks(all), dreamOffline, get dreamer(){ return {source:dreamer.source, hasSample:!!dreamer.sample, hasKey:!!dreamer.key}; },
   forgeRealm, realmKey, parseRealm, describeRealm, deleteRealm, get realms(){ return realms.map(x => Object.assign({}, x)); }, get waterBody(){ return waterBody && {level:waterBody.level, kind:waterBody.kind}; },
   fare, CAMPUS, get enrolled(){ return state.enrolled; }, set enrolled(v){ state.enrolled = !!v; persist(); }, enroll, get desk(){ return desk && {x:desk.x, z:desk.z}; }, get deskNear(){ return deskNear; }, get boxes(){ return boxes.length; }, boxOut, G:(x, z) => G(x, z), get portals(){ return portals.map(q => ({to:q.to, x:q.x, z:q.z})); }, get coins(){ return coins.map(k => ({id:k.id, x:k.g.position.x, y:k.g.position.y, z:k.g.position.z})); },
