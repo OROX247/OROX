@@ -11861,11 +11861,16 @@ function dgFrame(dt){
   const src = dg.test ? 'test' : dg.live ? 'decart' : 'off'; dg.kind = src;
   if(dg.Lw !== state.world){ dg.Lw = state.world; dg.L = dgLayersFor(state.world); }
   const L = dg.L, can = src !== 'off' && post.on && !vr.on && !ai.on && !!dg.layer;
-  let owner = null, prompt = null, portalQ = null, hue = 195;
+  let owner = null, prompt = null, portalQ = null, scr = null, hue = 195;
   if(can){
-    // one stream at a time: the nearest portal within 20 m (dreaming its destination), else the realm's far layer
-    if(L.portals && !dg.qDrop && !pocketIn()){ let best = 20; for(const q of portals){ const d = Math.hypot(p.x - q.x, p.z - q.z); if(d < best){ best = d; portalQ = q; } }
-      if(portalQ){ owner = 'portal:' + portalQ.to; prompt = dgPromptFor(portalQ.to); hue = Math.round(new THREE.Color(portalQ.col).getHSL({}).h * 360); } }
+    // one stream at a time: the nearest portal within 20 m (dreaming its destination) or screen that asks for the stream (a cabinet within 6 m,
+    // a billboard within 30 m of the avatar's head, with its own prompt), whichever is nearer for its range; else the realm's far layer
+    let pr = 1, sr = 1;
+    if(!owner && L.portals && !dg.qDrop && !pocketIn()) for(const q of portals){ const d = Math.hypot(p.x - q.x, p.z - q.z) / 20; if(d < pr){ pr = d; portalQ = q; } }
+    if(!owner && L.screens && !dg.qDrop) for(const sc of dgScreens){ if(!sc.own || !dgAttached(sc.mesh)) continue; sc.panel.getWorldPosition(_dgV); const d = Math.hypot(_dgV.x - p.x, _dgV.y - p.y - 1.5, _dgV.z - p.z) / sc.range; if(d < sr){ sr = d; scr = sc; } }
+    if(portalQ && scr){ if(pr <= sr) scr = null; else portalQ = null; }
+    if(portalQ){ owner = 'portal:' + portalQ.to; prompt = dgPromptFor(portalQ.to); hue = Math.round(new THREE.Color(portalQ.col).getHSL({}).h * 360); }
+    if(scr){ owner = 'screen:' + dgScreens.indexOf(scr); prompt = scr.prompt || dgPromptFor(state.world); hue = 300; }
     if(!owner && L.far && !dg.qDrop){ owner = 'far'; prompt = dgPromptFor(state.world); }
   }
   if(owner !== dg.owner){ dg.owner = owner; dg.hue = hue; if(owner) dgSetPrompt(prompt); }
@@ -11884,6 +11889,17 @@ function dgFrame(dt){
   for(const q of portals){ const u = q.disc.material.uniforms, want = pOn && q === portalQ ? 1 : 0; let v = u.dream.value;
     if(v !== want){ v += (want - v) * Math.min(1, dt * 4); if(want === 0 && v < 0.01) v = 0; if(want === 1 && v > 0.99) v = 1; u.dream.value = v; }
     u.map.value = v > 0 ? dg.tex : null; }
+  // layer 4: screens. The owning screen swaps its picture for the stream; Dreamglass billboards (holo) only exist while the layer is live
+  const sOn = ready && L.screens && !dg.qDrop; let shown = 0;
+  for(let i = dgScreens.length - 1; i >= 0; i--){ const sc = dgScreens[i]; if(!dgAttached(sc.mesh)){ dgScreens.splice(i, 1); continue; }
+    const on = sOn && (sc.holo || sc === scr); if(on !== sc.showing || (on && sc.panel.material.map !== dg.tex)) dgShowScreen(sc, on); if(on) shown++; }
+  dg.active.screens = shown > 0;
+}
+function dgAttached(o){ for(; o; o = o.parent) if(o === scene) return true; return false; }
+function dgShowScreen(sc, on){
+  const m = sc.panel.material;
+  if(on){ if(!sc.showing) sc.orig = m.map; m.map = dg.tex; } else { m.map = sc.orig; sc.orig = null; }
+  sc.showing = on; m.needsUpdate = true; if(sc.holo) sc.mesh.visible = on;
 }
 // after the frame is on the canvas: hand it to the Decart stream at the model's frame rate
 function dgAfter(){
@@ -11922,6 +11938,7 @@ function dgRender(){ if(post.on && !vr.on && !ai.on){ updateSun(); renderMirrors
 Object.defineProperties(window.__hub, {
   dream:{get:() => ({kind:dg.kind, test:dg.test, master:dg.master, local:isLocal(), key:!!lsGet(AI_KEY), live:dg.live, busy:dg.busy, failed:dg.failed, frames:dg.frames, paused:dg.pause,
     layers:Object.assign({}, dg.L || dgLayersFor(state.world)), active:Object.assign({}, dg.active), owner:dg.owner, prompt:dg.prompt, threshold:dg.T, qDrop:dg.qDrop, maskObjects:dg.maskN,
+    screens:dgScreens.map((sc, i) => ({i, holo:sc.holo, own:sc.own, range:sc.range, showing:sc.showing, mapIsStream:!!dg.tex && sc.panel.material.map === dg.tex, visible:sc.mesh.visible, at:sc.panel.getWorldPosition(new V3()).toArray().map(v => +v.toFixed(1))})),
     portal:(() => { const q = portals.find(x => x.disc.material.uniforms.dream.value > 0); return q ? {to:q.to, dream:+q.disc.material.uniforms.dream.value.toFixed(3), mapIsStream:!!dg.tex && q.disc.material.uniforms.map.value === dg.tex, dist:+Math.hypot(p.x - q.x, p.z - q.z).toFixed(1)} : null; })(),
     passes:dg.layer ? {layer:dg.layer.enabled, comp:dg.comp.enabled, depth:dg.depthOn} : null, lock:dg.layer ? {updates:dg.layer.updates, hasHist:dg.layer.hasHist} : null, texture:dg.tex})},
   dreamTest:{get:() => dg.test, set:v => { dg.test = !!v; if(!dg.test){ dg.frames = dg.live ? dg.frames : 0; } }},
