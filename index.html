@@ -9087,9 +9087,9 @@ function buildHollow(){
   const g = new THREE.Group(); g.name = 'hollow'; world.add(g); hollow.g = g; buildParent = g;   // instanced props land in the Hollow's group too, so it hides as one
   const st = sandstoneTextures(), sandS = surfCache.dunesand || surface('dunesand');
   const stoneM = (hex, n) => withDetailNormal(std(hex, {map:st.map, normalMap:st.normal, normalScale:new V2(n || 1, n || 1), roughnessMap:st.rough, roughness:1, envMapIntensity:0.25}), detailNormal, 5, 0.35);
-  const M = {wall:stoneM(0xd9bd9c), floor:stoneM(0xa88c70, 0.8), ceil:stoneM(0x8c735c), col:stoneM(0xe6cdb0),
+  const M = {wall:stoneM(0xcdb8a0, 0.9), floor:stoneM(0x9c8a78, 0.8), ceil:stoneM(0x7c6c5e), col:stoneM(0xe2cfb8),
     sand:std(0xd6ae78, {map:sandS.map, normalMap:sandS.normal, roughness:1, envMapIntensity:0.2}), bronze:std(0x8a5a2a, {metalness:0.85, roughness:0.38, map:detailTex, envMapIntensity:0.5}),
-    amber:glowM(0xffa62e, 0.9), flame:glowM(0xff9a40, 2.8), gold:std(0xd8a93a, {metalness:0.9, roughness:0.3, map:detailTex, envMapIntensity:0.6}), wood:std(0x4a3020, {map:detailTex, roughness:0.85})};
+    amber:glowM(0xffa62e, 0.9), flame:glowM(0xff9a40, 2.8), gold:std(0xe0a83a, {metalness:0.55, roughness:0.42, map:detailTex, emissive:C(0x4a2c00), emissiveIntensity:0.55, envMapIntensity:0.35}), wood:std(0x4a3020, {map:detailTex, roughness:0.85})};
   const lists = {wall:[], floor:[], ceil:[], col:[], sand:[], amber:[]}, T = 0.6;
   // a box in the Hollow's frame: drawn with material list k, solid unless o.solid === false (o.cam false: the camera may pass)
   const box = (k, x0, x1, y0, y1, z0, z1, o) => { lists[k].push([X + x0, X + x1, Y + y0, Y + y1, Z + z0, Z + z1]); o = o || {};
@@ -9180,7 +9180,7 @@ function enterHollow(){
   setTimeout(() => { try{
     if(hollow && state.world === 'dunes'){ if(!hollow.built) buildHollow(); hollow.inside = true; hollow.g.visible = true; hollow.room = -1;
       p.x = HOLLOW.x; p.z = HOLLOW.z - 4.2; p.y = hollowFloor(p.x, p.z); p.vy = 0; p.speed = 0; p.facing = 0; cam.yaw = Math.PI; cam.pitch = Math.min(cam.pitch, 0.22);
-      hemi.intensity = WORLDS.dunes.hemi[2] * 0.4; snapCamera(); clipCamera();
+      hemi.intensity = WORLDS.dunes.hemi[2] * 0.4; sunLight.intensity = 0; snapCamera(); clipCamera();   // underground: no sun, a dim sky bounce, the braziers (the realm outside is untouched)
       if(!hollow.told){ hollow.told = true; toast('The Hollow. Mind the sand, the blades and whatever drifts in the dark.', 4200); } }
     } finally { fadeEl.classList.remove('on'); traveling = false; }
   }, 450);
@@ -9188,7 +9188,7 @@ function enterHollow(){
 function leaveHollow(){
   if(traveling || !hollow) return; traveling = true; fadeEl.classList.add('on');
   setTimeout(() => {
-    if(hollow){ hollow.inside = false; if(hollow.g) hollow.g.visible = false; hemi.intensity = WORLDS[state.world].hemi[2];
+    if(hollow){ hollow.inside = false; if(hollow.g) hollow.g.visible = false; hemi.intensity = WORLDS[state.world].hemi[2]; sunLight.intensity = WORLDS[state.world].sun[1];
       const w = hoodW(-1.6, 0); p.x = w[0]; p.z = w[1]; p.y = G(p.x, p.z); p.vy = 0; p.speed = 0; p.facing = Math.atan2(-hollow.ux, -hollow.uz); cam.yaw = p.facing + Math.PI; snapCamera(); }
     fadeEl.classList.remove('on'); traveling = false;
   }, 450);
@@ -10494,6 +10494,10 @@ Object.defineProperties(window.__hub, {
   hollowGoto:{value:(lx, lz, yaw) => { if(!hollow || !hollow.inside) return null; p.x = HOLLOW.x + lx; p.z = HOLLOW.z + lz; p.y = hollowFloor(p.x, p.z); p.vy = 0; p.speed = 0; if(yaw != null) cam.yaw = yaw; p.facing = cam.yaw + Math.PI; snapCamera(); clipCamera(); return {x:p.x, z:p.z, y:p.y, room:hollowRoomAt(p.x, p.z)}; }},
   hollowPlan:{value:HOLLOW}, hollowFloor:{value:(x, z) => hollowFloor(x, z)},
   hollowTraps:{get:() => hollow && hollow.built ? {wraiths:hollow.wraiths.map(w => ({x:+w.x.toFixed(2), z:+w.z.toFixed(2)})), scythes:hollow.scythes.map(s => ({x:s.x, z:s.z, L:s.L, ang:+(s.ang || 0).toFixed(3)})), pits:HOLLOW.pits.length} : null},
+  // a camera for the tester's screenshot: 'door' frames the risen doorway with the fourth stone behind; 'cabinet' frames the Comet Rally cabinet in the Hoard
+  viewHollow:{value:what => { if(!hollow) return null; if(what === 'cabinet'){ if(!hollow.inside) return null; p.x = HOLLOW.x + 1.1; p.z = HOLLOW.z + 74.6; p.y = HOLLOW.y; cam.yaw = Math.PI + 0.5; cam.pitch = 0.1; cam.dist = 3.6; }
+    else { const u = [hollow.ux, hollow.uz]; p.x = hollow.door.x - u[0] * 3.4 - u[1] * 1.3; p.z = hollow.door.z - u[1] * 3.4 + u[0] * 1.3; p.y = G(p.x, p.z); cam.yaw = Math.atan2(-u[0], -u[1]) - 0.5; cam.pitch = 0.1; cam.dist = 6; }
+    p.facing = cam.yaw + Math.PI; p.vy = 0; p.speed = 0; snapCamera(); clipCamera(); return {x:+p.x.toFixed(2), z:+p.z.toFixed(2)}; }},
   openChest:{value:() => openChest()}, settleDoor:{value:() => { if(!hollow || !hollow.hood) return false; hollow.rise = 1; hollow.hood.position.y = 0; return true; }},
   // Comet Rally: simulate(policy) runs the same race logic headless with a scripted driver ('forward', 'backwards-last-lap', 'backwards-first-lap', 'stop-after-two') and scores it
   // exactly as a played race (the shard only for the backwards last lap); {dry:true} scores nothing. state is the race on the cabinet now.
