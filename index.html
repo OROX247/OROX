@@ -258,7 +258,7 @@ body.bcast #hud, body.bcast #corner, body.bcast #roomCard, body.bcast #toast{ vi
 
 <div id="corner">
   <canvas id="minimap" aria-label="Minimap"></canvas>
-  <div class="btns"><button class="hbtn" id="aiBtn" title="AI reality mode (R)">AI</button><button class="hbtn" id="lookBtn" title="Realm look (L)">Look</button><button class="hbtn" id="forgeBtn" title="Worldsmith: describe a realm (F)">Forge</button><button class="hbtn" id="rideBtn" style="display:none">Ride</button><button class="hbtn" id="sndBtn" title="Sound on/off (N)">Sound</button><button class="hbtn" id="shopBtn" style="display:none">Shop</button><button class="hbtn" id="vendBtn" style="display:none">Vend</button><button class="hbtn" id="enrolBtn" style="display:none">Enrol</button><button class="hbtn" id="archBtn" style="display:none">Inspect</button><button class="hbtn" id="invBtn" title="Inventory (I)">Bag</button><button class="hbtn" id="mapBtn">Warp</button><button class="hbtn" id="helpBtn" aria-label="Avatar and controls">?</button></div>
+  <div class="btns"><button class="hbtn" id="aiBtn" title="AI reality mode (R)">AI</button><button class="hbtn" id="lookBtn" title="Realm look (L)">Look</button><button class="hbtn" id="forgeBtn" title="Worldsmith: describe a realm (F)">Forge</button><button class="hbtn" id="rideBtn" style="display:none">Ride</button><button class="hbtn" id="sndBtn" title="Sound on/off (N)">Sound</button><button class="hbtn" id="shopBtn" style="display:none">Shop</button><button class="hbtn" id="vendBtn" style="display:none">Vend</button><button class="hbtn" id="enrolBtn" style="display:none">Enrol</button><button class="hbtn" id="archBtn" style="display:none">Inspect</button><button class="hbtn" id="hollowBtn" style="display:none">Knock</button><button class="hbtn" id="invBtn" title="Inventory (I)">Bag</button><button class="hbtn" id="mapBtn">Warp</button><button class="hbtn" id="helpBtn" aria-label="Avatar and controls">?</button></div>
 </div>
 
 <div id="intro" class="overlay" role="dialog" aria-labelledby="introTitle">
@@ -2864,12 +2864,13 @@ const state = {
   inv: (sv.inv && typeof sv.inv === 'object' && !Array.isArray(sv.inv)) ? sv.inv : {}, picked: new Set(arr(sv.picked)),   // inv is cleaned once ITEMS exists (cleanInv)
   fuel: Math.min(100, Math.max(0, num(sv.fuel, 100))),  // the hoverbike tank, 0-100 (FUEL_MAX), shared by the bike in every realm
   enrolled: !!sv.enrolled,                               // enrolled at Campus (Goal 8): warps to and from Campus cost nothing
-  archive: {ledger:!!(sv.archive && sv.archive.ledger), rooms:new Set(arr(sv.archive && sv.archive.rooms).filter(n => n >= 0 && n < 6)), found:new Set(arr(sv.archive && sv.archive.found).filter(n => n >= 0 && n < 6)), broadcast:!!(sv.archive && sv.archive.broadcast)}   // Goal 9 (+ Goal 10: the Broadcast seen): the Ledger taken, rooms visited, hidden details found
+  archive: {ledger:!!(sv.archive && sv.archive.ledger), rooms:new Set(arr(sv.archive && sv.archive.rooms).filter(n => n >= 0 && n < 6)), found:new Set(arr(sv.archive && sv.archive.found).filter(n => n >= 0 && n < 6)), broadcast:!!(sv.archive && sv.archive.broadcast)},   // Goal 9 (+ Goal 10: the Broadcast seen): the Ledger taken, rooms visited, hidden details found
+  hunt: {door:!!(sv.hunt && sv.hunt.door), rallyBest:num(sv.hunt && sv.hunt.rallyBest, 0), rallyPlays:num(sv.hunt && sv.hunt.rallyPlays, 0), hoard:!!(sv.hunt && sv.hunt.hoard)}   // Goal 11: the Hollow's door opened, the Comet Rally high score and plays, the hoard chest taken
 };
 // state.recipe is filled in once the recipe schema below is defined (see loadRecipe)
 function persist(){
   try{ localStorage.setItem(SAVE_KEY, JSON.stringify({coins:[...state.coins], shards:[...state.shards], visited:[...state.visited],
-    name:state.name, color:state.color, visor:state.visor, xp:state.xp, credits:state.credits, won:state.won, look:state.look, lookSeed:state.lookSeed, lookPath:state.lookPath, recipe:state.recipe, owned:[...state.owned], mute:state.mute, best:state.best, inv:state.inv, picked:[...state.picked], fuel:Math.round(state.fuel * 10) / 10, enrolled:state.enrolled, archive:{ledger:state.archive.ledger, rooms:[...state.archive.rooms], found:[...state.archive.found], broadcast:state.archive.broadcast}})); }catch(e){}
+    name:state.name, color:state.color, visor:state.visor, xp:state.xp, credits:state.credits, won:state.won, look:state.look, lookSeed:state.lookSeed, lookPath:state.lookPath, recipe:state.recipe, owned:[...state.owned], mute:state.mute, best:state.best, inv:state.inv, picked:[...state.picked], fuel:Math.round(state.fuel * 10) / 10, enrolled:state.enrolled, archive:{ledger:state.archive.ledger, rooms:[...state.archive.rooms], found:[...state.archive.found], broadcast:state.archive.broadcast}, hunt:state.hunt})); }catch(e){}
 }
 function rng(seed){ return function(){ seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
 function makeNoise(seed){
@@ -4707,14 +4708,13 @@ BUILD.dunes = (r, n) => {
   const st = sandstoneTextures();
   const stoneMat = (hex, tri) => withDetailNormal(std(hex, {map:st.map, normalMap:st.normal, roughnessMap:st.rough, roughness:1, vertexColors:true}), detailNormal, 5, 0.35, 0xc9a577, tri);
   const sandstone = reg('rock', {mat:stoneMat(0xffffff), kind:'pillar'});
-  const cx = 22, cz = 16;
   for(let i = 0; i < 7; i++){
-    const a = i * 0.78, rad = i === 6 ? 1.8 : 1.35, top = 1 + i, x = cx + Math.cos(a) * 6, z = cz + Math.sin(a) * 6, h = top + 0.4;
+    const {rad, top, x, z} = duneStone(i), h = top + 0.4;
     const po = {seed:i * 1.7 + 0.3, y0:-0.4, uvs:4, seg:64, rowsPerM:10, bulge:0.14, notch:0.09, rim:0.35, rimIn:0.05, top:1.02, dustH:0.9};   // top edge ~0.97 rad: the stone reaches out to where the player can stand (r + 0.2)
     lodMesh(mk(sandstoneColumn(rad, h, po), sandstone, x, -0.4, z), mk(sandstoneColumn(rad, h, Object.assign({}, po, {seg:32, rowsPerM:5})), sandstone, x, -0.4, z), new V3(x, h / 2 - 0.4, z), 45, 6);
     addPlatform(x, z, rad, top);
   }
-  const last = platforms[6]; addShard('dunes', last.x, last.top + 1.2, last.z);
+  // Goal 11: the Amber Shard no longer waits on the seventh stone; it is won on the Comet Rally cabinet in The Hollow (buildHollowDoor, after everything is placed)
   const crystalGeo = merge([new THREE.CylinderGeometry(0.22, 0.26, 1.6, 6).translate(0, 0.8, 0), new THREE.ConeGeometry(0.22, 0.5, 6).translate(0, 1.85, 0)]);
   const cmats = [], parent = new THREE.Matrix4();
   for(let i = 0; i < 20; i++){
@@ -7065,6 +7065,8 @@ function coreSum(detail){
 }
 
 /* ---- Glass Dunes: dune seas, mesas, sandstone pillar fields, buried ruins, glass crystal clusters ---- */
+// the seven sandstone stones that climb in a curl round (22, 16), numbered from the lowest (the Hollow's clue reads the same numbers: HUNT_CLUES.amber.pillar)
+const duneStone = i => { const a = i * 0.78; return {i, rad:i === 6 ? 1.8 : 1.35, top:1 + i, x:22 + Math.cos(a) * 6, z:16 + Math.sin(a) * 6}; };
 const DUNE_PILLARS = [[1.2, 5], [1.2, 9], [1.7, 7], [1.7, 12], [1.4, 15]], DUNE_MESAS = [[18, 26], [26, 38], [32, 52], [22, 64]];
 const MESA_O = (i, y0) => ({seed:i * 2.3 + 40.1, y0, uvs:14, seg:72, rowsPerM:0.9, sc:6, bulge:0.16, notch:0.05, top:0.8, bottom:1, apron:0.45, rim:3, dustH:6});
 ENDLESS.dunes = {
@@ -7666,7 +7668,7 @@ function buildWorld(key){
   const W = WORLDS[key]; state.world = key; gravK = W.gravity || 1; if(explorer.dirty) saveExplorer();
   world = new THREE.Group(); scene.add(world);
   if(camHid){ camHid = false; if(!zeroing) me.g.visible = true; }
-  grassMeshes = []; lods = []; slotMats = {}; mainTerrain = null; coreSolids = []; coreFollow = []; boxes = []; desk = null; gym = null; floaters = []; p.zeroG = false; colliders = []; platforms = []; coins = []; portals = []; spinners = []; npcs = []; shardObj = null; vault = null; gridSun = null; fireflies = null; shopKiosk = null; forgeStand = null; vendor = null; archive = null; archRoom = -1; hazards = []; burst = null; pickups = []; bike.g = null; bike.riding = false; bike.near = false; engineStop(); $('#rideBtn').style.display = 'none'; trial.active = false; trial.rings = []; trial.pad = null; trial.padPos = null; $('#trialPanel').style.display = 'none';
+  grassMeshes = []; lods = []; slotMats = {}; mainTerrain = null; coreSolids = []; coreFollow = []; boxes = []; desk = null; gym = null; floaters = []; p.zeroG = false; colliders = []; platforms = []; coins = []; portals = []; spinners = []; npcs = []; shardObj = null; vault = null; gridSun = null; fireflies = null; shopKiosk = null; forgeStand = null; vendor = null; archive = null; archRoom = -1; hollow = null; hazards = []; burst = null; pickups = []; bike.g = null; bike.riding = false; bike.near = false; engineStop(); $('#rideBtn').style.display = 'none'; trial.active = false; trial.rings = []; trial.pad = null; trial.padPos = null; $('#trialPanel').style.display = 'none';
   const r = rng(W.seed), noise = makeNoise(W.seed * 7 + 1);
   waterBody = null; if(weatherFx){ scene.remove(weatherFx.pts); weatherFx.geo.dispose(); weatherFx.pts.material.dispose(); weatherFx = null; } clearSkyProps(); flyers = []; ships = []; endless = null; buildParent = null; chunkAt = null; waterMeshes.forEach(w => { if(w.renderTarget) w.renderTarget.dispose(); }); waterMeshes = [];
   applyLook(W);
@@ -7695,6 +7697,7 @@ function buildWorld(key){
   addHazards(key);
   addPickups(key);
   addVendor(key);
+  if(key === 'dunes') buildHollowDoor();   // Goal 11: the Hollow's door (and nothing else) goes in after everything is placed; it draws no rng
   if(key === 'hub') buildArchive();   // Goal 9: the Archive goes up after every coin, NPC, pickup and the vendor are placed, so none of them moves
   bundles.forEach(b => { b.g = null; if(b.world === key) addBundleMesh(b); });
   if(ENDLESS[key] && !W.custom) startBuiltin(key);   // no boundaries (Goal 8a): the land goes on past the hand-made core
@@ -8970,6 +8973,80 @@ function broadcastUpdate(dt, time){
 }
 $('#bcSkip').addEventListener('click', () => skipBroadcast());
 
+/* ================= The Hollow and Comet Rally (Goal 11, blueprint 9): the Amber Shard =================
+   The clue (HUNT_CLUES.amber, the Ledger's first riddle, Mara's sketch behind the stopped clock): Glass Dunes is held at twenty to six for ever, so its sun
+   never moves and the fourth stone from the lowest always lays the same shadow. Nothing is drawn there: the realm's own sun and shadow are the marker.
+   Knock (E) where that shadow ends and a buried doorway rises out of the sand; knocking anywhere else only thuds. The realm's lighting is never touched. */
+const HOLLOW = {x:14, z:30, y:-14, knockR:1.5, fieldR:17};
+let hollow = null, hollowNear = null;
+// where each stone's shadow ends on the sand: from the far rim of the stone's top, follow the realm's fixed sun ray down to the ground (the same direction the shadow map uses)
+function stoneShadowTips(){
+  const d = WORLDS.dunes.sky.dir, L = new V3(d[0], Math.max(d[1], 0.28), d[2]).normalize(), hl = Math.hypot(L.x, L.z), ux = -L.x / hl, uz = -L.z / hl;
+  const tips = [];
+  for(let i = 0; i < 7; i++){ const S = duneStone(i); let x = S.x + ux * S.rad * 0.97, z = S.z + uz * S.rad * 0.97, y = S.top;
+    for(let k = 0; k < 5000 && y > G(x, z); k++){ x -= L.x * 0.02; y -= L.y * 0.02; z -= L.z * 0.02; }
+    tips.push({i, x, z, y:G(x, z)}); }
+  return {tips, ux, uz};
+}
+// the doorway's own frame: local x runs along the shadow (into the doorway), local z across it; world = tip + x * u + z * (-uz, ux)
+const hoodW = (lx, lz) => [hollow.door.x + lx * hollow.ux - lz * hollow.uz, hollow.door.z + lx * hollow.uz + lz * hollow.ux];
+function buildHollowDoor(){
+  const T = stoneShadowTips(), tip = T.tips[HUNT_CLUES.amber.pillar];
+  hollow = {tips:T.tips, ux:T.ux, uz:T.uz, door:{x:tip.x, z:tip.z, y:tip.y}, open:state.hunt.door, rise:state.hunt.door ? 1 : 0, hood:null, inside:false, built:false, g:null};
+  if(hollow.open) buildHood();
+}
+// the buried doorway: a sandstone porch half-full of drifted sand, an amber band on its lintel, and a dark stair going down at the back
+function buildHood(){
+  const H = hollow, st = sandstoneTextures(), g = new THREE.Group(); world.add(g);
+  const stone = withDetailNormal(std(0xe9d2b8, {map:st.map, normalMap:st.normal, roughnessMap:st.rough, roughness:1, envMapIntensity:0.6}), detailNormal, 5, 0.35);
+  let lo = 1e9; for(let x = -0.6; x <= 3.9; x += 0.5) for(let z = -1.6; z <= 1.6; z += 0.4){ const w = hoodW(x, z); lo = Math.min(lo, G(w[0], w[1])); }
+  const b = lo - 0.1, top = b + 3.1; H.hoodBase = b;
+  const L = [[0, 3.4, b - 1.6, top, 1.0, 1.5], [0, 3.4, b - 1.6, top, -1.5, -1.0], [3.4, 3.9, b - 1.6, top, -1.5, 1.5], [-0.3, 3.95, top, top + 0.38, -1.7, 1.7],
+    [-0.35, 0.3, top - 0.55, top, -1.6, 1.6], [-0.4, 0.35, b - 1.6, top - 0.55, 1.5, 1.8], [-0.4, 0.35, b - 1.6, top - 0.55, -1.8, -1.5], [-0.5, 3.4, b - 0.6, b, -1.0, 1.0]];
+  mk(boxGeo(L, 2.6), stone, 0, 0, 0, g);
+  const amber = glowM(0xffa62e, 1.1); mk(boxGeo([[-0.37, -0.34, top - 0.36, top - 0.2, -1.4, 1.4]], 1), amber, 0, 0, 0, g).castShadow = false;
+  for(let k = -3; k <= 3; k++) mk(new THREE.OctahedronGeometry(0.07, 0), amber, -0.37, top - 0.28, k * 0.4, g).castShadow = false;
+  // the stair going down: a dark doorway in the back wall, a faint warm glow far below
+  const dark = new THREE.Mesh(new THREE.PlaneGeometry(1.5, 2.4), new THREE.MeshBasicMaterial({map:canvasTex(16, 64, (x, w, h) => { const gr = x.createLinearGradient(0, 0, 0, h); gr.addColorStop(0, '#0b0806'); gr.addColorStop(0.7, '#050302'); gr.addColorStop(1, '#1c0f06'); x.fillStyle = gr; x.fillRect(0, 0, w, h); })}));
+  dark.position.set(3.39, b + 1.1, 0); dark.rotation.y = -Math.PI / 2; g.add(dark);
+  glow(0xff9a40, 1.2, 3.3, b + 0.4, 0, g, 0.25);
+  g.position.set(H.door.x, (H.rise - 1) * 3.6, H.door.z); g.rotation.y = -Math.atan2(H.uz, H.ux);
+  H.hood = g;
+  // solid: the two side walls, the back wall and the jambs (the camera stops at the roof)
+  const a = Math.atan2(H.uz, H.ux), box = (x0, x1, z0, z1, y0, y1, o) => { const c = hoodW((x0 + x1) / 2, (z0 + z1) / 2); return addBox(c[0], c[1], (x1 - x0) / 2, (z1 - z0) / 2, y0, y1, Object.assign({a, hood:true}, o || {})); };
+  box(0, 3.4, 1.0, 1.5, b - 1.6, top); box(0, 3.4, -1.5, -1.0, b - 1.6, top); box(3.4, 3.9, -1.5, 1.5, b - 1.6, top); box(-0.4, 0.35, 1.5, 1.8, b - 1.6, top); box(-0.4, 0.35, -1.8, -1.5, b - 1.6, top);
+  box(-0.3, 3.95, -1.7, 1.7, top, top + 0.38, {map:false});
+}
+// E in the stone field: knock. Only the end of the fourth stone's shadow answers.
+function knock(){
+  const H = hollow; if(!H || H.open) return null;
+  let best = null, bd = 1e9; H.tips.forEach(t => { const d = Math.hypot(p.x - t.x, p.z - t.z); if(d < bd){ bd = d; best = t; } });
+  if(best && bd < HOLLOW.knockR && best.i === HUNT_CLUES.amber.pillar){
+    H.open = true; state.hunt.door = true; persist(); buildHood(); sfx('rumble'); reward(40, 0);
+    toast('The sand shivers. A doorway rises out of the dune where the fourth stone\'s shadow ends.   +40 XP', 4600);
+    return {opened:true, stone:best.i};
+  }
+  sfx('thud');
+  toast(best && bd < HOLLOW.knockR ? 'A dull knock. Solid stone under the sand at the end of this shadow, and nothing behind it.' : 'You knock on the sand. Nothing answers.', 2800);
+  return {opened:false, stone:best && bd < HOLLOW.knockR ? best.i : null};
+}
+function hollowUpdate(dt, time){
+  const H = hollow; let near = null;
+  if(H && state.world === 'dunes'){
+    if(H.hood && H.rise < 1){ H.rise = Math.min(1, H.rise + dt / 3); const e = 1 - Math.pow(1 - H.rise, 3); H.hood.position.y = (e - 1) * 3.6; }
+    if(!H.inside){
+      if(!H.open && !bike.riding && Math.hypot(p.x - 22, p.z - 16) < HOLLOW.fieldR) near = 'knock';
+      // walk into the dark doorway at the back of the porch to go down
+      if(H.open && H.rise >= 1 && playing && !traveling && !zeroing){ const dx = p.x - H.door.x, dz = p.z - H.door.z, lx = dx * H.ux + dz * H.uz, lz = -dx * H.uz + dz * H.ux;
+        if(lx > 2.55 && lx < 3.4 && Math.abs(lz) < 0.9 && p.y < H.hoodBase + 2.5) enterHollow(); }
+    }
+  }
+  if(near !== hollowNear){ hollowNear = near; const b = $('#hollowBtn'); b.style.display = near ? '' : 'none'; b.textContent = near === 'knock' ? 'Knock' : near === 'cabinet' ? 'Play' : near === 'chest' ? 'Open' : ''; }
+}
+function hollowAct(){ if(hollowNear === 'knock') return knock(); return null; }
+function enterHollow(){ if(hollow.told) return; hollow.told = true; toast('The stair goes down into the dark.', 2400); }
+$('#hollowBtn').addEventListener('click', hollowAct);
+
 /* ================= input ================= */
 let jumpBuffer = 0;
 window.addEventListener('keydown', e => {
@@ -9642,6 +9719,8 @@ function sfx(name){
       case 'hit': tone('sine', 140, 55, 0.22, 0.28); noiseHit(900, 0.8, 0.12, 0.14); break;
       case 'zero': tone('sawtooth', 600, 70, 0.9, 0.16); noiseHit(300, 0.8, 0.6, 0.12, t, 60); break;
       case 'ui': tone('square', 1200, 1200, 0.04, 0.03); break;
+      case 'rumble': tone('sawtooth', 48, 34, 2.8, 0.09); noiseHit(180, 0.5, 2.8, 0.22, t, 70); break;
+      case 'thud': tone('sine', 110, 60, 0.18, 0.2); noiseHit(260, 1, 0.1, 0.08); break;
       case 'step': { const soft = w === 'dunes' || w === 'sky' || w === 'grove' || w === 'campus'; noiseHit(soft ? 340 : w === 'grid' ? 2100 : 800, soft ? 0.7 : 2.5, soft ? 0.07 : 0.045, soft ? 0.045 : 0.035); break; }
     }
   }catch(e){}
@@ -9710,7 +9789,7 @@ function vrUpdate(dt){
   if(Math.abs(turn) > 0.7 && vr.snapCool <= 0){ vr.rig.rotation.y -= Math.sign(turn) * Math.PI / 6; vr.snapCool = 0.3; }
   if(Math.abs(turn) < 0.4) vr.snapCool = Math.min(vr.snapCool, 0);
 }
-function interactKey(){ if(bike.riding) dismountBike(); else if(bike.near) mountBike(); else if(shopNear) openShop(); else if(vendNear) openVendor(); else if(deskNear) enroll(); else if(forgeNear) openForge(); else if(archNear) archiveAct(); }
+function interactKey(){ if(bike.riding) dismountBike(); else if(bike.near) mountBike(); else if(shopNear) openShop(); else if(vendNear) openVendor(); else if(deskNear) enroll(); else if(forgeNear) openForge(); else if(archNear) archiveAct(); else if(hollowNear) hollowAct(); }
 vrSetup();
 
 /* ================= loop ================= */
@@ -9869,7 +9948,7 @@ function update(dt, time){
     state.won = true; reward(500, 200); sfx('win'); setHalo(); toast('You opened the vault. First to crack the Hub.   +500 XP', 5000);
   }
   if(playing && p.grounded && p.speed > 0.6){ snd.stepT -= dt; if(snd.stepT <= 0){ sfx('step'); snd.stepT = p.speed > 7 ? 0.27 : 0.42; } } else snd.stepT = 0.1;
-  shopProximity(); bikeProximity(); vendProximity(); deskProximity(); archiveUpdate(dt); trialUpdate(dt, time);
+  shopProximity(); bikeProximity(); vendProximity(); deskProximity(); archiveUpdate(dt); hollowUpdate(dt, time); trialUpdate(dt, time);
   updatePickups(dt, time); hurtCool -= dt; simTime += dt; updateHazards(simTime); updateBurst(dt); checkBundles();
   if(!WORLDS[state.world].rules.danger && !zeroing && state.hp < maxHp()){ state.hp = Math.min(maxHp(), state.hp + 12 * dt); hpHud(); }
   portalCool -= dt;
@@ -10022,6 +10101,12 @@ Object.defineProperties(window.__hub, {
     leftovers:scene.children.filter(o => o.name === 'broadcast').length, audioNodes:bcAudio.nodes.length, bus:!!bcAudio.bus, meVisible:me.g.visible, controls:playing, overlay:!bcEl.hidden, board:($('#huntState') || {}).textContent || '', screen:archive && archive.bcScreen ? Object.assign({}, archive.bcScreen) : null, near:!!(archNear && archNear.kind === 'broadcast'),
     seek(t, hold){ if(!bc.on) return false; bc.t = clamp(+t || 0, 0, BROADCAST_END - 0.05); bc.t0 = performance.now() - bc.t * 1000; bc.hold = hold ? bc.t : null; bcMusic(bc.t); return true; }, get held(){ return bc.hold != null; }})},
   playBroadcast:{value:() => playBroadcast('test')}, skipBroadcast:{value:() => skipBroadcast()}
+});
+// Goal 11: the Hollow and Comet Rally. hollow.tips are the seven shadow ends; hollowAct() is E (knock, play, open) where the player stands
+Object.defineProperties(window.__hub, {
+  hollow:{get:() => hollow && {door:{x:+hollow.door.x.toFixed(2), z:+hollow.door.z.toFixed(2)}, stone:HUNT_CLUES.amber.pillar, time:HUNT_CLUES.amber.time, open:hollow.open, saved:state.hunt.door, rise:+hollow.rise.toFixed(2), inside:hollow.inside, built:hollow.built, near:hollowNear,
+    tips:hollow.tips.map(t => ({i:t.i, x:+t.x.toFixed(2), z:+t.z.toFixed(2)})), room:hollow.room == null ? -1 : hollow.room}},
+  hollowAct:{value:() => { hollowUpdate(0); return hollowAct(); }}, knock:{value:() => knock()}
 });
 })();
 </script>
