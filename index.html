@@ -11739,12 +11739,23 @@ const DG_WEIGHT = {
     '  float w = d >= 1.0 ? 1.0 : smoothstep(T0, T1, lin); if(useMask > 0.5) w *= 1.0 - clamp(texture2D(tMask, vUv).a * 4.0, 0.0, 1.0);' +
     '  gl_FragColor = vec4(w, 0.0, 0.0, 1.0); }'
 };
-// the layer (half resolution): colour stored as sqrt (more precision in the dark), confidence in alpha
+// the layer (half resolution): colour stored as sqrt (more precision in the dark), confidence in alpha.
+// Layer 2, the temporal lock: every frame the last layer is reprojected through the depth with the previous and current view-projection
+// (reproj = prevVP * inverse(curVP), built on the CPU in double precision), so it stays pinned to the world as the camera turns. A new AI
+// frame is blended in at `rate`; where it disagrees with the locked layer, or nothing was there before (off screen, near pixels last frame),
+// the confidence drops and the composite falls back to the game frame, then rebuilds as new frames agree.
 const DG_LAYER = {
-  uniforms:{tAI:{value:null}},
+  uniforms:{tAI:{value:null}, tHist:{value:null}, tDepth:{value:null}, reproj:{value:new THREE.Matrix4()}, hasHist:{value:0}, fresh:{value:0}, rate:{value:0.3}, cNear:{value:0.25}, cFar:{value:2500}, T0:{value:70}},
   vertexShader:DG_VS,
-  fragmentShader:'uniform sampler2D tAI; varying vec2 vUv;' +
-    ' void main(){ vec3 a = pow(texture2D(tAI, vUv).rgb, vec3(2.2)); gl_FragColor = vec4(sqrt(a), 1.0); }'
+  fragmentShader:'uniform sampler2D tAI, tHist, tDepth; uniform mat4 reproj; uniform float hasHist, fresh, rate, cNear, cFar, T0; varying vec2 vUv;' +
+    ' void main(){ float d = texture2D(tDepth, vUv).x; float z = d * 2.0 - 1.0; float lin = 2.0 * cNear * cFar / (cFar + cNear - z * (cFar - cNear));' +
+    '  vec4 pc = reproj * vec4(vUv * 2.0 - 1.0, z, 1.0); vec2 puv = pc.xy / pc.w * 0.5 + 0.5;' +
+    '  bool ok = hasHist > 0.5 && pc.w > 0.0 && puv.x >= 0.0 && puv.y >= 0.0 && puv.x <= 1.0 && puv.y <= 1.0;' +
+    '  vec4 h = ok ? texture2D(tHist, puv) : vec4(0.0); vec3 col = h.rgb * h.rgb; float c = h.a;' +
+    '  if(fresh > 0.5){ vec3 a = pow(texture2D(tAI, vUv).rgb, vec3(2.2)); float agree = c > 0.02 ? 1.0 - smoothstep(0.12, 0.45, length(h.rgb - sqrt(a))) : 1.0;' +
+    '    col = mix(col, a, max(rate, 1.0 - c)); c = mix(c, agree, rate); }' +
+    '  if(d < 1.0 && lin < T0 * 0.85) c = 0.0;' +
+    '  gl_FragColor = vec4(sqrt(col), c); }'
 };
 const DG_COMP = {
   uniforms:{tDiffuse:{value:null}, tWeight:{value:null}, tLayer:{value:null}, strength:{value:1}},
@@ -11757,7 +11768,8 @@ const DG_COMP = {
 const _dgCol = new THREE.Color(), _dgV = new V3();
 class DreamLayerPass extends THREE.Pass {
   constructor(w, h){
-    super(); this.needsSwap = false; this.fresh = false; this.mask = false; this.reset = true;
+    super(); this.needsSwap = false; this.fresh = false; this.mask = false; this.reset = true; this.hasHist = false; this.updates = 0;
+    this.vp = new THREE.Matrix4(); this.prevVP = new THREE.Matrix4();
     const lin = {minFilter:THREE.LinearFilter, magFilter:THREE.LinearFilter, format:THREE.RGBAFormat, depthBuffer:false, stencilBuffer:false};
     this.maskRT = new THREE.WebGLRenderTarget(2, 2, {minFilter:THREE.LinearFilter, magFilter:THREE.LinearFilter, format:THREE.RGBAFormat});
     this.weightRT = new THREE.WebGLRenderTarget(2, 2, {minFilter:THREE.NearestFilter, magFilter:THREE.NearestFilter, format:THREE.RGBAFormat, depthBuffer:false, stencilBuffer:false});
@@ -11774,7 +11786,7 @@ class DreamLayerPass extends THREE.Pass {
     const depth = readBuffer.depthTexture; if(!depth || !dg.tex) return;
     renderer.getClearColor(_dgCol); const ca = renderer.getClearAlpha(), au = scene.autoUpdate;
     renderer.setClearColor(0x000000, 0);
-    if(this.reset){ [this.histA, this.histB].forEach(t => { renderer.setRenderTarget(t); renderer.clear(); }); this.reset = false; }
+    if(this.reset){ [this.histA, this.histB].forEach(t => { renderer.setRenderTarget(t); renderer.clear(); }); this.reset = false; this.hasHist = false; }
     // what must stay the game's own even against the sky: name tags, glows, particles, portal discs and far avatars (layer 6, from dgScanMask)
     if(this.mask){ const lm = camera.layers.mask; camera.layers.set(6); scene.autoUpdate = false; renderer.setRenderTarget(this.maskRT); renderer.clear(); renderer.render(scene, camera); camera.layers.mask = lm; scene.autoUpdate = au; }
     const u = this.weightMat.uniforms; u.tDepth.value = depth; u.tMask.value = this.maskRT.texture; u.useMask.value = this.mask ? 1 : 0;
@@ -11784,9 +11796,16 @@ class DreamLayerPass extends THREE.Pass {
     renderer.setClearColor(_dgCol, ca);
   }
   updateLayer(renderer, depth){
-    if(!this.fresh) return;
-    this.layerMat.uniforms.tAI.value = dg.tex; this.draw(renderer, this.layerMat, this.histB);
-    const t = this.histA; this.histA = this.histB; this.histB = t; this.fresh = false;
+    // camera.matrixWorld is current here: update() ran camera.updateMatrixWorld() (the camera sits on vr.rig, LESSONS)
+    this.vp.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
+    const u = this.layerMat.uniforms, R = u.reproj.value;
+    if(this.hasHist){ R.copy(this.vp).invert().premultiply(this.prevVP); const e = R.elements; let off = 0; for(let i = 0; i < 16; i++) off = Math.max(off, Math.abs(e[i] - (i % 5 === 0 ? 1 : 0))); if(off < 1e-6) R.identity(); }
+    else R.identity();
+    if(!this.hasHist && !this.fresh) return;
+    u.tAI.value = dg.tex; u.tHist.value = this.histA.texture; u.tDepth.value = depth; u.hasHist.value = this.hasHist ? 1 : 0; u.fresh.value = this.fresh ? 1 : 0;
+    u.cNear.value = camera.near; u.cFar.value = camera.far; u.T0.value = dg.T;
+    this.draw(renderer, this.layerMat, this.histB);
+    const t = this.histA; this.histA = this.histB; this.histB = t; this.fresh = false; this.hasHist = true; this.prevVP.copy(this.vp); this.updates++;
     if(dg.comp) dg.comp.uniforms.tLayer.value = this.histA.texture;
   }
 }
@@ -11895,7 +11914,7 @@ function dgRender(){ if(post.on && !vr.on && !ai.on){ updateSun(); renderMirrors
 Object.defineProperties(window.__hub, {
   dream:{get:() => ({kind:dg.kind, test:dg.test, master:dg.master, local:isLocal(), key:!!lsGet(AI_KEY), live:dg.live, busy:dg.busy, failed:dg.failed, frames:dg.frames, paused:dg.pause,
     layers:Object.assign({}, dg.L || dgLayersFor(state.world)), active:Object.assign({}, dg.active), owner:dg.owner, prompt:dg.prompt, threshold:dg.T, qDrop:dg.qDrop, maskObjects:dg.maskN,
-    passes:dg.layer ? {layer:dg.layer.enabled, comp:dg.comp.enabled, depth:dg.depthOn} : null, texture:dg.tex})},
+    passes:dg.layer ? {layer:dg.layer.enabled, comp:dg.comp.enabled, depth:dg.depthOn} : null, lock:dg.layer ? {updates:dg.layer.updates, hasHist:dg.layer.hasHist} : null, texture:dg.tex})},
   dreamTest:{get:() => dg.test, set:v => { dg.test = !!v; if(!dg.test){ dg.frames = dg.live ? dg.frames : 0; } }},
   dreamPause:{get:() => dg.pause, set:v => { dg.pause = !!v; }},
   dreamDepthThreshold:{get:() => dg.T, set:v => { dg.T = clamp(+v || 70, 5, 2000); dg.scanT = 0; }},
@@ -11906,7 +11925,28 @@ Object.defineProperties(window.__hub, {
     if(dg.comp) dg.comp.enabled = false; dgRender(); const A = pts.map(q => dgRead(q[0], q[1]));
     if(dg.comp) dg.comp.enabled = keep.c; dgRender(); const B = pts.map(q => dgRead(q[0], q[1]));
     return pts.map((q, i) => ({x:q[0], y:q[1], plain:A[i], dream:B[i], same:A[i].join() === B[i].join()})); }},
-  dreamScanMask:{value:() => dgScanMask()}
+  dreamScanMask:{value:() => dgScanMask()},
+  // layer 2 proof: hold the stream, read the half-res layer, turn the camera `deg` about the vertical in place, render once, and compare each
+  // far point's layer colour where that world direction now lands (lockError) with the colour at the same screen spot (unlockedError), 0..255
+  dreamLockTest:{value:deg => {
+    if(!dg.layer || !dg.active.far) return null;
+    const Lp = dg.layer, was = dg.pause; renderer.setAnimationLoop(null); dg.pause = true;
+    frame(); frame(); dgRender();
+    const read = rt => { const b = new Uint8Array(rt.width * rt.height * 4); renderer.readRenderTargetPixels(rt, 0, 0, rt.width, rt.height, b); return b; };
+    const W = Lp.histA.width, H = Lp.histA.height, A = read(Lp.histA), WT = read(Lp.weightRT), FW = Lp.weightRT.width, FH = Lp.weightRT.height, pts = [];
+    for(let j = 1; j < 12; j++) for(let i = 1; i < 20; i++){
+      const x = Math.floor(i / 20 * W), y = Math.floor(j / 12 * H), k = (y * W + x) * 4, fw = WT[(Math.min(FH - 1, Math.floor((y + 0.5) / H * FH)) * FW + Math.min(FW - 1, Math.floor((x + 0.5) / W * FW))) * 4];
+      if(A[k + 3] > 200 && fw > 250) pts.push({x, y, c:[A[k], A[k + 1], A[k + 2]], dir:new V3((x + 0.5) / W * 2 - 1, (y + 0.5) / H * 2 - 1, 0.5).unproject(camera).sub(camWorld).normalize()});
+    }
+    const q0 = camera.quaternion.clone(); camera.rotateOnWorldAxis(new V3(0, 1, 0), deg * Math.PI / 180); camera.updateMatrixWorld();
+    dgRender(); const B = read(Lp.histA);
+    let n = 0, eL = 0, eN = 0, sh = 0; const dif = (b, k, c) => (Math.abs(b[k] - c[0]) + Math.abs(b[k + 1] - c[1]) + Math.abs(b[k + 2] - c[2])) / 3;
+    for(const q of pts){ const v = q.dir.clone().multiplyScalar(500).add(camWorld).project(camera), x = Math.floor((v.x * 0.5 + 0.5) * W), y = Math.floor((v.y * 0.5 + 0.5) * H);
+      if(v.z > 1 || x < 1 || y < 1 || x >= W - 1 || y >= H - 1) continue; const k = (y * W + x) * 4; if(B[k + 3] < 200) continue;
+      n++; eL += dif(B, k, q.c); eN += dif(B, (q.y * W + q.x) * 4, q.c); sh += Math.hypot(x - q.x, y - q.y); }
+    camera.quaternion.copy(q0); camera.updateMatrixWorld(); dg.pause = was; renderer.setAnimationLoop(frame);
+    return n ? {points:n, lockError:+(eL / n).toFixed(2), unlockedError:+(eN / n).toFixed(2), shiftPx:+(sh / n).toFixed(1), layerPx:[W, H]} : {points:0};
+  }}
 });
 })();
 </script>
