@@ -8612,7 +8612,7 @@ window.__hub = { state, p, cam, post, stats, WORLDS, scene, renderer, camera, su
 function planetLanding(){ const W = WORLDS[state.world]; return {world:state.world, planet:W.planet || null, name:W.name, x:+p.x.toFixed(2), z:+p.z.toFixed(2), y:+p.y.toFixed(2), ground:+G(p.x, p.z).toFixed(2), land:+hf(p.x, p.z).toFixed(2),
   water:waterBody ? {kind:waterBody.kind, level:waterBody.level} : null, dry:!waterBody || hf(p.x, p.z) > waterBody.level + 0.3, gravity:gravK, chunks:endless ? endless.chunks.size : 0}; }
 Object.assign(window.__hub, {
-  stars:n => sectorStars(n).map(s => ({id:s.id, sector:s.sector, x:s.x, y:s.y, z:s.z, cls:s.cls, charted:!!explorer.planets[s.id], name:explorer.planets[s.id] ? explorer.planets[s.id].name : null})),
+  stars:n => sectorStars(n).map(s => ({id:s.id, sector:s.sector, x:s.x, y:s.y, z:s.z, u:+s.u.toFixed(4), v:+s.v.toFixed(4), cls:s.cls, charted:!!explorer.planets[s.id], name:explorer.planets[s.id] ? explorer.planets[s.id].name : null})),
   planetSpec:id => { const S = planetSpec(id); if(!S) return null; const o = Object.assign({}, S); delete o.rec; return o; },
   landOn(id, o){ o = o || {}; const key = planetWorld(id); if(!key || traveling) return Promise.resolve(null);
     if(o.pay){ const cost = fare(state.world, key); if(state.credits < cost) return Promise.resolve({ok:false, need:cost}); state.credits -= cost; persist(); refreshHud(); }
