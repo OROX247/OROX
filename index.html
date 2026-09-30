@@ -8287,7 +8287,8 @@ const SHOP_ITEMS = [
   {id:'tail', name:'Tail', price:20, kind:'feature'}, {id:'backpack', name:'Backpack', price:25, kind:'feature'}, {id:'jetpack', name:'Jetpack', price:45, kind:'feature'}, {id:'sword', name:'Sword', price:35, kind:'feature'},
   {id:'staff', name:'Staff', price:35, kind:'feature'}, {id:'mask', name:'Mask', price:15, kind:'feature'},
   {id:'fin:chrome', name:'Chrome finish', price:80, kind:'finish', value:'chrome'}, {id:'fin:neon', name:'Neon finish', price:60, kind:'finish', value:'neon'}, {id:'fin:glass', name:'Glass finish', price:90, kind:'finish', value:'glass'},
-  {id:'fin:stone', name:'Stone finish', price:40, kind:'finish', value:'stone'}, {id:'fin:jelly', name:'Jelly finish', price:50, kind:'finish', value:'jelly'}, {id:'fin:fur', name:'Fur finish', price:45, kind:'finish', value:'fur'}
+  {id:'fin:stone', name:'Stone finish', price:40, kind:'finish', value:'stone'}, {id:'fin:jelly', name:'Jelly finish', price:50, kind:'finish', value:'jelly'}, {id:'fin:fur', name:'Fur finish', price:45, kind:'finish', value:'fur'},
+  {id:'dreamglass', name:'Dreamglass Lens', price:120, kind:'item'}   // an item for the bag (ITEMS), not gear: it sells back for 60
 ];
 const shopEl = $('#shop'); let shopNear = false, shopHinted = false;
 function itemWorn(it){ return it.kind === 'feature' ? state.recipe.features.indexOf(it.id) >= 0 : state.recipe.material === it.value; }
@@ -8305,13 +8306,19 @@ function renderShop(){
   if(selling){ renderSell(); return; }
   const list = $('#shopList'); list.innerHTML = '';
   SHOP_ITEMS.forEach(it => {
-    const owned = state.owned.has(it.id), worn = itemWorn(it);
+    const bag = it.kind === 'item', owned = bag ? !!state.inv[it.id] : state.owned.has(it.id), worn = bag ? false : itemWorn(it);
     const b = document.createElement('button'); b.className = 'warp-item' + (owned ? ' owned' : ''); b.style.setProperty('--c', owned ? '#9dff6a' : '#ffd166');
-    b.innerHTML = '<span>' + it.name + '</span><small>' + (owned ? (worn ? 'Wearing — remove' : 'Owned — wear') : '₵ ' + it.price) + '</small>';
+    b.innerHTML = '<span>' + it.name + '</span><small>' + (owned ? (bag ? 'In your bag — G to hold up' : worn ? 'Wearing — remove' : 'Owned — wear') : '₵ ' + it.price) + '</small>';
     b.addEventListener('click', () => shopAction(it)); list.appendChild(b);
   });
 }
 function shopAction(it){
+  if(it.kind === 'item'){
+    if(state.inv[it.id]){ toast('It is in your bag. Press G to hold it up.', 2400); return; }
+    if(state.credits < it.price){ toast('Not enough credits. Coins turn into credits.'); return; }
+    state.credits -= it.price; giveItem(it.id); toast('Bought: ' + it.name + ' for ₵' + it.price + '. Press G to hold it up.', 3000); reward(10, 0); sfx('buy');
+    persist(); refreshHud(); renderShop(); return;
+  }
   const owned = state.owned.has(it.id);
   if(!owned){
     if(state.credits < it.price){ toast('Not enough credits. Coins turn into credits.'); return; }
@@ -8361,6 +8368,8 @@ const ITEMS = {
     const m = maxHp(); if(zeroing || state.hp <= 0) return false;
     if(state.hp >= m){ toast('HP is already full. The kit stays in your bag.', 2200); return false; }
     const before = state.hp; state.hp = Math.min(m, state.hp + 50); hpHud(); sfx('level'); toast('Health kit used: +' + Math.round(state.hp - before) + ' HP', 2200); return true; }},
+  // Dreamglass (5f, layer 5): not used up; use() holds it up or lowers it, as G does
+  'dreamglass':     {name:'Dreamglass Lens', rarity:'rare', value:60, shape:'orb', col:0xb18cff, desc:'Hold it up (G) and a round window shows the live AI dream of the world. Needs the downloaded game and a Decart key.', use(){ dgLens(!dg.lens); return false; }},
   'fuel-cell':      {name:'Fuel Cell', rarity:'common', value:4, shape:'coil', col:0xffb020, desc:'Fills the hoverbike tank.', use(){
     if(state.fuel >= FUEL_MAX - 0.5){ toast('The hoverbike tank is already full. The cell stays in your bag.', 2200); return false; }
     state.fuel = FUEL_MAX; fuelWarned = false; fuelShown = -1; fuelHud(); sfx('boost'); toast('Hoverbike tank refilled', 2200); return true; }}
@@ -11765,6 +11774,16 @@ const DG_COMP = {
     '  if(w > 0.0){ vec4 L = texture2D(tLayer, vUv); c.rgb = mix(c.rgb, L.rgb * L.rgb, w * L.a * strength); }' +
     '  gl_FragColor = c; }'
 };
+// layer 5, the lens: the very last pass (after SMAA and sharpen, in display space), so nothing it shows can bloom or blur outside its circle
+const DG_LENS = {
+  uniforms:{tDiffuse:{value:null}, tAI:{value:null}, res:{value:new V2(1920, 1080)}, radius:{value:200}},
+  vertexShader:DG_VS,
+  fragmentShader:'uniform sampler2D tDiffuse, tAI; uniform vec2 res; uniform float radius; varying vec2 vUv;' +
+    ' void main(){ vec4 c = texture2D(tDiffuse, vUv); float d = length(vUv * res - res * 0.5);' +
+    '  if(d < radius){ vec3 a = texture2D(tAI, vUv).rgb; float rim = smoothstep(radius - 8.0, radius - 3.0, d); a = mix(a, a * 0.55 + vec3(0.05, 0.03, 0.09), rim);' +
+    '   c.rgb = mix(c.rgb, a, 1.0 - smoothstep(radius - 1.5, radius, d)); }' +
+    '  gl_FragColor = c; }'
+};
 const _dgCol = new THREE.Color(), _dgV = new V3();
 class DreamLayerPass extends THREE.Pass {
   constructor(w, h){
@@ -11815,7 +11834,8 @@ function dgSetup(){
     const c = post.composer, pr = renderer.getPixelRatio(), w = innerWidth * pr, h = innerHeight * pr;
     dg.layer = new DreamLayerPass(w, h); dg.layer.enabled = false; c.insertPass(dg.layer, 1);
     dg.comp = new THREE.ShaderPass(DG_COMP); dg.comp.material.depthTest = dg.comp.material.depthWrite = false; dg.comp.enabled = false; c.insertPass(dg.comp, c.passes.indexOf(post.gamma));
-    Object.assign(post, {dgLayer:dg.layer, dgComp:dg.comp});
+    dg.lensPass = new THREE.ShaderPass(DG_LENS); dg.lensPass.material.depthTest = dg.lensPass.material.depthWrite = false; dg.lensPass.enabled = false; c.addPass(dg.lensPass);
+    Object.assign(post, {dgLayer:dg.layer, dgComp:dg.comp, dgLens:dg.lensPass});
   }catch(e){ dg.layer = dg.comp = null; console.warn('Dreamglass is off: ' + (e && e.message || e)); }
 }
 dgSetup();
@@ -11863,6 +11883,7 @@ function dgFrame(dt){
   const L = dg.L, can = src !== 'off' && post.on && !vr.on && !ai.on && !!dg.layer;
   let owner = null, prompt = null, portalQ = null, scr = null, hue = 195;
   if(can){
+    if(dg.lens){ owner = 'lens'; prompt = dgPromptFor(state.world); hue = 265; }   // the lens always owns the stream while it is up
     // one stream at a time: the nearest portal within 20 m (dreaming its destination) or screen that asks for the stream (a cabinet within 6 m,
     // a billboard within 30 m of the avatar's head, with its own prompt), whichever is nearer for its range; else the realm's far layer
     let pr = 1, sr = 1;
@@ -11894,6 +11915,9 @@ function dgFrame(dt){
   for(let i = dgScreens.length - 1; i >= 0; i--){ const sc = dgScreens[i]; if(!dgAttached(sc.mesh)){ dgScreens.splice(i, 1); continue; }
     const on = sOn && (sc.holo || sc === scr); if(on !== sc.showing || (on && sc.panel.material.map !== dg.tex)) dgShowScreen(sc, on); if(on) shown++; }
   dg.active.screens = shown > 0;
+  // layer 5: the lens window, centred, 22 % of the shorter side across as radius
+  const lensOn = can && dg.lens && !!dg.tex && dg.frames > 0; dg.active.lens = lensOn;
+  if(dg.lensPass){ dg.lensPass.enabled = lensOn; if(lensOn){ const U = dg.lensPass.uniforms, gl = renderer.getContext(); U.tAI.value = dg.tex; U.res.value.set(gl.drawingBufferWidth, gl.drawingBufferHeight); U.radius.value = 0.22 * Math.min(gl.drawingBufferWidth, gl.drawingBufferHeight); } }
 }
 function dgAttached(o){ for(; o; o = o.parent) if(o === scene) return true; return false; }
 function dgShowScreen(sc, on){
@@ -11909,8 +11933,22 @@ function dgAfter(){
 }
 // the quality ladder drops Dreamglass first (without counting a step, so the rest of the ladder is unchanged)
 function dgDegrade(){ if(dg.qDrop || !(dg.active.far || dg.active.portals || dg.active.screens)) return false; dg.qDrop = true; toast('Dreamglass layers off (keeping the frame rate up)', 2000); return true; }
-function dgLens(on){ dg.lens = false; return false; }
-function dgLensKey(){ return false; }
+// hold the lens up or lower it. Without a source it only speaks when you try it: the published link blocks the AI, or it asks for a key.
+function dgLens(on){
+  on = !!on;
+  if(on && !dg.test && !dg.live){
+    if(!isLocal()){ toast('The Dreamglass lens stays dark here: this link blocks the live AI service. Download the game and open it from your computer.', 4500); return false; }
+    if(ai.on){ toast('AI reality is on (R). Turn it off to use the lens.', 3000); return false; }
+    if(!getKey()) return false;
+    toast('Dreamglass: waking the lens…', 3000); dgConnect();
+  } else if(on) toast('Dreamglass lens up. G or Esc to lower it.', 2400);
+  dg.lens = on; return on;
+}
+function dgLensKey(){
+  if(dg.lens) return dgLens(false);
+  if(!state.inv.dreamglass){ toast('You need a Dreamglass Lens. Outfitters in the Hub Spaceport sells them.', 2800); return false; }
+  return dgLens(true);
+}
 if(dg.master && isLocal() && lsGet(AI_KEY)) setTimeout(() => { if(dg.master && !ai.on) dgConnect(); }, 1500);
 
 /* ---- the Look panel: Dreamglass on/off (saved) and this realm's three layers ---- */
@@ -11938,6 +11976,7 @@ function dgRender(){ if(post.on && !vr.on && !ai.on){ updateSun(); renderMirrors
 Object.defineProperties(window.__hub, {
   dream:{get:() => ({kind:dg.kind, test:dg.test, master:dg.master, local:isLocal(), key:!!lsGet(AI_KEY), live:dg.live, busy:dg.busy, failed:dg.failed, frames:dg.frames, paused:dg.pause,
     layers:Object.assign({}, dg.L || dgLayersFor(state.world)), active:Object.assign({}, dg.active), owner:dg.owner, prompt:dg.prompt, threshold:dg.T, qDrop:dg.qDrop, maskObjects:dg.maskN,
+    lens:{on:dg.lens, shown:dg.active.lens, cx:innerWidth / 2, cy:innerHeight / 2, r:0.22 * Math.min(innerWidth, innerHeight)},
     screens:dgScreens.map((sc, i) => ({i, holo:sc.holo, own:sc.own, range:sc.range, showing:sc.showing, mapIsStream:!!dg.tex && sc.panel.material.map === dg.tex, visible:sc.mesh.visible, at:sc.panel.getWorldPosition(new V3()).toArray().map(v => +v.toFixed(1))})),
     portal:(() => { const q = portals.find(x => x.disc.material.uniforms.dream.value > 0); return q ? {to:q.to, dream:+q.disc.material.uniforms.dream.value.toFixed(3), mapIsStream:!!dg.tex && q.disc.material.uniforms.map.value === dg.tex, dist:+Math.hypot(p.x - q.x, p.z - q.z).toFixed(1)} : null; })(),
     passes:dg.layer ? {layer:dg.layer.enabled, comp:dg.comp.enabled, depth:dg.depthOn} : null, lock:dg.layer ? {updates:dg.layer.updates, hasHist:dg.layer.hasHist} : null, texture:dg.tex})},
@@ -11947,11 +11986,13 @@ Object.defineProperties(window.__hub, {
   // the final colour at a screen point (CSS pixels from the top left), rendered now
   dreamSample:{value:(x, y) => { dgRender(); return dgRead(x, y); }},
   // the same frame twice, Dreamglass passes off then on: [{x, y, plain, dream, same}]
-  dreamAB:{value:(pts, o) => { o = o || {}; const keep = {c:dg.comp && dg.comp.enabled, f:dg.layer && dg.layer.fresh};
-    if(dg.comp) dg.comp.enabled = false; dgRender(); const A = pts.map(q => dgRead(q[0], q[1]));
-    if(dg.comp) dg.comp.enabled = keep.c; dgRender(); const B = pts.map(q => dgRead(q[0], q[1]));
+  dreamAB:{value:(pts, o) => { o = o || {}; const keep = {c:dg.comp && dg.comp.enabled, l:dg.lensPass && dg.lensPass.enabled};
+    if(dg.comp) dg.comp.enabled = false; if(dg.lensPass) dg.lensPass.enabled = false; dgRender(); const A = pts.map(q => dgRead(q[0], q[1]));
+    if(dg.comp) dg.comp.enabled = keep.c && o.only !== 'lens'; if(dg.lensPass) dg.lensPass.enabled = keep.l && o.only !== 'far'; dgRender(); const B = pts.map(q => dgRead(q[0], q[1]));
+    if(dg.comp) dg.comp.enabled = keep.c; if(dg.lensPass) dg.lensPass.enabled = keep.l;
     return pts.map((q, i) => ({x:q[0], y:q[1], plain:A[i], dream:B[i], same:A[i].join() === B[i].join()})); }},
   dreamScanMask:{value:() => dgScanMask()},
+  dreamLens:{value:on => dgLens(on === undefined ? !dg.lens : on)},
   // layer 2 proof: hold the stream, read the half-res layer, turn the camera `deg` about the vertical in place, render once, and compare each
   // far point's layer colour where that world direction now lands (lockError) with the colour at the same screen spot (unlockedError), 0..255
   dreamLockTest:{value:deg => {
