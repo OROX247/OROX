@@ -10971,6 +10971,15 @@ let ash = null, ashNear = null;
 // inside the Citadel (Lantern Row, the vault): your own name tag is hidden, as indoors
 const ashIndoors = () => !!ash && state.world === 'ashfall' && Math.abs(p.x - CITADEL.row.x) < CITADEL.vault.hw && p.z > CITADEL.z + 0.5 && p.z < CITADEL.back;
 function ashInCitadel(x, z, m){ m = m || 0; return x > CITADEL.x0 - 4 - m && x < CITADEL.x1 + 4 + m && z > CITADEL.z - 6 - m && z < CITADEL.back + 4 + m; }
+// a dead tree: a leaning trunk, crooked limbs and twigs; three shapes, each fixed by its own seed (shared by the core and the endless land)
+function ashTreeGeo(k){ const t = rng(1500 + k), H = 4.2 + t() * 2.4, parts = [new THREE.CylinderGeometry(0.1, 0.32, H, 8, 4).translate(0, H / 2, 0)];
+    { const pa = parts[0].attributes.position; for(let i = 0; i < pa.count; i++){ const y = pa.getY(i); pa.setX(i, pa.getX(i) + Math.sin(y * 0.9 + k) * 0.18 * y / H); } parts[0].computeVertexNormals(); }
+    const nb = 4 + Math.floor(t() * 3);
+    for(let b = 0; b < nb; b++){ const y = H * (0.45 + t() * 0.5), len = 1.0 + t() * 1.9, a = t() * TAU, tilt = 0.55 + t() * 0.7;
+      parts.push(new THREE.CylinderGeometry(0.025, 0.085, len, 5).translate(0, len / 2, 0).rotateZ(tilt).rotateY(a).translate(Math.sin(y * 0.9 + k) * 0.18 * y / H, y, 0));
+      const ex = -Math.sin(tilt) * len * Math.cos(a), ey = Math.cos(tilt) * len, ez = Math.sin(tilt) * len * Math.sin(a), l2 = len * (0.35 + t() * 0.3);
+      parts.push(new THREE.CylinderGeometry(0.012, 0.03, l2, 4).translate(0, l2 / 2, 0).rotateZ(tilt * (0.3 + t() * 0.9)).rotateY(a + 0.5 + t()).translate(ex + Math.sin(y * 0.9 + k) * 0.18 * y / H, y + ey, ez)); }
+    return merge(parts); }
 BUILD.ashfall = (r, n) => {
   buildTerrain({maxR:900, surf:{layers:[{surf:'ash', rep:3.2}, {surf:'lava', rep:3.5}, {surf:'darkrock', rep:6}, {surf:'ash', rep:3.2}], rules:{patch:[0.83, 0.95], slope:[0.2, 0.42]}},
     color:(x, y, z, sl) => { const v = n.fbm(x * 0.05, z * 0.05, 3) * 0.5 + 0.5; return [0.78 + 0.2 * v, 0.74 + 0.18 * v, 0.72 + 0.16 * v]; }});
@@ -10978,18 +10987,11 @@ BUILD.ashfall = (r, n) => {
     if(ashInCitadel(x, z) || Math.hypot(x, z + 26) < 9) continue; return [x, z]; } return null; };
   // dead trees: three bare shapes (a leaning trunk, crooked limbs, twigs), merged per shape and instanced
   const bark = surface('pinebark'), barkM = std(0x5a5250, {map:bark.map, normalMap:bark.normal, normalScale:new V2(0.8, 0.8), roughness:0.95});
-  const treeGeo = k => { const t = rng(1500 + k), H = 4.2 + t() * 2.4, parts = [new THREE.CylinderGeometry(0.1, 0.32, H, 8, 4).translate(0, H / 2, 0)];
-    { const pa = parts[0].attributes.position; for(let i = 0; i < pa.count; i++){ const y = pa.getY(i); pa.setX(i, pa.getX(i) + Math.sin(y * 0.9 + k) * 0.18 * y / H); } parts[0].computeVertexNormals(); }
-    const nb = 4 + Math.floor(t() * 3);
-    for(let b = 0; b < nb; b++){ const y = H * (0.45 + t() * 0.5), len = 1.0 + t() * 1.9, a = t() * TAU, tilt = 0.55 + t() * 0.7;
-      parts.push(new THREE.CylinderGeometry(0.025, 0.085, len, 5).translate(0, len / 2, 0).rotateZ(tilt).rotateY(a).translate(Math.sin(y * 0.9 + k) * 0.18 * y / H, y, 0));
-      const ex = -Math.sin(tilt) * len * Math.cos(a), ey = Math.cos(tilt) * len, ez = Math.sin(tilt) * len * Math.sin(a), l2 = len * (0.35 + t() * 0.3);
-      parts.push(new THREE.CylinderGeometry(0.012, 0.03, l2, 4).translate(0, l2 / 2, 0).rotateZ(tilt * (0.3 + t() * 0.9)).rotateY(a + 0.5 + t()).translate(ex + Math.sin(y * 0.9 + k) * 0.18 * y / H, y + ey, ez)); }
-    return merge(parts); };
+  const treeGeo = ashTreeGeo;
   const trees = [[], [], []];
   for(let i = 0; i < 70; i++){ const s = spot(12, 75); if(!s) continue; const k = i % 3, sc = 0.8 + q() * 0.6; trees[k].push(mat4(s[0], G(s[0], s[1]) - 0.15, s[1], (q() - 0.5) * 0.12, q() * TAU, (q() - 0.5) * 0.12, sc)); colliders.push({x:s[0], z:s[1], r:0.3 * sc}); }
   for(let i = 0; i < 90 + 220 * Q; i++){ const s = spot(75, 320); if(!s) continue; const k = i % 3, sc = 0.9 + q() * 0.9; trees[k].push(mat4(s[0], G(s[0], s[1]) - 0.2, s[1], (q() - 0.5) * 0.15, q() * TAU, (q() - 0.5) * 0.15, sc)); }
-  trees.forEach((L, k) => instanced(treeGeo(k), k ? barkM : barkM, L, null, true));
+  trees.forEach((L, k) => instanced(treeGeo(k), barkM, L, null, true));
   // ember stones: half-buried coals with a hot core and a glow, the dusk's only warm light near the ground
   const emberM = std(0x2a1a14, {emissive:C(0xff5a1a), emissiveIntensity:1.6, roughness:0.9}), coalM = std(0x1c1716, {roughness:0.95, map:detailTex, normalMap:detailNormal});
   const embers = [];
@@ -11006,6 +11008,36 @@ BUILD.ashfall = (r, n) => {
   const spts = new THREE.Points(sg, new THREE.PointsMaterial({map:glowTex, color:C(0xff8a3a), size:0.32, transparent:true, blending:THREE.AdditiveBlending, depthWrite:false, fog:false}));
   spts.frustumCulled = false; world.add(spts);
   buildCitadel({sparks:{geo:sg, base}});
+};
+// no boundaries (Goal 8a rule, Goal 14): past the Citadel's plain the ash goes on for ever in the same style, dead trees, coals and grit, over dark ridges
+ENDLESS.ashfall = {
+  core:335, home:R + 12, dreamOdds:0.1, dreamR:2,
+  words:'an endless ash plain at dusk with dead trees, smouldering coals and dark ridges',
+  dream:{kinds:['ruins', 'monoliths', 'tower', 'arch'], surface:'ash', time:'sunset'},
+  kit(){
+    const bark = surface('pinebark'), dr = surface('darkrock');
+    return { trees:[0, 1, 2].map(k => shareGeo(ashTreeGeo(k))), barkM:shareMat(std(0x5a5250, {map:bark.map, normalMap:bark.normal, normalScale:new V2(0.8, 0.8), roughness:0.95})),
+      coal:shareGeo(new THREE.DodecahedronGeometry(1, 0).scale(1, 0.6, 1)), coalM:shareMat(std(0x1c1716, {roughness:0.95, map:detailTex, normalMap:detailNormal})),
+      ember:shareGeo(new THREE.DodecahedronGeometry(0.7, 0)), emberM:shareMat(std(0x2a1a14, {emissive:C(0xff5a1a), emissiveIntensity:1.6, roughness:0.9})),
+      stoneM:shareMat(std(0x4a4442, {roughness:0.9, map:dr.map, normalMap:dr.normal, normalScale:new V2(0.8, 0.8)})) };
+  },
+  tiers:[
+    {name:'far', r:2, build(c, k){
+      const q = c.q, L = [[], [], []];
+      for(let i = 0; i < 9; i++){ const s = c.spot(2.4, {slope:0.9, tries:3, margin:1}); if(!s) continue; const sc = 0.8 + q() * 0.8, ti = Math.floor(q() * 3);
+        L[ti].push(mat4(s[0], G(s[0], s[1]) - 0.2, s[1], (q() - 0.5) * 0.14, q() * TAU, (q() - 0.5) * 0.14, sc)); c.local.push({x:s[0], z:s[1], r:0.5 * sc}); colliders.push({x:s[0], z:s[1], r:0.3 * sc}); }
+      L.forEach((l, ti) => { if(l.length) instanced(k.trees[ti], k.barkM, l); });
+      const rocks = []; for(let i = 0, n = Math.floor(q() * 3); i < n; i++){ const s = c.spot(2, {slope:0.8}); if(!s) continue; const sk = 0.7 + q() * 1.5; rocks.push(mat4(s[0], G(s[0], s[1]) - 0.1, s[1], q(), q() * TAU, q(), sk)); c.local.push({x:s[0], z:s[1], r:sk}); colliders.push({x:s[0], z:s[1], r:sk * 0.8}); }
+      if(rocks.length) instanced(k.coal, k.stoneM, rocks); }},
+    {name:'mid', r:2, build(c, k){
+      const q = c.q, coals = [], embers = [], glows = [];
+      for(let i = 0, n = 2 + Math.floor(q() * 4); i < n; i++){ const s = c.spot(1.2, {slope:0.6}); if(!s) continue; const y = G(s[0], s[1]), sk = 0.3 + q() * 0.5;
+        coals.push(mat4(s[0], y + sk * 0.2, s[1], q() * 3, q() * 3, q() * 3, sk)); embers.push(mat4(s[0] + sk * 0.25, y + sk * 0.1, s[1], q() * 3, q() * 3, 0, sk)); glows.push([s[0], y + 0.25, s[1], 1.6 + sk * 2.2, 0xff6a20]); c.local.push({x:s[0], z:s[1], r:sk}); }
+      if(coals.length){ instanced(k.coal, k.coalM, coals); instanced(k.ember, k.emberM, embers, null, false); }
+      for(let i = 0, n = Math.floor(q() * 8); i < n; i++){ const x = (c.cx + q()) * CHUNK, z = (c.cz + q()) * CHUNK; if(!c.skip(x, z)) glows.push([x, G(x, z) + 0.6 + q() * 4, z, 0.35, 0xff8a3a, 0.6, 0.9, q() * TAU]); }   // sparks
+      if(glows.length) glowCloud(glows, 0.4); }},
+    {name:'near', r:1, build(c, k){ cellPebbles(c, 60, 'darkrock', 0x8a8480); }}
+  ]
 };
 function buildCitadel(extra){
   ash = {g3:null}; const C0 = CITADEL, g = new THREE.Group(); world.add(g);
