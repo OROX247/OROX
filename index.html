@@ -8403,9 +8403,12 @@ function updatePickups(dt, time){
 
 /* ================= warp + board ================= */
 // Goal 10: once the Broadcast has played, the Ledger Board says the Hunt has begun
-function huntState(){ const el = $('#huntState'); if(!el) return; const on = state.archive.broadcast; el.classList.toggle('hunt-on', on);
-  const held = ['dunes', 'grid', 'sky'].filter(k => state.shards.has(k)).map(k => ({dunes:'amber', grid:'rose', sky:'cyan'})[k]);
-  el.textContent = (on ? 'The Hunt has begun. Three shards (amber, rose, cyan) open three gates on Ashfall; the Seed is behind the third. Every clue is in the Ashcombe Ledger.' : 'The Hunt has not begun for you yet. Walk into the Archive, south of the plaza.')
+function huntState(){ const el = $('#huntState'); if(!el) return; const on = state.archive.broadcast;
+  const held = ['dunes', 'grid', 'sky'].filter(k => state.shards.has(k)).map(k => ({dunes:'amber', grid:'rose', sky:'cyan'})[k]); el.classList.toggle('hunt-on', on || held.length > 0);
+  // holding a shard means you are on the Hunt, whether or not you have heard the Broadcast yet (never say "not begun" next to "you hold 1 of 3")
+  el.textContent = (on ? 'The Hunt has begun. Three shards (amber, rose, cyan) open three gates on Ashfall; the Seed is behind the third. Every clue is in the Ashcombe Ledger.'
+    : held.length ? 'You are on the Hunt already. Three shards open three gates on Ashfall; the Architect\'s broadcast and the Ledger wait in the Archive, south of the plaza.'
+    : 'The Hunt has not begun for you yet. Walk into the Archive, south of the plaza.')
     + (held.length ? ' You hold ' + held.length + ' of 3: ' + held.join(', ') + (state.shards.has('dunes') ? ' (Comet Rally, the last lap driven the wrong way round).' : '.') : ''); }
 const boardRng = rng(99);
 const BOARD = NPC_NAMES.slice(0, 11).map(nm => ({name:nm, shards:Math.floor(boardRng() * 2.6), xp:Math.floor(150 + boardRng() * 2300)}));
