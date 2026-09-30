@@ -397,8 +397,8 @@ body.bcast #hud, body.bcast #corner, body.bcast #roomCard, body.bcast #toast{ vi
 <div id="starling" class="overlay hidden" role="dialog" aria-label="Starling">
   <div class="rally-box">
     <canvas id="starCv" width="640" height="480"></canvas>
-    <div class="rally-touch"><button class="hbtn" data-k="L" aria-label="Fly left">&#9664;</button><button class="hbtn" data-k="F">Sing</button><button class="hbtn" data-k="R" aria-label="Fly right">&#9654;</button></div>
-    <div class="rally-bar"><span>Arrows or A/D fly · Space or Up sings · Enter starts · Esc leaves</span><button class="hbtn" id="starGo">Start</button><button class="ghost" id="starQuit">Leave</button></div>
+    <div class="rally-touch"><button class="hbtn" data-k="L" aria-label="Fly left">&#9664;</button><button class="hbtn" data-k="F">Light</button><button class="hbtn" data-k="R" aria-label="Fly right">&#9654;</button></div>
+    <div class="rally-bar"><span>Arrows or A/D steer · Space or Up throws light · Enter starts · Esc leaves</span><button class="hbtn" id="starGo">Start</button><button class="ghost" id="starQuit">Leave</button></div>
   </div>
 </div>
 <div id="gate1" class="overlay hidden" role="dialog" aria-labelledby="g1Title">
@@ -8710,7 +8710,7 @@ let archNear = null, archRoom = -1, cardTimer = 0;
 const ARCH_DOOR_OPEN = Math.PI - 0.1;
 const ledgerEl = $('#ledger'), regEl = $('#reg'), memoEl = $('#memo');
 function archiveUpdate(dt){
-  if(!archive || state.world !== 'hub'){ if(archNear){ archNear = null; $('#archBtn').style.display = 'none'; } if(me.tag) me.tag.visible = !pocketIn() && !driftSafe() && chimeNear == null; return; }   // indoors (the Hollow, The Drift, its hallway) your own name tag would fill the view
+  if(!archive || state.world !== 'hub'){ if(archNear){ archNear = null; $('#archBtn').style.display = 'none'; } if(me.tag) me.tag.visible = !pocketIn() && !driftSafe() && chimeNear == null && !ashIndoors(); return; }   // indoors (the Hollow, The Drift, its hallway) your own name tag would fill the view
   const A = ARCHIVE, px = p.x, pz = p.z, cp = camera.position;
   // the rooms are built the first time you come near (one a frame), so the Spaceport loads exactly as fast as before
   if(Math.hypot(px, pz - 77) < 60){ const k = archive.rooms.findIndex(R => !R.built); if(k >= 0) archiveBuildRoom(k); }
@@ -10955,6 +10955,8 @@ const CITADEL = {z:20, t:2.4, h:11, x0:-26, x1:26, back:68, gw:2.1, gh:6.2, spri
 // the Citadel stands on level ground; beyond it the plain rolls and far out it rises into dark ridges
 function ashFlat(x, z){ const C0 = CITADEL, dx = Math.max(C0.x0 - 6 - x, 0, x - C0.x1 - 6), dz = Math.max(C0.z - 8 - z, 0, z - C0.back - 6); return smooth(0, 12, Math.hypot(dx, dz)); }
 let ash = null, ashNear = null;
+// inside the Citadel (Lantern Row, the vault): your own name tag is hidden, as indoors
+const ashIndoors = () => !!ash && state.world === 'ashfall' && Math.abs(p.x - CITADEL.row.x) < CITADEL.vault.hw && p.z > CITADEL.z + 0.5 && p.z < CITADEL.back;
 function ashInCitadel(x, z, m){ m = m || 0; return x > CITADEL.x0 - 4 - m && x < CITADEL.x1 + 4 + m && z > CITADEL.z - 6 - m && z < CITADEL.back + 4 + m; }
 BUILD.ashfall = (r, n) => {
   buildTerrain({maxR:900, surf:{layers:[{surf:'ash', rep:3.2}, {surf:'lava', rep:3.5}, {surf:'darkrock', rep:6}, {surf:'ash', rep:3.2}], rules:{patch:[0.83, 0.95], slope:[0.2, 0.42]}},
@@ -11140,7 +11142,7 @@ function ashUpdate(dt, time){
   }
   if(near !== ashNear){ ashNear = near; const b = $('#ashBtn'); b.style.display = near ? '' : 'none'; b.textContent = near === 'g0' ? 'Recite' : near === 'g1' ? 'Play Starling' : near === 'pile' ? 'Take the credits' : near === 'vault' ? 'Set the shards' : '';
     if(near === 'g0' && !ash.told0){ ash.told0 = true; toast('The First Gate. A voice from the stones: "Say it back to me, line by line." Press E.', 4200); }
-    if(near === 'g1' && !ash.told1){ ash.told1 = true; toast(gateOpen(0) ? 'The Second Gate. A cabinet stands in the arch: STARLING. Beat 31,550. Press E.' : 'The Second Gate. It will not wake until the First is open.', 4200); } }
+    if(near === 'g1' && !ash.told1){ ash.told1 = true; toast(gateOpen(0) ? 'The Second Gate. A screen hangs on its portcullis: STARLING, 1ST MQ 31,550. Beat it. Press E.' : 'The Second Gate. It will not wake until the First is open.', 4200); } }
 }
 function ashAct(){
   if(ashNear === 'g0') return typeof openGate1 === 'function' ? openGate1() : null;
@@ -11202,18 +11204,67 @@ function g1Answer(i, how){
   gate1.opts = g1Options(); if(gate1.open) g1Draw('Yes.'); gate1.last = {how, right:true, round:gate1.round}; return Object.assign({}, gate1.last, {open:false});
 }
 $('#g1Close').addEventListener('click', closeGate1);
-/* Starling (Goal 14, Gate Two): Mara Quist's game, invented for Hub. A starling flies along the harbour wall at dusk and sings notes up at the gloom moths,
-   which come down over Fennick Bay in weaving flocks. A moth that reaches the harbour puts out one of your three lanterns; so does a flake of soot that hits you.
-   Hits in a row build the chorus (x1 to x5); clearing a whole flock pays a bonus. The round lasts until the lanterns are out or the tide turns (150 s).
+/* Gate Three (the Third Gate, cyan): Lantern Row as the Architect remembered it (the Archive's room 1 and the milk jar). At No. 9 a jar of coins and a pile
+   of credits wait on the step. The clue (HUNT_CLUES.gate3, the milk jar's note, the Ledger): "What is left out for everyone is not left out for you."
+   Taking them fails and the memory starts again at the gate; walking on past them opens the Third Gate. One rule, g3Step, for the played walk and gate3.walk(). */
+const G3_PILE_U = CITADEL.row.pile - CITADEL.row.z0, G3_PAST_U = CITADEL.row.past - CITADEL.row.z0;
+function g3New(){ return {state:'walking', u:0, maxU:0, took:false}; }
+function g3Step(S, act){
+  if(S.state !== 'walking') return S.state;
+  if(act.take){ S.took = true; S.state = 'took'; return S.state; }
+  S.u = act.u; S.maxU = Math.max(S.maxU, act.u); if(S.maxU >= G3_PAST_U) S.state = 'left';
+  return S.state;
+}
+function g3Result(S, how){
+  state.hunt.g3Tries++; let opened = false;
+  if(S.state === 'took'){ sfx('thud'); persist();
+    toast('The coins go cold in your hand and the street goes dark. "Not for the arcade, Lyle." The memory starts again at the gate.', 5200); }
+  else if(S.state === 'left'){ opened = openGateN(2, 'You walked on past the jar and left every coin where it lay.'); ashSync(false); }
+  const r = {how, result:S.state, u:+S.u.toFixed(1), took:S.took, opened, thirdOpen:gateOpen(2)}; if(ash) ash.g3last = r; return r;
+}
+// the memory resets: the pile back on the step, you back inside the gate (played only), a fresh walk
+function g3Reset(move){
+  if(!ash) return; ash.g3 = g3New(); ashSync(false);
+  if(move && state.world === 'ashfall' && !traveling){ traveling = true; fadeEl.classList.add('on');
+    setTimeout(() => { try{ p.x = CITADEL.row.x; p.z = CITADEL.row.z0 + 0.8; p.y = G(p.x, p.z); p.vx = p.vy = p.vz = 0; p.speed = 0; cam.yaw = Math.PI; p.facing = 0; snapCamera(); clipCamera(); } finally { fadeEl.classList.remove('on'); traveling = false; } }, 700); }
+}
+function g3Take(how){
+  if(gateOpen(2)) return {already:true, thirdOpen:true};
+  if(!ash.g3) ash.g3 = g3New();
+  const S = ash.g3; g3Step(S, {take:true}); const r = g3Result(S, how); g3Reset(how === 'played'); return r;
+}
+// called from ashUpdate every frame you stand in the street; returns 'pile' when you are close enough to take the credits
+function g3Tick(){
+  if(gateOpen(2) || !ash) return null;
+  if(!ash.g3) ash.g3 = g3New();
+  const u = p.z - CITADEL.row.z0;
+  if(!ash.toldRow && u > 0.5){ ash.toldRow = true; toast('Lantern Row, the way he remembered it: cobbles, lanterns, the house with the light in the window. Walk to No. 9.', 4800); }
+  const st = g3Step(ash.g3, {u}); if(st === 'left'){ g3Result(ash.g3, 'played'); return null; }
+  if(Math.hypot(p.x - (CITADEL.row.x + CITADEL.row.hw - 0.45), p.z - CITADEL.row.pile) < 1.9){ if(!ash.toldPile){ ash.toldPile = true; toast('On the step of No. 9: a jar of coins and a heap of credits, left out in the open. E takes them.', 4600); } return 'pile'; }
+  return null;
+}
+// the headless walk: 'take' walks to the pile and takes it; 'leave' walks on past it. Same g3Step as the played walk.
+function g3Walk(policy){
+  if(['take', 'leave'].indexOf(policy) < 0) return {error:'unknown policy', policies:['take', 'leave']};
+  if(!(gateOpen(0) && gateOpen(1))) return {error:'the Third Gate is shut until the First and Second are open', thirdOpen:false};
+  if(gateOpen(2)) return {already:true, thirdOpen:true};
+  const S = g3New(); for(let u = 0; u <= (policy === 'take' ? G3_PILE_U : G3_PAST_U + 0.5) && S.state === 'walking'; u += 0.25) g3Step(S, {u});
+  if(policy === 'take'){ g3Step(S, {take:true}); const r = g3Result(S, 'walk'); g3Reset(false); return Object.assign({policy}, r); }
+  return Object.assign({policy}, S.state === 'left' ? g3Result(S, 'walk') : {result:S.state});
+}
+/* Starling (Goal 14, Gate Two): the game Lyle wrote for Mara's birthday (the Ledger's "Two games": one screen, one ship, the birds come down in waves of eleven).
+   Invented for Hub. Your little lantern ship rides the harbour at dusk and throws lamplight up at the starlings, which come down over Fennick Bay in weaving
+   murmurations of eleven. A bird that reaches the harbour costs a ship; so does a piece of the grit they drop. Hits in a row build the chorus (x1 to x5);
+   clearing a whole flock pays a bonus. The round lasts until your three ships are gone or the tide turns (150 s).
    One pure step function (starStep) runs the played game and starling.simulate(policy); starResult scores both. The gate opens above 31,550 (MQ's score). */
 const STAR = {W:640, H:480, dt:1 / 60, birdY:438, birdV:330, noteV:560, cool:0.15, maxNotes:3, lives:3, cap:150, harbour:436, target:31550, seed:5150};
 function starNew(seed){
   return {t:0, q:rng(seed == null ? STAR.seed : seed), x:STAR.W / 2, notes:[], moths:[], soot:[], score:0, chorus:1, streak:0, lives:STAR.lives, wave:0, next:1.2, cool:0, inv:0, done:false, why:null, hits:0, shots:0, flocks:0, events:[]};
 }
 function starWave(S){
-  S.wave++; const q = S.q, n = Math.min(14, 7 + S.wave), cx = 120 + q() * 400, A = 60 + q() * 110, w = 0.9 + q() * 0.9, vy = 24 + S.wave * 3.2, id = S.wave, dir = q() < 0.5 ? -1 : 1;
+  S.wave++; const q = S.q, n = 11, cx = 120 + q() * 400, A = 60 + q() * 110, w = 0.9 + q() * 0.9, vy = 22 + S.wave * 2, id = S.wave, dir = q() < 0.5 ? -1 : 1;
   for(let i = 0; i < n; i++) S.moths.push({flock:id, cx, A, w, vy, ph:i * 0.42 * dir, y0:-20 - i * 26, t:0, x:cx, y:-20 - i * 26, drop:1.5 + q() * 4});
-  S.flockLeft = S.flockLeft || {}; S.flockLeft[id] = n; S.next = Math.max(4.5, 9 - S.wave * 0.35);
+  S.flockLeft = S.flockLeft || {}; S.flockLeft[id] = n; S.next = Math.max(5.5, 9 - S.wave * 0.25);
 }
 // one fixed step. input: {mx: -1..1 (left/right), fire: bool}
 function starStep(S, inp, dt){
@@ -11230,14 +11281,14 @@ function starStep(S, inp, dt){
       if(--S.flockLeft[m.flock] === 0){ S.score += 400 * m.flock; S.flocks++; ev.push('flock'); } else ev.push('hit'); continue; }
     if(n.y < -10){ S.notes.splice(i, 1); S.streak = 0; S.chorus = 1; } }
   for(let i = S.soot.length - 1; i >= 0; i--){ const s = S.soot[i]; s.y += 170 * dt; s.x += Math.sin(S.t * 3 + s.y * 0.03) * 20 * dt;
-    if(S.inv <= 0 && Math.abs(s.x - S.x) < 12 && Math.abs(s.y - STAR.birdY) < 11){ starLose(S, 'soot'); break; }
+    if(S.inv <= 0 && Math.abs(s.x - S.x) < 12 && Math.abs(s.y - STAR.birdY) < 11){ starLose(S, 'grit'); break; }
     if(s.y > STAR.H + 10) S.soot.splice(i, 1); }
   for(let j = S.moths.length - 1; j >= 0; j--){ const m = S.moths[j]; if(m.y > STAR.harbour){ S.moths.splice(j, 1); S.flockLeft[m.flock]--; starLose(S, 'harbour'); } }
-  if(S.lives <= 0){ S.done = true; S.why = 'lanterns'; } else if(S.t >= STAR.cap){ S.done = true; S.why = 'tide'; }
+  if(S.lives <= 0){ S.done = true; S.why = 'ships'; } else if(S.t >= STAR.cap){ S.done = true; S.why = 'tide'; }
   return S;
 }
-function starLose(S, why){ S.lives--; S.streak = 0; S.chorus = 1; S.inv = 1.5; S.events.push(why); if(why === 'soot') S.soot.length = 0; }
-// scripted players for the headless check: 'win' chases the lowest moth and dodges soot; 'lose' sits still and never sings; 'wild' sings without aiming
+function starLose(S, why){ S.lives--; S.streak = 0; S.chorus = 1; S.inv = 1.5; S.events.push(why); if(why === 'grit') S.soot.length = 0; }
+// scripted players for the headless check: 'win' chases the lowest bird and dodges grit; 'lose' sits still and never fires; 'wild' fires without aiming
 function starBot(S, policy){
   if(policy === 'lose') return {mx:0, fire:false};
   if(policy === 'wild') return {mx:Math.sin(S.t * 0.7), fire:true};
@@ -11251,7 +11302,7 @@ function starResult(S, how){
   if(S.reported) return S.summary; S.reported = true;
   const best = S.score > state.hunt.starBest; if(best) state.hunt.starBest = S.score;
   const beat = S.score > STAR.target; let opened = false;
-  if(beat && gateOpen(0)) opened = openGateN(1, 'Score ' + S.score.toLocaleString('en-GB') + '. You flew better than MQ.');   // the gates open in order: the Second only after the First
+  if(beat && gateOpen(0)) opened = openGateN(1, 'Score ' + S.score.toLocaleString('en-GB') + '. Better than MQ\'s 31,550.');   // the gates open in order: the Second only after the First
   else if(beat && how !== 'simulate') toast('Score ' + S.score.toLocaleString('en-GB') + ', better than MQ, but the Second Gate sleeps until the First is open.', 4200);
   else if(how !== 'simulate') toast('Score ' + S.score.toLocaleString('en-GB') + '. The cabinet flashes: MQ 31,550. The Second Gate stays shut.', 4200);
   persist(); huntState();
@@ -11275,20 +11326,19 @@ function drawStarling(cv, S, time){
   STAR_SKY.forEach(s => { x.globalAlpha = s[3] * (0.7 + 0.3 * Math.sin(time * 1.7 + s[0])); x.fillStyle = '#fff4e0'; x.fillRect(s[0], s[1], s[2], s[2]); }); x.globalAlpha = 1;
   x.fillStyle = '#231a33'; x.fillRect(0, 400, STAR.W, 80); for(let i = 0; i < 9; i++){ x.fillStyle = 'rgba(255,170,110,' + (0.08 + 0.05 * Math.sin(time * 2 + i)) + ')'; x.fillRect(40 + i * 66 + Math.sin(time + i) * 6, 410 + (i % 3) * 7, 30, 2); }
   x.fillStyle = '#120d1c'; x.fillRect(0, 452, STAR.W, 28);
-  const lives = S ? S.lives : STAR.lives; for(let i = 0; i < STAR.lives; i++){ const lx = 250 + i * 70, on = i < lives; x.fillStyle = '#2a2230'; x.fillRect(lx - 2, 452, 4, -18);
-    if(on){ const g = x.createRadialGradient(lx, 430, 0, lx, 430, 18); g.addColorStop(0, 'rgba(255,210,140,0.95)'); g.addColorStop(1, 'rgba(255,160,80,0)'); x.fillStyle = g; x.beginPath(); x.arc(lx, 430, 18, 0, TAU); x.fill(); }
-    x.fillStyle = on ? '#ffd08a' : '#3a3040'; x.fillRect(lx - 5, 424, 10, 12); }
   const txt = (s, px, py, size, col, al) => { x.font = 'bold ' + size + 'px "Chakra Petch","Trebuchet MS",sans-serif'; x.textAlign = al || 'left'; x.fillStyle = 'rgba(0,0,0,0.55)'; x.fillText(s, px + 2, py + 2); x.fillStyle = col; x.fillText(s, px, py); };
-  const moth = (mx, my, flap, a) => { x.save(); x.translate(mx, my); x.globalAlpha = a; const f = 0.55 + 0.45 * Math.abs(Math.sin(flap));
-    x.fillStyle = '#1a1422'; x.beginPath(); x.ellipse(-8, 0, 9 * f, 7, -0.3, 0, TAU); x.ellipse(8, 0, 9 * f, 7, 0.3, 0, TAU); x.fill();
-    x.strokeStyle = 'rgba(214,200,240,0.55)'; x.lineWidth = 1.2; x.beginPath(); x.ellipse(-8, 0, 9 * f, 7, -0.3, 0, TAU); x.stroke(); x.beginPath(); x.ellipse(8, 0, 9 * f, 7, 0.3, 0, TAU); x.stroke();
-    x.fillStyle = '#0a0810'; x.fillRect(-1.5, -6, 3, 12); x.globalAlpha = 1; x.restore(); };
-  const bird = (bx, by, t, blink) => { if(blink) return; x.save(); x.translate(bx, by); const w = Math.sin(t * 14) * 5;
-    x.fillStyle = '#15121c'; x.beginPath(); x.moveTo(-15, 2 + w); x.quadraticCurveTo(-6, -6, 0, -2); x.quadraticCurveTo(6, -6, 15, 2 + w); x.quadraticCurveTo(6, 2, 0, 6); x.quadraticCurveTo(-6, 2, -15, 2 + w); x.fill();
-    x.beginPath(); x.ellipse(0, -1, 4, 8, 0, 0, TAU); x.fill(); x.fillStyle = '#ffcf5a'; x.beginPath(); x.moveTo(-1.5, -9); x.lineTo(0, -14); x.lineTo(1.5, -9); x.fill();
-    x.fillStyle = 'rgba(140,220,200,0.8)'; [[-7, 0], [6, 0], [-3, 3], [3, -1]].forEach(d => x.fillRect(d[0], d[1], 1.4, 1.4)); x.restore(); };
-  if(!S){ for(let i = 0; i < 9; i++) moth(120 + i * 50 + Math.sin(time + i) * 20, 150 + Math.sin(time * 1.3 + i * 0.8) * 30, time * 8 + i, 0.9);
-    txt('STARLING', 320, 250, 60, '#ffd08a', 'center'); txt('A GAME BY M. QUIST', 320, 280, 15, '#d8c8f0', 'center');
+  // a starling seen from below, wings beating, a glint of green-violet on the feathers; the ship: a little hull, a sail, a lantern at the masthead
+  const moth = (mx, my, flap, a) => { x.save(); x.translate(mx, my); x.globalAlpha = a; const w = Math.sin(flap) * 6;
+    x.fillStyle = '#15121c'; x.beginPath(); x.moveTo(-14, -2 + w); x.quadraticCurveTo(-6, -6, 0, -3); x.quadraticCurveTo(6, -6, 14, -2 + w); x.quadraticCurveTo(6, 1, 0, 5); x.quadraticCurveTo(-6, 1, -14, -2 + w); x.fill();
+    x.beginPath(); x.ellipse(0, 0, 3.5, 7, 0, 0, TAU); x.fill(); x.beginPath(); x.moveTo(-3, 6); x.lineTo(0, 10); x.lineTo(3, 6); x.fill();
+    x.fillStyle = 'rgba(150,220,190,0.75)'; [[-7, -2], [6, -2], [-2, 2], [2, -1]].forEach(d => x.fillRect(d[0], d[1], 1.3, 1.3)); x.globalAlpha = 1; x.restore(); };
+  const ship = (bx, by, k, t) => { x.save(); x.translate(bx, by); x.scale(k, k); x.fillStyle = '#2a1a14'; x.beginPath(); x.moveTo(-18, -4); x.lineTo(18, -4); x.lineTo(12, 6); x.lineTo(-12, 6); x.closePath(); x.fill();
+    x.fillStyle = '#e8dcc0'; x.beginPath(); x.moveTo(1, -6); x.lineTo(1, -30); x.lineTo(14, -8); x.closePath(); x.fill(); x.fillStyle = '#c8b898'; x.beginPath(); x.moveTo(-1, -8); x.lineTo(-1, -26); x.lineTo(-11, -8); x.closePath(); x.fill();
+    const g = x.createRadialGradient(0, -33, 0, 0, -33, 9); g.addColorStop(0, '#fff3c8'); g.addColorStop(1, 'rgba(255,190,90,0)'); x.fillStyle = g; x.beginPath(); x.arc(0, -33, 9, 0, TAU); x.fill(); x.restore(); };
+  const bird = (bx, by, t, blink) => { if(!blink) ship(bx, by + 14, 1, t); };
+  const lives = S ? S.lives : STAR.lives; for(let i = 0; i < STAR.lives; i++){ const lx = 560 + i * 24, on = i < lives; x.globalAlpha = on ? 1 : 0.25; ship(lx, 468, 0.55, 0); x.globalAlpha = 1; }
+  if(!S){ for(let i = 0; i < 11; i++) moth(120 + i * 50 + Math.sin(time + i) * 20, 150 + Math.sin(time * 1.3 + i * 0.8) * 30, time * 8 + i, 0.9);
+    txt('STARLING', 320, 250, 60, '#ffd08a', 'center'); txt('BY L. ASHCOMBE, FOR MARA', 320, 280, 15, '#d8c8f0', 'center');
     if(Math.sin(time * 4) > 0) txt('PRESS START', 320, 320, 22, '#ffffff', 'center');
     txt('1ST  MQ  31,550', 320, 350, 15, '#5ce1e6', 'center'); txt('YOUR BEST  ' + state.hunt.starBest.toLocaleString('en-GB'), 320, 372, 13, '#c9c3e6', 'center');
     bird(320, STAR.birdY, time, false); return; }
@@ -11300,7 +11350,7 @@ function drawStarling(cv, S, time){
   txt('SCORE ' + S.score.toLocaleString('en-GB'), 14, 26, 18, '#ffffff'); txt('CHORUS x' + S.chorus, 14, 48, 14, S.chorus > 1 ? '#ffd08a' : '#9f98c0');
   txt('BEAT MQ 31,550', 626, 26, 14, S.score > STAR.target ? '#9dff6a' : '#5ce1e6', 'right'); txt('TIDE ' + Math.max(0, Math.ceil(STAR.cap - S.t)), 626, 46, 13, '#c9c3e6', 'right');
   if(S.done){ x.fillStyle = 'rgba(12,8,22,0.8)'; x.fillRect(120, 170, 400, 150); const win = S.score > STAR.target;
-    txt(win ? 'YOU OUTFLEW MQ' : S.why === 'tide' ? 'THE TIDE TURNS' : 'THE LANTERNS ARE OUT', 320, 214, 28, win ? '#ffd08a' : '#ffffff', 'center');
+    txt(win ? 'YOU BEAT MQ' : S.why === 'tide' ? 'THE TIDE TURNS' : 'NO SHIPS LEFT', 320, 214, 28, win ? '#ffd08a' : '#ffffff', 'center');
     txt('SCORE ' + S.score.toLocaleString('en-GB'), 320, 250, 18, '#d8c8f0', 'center'); txt(win ? 'THE SECOND GATE IS OPEN' : 'FLY AGAIN', 320, 286, 20, win ? '#9dff6a' : '#ff9ad5', 'center');
     txt('START: FLY AGAIN   ESC: LEAVE', 320, 310, 11, '#8890b8', 'center'); }
 }
@@ -11493,8 +11543,11 @@ Object.defineProperties(window.__hub, {
     else if(v === 'pile') at(C0.row.x + 1.2, C0.row.pile - 0.5, Math.PI, 4.5); else if(v === 'vault') at(C0.vault.x, C0.vault.door - 3, Math.PI, 5);
     ashUpdate(0, clock.elapsedTime); return {x:+p.x.toFixed(2), z:+p.z.toFixed(2), near:ashNear}; }},
   ashUpdate:{value:dt => ashUpdate(dt || 0.05, clock.elapsedTime)},
+  gate3:{value:{walk:policy => g3Walk(policy), take:() => g3Take('hook'), get state(){ return ash && ash.g3 ? Object.assign({}, ash.g3) : null; }, get last(){ return ash && ash.g3last ? Object.assign({}, ash.g3last) : null; },
+    pileU:G3_PILE_U, pastU:G3_PAST_U, get tries(){ return state.hunt.g3Tries; }, get pileShown(){ return !!(ash && ash.pile && ash.pile.visible); }, clue:HUNT_CLUES.gate3}},
   starling:{value:{simulate:(policy, o) => starSimulate(policy, o), open:() => openStarling(), close:() => closeStarling(), start:() => { if(!starling.open) openStarling(); starStart(); return true; }, target:STAR.target,
     get state(){ const S = starling.S; return S ? {score:S.score, t:+S.t.toFixed(1), lives:S.lives, wave:S.wave, done:S.done, why:S.why} : null; }, get last(){ return starling.last && Object.assign({}, starling.last); }, get isOpen(){ return starling.open; }, get best(){ return state.hunt.starBest; },
+
     step:(policy, n) => { const S = starling.S; if(!S) return null; for(let i = 0; i < (n || 60) && !S.done; i++){ starStep(S, starBot(S, policy || 'win'), STAR.dt); S.events.length = 0; } if(S.done) starResult(S, 'played'); return {score:S.score, done:S.done}; }}}
 });
 })();
