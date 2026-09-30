@@ -3154,7 +3154,7 @@ function mat4(x, y, z, rx, ry, rz, sx, sy, sz){
   _o.scale.set(S, sy == null ? S : sy, sz == null ? S : sz); _o.updateMatrix(); return _o.matrix.clone();
 }
 function instanced(geo, mat, mats, colors, cast){
-  if(!mats.length){ geo.dispose(); mat.dispose(); return null; }
+  if(!mats.length){ if(!(typeof SHARED_GEO !== 'undefined' && SHARED_GEO.has(geo))) geo.dispose(); if(!mat.userData.shared) mat.dispose(); return null; }
   const m = new THREE.InstancedMesh(geo, mat, mats.length);
   mats.forEach((mm, i) => { m.setMatrixAt(i, mm); if(colors) m.setColorAt(i, colors[i]); });
   m.instanceMatrix.needsUpdate = true; if(m.instanceColor) m.instanceColor.needsUpdate = true;
@@ -3168,7 +3168,7 @@ let lods = [], lodScale = 1;   // lodScale multiplies every switch distance (a t
 function lodMesh(hi, lo, centre, d, h){ lo.visible = false; const e = {kind:'mesh', hi, lo, c:centre, d, h, far:false, grp:hi.parent}; lods.push(e); lodStep(e, camWorld); return e; }
 function lodInstanced(hiGeo, loGeo, mat, mats, cols, d, h, o){
   o = o || {}; const n = mats.length, grp = buildParent || world;
-  if(!n){ hiGeo.dispose(); loGeo.dispose(); mat.dispose(); return null; }
+  if(!n){ if(!SHARED_GEO.has(hiGeo)) hiGeo.dispose(); if(!SHARED_GEO.has(loGeo)) loGeo.dispose(); if(!mat.userData.shared) mat.dispose(); return null; }
   const mk2 = g => { const m = new THREE.InstancedMesh(g, mat, n); m.castShadow = o.cast !== false; m.receiveShadow = true; m.frustumCulled = false; if(o.noAO) m.userData.noAO = true; if(o.depth) m.customDepthMaterial = o.depth;
     if(cols) m.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(n * 3), 3); grp.add(m); return m; };
   const e = {kind:'inst', hi:mk2(hiGeo), lo:mk2(loGeo), mats, cols, pos:mats.map(M => new V3().setFromMatrixPosition(M)), d, h, far:new Uint8Array(n), n, grp};
@@ -5701,7 +5701,7 @@ function addClutterAt(q, cx, cz, o){
 let weedGeoCache = null, weedMatCache = null;
 function weedGeo(){ if(weedGeoCache) return weedGeoCache; const geo = new THREE.BufferGeometry(), w = 0.3, pos = [], uv = [], nor = [], idx = [];
   [[1, 0, 0], [0, 0, 1]].forEach((d, k) => { const oo = k * 4; pos.push(-d[0] * w, 0, -d[2] * w, d[0] * w, 0, d[2] * w, d[0] * w, 0.6, d[2] * w, -d[0] * w, 0.6, -d[2] * w); uv.push(0, 0, 1, 0, 1, 1, 0, 1); nor.push(0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0); idx.push(oo, oo + 1, oo + 2, oo, oo + 2, oo + 3); });
-  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); geo.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3)); geo.setIndex(idx); return (weedGeoCache = geo); }
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); geo.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3)); geo.setIndex(idx); SHARED_GEO.add(geo); return (weedGeoCache = geo); }
 function weedMaterial(){ if(weedMatCache) return weedMatCache; const mat = std(0xffffff, {map:weedTexture(), alphaTest:0.4, side:THREE.DoubleSide, roughness:0.85});
   mat.onBeforeCompile = sh => { sh.fragmentShader = sh.fragmentShader.replace('#include <normal_fragment_begin>', 'float faceDirection = gl_FrontFacing ? 1.0 : - 1.0; vec3 normal = normalize( vNormal ); vec3 geometryNormal = normal;'); }; mat.customProgramCacheKey = () => 'weed'; mat.userData.shared = true; return (weedMatCache = mat); }
 function addMushroomsAt(q, at, count, glowing){
@@ -5817,12 +5817,13 @@ function saveDreams(){ try{ for(const k in dreamStore){ const o = dreamStore[k],
 let glowCloudMat = null;
 function glowCloud(list, op){
   if(!list.length) return null;
-  if(!glowCloudMat) glowCloudMat = shareMat(new THREE.ShaderMaterial({uniforms:{map:{value:glowTex}, scale:{value:1}}, transparent:true, depthWrite:false, blending:THREE.AdditiveBlending, vertexColors:true,
-    vertexShader:'attribute float size; attribute float op; varying vec3 vC; varying float vO; uniform float scale; void main(){ vC = color; vO = op; vec4 mv = modelViewMatrix * vec4(position, 1.0); gl_PointSize = size * scale / -mv.z; gl_Position = projectionMatrix * mv; }',
+  if(!glowCloudMat) glowCloudMat = shareMat(new THREE.ShaderMaterial({uniforms:{map:{value:glowTex}, scale:{value:1}, time:uTime}, transparent:true, depthWrite:false, blending:THREE.AdditiveBlending, vertexColors:true,
+    vertexShader:'attribute float size; attribute float op; attribute float drift; attribute float ph; varying vec3 vC; varying float vO; uniform float scale; uniform float time; void main(){ vC = color; vO = op; vec3 p = position + drift * vec3(sin(time * 0.7 + ph), 0.45 * sin(time * 1.3 + ph * 2.0), cos(time * 0.6 + ph)); vec4 mv = modelViewMatrix * vec4(p, 1.0); gl_PointSize = size * scale / -mv.z; gl_Position = projectionMatrix * mv; }',
     fragmentShader:'uniform sampler2D map; varying vec3 vC; varying float vO; void main(){ vec4 t = texture2D(map, gl_PointCoord); gl_FragColor = vec4(vC * t.rgb, t.a * vO); }'}));
-  const pos = [], col = [], sz = [], opa = [];
-  list.forEach(g => { pos.push(g[0], g[1], g[2]); const c = C(g[4]); col.push(c.r, c.g, c.b); sz.push(g[3]); opa.push(g[5] == null ? op : g[5]); });
+  const pos = [], col = [], sz = [], opa = [], dr = [], ph = [];
+  list.forEach(g => { pos.push(g[0], g[1], g[2]); const c = C(g[4]); col.push(c.r, c.g, c.b); sz.push(g[3]); opa.push(g[5] == null ? op : g[5]); dr.push(g[6] || 0); ph.push(g[7] || 0); });
   const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); geo.setAttribute('color', new THREE.Float32BufferAttribute(col, 3)); geo.setAttribute('size', new THREE.Float32BufferAttribute(sz, 1)); geo.setAttribute('op', new THREE.Float32BufferAttribute(opa, 1));
+  geo.setAttribute('drift', new THREE.Float32BufferAttribute(dr, 1)); geo.setAttribute('ph', new THREE.Float32BufferAttribute(ph, 1));
   const pts = new THREE.Points(geo, glowCloudMat); pts.frustumCulled = false; (buildParent || world).add(pts); return pts;
 }
 const cellInCore = (cx, cz, core) => Math.hypot(Math.max(Math.abs(cx * CHUNK), Math.abs((cx + 1) * CHUNK)), Math.max(Math.abs(cz * CHUNK), Math.abs((cz + 1) * CHUNK))) < core;
@@ -5855,7 +5856,7 @@ function cellCtx(E, c, tier){
   return { cx, cz, q, local, tier, E, key:c.key, core:S.core, cell:c, clearOf,
     spot(clear, o){ o = o || {}; const m = (o.margin || 2.4) / CHUNK;
       for(let t = 0; t < (o.tries || 24); t++){ const x = (cx + m + q() * (1 - 2 * m)) * CHUNK, z = (cz + m + q() * (1 - 2 * m)) * CHUNK;
-        if(Math.hypot(x, z) < S.core + clear) continue; if(o.slope != null && slopeAt(x, z) > o.slope) continue; if(o.ok && !o.ok(x, z)) continue; if(!clearOf(x, z, clear)) continue; return [x, z]; }
+        if(Math.hypot(x, z) < S.core + clear) continue; if(!clearOf(x, z, clear)) continue; if(o.ok && !o.ok(x, z)) continue; if(o.slope != null && slopeAt(x, z) > o.slope) continue; return [x, z]; }
       return null; },
     free(x, z, clear){ return Math.hypot(x, z) >= S.core + clear && clearOf(x, z, clear); },
     skip:(x, z) => Math.hypot(x, z) < S.core };
