@@ -11861,11 +11861,14 @@ function dgFrame(dt){
   const src = dg.test ? 'test' : dg.live ? 'decart' : 'off'; dg.kind = src;
   if(dg.Lw !== state.world){ dg.Lw = state.world; dg.L = dgLayersFor(state.world); }
   const L = dg.L, can = src !== 'off' && post.on && !vr.on && !ai.on && !!dg.layer;
-  let owner = null, prompt = null;
+  let owner = null, prompt = null, portalQ = null, hue = 195;
   if(can){
-    if(L.far && !dg.qDrop){ owner = 'far'; prompt = dgPromptFor(state.world); }
+    // one stream at a time: the nearest portal within 20 m (dreaming its destination), else the realm's far layer
+    if(L.portals && !dg.qDrop && !pocketIn()){ let best = 20; for(const q of portals){ const d = Math.hypot(p.x - q.x, p.z - q.z); if(d < best){ best = d; portalQ = q; } }
+      if(portalQ){ owner = 'portal:' + portalQ.to; prompt = dgPromptFor(portalQ.to); hue = Math.round(new THREE.Color(portalQ.col).getHSL({}).h * 360); } }
+    if(!owner && L.far && !dg.qDrop){ owner = 'far'; prompt = dgPromptFor(state.world); }
   }
-  if(owner !== dg.owner){ dg.owner = owner; dg.hue = 195; if(owner) dgSetPrompt(prompt); }
+  if(owner !== dg.owner){ dg.owner = owner; dg.hue = hue; if(owner) dgSetPrompt(prompt); }
   if(src === 'test' && owner && !dg.pause){ const now = performance.now(); if(now - dg.testLast >= 30){ dg.testLast = now; dg.frames++; dgTestDraw(); dg.fresh = true; } }
   if(src === 'decart' && dg.poll && dg.vid.readyState >= 2){ const now = performance.now(); if(now - dg.capLast >= 1000 / dg.fps){ dg.vidTex.needsUpdate = true; dg.fresh = true; dg.frames++; } }
   dg.tex = src === 'test' ? dg.testTex : src === 'decart' ? dg.vidTex : null;
@@ -11876,6 +11879,11 @@ function dgFrame(dt){
   dg.fresh = false;
   dg.active.far = far;
   dgPasses(far);
+  // layer 3: the owning portal's disc shows the stream, tinted to its destination's colour; the others (and every disc without a source) stay the old swirl
+  const pOn = ready && L.portals && !dg.qDrop; dg.active.portals = pOn && !!portalQ;
+  for(const q of portals){ const u = q.disc.material.uniforms, want = pOn && q === portalQ ? 1 : 0; let v = u.dream.value;
+    if(v !== want){ v += (want - v) * Math.min(1, dt * 4); if(want === 0 && v < 0.01) v = 0; if(want === 1 && v > 0.99) v = 1; u.dream.value = v; }
+    u.map.value = v > 0 ? dg.tex : null; }
 }
 // after the frame is on the canvas: hand it to the Decart stream at the model's frame rate
 function dgAfter(){
@@ -11914,6 +11922,7 @@ function dgRender(){ if(post.on && !vr.on && !ai.on){ updateSun(); renderMirrors
 Object.defineProperties(window.__hub, {
   dream:{get:() => ({kind:dg.kind, test:dg.test, master:dg.master, local:isLocal(), key:!!lsGet(AI_KEY), live:dg.live, busy:dg.busy, failed:dg.failed, frames:dg.frames, paused:dg.pause,
     layers:Object.assign({}, dg.L || dgLayersFor(state.world)), active:Object.assign({}, dg.active), owner:dg.owner, prompt:dg.prompt, threshold:dg.T, qDrop:dg.qDrop, maskObjects:dg.maskN,
+    portal:(() => { const q = portals.find(x => x.disc.material.uniforms.dream.value > 0); return q ? {to:q.to, dream:+q.disc.material.uniforms.dream.value.toFixed(3), mapIsStream:!!dg.tex && q.disc.material.uniforms.map.value === dg.tex, dist:+Math.hypot(p.x - q.x, p.z - q.z).toFixed(1)} : null; })(),
     passes:dg.layer ? {layer:dg.layer.enabled, comp:dg.comp.enabled, depth:dg.depthOn} : null, lock:dg.layer ? {updates:dg.layer.updates, hasHist:dg.layer.hasHist} : null, texture:dg.tex})},
   dreamTest:{get:() => dg.test, set:v => { dg.test = !!v; if(!dg.test){ dg.frames = dg.live ? dg.frames : 0; } }},
   dreamPause:{get:() => dg.pause, set:v => { dg.pause = !!v; }},
