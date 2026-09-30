@@ -118,7 +118,8 @@ html,body{ height:100%; margin:0; overflow:hidden; background:#07061a; color:var
 #regAsk{ padding:9px 16px; border:none; background:linear-gradient(90deg,var(--cyan),var(--pink)); color:var(--btn-ink); font:700 15px 'Chakra Petch','Trebuchet MS',sans-serif; cursor:pointer; }
 #regChips{ display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
 #regChips button{ padding:5px 10px; background:none; border:1.5px solid rgba(255,255,255,.22); color:#dcd7f5; font:13px 'Chakra Petch','Trebuchet MS',sans-serif; cursor:pointer; }
-#rally{ background:rgba(3,3,12,.82); } .rally-box{ display:grid; gap:10px; justify-items:center; }
+#rally,#starling{ background:rgba(3,3,12,.82); }
+#starCv{ width:min(92vw, 108vh, 1100px); aspect-ratio:4/3; max-height:84vh; background:#0c0816; border-radius:12px; box-shadow:0 0 0 3px #4a2a4a, 0 0 40px rgba(255,160,90,.25); } .rally-box{ display:grid; gap:10px; justify-items:center; }
 #rallyCv{ width:min(92vw, 108vh, 1100px); aspect-ratio:4/3; max-height:84vh; background:#05071a; border-radius:12px; box-shadow:0 0 0 3px #3a2a66, 0 0 40px rgba(255,179,71,.25); }
 .rally-bar{ display:flex; gap:10px; align-items:center; color:#c9c3e6; font:600 13px 'Chakra Petch','Trebuchet MS',sans-serif; flex-wrap:wrap; justify-content:center; }
 .rally-touch{ display:none; gap:10px; } .rally-touch button{ min-width:64px; min-height:52px; font-size:18px; }
@@ -391,6 +392,13 @@ body.bcast #hud, body.bcast #corner, body.bcast #roomCard, body.bcast #toast{ vi
     <canvas id="rallyCv" width="640" height="480"></canvas>
     <div class="rally-touch"><button class="hbtn" data-k="L" aria-label="Steer left">&#9664;</button><button class="hbtn" data-k="R" aria-label="Steer right">&#9654;</button><button class="hbtn" data-k="B">Brake</button><button class="hbtn" data-k="G">Go</button></div>
     <div class="rally-bar"><span>Arrows or WASD drive · Enter starts · Esc leaves</span><button class="hbtn" id="rallyGo">Start</button><button class="ghost" id="rallyQuit">Leave</button></div>
+  </div>
+</div>
+<div id="starling" class="overlay hidden" role="dialog" aria-label="Starling">
+  <div class="rally-box">
+    <canvas id="starCv" width="640" height="480"></canvas>
+    <div class="rally-touch"><button class="hbtn" data-k="L" aria-label="Fly left">&#9664;</button><button class="hbtn" data-k="F">Sing</button><button class="hbtn" data-k="R" aria-label="Fly right">&#9654;</button></div>
+    <div class="rally-bar"><span>Arrows or A/D fly · Space or Up sings · Enter starts · Esc leaves</span><button class="hbtn" id="starGo">Start</button><button class="ghost" id="starQuit">Leave</button></div>
   </div>
 </div>
 <div id="gate1" class="overlay hidden" role="dialog" aria-labelledby="g1Title">
@@ -9465,6 +9473,7 @@ function rallyTrophy(){ if(!rally.cab || rally.trophy) return; const t = new THR
 let jumpBuffer = 0;
 window.addEventListener('keydown', e => {
   if(rally.open){ rallyKey(e); return; }
+  if(starling.open){ starKey(e); return; }   // Goal 14: the Starling screen owns the keys while you play
   if(gate1.open){ if(e.code === 'Escape'){ e.preventDefault(); closeGate1(); } else if(/^(Digit|Numpad)[123]$/.test(e.code) && !e.repeat){ e.preventDefault(); g1Answer(+e.code.slice(-1) - 1, 'played'); } return; }   // Goal 14: the First Gate owns the keys while it asks   // Goal 11: the Comet Rally cabinet owns the keys while you play
   if(bc.on){ if(e.code === 'Escape'){ e.preventDefault(); skipBroadcast(); } else if(e.code === 'KeyN') setMute(snd.on); else if(e.code === 'Space' || e.code.indexOf('Arrow') === 0) e.preventDefault(); return; }   // the Broadcast owns the keys until it ends
   if(!ledgerEl.classList.contains('hidden')){ if(e.code === 'Escape'){ e.preventDefault(); closeLedger(); } else if(e.code === 'ArrowRight' || e.code === 'KeyD' || e.code === 'PageDown'){ e.preventDefault(); if(!$('#lgNext').disabled) turnLedger(1); } else if(e.code === 'ArrowLeft' || e.code === 'KeyA' || e.code === 'PageUp'){ e.preventDefault(); if(!$('#lgPrev').disabled) turnLedger(-1); } return; }
@@ -10854,7 +10863,7 @@ function update(dt, time){
     state.won = true; reward(500, 200); sfx('win'); setHalo(); toast('You opened the vault. First to crack the Hub.   +500 XP', 5000);
   }
   if(playing && p.grounded && p.speed > 0.6){ snd.stepT -= dt; if(snd.stepT <= 0){ sfx('step'); snd.stepT = p.speed > 7 ? 0.27 : 0.42; } } else snd.stepT = 0.1;
-  shopProximity(); bikeProximity(); vendProximity(); deskProximity(); archiveUpdate(dt); hollowUpdate(dt, time); chimeUpdate(dt, time); ashUpdate(dt, time); driftUpdate(dt, time); hallUpdate(dt, time); rallyTick(dt, time); trialUpdate(dt, time);
+  shopProximity(); bikeProximity(); vendProximity(); deskProximity(); archiveUpdate(dt); hollowUpdate(dt, time); chimeUpdate(dt, time); ashUpdate(dt, time); starTick(dt, time); driftUpdate(dt, time); hallUpdate(dt, time); rallyTick(dt, time); trialUpdate(dt, time);
   updatePickups(dt, time); hurtCool -= dt; simTime += dt; updateHazards(simTime); updateBurst(dt); checkBundles();
   if(!WORLDS[state.world].rules.danger && !zeroing && state.hp < maxHp()){ state.hp = Math.min(maxHp(), state.hp + 12 * dt); hpHud(); }
   portalCool -= dt;
@@ -11095,6 +11104,10 @@ function buildCitadel(extra){
   }
   K.done();
   g.traverse(o => { if(o.isMesh && !o.material.transparent && !o.material.emissiveMap) o.castShadow = true; });
+  // the Second Gate's portcullis carries Starling's screen (its attract picture, drawn once)
+  { const cv = document.createElement('canvas'); cv.width = 512; cv.height = 384; drawStarling(cv, null, 0); const tx = new THREE.CanvasTexture(cv); tx.encoding = THREE.sRGBEncoding; tx.anisotropy = 4;
+    const scr = new THREE.Mesh(new THREE.PlaneGeometry(1.7, 1.275), std(0x000000, {map:tx, emissive:C(0xffffff), emissiveMap:tx, emissiveIntensity:1.1, roughness:0.2})); scr.position.set(0, 2.0, -0.14); scr.rotation.y = Math.PI; ash.gateObjs[1].pc.add(scr);
+    mk(new THREE.BoxGeometry(1.9, 1.45, 0.12), M.iron, 0, 2.0, -0.05, ash.gateObjs[1].pc); }
   ash.g = g; ash.sparks = extra && extra.sparks;
   ashSync(true);
 }
@@ -11189,6 +11202,129 @@ function g1Answer(i, how){
   gate1.opts = g1Options(); if(gate1.open) g1Draw('Yes.'); gate1.last = {how, right:true, round:gate1.round}; return Object.assign({}, gate1.last, {open:false});
 }
 $('#g1Close').addEventListener('click', closeGate1);
+/* Starling (Goal 14, Gate Two): Mara Quist's game, invented for Hub. A starling flies along the harbour wall at dusk and sings notes up at the gloom moths,
+   which come down over Fennick Bay in weaving flocks. A moth that reaches the harbour puts out one of your three lanterns; so does a flake of soot that hits you.
+   Hits in a row build the chorus (x1 to x5); clearing a whole flock pays a bonus. The round lasts until the lanterns are out or the tide turns (150 s).
+   One pure step function (starStep) runs the played game and starling.simulate(policy); starResult scores both. The gate opens above 31,550 (MQ's score). */
+const STAR = {W:640, H:480, dt:1 / 60, birdY:438, birdV:330, noteV:560, cool:0.15, maxNotes:3, lives:3, cap:150, harbour:436, target:31550, seed:5150};
+function starNew(seed){
+  return {t:0, q:rng(seed == null ? STAR.seed : seed), x:STAR.W / 2, notes:[], moths:[], soot:[], score:0, chorus:1, streak:0, lives:STAR.lives, wave:0, next:1.2, cool:0, inv:0, done:false, why:null, hits:0, shots:0, flocks:0, events:[]};
+}
+function starWave(S){
+  S.wave++; const q = S.q, n = Math.min(14, 7 + S.wave), cx = 120 + q() * 400, A = 60 + q() * 110, w = 0.9 + q() * 0.9, vy = 24 + S.wave * 3.2, id = S.wave, dir = q() < 0.5 ? -1 : 1;
+  for(let i = 0; i < n; i++) S.moths.push({flock:id, cx, A, w, vy, ph:i * 0.42 * dir, y0:-20 - i * 26, t:0, x:cx, y:-20 - i * 26, drop:1.5 + q() * 4});
+  S.flockLeft = S.flockLeft || {}; S.flockLeft[id] = n; S.next = Math.max(4.5, 9 - S.wave * 0.35);
+}
+// one fixed step. input: {mx: -1..1 (left/right), fire: bool}
+function starStep(S, inp, dt){
+  if(S.done) return S; const W = STAR.W, ev = S.events; S.t += dt;
+  S.x = clamp(S.x + clamp(inp.mx || 0, -1, 1) * STAR.birdV * dt, 16, W - 16);
+  S.cool -= dt; S.inv = Math.max(0, S.inv - dt);
+  if(inp.fire && S.cool <= 0 && S.notes.length < STAR.maxNotes){ S.notes.push({x:S.x, y:STAR.birdY - 14}); S.cool = STAR.cool; S.shots++; }
+  S.next -= dt; if(S.next <= 0 || S.moths.length === 0 && S.t > 1) starWave(S);
+  for(const m of S.moths){ m.t += dt; m.cx = clamp(m.cx, m.A + 12, W - m.A - 12); m.x = m.cx + m.A * Math.sin(m.t * m.w + m.ph); m.y = m.y0 + m.vy * m.t;
+    if(m.y > 0){ m.drop -= dt; if(m.drop <= 0){ m.drop = 2.5 + S.q() * 5 - Math.min(1.5, S.wave * 0.1); S.soot.push({x:m.x, y:m.y + 8}); } } }
+  for(let i = S.notes.length - 1; i >= 0; i--){ const n = S.notes[i]; n.y -= STAR.noteV * dt; let hit = -1;
+    for(let j = 0; j < S.moths.length; j++){ const m = S.moths[j]; if(Math.abs(m.x - n.x) < 15 && Math.abs(m.y - n.y) < 14){ hit = j; break; } }
+    if(hit >= 0){ const m = S.moths[hit]; S.moths.splice(hit, 1); S.notes.splice(i, 1); S.hits++; S.streak++; S.chorus = Math.min(5, 1 + Math.floor(S.streak / 4)); S.score += 60 * S.chorus;
+      if(--S.flockLeft[m.flock] === 0){ S.score += 400 * m.flock; S.flocks++; ev.push('flock'); } else ev.push('hit'); continue; }
+    if(n.y < -10){ S.notes.splice(i, 1); S.streak = 0; S.chorus = 1; } }
+  for(let i = S.soot.length - 1; i >= 0; i--){ const s = S.soot[i]; s.y += 170 * dt; s.x += Math.sin(S.t * 3 + s.y * 0.03) * 20 * dt;
+    if(S.inv <= 0 && Math.abs(s.x - S.x) < 12 && Math.abs(s.y - STAR.birdY) < 11){ starLose(S, 'soot'); break; }
+    if(s.y > STAR.H + 10) S.soot.splice(i, 1); }
+  for(let j = S.moths.length - 1; j >= 0; j--){ const m = S.moths[j]; if(m.y > STAR.harbour){ S.moths.splice(j, 1); S.flockLeft[m.flock]--; starLose(S, 'harbour'); } }
+  if(S.lives <= 0){ S.done = true; S.why = 'lanterns'; } else if(S.t >= STAR.cap){ S.done = true; S.why = 'tide'; }
+  return S;
+}
+function starLose(S, why){ S.lives--; S.streak = 0; S.chorus = 1; S.inv = 1.5; S.events.push(why); if(why === 'soot') S.soot.length = 0; }
+// scripted players for the headless check: 'win' chases the lowest moth and dodges soot; 'lose' sits still and never sings; 'wild' sings without aiming
+function starBot(S, policy){
+  if(policy === 'lose') return {mx:0, fire:false};
+  if(policy === 'wild') return {mx:Math.sin(S.t * 0.7), fire:true};
+  let tgt = null; for(const m of S.moths) if(m.y > 0 && (!tgt || m.y > tgt.y)) tgt = m;
+  let want = tgt ? tgt.x + (tgt.A * tgt.w * Math.cos(tgt.t * tgt.w + tgt.ph)) * ((STAR.birdY - tgt.y) / STAR.noteV) : S.x;
+  for(const s of S.soot) if(s.y < STAR.birdY + 4 && s.y > STAR.birdY - 110 && Math.abs(s.x - S.x) < 26){ want = S.x + (s.x > S.x ? -60 : 60); if(want < 20 || want > STAR.W - 20) want = S.x + (s.x > S.x ? 60 : -60); }
+  const dx = want - S.x; return {mx:clamp(dx / 18, -1, 1), fire:!!tgt && Math.abs(dx) < 12};
+}
+// a finished round, played or simulated, is scored here; the Second Gate opens only above MQ's 31,550
+function starResult(S, how){
+  if(S.reported) return S.summary; S.reported = true;
+  const best = S.score > state.hunt.starBest; if(best) state.hunt.starBest = S.score;
+  const beat = S.score > STAR.target; let opened = false;
+  if(beat && gateOpen(0)) opened = openGateN(1, 'Score ' + S.score.toLocaleString('en-GB') + '. You flew better than MQ.');   // the gates open in order: the Second only after the First
+  else if(beat && how !== 'simulate') toast('Score ' + S.score.toLocaleString('en-GB') + ', better than MQ, but the Second Gate sleeps until the First is open.', 4200);
+  else if(how !== 'simulate') toast('Score ' + S.score.toLocaleString('en-GB') + '. The cabinet flashes: MQ 31,550. The Second Gate stays shut.', 4200);
+  persist(); huntState();
+  S.summary = {how, score:S.score, beat, target:STAR.target, opened, secondOpen:gateOpen(1), why:S.why, t:+S.t.toFixed(1), wave:S.wave, hits:S.hits, shots:S.shots, flocks:S.flocks, lives:S.lives, best:state.hunt.starBest};
+  starling.last = S.summary; return S.summary;
+}
+function starSimulate(policy, o){
+  o = o || {}; if(['win', 'lose', 'wild'].indexOf(policy) < 0) return {error:'unknown policy', policies:['win', 'lose', 'wild']};
+  const S = starNew(); let n = 0; while(!S.done && n++ < STAR.cap / STAR.dt + 10){ starStep(S, starBot(S, policy), STAR.dt); S.events.length = 0; }
+  if(o.dry) return {policy, score:S.score, why:S.why, t:+S.t.toFixed(1), beat:S.score > STAR.target};
+  return Object.assign({policy}, starResult(S, 'simulate'));
+}
+const starling = {open:false, S:null, acc:0, last:null, touch:{}};
+const starEl = $('#starling'), starCv = $('#starCv');
+const STAR_SKY = (() => { const q = rng(5151), a = []; for(let i = 0; i < 70; i++) a.push([q() * STAR.W, q() * 250, 0.5 + q() * 1.1, 0.2 + q() * 0.6]); return a; })();
+function drawStarling(cv, S, time){
+  const x = cv.getContext('2d'), k = Math.min(cv.width / STAR.W, cv.height / STAR.H), ox = (cv.width - STAR.W * k) / 2, oy = (cv.height - STAR.H * k) / 2;
+  x.setTransform(1, 0, 0, 1, 0, 0); x.fillStyle = '#0c0816'; x.fillRect(0, 0, cv.width, cv.height); x.setTransform(k, 0, 0, k, ox, oy);
+  // dusk over the bay: violet to ember, a few early stars, the sea and the harbour wall with its three lanterns
+  const sk = x.createLinearGradient(0, 0, 0, 400); sk.addColorStop(0, '#1a1030'); sk.addColorStop(0.55, '#5a2a4a'); sk.addColorStop(1, '#e0804a'); x.fillStyle = sk; x.fillRect(0, 0, STAR.W, 400);
+  STAR_SKY.forEach(s => { x.globalAlpha = s[3] * (0.7 + 0.3 * Math.sin(time * 1.7 + s[0])); x.fillStyle = '#fff4e0'; x.fillRect(s[0], s[1], s[2], s[2]); }); x.globalAlpha = 1;
+  x.fillStyle = '#231a33'; x.fillRect(0, 400, STAR.W, 80); for(let i = 0; i < 9; i++){ x.fillStyle = 'rgba(255,170,110,' + (0.08 + 0.05 * Math.sin(time * 2 + i)) + ')'; x.fillRect(40 + i * 66 + Math.sin(time + i) * 6, 410 + (i % 3) * 7, 30, 2); }
+  x.fillStyle = '#120d1c'; x.fillRect(0, 452, STAR.W, 28);
+  const lives = S ? S.lives : STAR.lives; for(let i = 0; i < STAR.lives; i++){ const lx = 250 + i * 70, on = i < lives; x.fillStyle = '#2a2230'; x.fillRect(lx - 2, 452, 4, -18);
+    if(on){ const g = x.createRadialGradient(lx, 430, 0, lx, 430, 18); g.addColorStop(0, 'rgba(255,210,140,0.95)'); g.addColorStop(1, 'rgba(255,160,80,0)'); x.fillStyle = g; x.beginPath(); x.arc(lx, 430, 18, 0, TAU); x.fill(); }
+    x.fillStyle = on ? '#ffd08a' : '#3a3040'; x.fillRect(lx - 5, 424, 10, 12); }
+  const txt = (s, px, py, size, col, al) => { x.font = 'bold ' + size + 'px "Chakra Petch","Trebuchet MS",sans-serif'; x.textAlign = al || 'left'; x.fillStyle = 'rgba(0,0,0,0.55)'; x.fillText(s, px + 2, py + 2); x.fillStyle = col; x.fillText(s, px, py); };
+  const moth = (mx, my, flap, a) => { x.save(); x.translate(mx, my); x.globalAlpha = a; const f = 0.55 + 0.45 * Math.abs(Math.sin(flap));
+    x.fillStyle = '#1a1422'; x.beginPath(); x.ellipse(-8, 0, 9 * f, 7, -0.3, 0, TAU); x.ellipse(8, 0, 9 * f, 7, 0.3, 0, TAU); x.fill();
+    x.strokeStyle = 'rgba(214,200,240,0.55)'; x.lineWidth = 1.2; x.beginPath(); x.ellipse(-8, 0, 9 * f, 7, -0.3, 0, TAU); x.stroke(); x.beginPath(); x.ellipse(8, 0, 9 * f, 7, 0.3, 0, TAU); x.stroke();
+    x.fillStyle = '#0a0810'; x.fillRect(-1.5, -6, 3, 12); x.globalAlpha = 1; x.restore(); };
+  const bird = (bx, by, t, blink) => { if(blink) return; x.save(); x.translate(bx, by); const w = Math.sin(t * 14) * 5;
+    x.fillStyle = '#15121c'; x.beginPath(); x.moveTo(-15, 2 + w); x.quadraticCurveTo(-6, -6, 0, -2); x.quadraticCurveTo(6, -6, 15, 2 + w); x.quadraticCurveTo(6, 2, 0, 6); x.quadraticCurveTo(-6, 2, -15, 2 + w); x.fill();
+    x.beginPath(); x.ellipse(0, -1, 4, 8, 0, 0, TAU); x.fill(); x.fillStyle = '#ffcf5a'; x.beginPath(); x.moveTo(-1.5, -9); x.lineTo(0, -14); x.lineTo(1.5, -9); x.fill();
+    x.fillStyle = 'rgba(140,220,200,0.8)'; [[-7, 0], [6, 0], [-3, 3], [3, -1]].forEach(d => x.fillRect(d[0], d[1], 1.4, 1.4)); x.restore(); };
+  if(!S){ for(let i = 0; i < 9; i++) moth(120 + i * 50 + Math.sin(time + i) * 20, 150 + Math.sin(time * 1.3 + i * 0.8) * 30, time * 8 + i, 0.9);
+    txt('STARLING', 320, 250, 60, '#ffd08a', 'center'); txt('A GAME BY M. QUIST', 320, 280, 15, '#d8c8f0', 'center');
+    if(Math.sin(time * 4) > 0) txt('PRESS START', 320, 320, 22, '#ffffff', 'center');
+    txt('1ST  MQ  31,550', 320, 350, 15, '#5ce1e6', 'center'); txt('YOUR BEST  ' + state.hunt.starBest.toLocaleString('en-GB'), 320, 372, 13, '#c9c3e6', 'center');
+    bird(320, STAR.birdY, time, false); return; }
+  S.moths.forEach(m => { if(m.y > -14) moth(m.x, m.y, m.t * 9 + m.ph, 1); });
+  S.soot.forEach(s => { x.fillStyle = '#2a2020'; x.beginPath(); x.arc(s.x, s.y, 3.2, 0, TAU); x.fill(); x.fillStyle = 'rgba(255,120,60,0.6)'; x.fillRect(s.x - 1, s.y - 1, 2, 2); });
+  S.notes.forEach(n => { const g = x.createRadialGradient(n.x, n.y, 0, n.x, n.y, 9); g.addColorStop(0, '#fffbe8'); g.addColorStop(0.4, '#ffd36a'); g.addColorStop(1, 'rgba(255,200,90,0)'); x.fillStyle = g; x.beginPath(); x.arc(n.x, n.y, 9, 0, TAU); x.fill();
+    x.strokeStyle = 'rgba(255,220,140,0.35)'; x.lineWidth = 2; x.beginPath(); x.moveTo(n.x, n.y + 6); x.lineTo(n.x + Math.sin(n.y * 0.08) * 3, n.y + 22); x.stroke(); });
+  bird(S.x, STAR.birdY, S.t, S.inv > 0 && Math.sin(S.t * 30) > 0);
+  txt('SCORE ' + S.score.toLocaleString('en-GB'), 14, 26, 18, '#ffffff'); txt('CHORUS x' + S.chorus, 14, 48, 14, S.chorus > 1 ? '#ffd08a' : '#9f98c0');
+  txt('BEAT MQ 31,550', 626, 26, 14, S.score > STAR.target ? '#9dff6a' : '#5ce1e6', 'right'); txt('TIDE ' + Math.max(0, Math.ceil(STAR.cap - S.t)), 626, 46, 13, '#c9c3e6', 'right');
+  if(S.done){ x.fillStyle = 'rgba(12,8,22,0.8)'; x.fillRect(120, 170, 400, 150); const win = S.score > STAR.target;
+    txt(win ? 'YOU OUTFLEW MQ' : S.why === 'tide' ? 'THE TIDE TURNS' : 'THE LANTERNS ARE OUT', 320, 214, 28, win ? '#ffd08a' : '#ffffff', 'center');
+    txt('SCORE ' + S.score.toLocaleString('en-GB'), 320, 250, 18, '#d8c8f0', 'center'); txt(win ? 'THE SECOND GATE IS OPEN' : 'FLY AGAIN', 320, 286, 20, win ? '#9dff6a' : '#ff9ad5', 'center');
+    txt('START: FLY AGAIN   ESC: LEAVE', 320, 310, 11, '#8890b8', 'center'); }
+}
+function sizeStarling(){ const d = Math.min(window.devicePixelRatio || 1, 2), w = starCv.clientWidth || 640; starCv.width = Math.round(w * d); starCv.height = Math.round(w * 0.75 * d); }
+function openStarling(){ if(starling.open || zeroing) return null; starling.open = true; starling.S = null; starEl.classList.remove('hidden'); setPaused(true); sizeStarling(); sfx('ui'); return {open:true}; }
+function closeStarling(){ if(!starling.open) return; starling.open = false; starling.S = null; starEl.classList.add('hidden'); setPaused(false); for(const k in starling.touch) starling.touch[k] = false; }
+function starStart(){ starling.S = starNew(); starling.acc = 0; state.hunt.starPlays++; persist(); }
+function starInput(){ const K = keys, T = starling.touch; return {mx:((K.ArrowRight || K.KeyD || T.R) ? 1 : 0) - ((K.ArrowLeft || K.KeyA || T.L) ? 1 : 0), fire:!!(K.Space || K.ArrowUp || K.KeyW || T.F)}; }
+function starTick(dt, time){
+  if(!starling.open) return; const S = starling.S;
+  if(S && !S.done){ starling.acc = Math.min(starling.acc + dt, 0.25); while(starling.acc >= STAR.dt && !S.done){ starStep(S, starInput(), STAR.dt); starling.acc -= STAR.dt; }
+    if(snd.ctx && snd.on) S.events.forEach(e => { try{ if(e === 'hit') tone('triangle', 880 + S.chorus * 110, 1320, 0.09, 0.04); else if(e === 'flock') [660, 880, 1175].forEach((f, i) => tone('triangle', f, f, 0.14, 0.05, snd.ctx.currentTime + i * 0.08)); else tone('sawtooth', 180, 60, 0.35, 0.05); }catch(err){} });
+    S.events.length = 0; if(S.done) starResult(S, 'played'); }
+  drawStarling(starCv, S, time);
+}
+function starKey(e){
+  if(e.code === 'Escape'){ e.preventDefault(); closeStarling(); return; }
+  if(e.code === 'Enter' || ((e.code === 'Space') && (!starling.S || starling.S.done))){ e.preventDefault(); if(!e.repeat && (!starling.S || starling.S.done)) starStart(); return; }
+  if(e.code.indexOf('Arrow') === 0 || e.code === 'KeyW' || e.code === 'KeyA' || e.code === 'KeyD' || e.code === 'Space'){ e.preventDefault(); keys[e.code] = true; }
+}
+$('#starQuit').addEventListener('click', closeStarling); $('#starGo').addEventListener('click', () => { if(!starling.S || starling.S.done) starStart(); });
+document.querySelectorAll('#starling .rally-touch button').forEach(b => { const k = b.dataset.k, on = v => e => { starling.touch[k] = v; e.preventDefault(); };
+  b.addEventListener('pointerdown', on(true)); b.addEventListener('pointerup', on(false)); b.addEventListener('pointercancel', on(false)); b.addEventListener('pointerleave', on(false)); });
+window.addEventListener('resize', () => { if(starling.open) sizeStarling(); });
 $('#ashBtn').addEventListener('click', () => { if(ashNear) ashAct(); });
 // hooks for the tester (headless checks) and for debugging; not used by the game itself
 window.__hub = { state, p, cam, post, stats, WORLDS, scene, renderer, camera, sunLight, hemi, gl:GL_INFO, softwareGL:SOFTWARE_GL, travel, buildWorld, startGame, setPaused, degrade, parseDescription, makeFromWords, rebuildPlayer, cleanRecipe, snd, sfx, setMute, bike, mountBike, dismountBike, keys, update, trial, trialStart, COURSES, get me(){ return me; }, freezeQuality(){ warm = 1e9; }, get qLevel(){ return qLevel; }, get world(){ return state.world; }, get envRT(){ return envRT; },
@@ -11356,7 +11492,10 @@ Object.defineProperties(window.__hub, {
     if(v === 'gates') at(0, 1, Math.PI, 9, 0.06); else if(typeof v === 'number') at(C0.gates[v].x, C0.z - 2.2, Math.PI, 5); else if(v === 'row') at(C0.row.x, C0.row.z0 + 1, Math.PI, 4.5);
     else if(v === 'pile') at(C0.row.x + 1.2, C0.row.pile - 0.5, Math.PI, 4.5); else if(v === 'vault') at(C0.vault.x, C0.vault.door - 3, Math.PI, 5);
     ashUpdate(0, clock.elapsedTime); return {x:+p.x.toFixed(2), z:+p.z.toFixed(2), near:ashNear}; }},
-  ashUpdate:{value:dt => ashUpdate(dt || 0.05, clock.elapsedTime)}
+  ashUpdate:{value:dt => ashUpdate(dt || 0.05, clock.elapsedTime)},
+  starling:{value:{simulate:(policy, o) => starSimulate(policy, o), open:() => openStarling(), close:() => closeStarling(), start:() => { if(!starling.open) openStarling(); starStart(); return true; }, target:STAR.target,
+    get state(){ const S = starling.S; return S ? {score:S.score, t:+S.t.toFixed(1), lives:S.lives, wave:S.wave, done:S.done, why:S.why} : null; }, get last(){ return starling.last && Object.assign({}, starling.last); }, get isOpen(){ return starling.open; }, get best(){ return state.hunt.starBest; },
+    step:(policy, n) => { const S = starling.S; if(!S) return null; for(let i = 0; i < (n || 60) && !S.done; i++){ starStep(S, starBot(S, policy || 'win'), STAR.dt); S.events.length = 0; } if(S.done) starResult(S, 'played'); return {score:S.score, done:S.done}; }}}
 });
 })();
 </script>
