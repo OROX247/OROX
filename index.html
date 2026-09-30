@@ -11851,22 +11851,25 @@ function dgDepth(on){
 }
 // layer 6 = what the far layer must never paint over: things drawn without depth (tags, glows, particles, discs) and far avatars
 const _dgL1 = new THREE.Layers(); _dgL1.set(1);
-function dgUnder(o, top){ for(let q = o.parent; q; q = q.parent) if(q === top) return true; return false; }
 function dgScanMask(){
-  const T = dg.T; let n = 0;
-  scene.traverse(o => {
+  // a hand walk instead of scene.traverse: it skips the sky and every hidden subtree (hidden cells, far core instances), which is most of an endless realm
+  const lim = dg.T * 1.6, near = dg.T * 0.9; let n = 0;
+  const walk = o => {
     if(o.isLight){ o.layers.enable(6); return; }   // the same lights, so no material switches program for the mask render
     o.layers.disable(6);
-    if(!(o.isMesh || o.isSprite || o.isPoints) || o === sky || !o.visible) return;
-    if(o.onBeforeRender !== THREE.Object3D.prototype.onBeforeRender) return;   // mirrors (water) render only at top level
-    const m = Array.isArray(o.material) ? o.material[0] : o.material; if(!m) return;
-    const depthless = o.isSprite || o.isPoints || (m.transparent && !m.depthWrite), avatar = o.layers.test(_dgL1);
-    if(!depthless && !avatar) return;
-    if(dgUnder(o, sky)) return;   // sky props are part of the far view
-    const g = o.geometry; if(g && !g.boundingSphere) g.computeBoundingSphere();
-    o.getWorldPosition(_dgV); const r = g && g.boundingSphere ? g.boundingSphere.radius * o.matrixWorld.getMaxScaleOnAxis() : 1, d = camWorld.distanceTo(_dgV);
-    if(d - r < T * 1.6 && (depthless || d + r > T * 0.9)){ o.layers.enable(6); n++; }
-  });
+    if(o === sky || !o.visible) return;   // sky props are part of the far view; a hidden object draws nothing
+    if((o.isMesh || o.isSprite || o.isPoints) && o.onBeforeRender === THREE.Object3D.prototype.onBeforeRender){   // mirrors (water) render only at top level
+      const m = Array.isArray(o.material) ? o.material[0] : o.material;
+      const depthless = !!m && (o.isSprite || o.isPoints || (m.transparent && !m.depthWrite)), avatar = !!m && o.layers.test(_dgL1);
+      if(depthless || avatar){
+        const g = o.geometry; if(g && !g.boundingSphere) g.computeBoundingSphere();
+        const e = o.matrixWorld.elements, r = g && g.boundingSphere ? g.boundingSphere.radius * o.matrixWorld.getMaxScaleOnAxis() : 1, d = Math.hypot(e[12] - camWorld.x, e[13] - camWorld.y, e[14] - camWorld.z);
+        if(d - r < lim && (depthless || d + r > near)){ o.layers.enable(6); n++; }
+      }
+    }
+    const ch = o.children; for(let i = 0; i < ch.length; i++) walk(ch[i]);
+  };
+  const ch = scene.children; for(let i = 0; i < ch.length; i++) walk(ch[i]);
   dg.maskN = n; return n;
 }
 function dgPasses(far){
