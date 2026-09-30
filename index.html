@@ -5979,7 +5979,8 @@ function updateBuiltin(){
     if(performance.now() > until) break;
   }
   // cells behind the camera and more than two cells away are hidden (instanced meshes are not frustum-culled in r128); near cells always draw, so their shadows stay
-  if(!vr.on){ _cellFr.setFromProjectionMatrix(_cellPm.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse));
+  const cm = camera.matrixWorld.elements, moved = !E.cull || Math.abs(camWorld.x - E.cull[0]) + Math.abs(camWorld.z - E.cull[1]) > 0.5 || Math.abs(cm[8] - E.cull[2]) + Math.abs(cm[10] - E.cull[3]) > 0.01 || E.built + E.dropped !== E.cull[4];
+  if(!vr.on && moved){ E.cull = [camWorld.x, camWorld.z, cm[8], cm[10], E.built + E.dropped]; _cellFr.setFromProjectionMatrix(_cellPm.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse));
     for(const c of E.chunks.values()){ const x0 = c.cx * CHUNK, z0 = c.cz * CHUNK; let vis = Math.max(Math.abs(p.x - x0 - CHUNK / 2), Math.abs(p.z - z0 - CHUNK / 2)) < CHUNK * 2;
       if(!vis){ _cellBox.min.set(x0 - 40, -120, z0 - 40); _cellBox.max.set(x0 + CHUNK + 40, 400, z0 + CHUNK + 40); vis = _cellFr.intersectsBox(_cellBox);
         if(vis){ const ex = Math.max(x0 - camWorld.x, 0, camWorld.x - x0 - CHUNK), ez = Math.max(z0 - camWorld.z, 0, camWorld.z - z0 - CHUNK); if(Math.hypot(ex, ez) > E.fogFar + 40) vis = false; } }   // lost in the fog: not drawn
