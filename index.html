@@ -5175,7 +5175,7 @@ function rollPlanet(star){
   const tints = [];
   if(chance(0.22) && !airless) tints.push(pick(COLS) + ' sky');
   if(chance(0.2)) tints.push(pick(COLS) + ' ground');
-  if(trees && chance(0.18)) tints.push(pick(COLS) + ' foliage');
+  if(trees && chance(0.18) && trees !== 'treeless') tints.push(pick(COLS) + ' foliage');   // (the draw is made either way, so other planets keep their rolls)
   if(water && water !== 'lava' && chance(0.2)) tints.push(pick(COLS) + ' water');
   const tone = chance(0.25) ? 'dangerous' : chance(0.45) ? 'peaceful' : '';
   const noMagic = chance(0.3), noTech = chance(0.28);
