@@ -3662,7 +3662,8 @@ function makeAvatar(o){
   const rc = cleanRecipe(o.recipe), col = rc.colours, S = rc.height / 1.8, W = BUILD_W[rc.build];
   const pat = rc.pattern !== 'none' ? patternTex(rc.pattern, col.main, col.second) : null;
   const suitM = avatarMaterial(rc.material, col.main, pat);
-  const plateM = avatarMaterial(rc.material === 'fur' ? 'fur' : rc.material === 'jelly' ? 'jelly' : rc.material === 'glass' ? 'glass' : rc.material === 'stone' ? 'stone' : rc.material === 'cloth' ? 'cloth' : 'plate', col.second);
+  // chrome stays chrome all over (armour plates and helmet too), with only a hint of the second colour; the second colour shows fully on cloth (cape, hood)
+  const plateM = rc.material === 'chrome' ? avatarMaterial('chrome', mixHex(col.main, col.second, 0.22)) : avatarMaterial(rc.material === 'fur' ? 'fur' : rc.material === 'jelly' ? 'jelly' : rc.material === 'glass' ? 'glass' : rc.material === 'stone' ? 'stone' : rc.material === 'cloth' ? 'cloth' : 'plate', col.second);
   const baseM = std(0x17171d, {roughness:0.88});
   const bootM = new THREE.MeshPhysicalMaterial({color:C(0x121218), roughness:0.35, metalness:0.2, clearcoat:0.8});
   const trimM = std(col.trim, {emissive:C(col.glow), emissiveIntensity:2.2, roughness:0.4});
@@ -8953,7 +8954,7 @@ window.__hub = { state, p, cam, post, stats, WORLDS, scene, renderer, camera, su
   get lods(){ return lods.map(e => e.kind === 'mesh' ? {kind:'mesh', d:e.d, h:e.h, far:e.far, at:e.c.toArray().map(v => +v.toFixed(1)), dist:+camWorld.distanceTo(e.c).toFixed(1), triNear:e.hi.geometry.index.count / 3, triFar:e.lo.geometry.index.count / 3}
     : {kind:'inst', d:e.d, h:e.h, n:e.n, near:e.hi.count, far:e.lo.count, triNear:e.hi.geometry.index.count / 3, triFar:e.lo.geometry.index.count / 3}); }, updateLods, camWorld, frame:() => frame(), get lodScale(){ return lodScale; }, set lodScale(v){ lodScale = +v || 1; updateLods(); },
   get phDown(){ return phDown; }, texInfo(){ const o = {}; for(const k in slotMats) o[k] = slotMats[k].map(en => ({kind:en.kind, map:en.mat.map && en.mat.map.image && en.mat.map.image.width, rough:!!en.mat.roughnessMap, ao:!!en.mat.aoMap, real:!!(en.mat.aoMap || (en.mat.map && en.mat.map.image && en.mat.map.image.width >= 2048))})); return o; }, idb,
-  get npcs(){ return npcs.map(nn => ({name:nn.name, x:nn.x, z:nn.z, line:nn.line})); }, get colliders(){ return colliders.map(c => Object.assign({}, c)); } };
+  get npcs(){ return npcs.map(nn => ({name:nn.name, x:nn.x, z:nn.z, line:nn.line, look:describeRecipe(nn.av.recipe), height:nn.av.recipe.height, colour:nn.av.recipe.colours.main})); }, get colliders(){ return colliders.map(c => Object.assign({}, c)); } };
 
 /* Goal 8b test hooks: stars, planets, landing, the Explorer Log */
 function planetLanding(){ const W = WORLDS[state.world]; return {world:state.world, planet:W.planet || null, name:W.name, x:+p.x.toFixed(2), z:+p.z.toFixed(2), y:+p.y.toFixed(2), ground:+G(p.x, p.z).toFixed(2), land:+hf(p.x, p.z).toFixed(2),
