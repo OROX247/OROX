@@ -263,7 +263,7 @@ body.bcast #hud, body.bcast #corner, body.bcast #roomCard, body.bcast #toast{ vi
 
 <div id="corner">
   <canvas id="minimap" aria-label="Minimap"></canvas>
-  <div class="btns"><button class="hbtn" id="aiBtn" title="AI reality mode (R)">AI</button><button class="hbtn" id="lookBtn" title="Realm look (L)">Look</button><button class="hbtn" id="forgeBtn" title="Worldsmith: describe a realm (F)">Forge</button><button class="hbtn" id="rideBtn" style="display:none">Ride</button><button class="hbtn" id="sndBtn" title="Sound on/off (N)">Sound</button><button class="hbtn" id="shopBtn" style="display:none">Shop</button><button class="hbtn" id="vendBtn" style="display:none">Vend</button><button class="hbtn" id="enrolBtn" style="display:none">Enrol</button><button class="hbtn" id="archBtn" style="display:none">Inspect</button><button class="hbtn" id="hollowBtn" style="display:none">Knock</button><button class="hbtn" id="invBtn" title="Inventory (I)">Bag</button><button class="hbtn" id="mapBtn">Warp</button><button class="hbtn" id="helpBtn" aria-label="Avatar and controls">?</button></div>
+  <div class="btns"><button class="hbtn" id="aiBtn" title="AI reality mode (R)">AI</button><button class="hbtn" id="lookBtn" title="Realm look (L)">Look</button><button class="hbtn" id="forgeBtn" title="Worldsmith: describe a realm (F)">Forge</button><button class="hbtn" id="rideBtn" style="display:none">Ride</button><button class="hbtn" id="sndBtn" title="Sound on/off (N)">Sound</button><button class="hbtn" id="shopBtn" style="display:none">Shop</button><button class="hbtn" id="vendBtn" style="display:none">Vend</button><button class="hbtn" id="enrolBtn" style="display:none">Enrol</button><button class="hbtn" id="archBtn" style="display:none">Inspect</button><button class="hbtn" id="hollowBtn" style="display:none">Knock</button><button class="hbtn" id="chimeBtn" style="display:none">Strike</button><button class="hbtn" id="invBtn" title="Inventory (I)">Bag</button><button class="hbtn" id="mapBtn">Warp</button><button class="hbtn" id="helpBtn" aria-label="Avatar and controls">?</button></div>
 </div>
 
 <div id="intro" class="overlay" role="dialog" aria-labelledby="introTitle">
@@ -4051,6 +4051,7 @@ const cam = { yaw:0, pitch:0.28, dist:5.5 };
 
 /* ================= world state ================= */
 let boxes = [], desk = null, gym = null, floaters = [], colliders = [], platforms = [], coins = [], portals = [], spinners = [], npcs = [], shardObj = null, vault = null, gridSun = null, fireflies = null, shopKiosk = null;
+let chimes = null, chimeNear = null;   // Goal 13: the wind chimes on Sky Isles' highest isle (built by buildChimes), and the chime you stand in front of
 let hf = () => 0, G = () => 0, grassMeshes = [], qLevel = 0, slotMats = {}, hazards = [], burst = null, pickups = [], vendor = null, forgeStand = null, forgeNear = false, forgeHinted = false;
 let mainTerrain = null, coreSolids = [], coreFollow = [];   // the realm's first ground disc (endless realms re-centre it) and far hand-made props that get collision once the core is built
 function reg(slot, e){ (slotMats[slot] = slotMats[slot] || []).push(e); return e.mat; }
@@ -4903,7 +4904,7 @@ BUILD.sky = (r, n) => {
     const c = mk(isleRock(rad * 0.98, rad * 2.2, i + 1), rockM, x, top - 0.5 - rad * 1.1, z); c.rotation.x = Math.PI;
     addPlatform(x, z, rad, top, null, top - 1.2);
   }
-  const topI = platforms[7]; addShard('sky', topI.x, topI.top + 1.2, topI.z);
+  // the highest isle (platforms[7]) carries the wind chimes now (Goal 13, buildChimes); the Cyan Shard is only won by ringing them
   const TG = treeGeos(), trees = [];
   for(let i = 0; i < 24; i++){ const s = freeSpot(r, 8, 54, 3); if(!s) continue; const k = 0.8 + r() * 0.5; trees.push({x:s[0], y:G(s[0], s[1]) - 0.1, z:s[1], s:k, ry:r() * TAU}); colliders.push({x:s[0], z:s[1], r:0.35 * k}); }
   for(let i = 0; i < 12; i++){
@@ -7079,6 +7080,7 @@ function coreSum(detail){
   if(bike.g) skip.add(bike.g); flyers.forEach(f => skip.add(f.m)); ships.forEach(s => skip.add(s.g)); spinners.forEach(s => skip.add(s.o)); floaters.forEach(f => skip.add(f.o)); hazards.forEach(hz => skip.add(hz.g));
   if(fireflies) world.traverse(o => { if(o.isPoints && o.geometry === fireflies.geo) skip.add(o); });
   if(shardObj) [shardObj.m, shardObj.beam, shardObj.l, shardObj.gl].forEach(o => { if(o) skip.add(o); });
+  if(chimes){ skip.add(chimes.g); if(chimes.shard){ skip.add(chimes.shard.m); skip.add(chimes.shard.gl); } }   // the chimes sway in the wind
   if(trial.pad) skip.add(trial.pad); trial.rings.forEach(rg => { if(rg.g) skip.add(rg.g); if(rg.m) skip.add(rg.m); });
   if(detail){ const list = []; sumObject(world, skip, list); return list; }
   return {world:sumObject(world, skip), terrain:mainTerrain ? hashNums(2166136261, mainTerrain.geometry.attributes.position.array, 7).toString(16) : null, centre:mainTerrain ? [mainTerrain.userData.terrain.cx, mainTerrain.userData.terrain.cz] : null};
@@ -7689,7 +7691,7 @@ function buildWorld(key){
   const W = WORLDS[key]; state.world = key; gravK = W.gravity || 1; if(explorer.dirty) saveExplorer();
   world = new THREE.Group(); scene.add(world);
   if(camHid){ camHid = false; if(!zeroing) me.g.visible = true; }
-  grassMeshes = []; lods = []; slotMats = {}; mainTerrain = null; coreSolids = []; coreFollow = []; boxes = []; desk = null; gym = null; floaters = []; p.zeroG = false; colliders = []; platforms = []; coins = []; portals = []; spinners = []; npcs = []; shardObj = null; vault = null; gridSun = null; fireflies = null; shopKiosk = null; forgeStand = null; vendor = null; archive = null; archRoom = -1; hollow = null; drift = null; corr = null; if(rally.open) closeRally(); rally.tex = null; rally.cab = null; rally.trophy = null; hazards = []; burst = null; pickups = []; bike.g = null; bike.riding = false; bike.near = false; engineStop(); $('#rideBtn').style.display = 'none'; trial.active = false; trial.rings = []; trial.pad = null; trial.padPos = null; $('#trialPanel').style.display = 'none';
+  grassMeshes = []; lods = []; slotMats = {}; mainTerrain = null; coreSolids = []; coreFollow = []; boxes = []; desk = null; gym = null; floaters = []; p.zeroG = false; colliders = []; platforms = []; coins = []; portals = []; spinners = []; npcs = []; shardObj = null; vault = null; gridSun = null; fireflies = null; shopKiosk = null; forgeStand = null; vendor = null; archive = null; archRoom = -1; hollow = null; drift = null; corr = null; if(chimes && chimes.play) chimeWin(true); chimes = null; if(rally.open) closeRally(); rally.tex = null; rally.cab = null; rally.trophy = null; hazards = []; burst = null; pickups = []; bike.g = null; bike.riding = false; bike.near = false; engineStop(); $('#rideBtn').style.display = 'none'; trial.active = false; trial.rings = []; trial.pad = null; trial.padPos = null; $('#trialPanel').style.display = 'none';
   const r = rng(W.seed), noise = makeNoise(W.seed * 7 + 1);
   waterBody = null; if(weatherFx){ scene.remove(weatherFx.pts); weatherFx.geo.dispose(); weatherFx.pts.material.dispose(); weatherFx = null; } clearSkyProps(); flyers = []; ships = []; endless = null; buildParent = null; chunkAt = null; waterMeshes.forEach(w => { if(w.renderTarget) w.renderTarget.dispose(); }); waterMeshes = [];
   applyLook(W);
@@ -7720,6 +7722,7 @@ function buildWorld(key){
   addVendor(key);
   if(key === 'dunes') buildHollowDoor();   // Goal 11: the Hollow's door (and nothing else) goes in after everything is placed; it draws no rng
   if(key === 'grid') buildDrift();   // Goal 12: The Drift goes up after everything is placed; it draws only from its own rng
+  if(key === 'sky') buildChimes();   // Goal 13: the wind chimes on the highest isle go up after everything is placed; they draw no rng
   if(key === 'hub') buildArchive();   // Goal 9: the Archive goes up after every coin, NPC, pickup and the vendor are placed, so none of them moves
   bundles.forEach(b => { b.g = null; if(b.world === key) addBundleMesh(b); });
   if(ENDLESS[key] && !W.custom) startBuiltin(key);   // no boundaries (Goal 8a): the land goes on past the hand-made core
@@ -10551,8 +10554,120 @@ function vrUpdate(dt){
   if(Math.abs(turn) > 0.7 && vr.snapCool <= 0){ vr.rig.rotation.y -= Math.sign(turn) * Math.PI / 6; vr.snapCool = 0.3; }
   if(Math.abs(turn) < 0.4) vr.snapCool = Math.min(vr.snapCool, 0);
 }
-function interactKey(){ if(bike.riding) dismountBike(); else if(bike.near) mountBike(); else if(shopNear) openShop(); else if(vendNear) openVendor(); else if(deskNear) enroll(); else if(forgeNear) openForge(); else if(archNear) archiveAct(); else if(hollowNear) hollowAct(); }
+function interactKey(){ if(bike.riding) dismountBike(); else if(bike.near) mountBike(); else if(shopNear) openShop(); else if(vendNear) openVendor(); else if(deskNear) enroll(); else if(forgeNear) openForge(); else if(archNear) archiveAct(); else if(hollowNear) hollowAct(); else if(chimeNear != null) strikeChime(chimeNear + 1, 'key'); }
 vrSetup();
+
+/* ================= Goal 13: the Cyan Shard, the wind chimes on Sky Isles' highest isle =================
+   The clue (HUNT_CLUES.cyan, the Ledger's third riddle, the music box in Archive room 6): seven tubes numbered from the longest, which sings lowest;
+   "Low Tide" is 3-4-5-4-3-2-1. Each tube rings its own LOW_TIDE_HZ pitch. chimeStep() is the whole rule: the shard only when the last seven strikes
+   are the tune exactly; a strike that breaks the run rings with a soft discord and the run starts again (from 1 if that strike was a 3).
+   The wind sways the tubes but never strikes them. The chimes go up after everything in Sky Isles is placed and draw no rng, so nothing moves. */
+const CHIMES = {isle:7, n:7, L1:1.15, rad:0.034, gap:0.33, off:1.15, beamY:2.72, reach:1.8, clickReach:9};
+// the pure rule, shared by E, clicks, the button and the test hooks: S = {hist, k, strikes, wrongs}; n = chime number 1..7
+function chimeStep(S, n){
+  const O = HUNT_CLUES.cyan.order; S.hist.push(n); if(S.hist.length > O.length) S.hist.shift();
+  let k = 0; for(let m = Math.min(S.hist.length, O.length); m > 0 && !k; m--){ let ok = true; for(let j = 0; j < m; j++) if(S.hist[S.hist.length - m + j] !== O[j]){ ok = false; break; } if(ok) k = m; }
+  const wrong = k !== S.k + 1; S.k = k; S.strikes++; if(wrong) S.wrongs++;
+  return {n, k, wrong, won:k === O.length};
+}
+function buildChimes(){
+  const I = platforms[CHIMES.isle], prev = platforms[CHIMES.isle - 1]; if(!I || !prev) return;
+  // the frame stands on the far side of the isle from the one you jump up from; you face it with chime 1 (the longest) on your left
+  let ux = I.x - prev.x, uz = I.z - prev.z; const ul = Math.hypot(ux, uz) || 1; ux /= ul; uz /= ul;
+  const rx = -uz, rz = ux, fx = I.x + ux * CHIMES.off, fz = I.z + uz * CHIMES.off, top = I.top;
+  const g0 = new THREE.Group(); g0.position.set(fx, top, fz); g0.rotation.y = Math.atan2(-rz, rx); world.add(g0);   // local x = right, local z = back toward you
+  chimes = {x:fx, z:fz, top, ux, uz, rx, rz, g:g0, tubes:[], S:{hist:[], k:0, strikes:0, wrongs:0}, play:null, told:false, shard:null, last:null};
+  const wood = std(0x6a5038, {roughness:0.82, map:detailTex, normalMap:detailNormal, normalScale:new V2(0.6, 0.6)});
+  const iron = std(0x2b2724, {roughness:0.55, metalness:0.6});
+  const half = (CHIMES.n - 1) / 2 * CHIMES.gap + 0.34, B = CHIMES.beamY;
+  // two posts on crossed feet, a beam over them, a brace under each end of the beam
+  [-1, 1].forEach(sd => {
+    mk(new THREE.BoxGeometry(0.1, B + 0.35, 0.1), wood, sd * half, (B + 0.35) / 2 - 0.3, 0, g0);
+    mk(new THREE.BoxGeometry(0.1, 0.08, 0.9), wood, sd * half, 0.02, 0, g0);
+    const br = mk(new THREE.BoxGeometry(0.06, 0.5, 0.06), wood, sd * (half - 0.16), B - 0.2, 0, g0); br.rotation.z = sd * 0.78;
+  });
+  mk(new THREE.BoxGeometry(half * 2 + 0.3, 0.12, 0.12), wood, 0, B, 0, g0);
+  // a wooden striker on a cord, hung from the left post: the thing you strike them with
+  { const m = new THREE.Group(); m.position.set(-half - 0.09, B - 0.35, 0.02); g0.add(m);
+    mk(new THREE.CylinderGeometry(0.004, 0.004, 0.3, 4), iron, 0, 0.15, 0, m).castShadow = false;
+    mk(new THREE.CylinderGeometry(0.014, 0.014, 0.36, 8), wood, 0, -0.18, 0, m);
+    const hd = mk(new THREE.CylinderGeometry(0.05, 0.05, 0.12, 16), wood, 0, -0.38, 0, m); hd.rotation.z = Math.PI / 2; }
+  const cordG = new THREE.CylinderGeometry(0.0035, 0.0035, 1, 4);
+  for(let i = 0; i < CHIMES.n; i++){
+    const hz = LOW_TIDE_HZ[i], L = CHIMES.L1 * Math.sqrt(LOW_TIDE_HZ[0] / hz);   // a tube's pitch goes as 1 / length squared
+    const lx = (i - (CHIMES.n - 1) / 2) * CHIMES.gap, cord = 0.1 + 0.03 * (i % 2);
+    const pv = new THREE.Group(); pv.position.set(lx, B - 0.06, 0); g0.add(pv);
+    const c = mk(cordG, iron, 0, -cord / 2, 0, pv); c.scale.y = cord; c.castShadow = false;
+    const mat = std(0xcfd6de, {roughness:0.26, metalness:0.85, side:THREE.DoubleSide, emissive:C(0x5ce1e6), emissiveIntensity:0});
+    const tube = mk(new THREE.CylinderGeometry(CHIMES.rad, CHIMES.rad, L, 28, 1, true), mat, 0, -cord - L / 2, 0, pv);
+    mk(new THREE.TorusGeometry(CHIMES.rad * 0.72, 0.004, 6, 20), iron, 0, -cord - 0.03, 0, pv).rotation.x = Math.PI / 2;   // the pin the cord goes through
+    tube.userData.chime = i;
+    chimes.tubes.push({i, n:i + 1, hz, L, lx, cord, pv, tube, mat, ring:0, ringT:9, ph:i * 1.7 + 0.4, w:Math.sqrt(9.8 / (cord + L / 2))});
+  }
+  // stand-in solid so you walk up to the chimes rather than through them (the camera is not stopped by it)
+  addBox(fx, fz, half + 0.12, 0.16, top - 0.2, top + B + 0.1, {a:Math.atan2(rz, rx), cam:false});
+}
+function chimeNote(t, when, soft){
+  if(!snd.ctx || !snd.on) return; const c = snd.ctx, at = c.currentTime + (when || 0), f = t.hz, v = soft ? 0.6 : 1;
+  try{ tone('sine', f, f, 3.4, 0.085 * v, at); tone('sine', f * 2.76, f * 2.76, 1.3, 0.022 * v, at); tone('sine', f * 5.4, f * 5.4, 0.45, 0.009 * v, at); noiseHit(5200, 4, 0.03, 0.02 * v, at); }catch(e){}
+}
+function chimeDiscord(t){ if(!snd.ctx || !snd.on) return; const at = snd.ctx.currentTime + 0.05; try{ tone('sine', t.hz * 1.059, t.hz * 1.04, 1.6, 0.03, at); tone('triangle', t.hz * 0.707, t.hz * 0.7, 1.4, 0.018, at + 0.04); }catch(e){} }
+// a strike: the tube swings away from you and rings; scored by chimeStep unless the tune is already sung or is playing back
+function strikeChime(n, how){
+  if(!chimes) return null; const t = chimes.tubes[(n | 0) - 1]; if(!t) return null;
+  if(chimes.play) return {n, busy:true};
+  t.ring = 1; t.ringT = 0; chimeNote(t);
+  const done = !!state.hunt.cyan; if(done){ chimes.last = {n, how, already:true}; return {n, already:true}; }
+  const r = chimeStep(chimes.S, n); r.how = how || 'hook'; chimes.last = r;
+  if(r.wrong) chimeDiscord(t);
+  if(r.won){ chimes.play = {t0:performance.now() + 1100, k:0}; if(playing) toast('The chimes go still. Then they begin to sing it back.', 3600); }
+  return Object.assign({}, r);
+}
+// the win: saved, the shard given, and (still here) the shard shown over the frame. silent = leaving the realm mid-playback
+function chimeWin(silent){
+  if(!chimes) return false; chimes.play = null; state.hunt.cyan = true; persist();
+  const given = giveShard('sky', 'The Cyan Shard, out of the wind chimes on the highest isle. Low Tide, the way she sang it.');
+  if(!given && !silent) toast('The chimes sing Low Tide back to you. You already hold the Cyan Shard.', 3600);
+  if(!silent && !chimes.shard){ const col = SHARD_COLORS.sky, y = chimes.top + CHIMES.beamY + 0.9;
+    const m = mk(new THREE.OctahedronGeometry(0.34, 0), phys(col, {emissive:C(col), emissiveIntensity:2.2, roughness:0.1}), chimes.x, y, chimes.z); m.scale.set(0.8, 1.7, 0.8); m.castShadow = false;
+    chimes.shard = {m, gl:glow(col, 2.6, chimes.x, y, chimes.z, world, 0.6), y}; }
+  if(typeof huntState === 'function') huntState();
+  return given;
+}
+function chimeUpdate(dt, time){
+  let near = null; const H = chimes;
+  if(H && state.world === 'sky'){
+    // wind: a slow gust, each tube on its own pendulum; it only moves them, it never calls strikeChime
+    const gust = 0.55 + 0.45 * Math.sin(time * 0.31) * Math.sin(time * 0.17 + 2);
+    for(const t of H.tubes){ t.ringT += dt; const e = t.ring * Math.exp(-t.ringT * 1.3), w = t.w;
+      t.pv.rotation.x = 0.03 * gust * Math.sin(time * w * 0.9 + t.ph) + 0.2 * e * Math.sin(t.ringT * w * 1.6);
+      t.pv.rotation.z = 0.022 * gust * Math.sin(time * w * 0.7 + t.ph * 1.3);
+      t.mat.emissiveIntensity = 0.5 * t.ring * Math.exp(-t.ringT * 3); if(e < 0.01) t.ring = 0; }
+    // playback: the tune rung by itself, one note every 0.62 s (the music box's pace), then the shard
+    if(H.play){ const P = H.play, O = HUNT_CLUES.cyan.order, now = performance.now();
+      while(P.k < O.length && now >= P.t0 + P.k * 620){ const t = H.tubes[O[P.k] - 1]; t.ring = 1; t.ringT = 0; chimeNote(t, 0, true); P.k++; }
+      if(P.k >= O.length && now >= P.t0 + O.length * 620 + 1400) chimeWin(false); }
+    if(H.shard){ H.shard.m.rotation.y += dt * 1.5; H.shard.m.position.y = H.shard.gl.position.y = H.shard.y + Math.sin(time * 2) * 0.12; }
+    // which chime you stand in front of: across the frame by where you stand along it, up to reach metres back from it
+    if(playing && !bike.riding){ const dx = p.x - H.x, dz = p.z - H.z, d = dx * H.ux + dz * H.uz, s = dx * H.rx + dz * H.rz, half = (CHIMES.n - 1) / 2 * CHIMES.gap;
+      if(d < 0 && d > -CHIMES.reach && Math.abs(s) < half + 0.35 && p.y > H.top - 0.5 && p.y < H.top + 1.6) near = clamp(Math.round(s / CHIMES.gap + (CHIMES.n - 1) / 2), 0, CHIMES.n - 1); }
+    if(near != null && !H.told){ H.told = true; toast('Seven chimes on a weathered frame, the longest on the left. Walk along them and press E, or click one, to strike it.', 4800); }
+  }
+  if(near !== chimeNear){ chimeNear = near; const b = $('#chimeBtn'); b.style.display = near == null ? 'none' : ''; if(near != null) b.textContent = 'Strike ' + (near + 1); }
+}
+$('#chimeBtn').addEventListener('click', () => { if(chimeNear != null) strikeChime(chimeNear + 1, 'button'); });
+// pointing at a chime and clicking (or tapping) strikes it: a press that did not drag the camera, on a tube within reach
+const chimeRay = new THREE.Raycaster();
+function chimePick(cx, cy){
+  if(!chimes || state.world !== 'sky' || !playing) return null;
+  if(Math.hypot(p.x - chimes.x, p.z - chimes.z) > CHIMES.clickReach) return null;
+  const rc = canvas.getBoundingClientRect(); chimeRay.setFromCamera(new V2((cx - rc.left) / rc.width * 2 - 1, -((cy - rc.top) / rc.height) * 2 + 1), camera);
+  const hit = chimeRay.intersectObjects(chimes.tubes.map(t => t.tube), false)[0]; if(!hit) return null;
+  return strikeChime(hit.object.userData.chime + 1, 'click');
+}
+{ let down = null;
+  canvas.addEventListener('pointerdown', e => { down = {x:e.clientX, y:e.clientY, t:performance.now()}; });
+  canvas.addEventListener('pointerup', e => { const d = down; down = null; if(d && Math.hypot(e.clientX - d.x, e.clientY - d.y) < 6 && performance.now() - d.t < 500) chimePick(e.clientX, e.clientY); }); }
 
 /* ================= loop ================= */
 const _t0 = new V3(), _t1 = new V3();
@@ -10712,7 +10827,7 @@ function update(dt, time){
     state.won = true; reward(500, 200); sfx('win'); setHalo(); toast('You opened the vault. First to crack the Hub.   +500 XP', 5000);
   }
   if(playing && p.grounded && p.speed > 0.6){ snd.stepT -= dt; if(snd.stepT <= 0){ sfx('step'); snd.stepT = p.speed > 7 ? 0.27 : 0.42; } } else snd.stepT = 0.1;
-  shopProximity(); bikeProximity(); vendProximity(); deskProximity(); archiveUpdate(dt); hollowUpdate(dt, time); driftUpdate(dt, time); hallUpdate(dt, time); rallyTick(dt, time); trialUpdate(dt, time);
+  shopProximity(); bikeProximity(); vendProximity(); deskProximity(); archiveUpdate(dt); hollowUpdate(dt, time); chimeUpdate(dt, time); driftUpdate(dt, time); hallUpdate(dt, time); rallyTick(dt, time); trialUpdate(dt, time);
   updatePickups(dt, time); hurtCool -= dt; simTime += dt; updateHazards(simTime); updateBurst(dt); checkBundles();
   if(!WORLDS[state.world].rules.danger && !zeroing && state.hp < maxHp()){ state.hp = Math.min(maxHp(), state.hp + 12 * dt); hpHud(); }
   portalCool -= dt;
@@ -10923,6 +11038,26 @@ Object.defineProperties(window.__hub, {
     corr.lanterns.forEach(l => { if(S.state === 'walking' && l.u < u - 2.5) l.want = Math.max(0.06, 1 - (u - 2.5 - l.u) / 10); l.lvl = l.want; l.flick = 0; }); corr.signs.forEach(s => { s.flick = 0; });
     hallUpdate(0, clock.elapsedTime); snapCamera(); clipCamera(); return corrState(); }},
   roseWon:{get:() => state.shards.has('grid')}
+});
+// Goal 13: the wind chimes. strikeChime(n) strikes chime n (1 = the longest) through the same path as E and clicks; chimeFinish() skips the playback wait;
+// clickChime(n) clicks the middle of tube n on screen (the real pointer path); chimeGoto() stands you in front of the frame for a screenshot
+function chimeInfo(){ const H = chimes; return H && {frame:{x:+H.x.toFixed(2), z:+H.z.toFixed(2), top:H.top, facing:{x:+(-H.ux).toFixed(3), z:+(-H.uz).toFixed(3)}}, isle:(q => ({x:+q.x.toFixed(2), z:+q.z.toFixed(2), r:q.r, top:q.top}))(platforms[CHIMES.isle]),
+  tubes:H.tubes.map(t => { const v = t.tube.getWorldPosition(new V3()); return {n:t.n, x:+v.x.toFixed(2), y:+v.y.toFixed(2), z:+v.z.toFixed(2), length:+t.L.toFixed(3), hz:t.hz}; }), order:HUNT_CLUES.cyan.order.slice()}; }
+Object.defineProperties(window.__hub, {
+  chimes:{get:() => chimeInfo()}, CHIMES:{value:CHIMES}, LOW_TIDE_HZ:{value:LOW_TIDE_HZ}, chimeStep:{value:(S, n) => chimeStep(S, n)},
+  chimeState:{get:() => chimes ? {k:chimes.S.k, hist:chimes.S.hist.slice(), strikes:chimes.S.strikes, wrongs:chimes.S.wrongs, playing:!!chimes.play, played:chimes.play ? chimes.play.k : null, near:chimeNear == null ? null : chimeNear + 1,
+    last:chimes.last && Object.assign({}, chimes.last), sung:!!state.hunt.cyan, shardShown:!!chimes.shard, sway:chimes.tubes.map(t => +t.pv.rotation.x.toFixed(4))} : null},
+  strikeChime:{value:n => strikeChime(n, 'hook')},
+  clickChime:{value:n => { if(!chimes || !chimes.tubes[n - 1]) return null; const v = chimes.tubes[n - 1].tube.getWorldPosition(new V3()).project(camera), rc = canvas.getBoundingClientRect();
+    if(v.z > 1 || Math.abs(v.x) > 1 || Math.abs(v.y) > 1) return {offscreen:true}; return chimePick(rc.left + (v.x + 1) / 2 * rc.width, rc.top + (1 - v.y) / 2 * rc.height); }},
+  chimeFinish:{value:() => { if(!chimes || !chimes.play) return false; chimes.play.t0 = -1e9; chimeUpdate(0, clock.elapsedTime); return state.shards.has('sky'); }},
+  chimeUpdate:{value:dt => chimeUpdate(dt || 0.05, clock.elapsedTime)},
+  // o: {n: stand in front of chime n (default the middle), back: metres back from the frame (default 1.1), dist, pitch, yaw: turn the camera off-axis (radians)}
+  chimeGoto:{value:o => { if(!chimes) return null; o = o || {}; const H = chimes, s = ((o.n || 4) - 1 - (CHIMES.n - 1) / 2) * CHIMES.gap, b = o.back == null ? 1.1 : o.back;
+    p.x = H.x + H.rx * s - H.ux * b; p.z = H.z + H.rz * s - H.uz * b; p.y = H.top; p.vx = p.vy = p.vz = 0; p.speed = 0;
+    cam.yaw = Math.atan2(-H.ux, -H.uz) + (o.yaw || 0); cam.pitch = o.pitch == null ? 0.12 : o.pitch; cam.dist = o.dist || 4.2; p.facing = cam.yaw + Math.PI; snapCamera(); clipCamera(); chimeUpdate(0, clock.elapsedTime);
+    return {x:+p.x.toFixed(2), z:+p.z.toFixed(2), y:+p.y.toFixed(2), near:chimeNear == null ? null : chimeNear + 1}; }},
+  cyanWon:{get:() => state.shards.has('sky')}
 });
 })();
 </script>
