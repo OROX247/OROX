@@ -4573,8 +4573,8 @@ BUILD.grove = (r, n) => {
    and the grass cap is a lathe with a rounded lip, so an isle is a torn-off piece of land rather than a spinning top with a hockey puck on it.
    Deterministic from seed (no rng draws), and the rim keeps its radius on average, so the platforms and colliders built around it still fit. */
 const isleEdge = (a, sd) => 1 + 0.05 * lump(Math.cos(a) * 1.7 + sd, 0.3, Math.sin(a) * 1.7 - sd);
-function isleRock(rad, depth, sd){
-  const g = new THREE.ConeGeometry(rad, depth, 40, 16), p = g.attributes.position, bx = Math.cos(sd * 2.3) * rad * 0.28, bz = Math.sin(sd * 2.3) * rad * 0.28;
+function isleRock(rad, depth, sd, seg, rows){
+  const g = new THREE.ConeGeometry(rad, depth, seg || 40, rows || 16), p = g.attributes.position, bx = Math.cos(sd * 2.3) * rad * 0.28, bz = Math.sin(sd * 2.3) * rad * 0.28;
   for(let i = 0; i < p.count; i++){
     const x = p.getX(i), y = p.getY(i), z = p.getZ(i), u = (y + depth / 2) / depth, rr = Math.hypot(x, z); if(rr < 1e-5){ p.setX(i, bx * u * u); p.setZ(i, bz * u * u); continue; }
     const a = Math.atan2(z, x), ca = Math.cos(a), sa = Math.sin(a), yy = y / rad, amp = smooth(0, 0.18, u);
@@ -4601,7 +4601,7 @@ BUILD.sky = (r, n) => {
     vertexShader:'varying vec3 vW; void main(){ vec4 w = modelMatrix * vec4(position, 1.0); vW = w.xyz; gl_Position = projectionMatrix * viewMatrix * w; }',
     fragmentShader:'uniform float time; uniform vec3 lit, shade; varying vec3 vW;' + NOISE_GLSL + ' void main(){ float a = fbm5(vW.xz * 0.006 + vec2(time * 0.01, 0.0)); float b = fbm5(vW.xz * 0.02 - vec2(0.0, time * 0.02)); float c = smoothstep(0.3, 0.75, a * 0.7 + b * 0.45); vec3 col = mix(shade, lit, smoothstep(0.35, 0.85, b)); float fade = 1.0 - smoothstep(700.0, 1600.0, length(vW.xz - cameraPosition.xz)); gl_FragColor = vec4(col, (0.35 + 0.65 * c) * fade); }'
   }));
-  cloudSea.rotation.x = -Math.PI / 2; cloudSea.position.y = -60; world.add(cloudSea);
+  cloudSea.rotation.x = -Math.PI / 2; cloudSea.position.y = -60; world.add(cloudSea); coreFollow.push({o:cloudSea});
   const grassTop = std(0x5e9a3c, {roughness:0.95, map:detailTex});
   for(let i = 0; i < 8; i++){
     const a = i * 0.85 + 0.4, rad = i === 7 ? 2.6 : 1.8, top = 2.2 * (i + 1), x = 12 + Math.cos(a) * 8, z = 12 + Math.sin(a) * 8;
@@ -4614,7 +4614,7 @@ BUILD.sky = (r, n) => {
   for(let i = 0; i < 24; i++){ const s = freeSpot(r, 8, 54, 3); if(!s) continue; const k = 0.8 + r() * 0.5; trees.push({x:s[0], y:G(s[0], s[1]) - 0.1, z:s[1], s:k, ry:r() * TAU}); colliders.push({x:s[0], z:s[1], r:0.35 * k}); }
   for(let i = 0; i < 12; i++){
     const a = r() * TAU, d = 90 + r() * 140, x = Math.cos(a) * d, z = Math.sin(a) * d, y = -10 + r() * 55, k = 5 + r() * 9;
-    mk(isleCap(k, 1.2, 20 + i), grassTop, x, y, z).castShadow = false;
+    mk(isleCap(k, 1.2, 20 + i), grassTop, x, y, z).castShadow = false; coreSolids.push({kind:'isle', x, y, z, k});   // ground you can land on once the realm is endless
     const c = mk(isleRock(k * 0.98, k * 2, 20 + i), rockM, x, y - 0.6 - k, z); c.rotation.x = Math.PI; c.castShadow = false;
     for(let j = 0; j < 1 + Math.floor(k / 4); j++) trees.push({x:x + (r() - 0.5) * k, y:y + 0.5, z:z + (r() - 0.5) * k, s:0.8 + r() * 0.6, ry:r() * TAU});
   }
@@ -5921,7 +5921,7 @@ function cellDream(ctx){
 function planCells(E){
   const TS = E.style.tiers, F = TS[0].r, pcx = E.pcx, pcz = E.pcz, cheb = c => Math.max(Math.abs(c.cx - pcx), Math.abs(c.cz - pcz));
   for(const c of [...E.chunks.values()]){ const ch = cheb(c);
-    for(let ti = TS.length - 1; ti >= 0; ti--) if(c.parts[ti] && ch > TS[ti].r + 1){ dropPart(E, c.parts[ti]); c.parts[ti] = null; if(TS[ti].dream) c.dream = null; }
+    for(let ti = TS.length - 1; ti >= 0; ti--) if(c.parts[ti] && ch > TS[ti].r + 1){ dropPart(E, c.parts[ti]); c.parts[ti] = null; if(TS[ti].dream) c.dream = null; const hd = TS[ti].hides; if(hd != null && c.parts[hd]){ c.parts[hd].hidden = false; c.parts[hd].g.visible = true; } }
     if(!c.parts[0]) E.chunks.delete(c.key); else for(const pt of c.parts) if(pt) partDetail(pt, ch <= 1); }
   const lookX = p.x - Math.sin(cam.yaw) * 30, lookZ = p.z - Math.cos(cam.yaw) * 30, want = [];
   for(let dz = -F; dz <= F; dz++) for(let dx = -F; dx <= F; dx++){
@@ -5934,7 +5934,8 @@ function planCells(E){
 function runCellJob(E, w){
   const key = chunkKey(w.cx, w.cz); let c = E.chunks.get(key);
   if(!c){ c = {key, cx:w.cx, cz:w.cz, parts:[], locals:[], dream:null, local:[]}; E.chunks.set(key, c); }
-  for(let ti = 0; ti <= w.ti; ti++) if(!c.parts[ti]){ c.parts[ti] = buildPart(E, c, ti); if(ti < w.ti) E.queue.unshift(w); return; }   // one tier per step, the ones it stands on first; the job comes back until its own tier is built
+  for(let ti = 0; ti <= w.ti; ti++) if(!c.parts[ti]){ c.parts[ti] = buildPart(E, c, ti); const hd = E.style.tiers[ti].hides; if(hd != null && c.parts[hd]){ c.parts[hd].hidden = true; c.parts[hd].g.visible = false; }   // a full-detail tier hides the coarse one it replaces
+    if(ti < w.ti) E.queue.unshift(w); return; }   // one tier per step, the ones it stands on first; the job comes back until its own tier is built
 }
 /* the ground disc, re-centred in slices: positions and uvs by ring, normals accumulated by ring band (the same sums as
    computeVertexNormals), colours by ring, then one swap. Centre (0, 0) restores the saved original instead. */
@@ -5979,8 +5980,9 @@ function updateBuiltin(){
   // cells behind the camera and more than two cells away are hidden (instanced meshes are not frustum-culled in r128); near cells always draw, so their shadows stay
   if(!vr.on){ _cellFr.setFromProjectionMatrix(_cellPm.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse));
     for(const c of E.chunks.values()){ const x0 = c.cx * CHUNK, z0 = c.cz * CHUNK; let vis = Math.max(Math.abs(p.x - x0 - CHUNK / 2), Math.abs(p.z - z0 - CHUNK / 2)) < CHUNK * 2;
-      if(!vis){ _cellBox.min.set(x0 - 40, -120, z0 - 40); _cellBox.max.set(x0 + CHUNK + 40, 400, z0 + CHUNK + 40); vis = _cellFr.intersectsBox(_cellBox); }
-      for(const pt of c.parts) if(pt) pt.g.visible = vis; } }
+      if(!vis){ _cellBox.min.set(x0 - 40, -120, z0 - 40); _cellBox.max.set(x0 + CHUNK + 40, 400, z0 + CHUNK + 40); vis = _cellFr.intersectsBox(_cellBox);
+        if(vis){ const ex = Math.max(x0 - camWorld.x, 0, camWorld.x - x0 - CHUNK), ez = Math.max(z0 - camWorld.z, 0, camWorld.z - z0 - CHUNK); if(Math.hypot(ex, ez) > E.fogFar + 40) vis = false; } }   // lost in the fog: not drawn
+      for(const pt of c.parts) if(pt) pt.g.visible = vis && !pt.hidden; } }
   // sky-like things (stars, a sun disc, a cloud sea, a floor) follow you once you are outside the core ring, and sit where they always sat inside it
   if(E.follow.length){ const d = Math.hypot(p.x, p.z), k = d > R ? 1 - R / d : 0, ox = p.x * k, oz = p.z * k;
     for(const f of E.follow){ const sx = f.snap ? Math.round(ox / f.snap) * f.snap : ox, sz = f.snap ? Math.round(oz / f.snap) * f.snap : oz; f.o.position.x = f.bx + sx; f.o.position.z = f.bz + sz; } }
@@ -6394,6 +6396,107 @@ ENDLESS.grid = {
           instanced(k.pyr, k.glass, pm); const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(el, 3)); buildParent.add(new THREE.LineSegments(g, (c.cx & 1) ? k.pink : k.cyan)); }
       }
       glowCloud(glows, 0.45); }}
+  ]
+};
+
+/* ---- Sky Isles: an endless archipelago. Isles sit on a 26 m lattice (jittered), 9.5-13 m across the radius, so the gaps are
+   a run-and-jump (or a boost, or the hoverbike) apart; their heights follow a smooth field, so neighbours are close in height.
+   The gaps are falls: below the cloud sea the winds carry you back to the last ground you stood on (the realm is safe, so no damage). ---- */
+const SKY_VOID = -1e4, ISLE_S = 26;
+let skyTopNoise = null, skyCoreIsles = [];
+const skyIsleMemo = new Map();
+function skyIsle(ix, iz){
+  const k = ix * 65536 + iz; if(skyIsleMemo.has(k)) return skyIsleMemo.get(k);
+  const q = rng(cellSeed('sky', ix, iz, 11)); let x = (ix + 0.5) * ISLE_S + (q() - 0.5) * 5, z = (iz + 0.5) * ISLE_S + (q() - 0.5) * 5; const r = 9.5 + q() * 3.5, sd = 1 + q() * 60;
+  let d = Math.hypot(x, z), isle = null;
+  if(d - r < R + 7){ const k2 = (R + 7 + r) / Math.max(d, 1e-3); x *= k2; z *= k2; d = R + 7 + r; }   // the first ring sits just past the home island's rim
+  if(!skyCoreIsles.some(c => Math.hypot(x - c.x, z - c.z) < c.k + r + 3)){
+    const n = skyTopNoise || (skyTopNoise = makeNoise(WORLDS.sky.seed * 13 + 5));
+    const top = n.fbm(x * 0.0045 + 3, z * 0.0045 - 7, 3) * 16 * smooth(R, R + 160, d) + (q() - 0.5) * 1.2;
+    isle = {x, z, r, sd, top};
+  }
+  skyIsleMemo.set(k, isle); return isle;
+}
+function isleTopAt(I, x, z){ const dx = x - I.x, dz = z - I.z, dd = Math.hypot(dx, dz), rr = I.r * isleEdge(Math.atan2(dz, dx), I.sd); if(dd >= rr) return SKY_VOID;
+  const t = dd / rr; return I.top + 0.9 * (1 - t * t) + 0.25 * lump(dx * 0.15, I.sd, dz * 0.15) * (1 - t) - smooth(0.88, 1, t) * 0.5; }
+function skyG(x, z){
+  const d = Math.hypot(x, z); if(d < R + 6) return hf(x, z);
+  let best = SKY_VOID; const ix = Math.floor(x / ISLE_S), iz = Math.floor(z / ISLE_S);
+  for(let dz = -1; dz <= 1; dz++) for(let dx = -1; dx <= 1; dx++){ const I = skyIsle(ix + dx, iz + dz); if(I){ const y = isleTopAt(I, x, z); if(y > best) best = y; } }
+  if(d < 260) for(const c of skyCoreIsles) if(Math.hypot(x - c.x, z - c.z) < c.k * 0.93) best = Math.max(best, c.y + 0.6);   // the hand-made far isles are ground too now
+  return best;
+}
+ENDLESS.sky = {
+  core:R + 6, home:1e9, noRecenter:true, dreamOdds:0.1, dreamR:2,
+  words:'an endless archipelago of floating grassy isles above a sea of clouds on a bright morning, with trees, rocks and wildflowers',
+  dream:{kinds:['tower', 'monoliths', 'arch', 'windmill', 'lighthouse'], surface:'meadow', time:'morning'},
+  solidAt(x, z, clear){ const m = clamp(clear || 0, 1, 5); return G(x, z) > -1000 && G(x + m, z) > -1000 && G(x - m, z) > -1000 && G(x, z + m) > -1000 && G(x, z - m) > -1000; },
+  start(E){
+    skyCoreIsles = coreSolids.filter(c => c.kind === 'isle');
+    G = skyG;   // from now on the ground past the home island is the isles (the core was built with the old one, so nothing in it moved)
+    E.safe = [p.x, p.z];
+  },
+  kit(){
+    const rockM = shareMat(reg('rock', {mat:std(0x7a6f66, {roughness:0.95, map:detailTex, normalMap:detailNormal}), kind:'pillar'})), top = shareMat(std(0x5e9a3c, {roughness:0.95, map:detailTex}));
+    const rocks = [], rocksLo = []; for(let i = 0; i < 6; i++){ const g = isleRock(10, 22, 40 + i * 3.7, 28, 11), l = isleRock(10, 22, 40 + i * 3.7, 12, 5); g.rotateX(Math.PI); l.rotateX(Math.PI); rocks.push(g); rocksLo.push(l); }   // unit isles (radius 10) turned the right way up, scaled per isle; a coarse copy for far away
+    const TG = treeGeos(); ['trunk', 'leaf', 'trunkLo', 'leafLo'].forEach(k => shareGeo(TG[k]));
+    return {rockM, top, rocks, rocksLo, farM:shareMat(std(0xffffff, {roughness:0.95, map:detailTex, vertexColors:true})), TG, flower:shareGeo(new THREE.IcosahedronGeometry(0.06, 0)), flowerM:shareMat(std(0xffffff, {roughness:0.6}))};
+  },
+  landAt(x, z){ if(G(x, z) > -1000) return [x, z]; let best = null, bd = 1e9; const ix = Math.floor(x / ISLE_S), iz = Math.floor(z / ISLE_S);
+    for(let dz = -2; dz <= 2; dz++) for(let dx = -2; dx <= 2; dx++){ const I = skyIsle(ix + dx, iz + dz); if(I){ const d = Math.hypot(x - I.x, z - I.z); if(d < bd){ bd = d; best = [I.x, I.z]; } } }
+    return best || [0, 14]; },
+  isles(c){ const out = [], x0 = c.cx * CHUNK, z0 = c.cz * CHUNK;
+    for(let iz = Math.floor((z0 - 30) / ISLE_S); iz <= Math.floor((z0 + CHUNK + 30) / ISLE_S); iz++) for(let ix = Math.floor((x0 - 30) / ISLE_S); ix <= Math.floor((x0 + CHUNK + 30) / ISLE_S); ix++){
+      const I = skyIsle(ix, iz); if(I && Math.floor(I.x / CHUNK) === c.cx && Math.floor(I.z / CHUNK) === c.cz) out.push(I); }
+    return out; },
+  minimap(ctx, T, sc){ const E = endless; ctx.fillStyle = 'rgba(140,210,120,0.28)'; const ix = Math.floor(p.x / ISLE_S), iz = Math.floor(p.z / ISLE_S);
+    for(let dz = -3; dz <= 3; dz++) for(let dx = -3; dx <= 3; dx++){ const I = skyIsle(ix + dx, iz + dz); if(!I) continue; const o = T(I.x, I.z); ctx.beginPath(); ctx.arc(o[0], o[1], I.r * sc, 0, TAU); ctx.fill(); }
+    for(const c of skyCoreIsles){ const o = T(c.x, c.z); ctx.beginPath(); ctx.arc(o[0], o[1], c.k * 0.93 * sc, 0, TAU); ctx.fill(); } },
+  tick(E){
+    const g = G(p.x, p.z);
+    if(!bike.riding && p.grounded && g > -1000 && p.y - g < 0.1) E.safe = [p.x, p.z];
+    if(bike.riding && g > -1000 && bike.y - g < 1.2) E.safe = [bike.x, bike.z];
+    if(p.y < -75 && !zeroing && !traveling){
+      const s = E.safe || [0, 14];
+      if(bike.riding){ bike.x = s[0]; bike.z = s[1]; bike.y = G(s[0], s[1]) + 0.55; bike.vy = 0; bike.speed = 0; if(bike.g) bike.g.position.set(bike.x, bike.y, bike.z); dismountBike(true); }
+      else { p.x = s[0]; p.z = s[1]; p.y = G(s[0], s[1]) + 0.05; p.vy = 0; p.speed = 0; }
+      hurt(25, 'fall'); toast('The sky winds carry you back to the last isle you stood on', 3200); sfx('warp'); }
+  },
+  // the isles of a cell: one grass-top mesh and one rock mesh (RINGS x SEG caps; rockSet full or coarse)
+  isleMeshes(c, k, RINGS, SEG, rockSet, one){
+      const caps = [], rocks = [], M = new THREE.Matrix4();
+      for(const I of this.isles(c)){
+        const pos = [], idx = [], uv = []; pos.push(I.x, isleTopAt(I, I.x, I.z), I.z); uv.push(I.x * 0.25, I.z * 0.25);
+        for(let i = 1; i <= RINGS; i++) for(let j = 0; j < SEG; j++){ const a = j / SEG * TAU, rr = I.r * isleEdge(a, I.sd) * (i === RINGS ? 0.999 : Math.sqrt(i / RINGS)), x = I.x + Math.cos(a) * rr, z = I.z + Math.sin(a) * rr; pos.push(x, isleTopAt(I, I.x + Math.cos(a) * Math.min(rr, I.r * isleEdge(a, I.sd) * 0.998), I.z + Math.sin(a) * Math.min(rr, I.r * isleEdge(a, I.sd) * 0.998)), z); uv.push(x * 0.25, z * 0.25); }
+        for(let j = 0; j < SEG; j++) idx.push(0, 1 + (j + 1) % SEG, 1 + j);
+        for(let i = 1; i < RINGS; i++) for(let j = 0; j < SEG; j++){ const a = 1 + (i - 1) * SEG + j, b = 1 + (i - 1) * SEG + (j + 1) % SEG, cc = a + SEG, d = b + SEG; idx.push(a, b, cc, b, d, cc); }
+        const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); g.setIndex(idx); g.computeVertexNormals(); caps.push(g);
+        const rg = rockSet[Math.floor(I.sd) % 6].clone(), s = I.r / 10; M.makeScale(s, s * (0.8 + (I.sd % 1) * 0.5), s).setPosition(I.x, I.top - 0.35 - 11 * s * (0.8 + (I.sd % 1) * 0.5), I.z); rocks.push(rg.applyMatrix4(M));
+      }
+      if(!caps.length) return;
+      if(one){ const tint = (g, hex) => { const c = C(hex), n = g.attributes.position.count, a = new Float32Array(n * 3); for(let i = 0; i < n; i++){ a[i * 3] = c.r; a[i * 3 + 1] = c.g; a[i * 3 + 2] = c.b; } g.setAttribute('color', new THREE.BufferAttribute(a, 3)); return g; };
+        mk(merge(caps.map(g => tint(g, 0x5e9a3c)).concat(rocks.map(g => tint(g, 0x7a6f66)))), k.farM).castShadow = false; return; }   // far away: grass and rock in one draw, told apart by vertex colour
+      mk(merge(caps), k.top); mk(merge(rocks), k.rockM).castShadow = false; },
+  tiers:[
+    // far: the isles, coarse, out to 8 cells; `isles` builds them in full within 2 cells and hides the coarse ones of its cell
+    {name:'far', r:8, build(c, k){ this.isleMeshes(c, k, 3, 16, k.rocksLo, true); }},
+    {name:'isles', r:2, hides:0, build(c, k){ this.isleMeshes(c, k, 6, 32, k.rocks); }},
+    // mid: trees, boulders and wildflowers on the isles
+    {name:'mid', r:2, build(c, k){
+      const q = c.q, trees = [], fm = [], fc = [], fcols = [0xffffff, 0xffe066, 0xff8fc4, 0xc9a8ff];
+      for(const I of this.isles(c)){
+        for(let i = 0, n = Math.floor(q() * 4); i < n; i++){ const a = q() * TAU, d = q() * I.r * 0.7, x = I.x + Math.cos(a) * d, z = I.z + Math.sin(a) * d, s = 0.8 + q() * 0.5; if(!c.free(x, z, 1.5) || G(x, z) < -1000) continue;
+          trees.push({x, y:G(x, z) - 0.1, z, s, ry:q() * TAU}); c.local.push({x, z, r:0.6 * s}); colliders.push({x, z, r:0.35 * s}); }
+        for(let i = 0; i < 40; i++){ const a = q() * TAU, d = Math.sqrt(q()) * I.r * 0.92, x = I.x + Math.cos(a) * d, z = I.z + Math.sin(a) * d, s = 0.8 + q() * 0.6, ci = Math.floor(q() * 4), yy = 0.25 + q() * 0.2; const y = G(x, z); if(y < -1000) continue; fm.push(mat4(x, y + yy, z, 0, 0, 0, s)); fc.push(C(fcols[ci])); }
+      }
+      if(trees.length) plantTrees(k.TG, trees, [0x4f8a36, 0x66a040, 0x3f7a30], q);
+      if(fm.length) instanced(k.flower, k.flowerM, fm, fc, false); }},
+    // near: grass on the isles
+    {name:'near', r:1, build(c, k){
+      const q = c.q, K = grassKit(), mats = [], cols = [], hexes = [0x5e9a3c, 0x72ad48, 0x86b95a, 0x4f8a34];
+      for(const I of this.isles(c)) for(let i = 0; i < 380; i++){ const a = q() * TAU, d = Math.sqrt(q()) * I.r * 0.95, x = I.x + Math.cos(a) * d, z = I.z + Math.sin(a) * d, hh = (0.35 + q() * 0.5) * 1.25, ry = q() * TAU, sx = 0.9 + q() * 0.6, ci = Math.floor(q() * 4), cm = 0.8 + q() * 0.45;
+        const y = isleTopAt(I, x, z); if(y < -1000) continue; mats.push(mat4(x, y - 0.03, z, 0, ry, 0, sx, hh, sx)); const cc = C(hexes[ci]); cc.multiplyScalar(cm); cols.push(cc); }
+      const m = instanced(K.geo, K.mat, mats, cols, false); if(m) cellGrassMesh(m, K); }}
   ]
 };
 
