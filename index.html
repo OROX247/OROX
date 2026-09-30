@@ -3528,7 +3528,7 @@ function part(geo, mat, parent, x, y, z, sx, sy, sz){
 const RECIPE_DEFAULT = { body:'humanoid', height:1.8, build:'normal', head:'visor', features:[], material:'plate', pattern:'none',
   colours:{main:'#1f2a44', second:'#eceef2', trim:'#5ce1e6', glow:'#5ce1e6'}, eyes:{style:'visor', glow:'#5ce1e6'} };
 const R_BODIES = ['humanoid','robot','beast','blob'], R_HEADS = ['helmet','visor','bare','animal','skull','screen'], R_BUILDS = ['slim','normal','heavy','huge'];
-const R_FEATURES = ['ears','snout','horns','tail','wings','cape','hood','backpack','jetpack','sword','staff','antenna','halo','crown','mask','spikes'];
+const R_FEATURES = ['ears','snout','horns','tail','wings','cape','hood','backpack','jetpack','sword','staff','antenna','halo','crown','mask','spikes','coat'];
 const R_MATERIALS = ['cloth','matte','plate','chrome','glass','fur','jelly','stone','neon'], R_PATTERNS = ['none','stripes','plates','circuits','camo','checks'], R_EYES = ['visor','dots','wide','slits','one'];
 const R_EARS = ['pointed','round','long','floppy','tufted'];   // ear shape by species (beasts); missing in old saves: heavy builds get round ears
 const BUILD_W = {slim:0.85, normal:1, heavy:1.22, huge:1.45};
@@ -3598,7 +3598,7 @@ const SPECIES = {
   statue:{material:'stone', colours:{main:'#b9bec8', second:'#8f97a3'}, eyes:{style:'dots', glow:'#8f97a3'}}, lava:{material:'stone', pattern:'circuits', colours:{main:'#2a2a30', second:'#ff5a2a', glow:'#ff5a2a'}, eyes:{style:'dots', glow:'#ffb020'}}, ice:{material:'glass', colours:{main:'#bfe0ff', second:'#eceef2', glow:'#5ce1e6'}, eyes:{style:'dots'}}, crystal:'ice',
   hoodie:{features:['hood']}, hoody:'hoodie'
 };
-const WORD_FEATURES = { ears:'ears', ear:'ears', snout:'snout', muzzle:'snout', horn:'horns', horns:'horns', horned:'horns', antlers:'horns', tail:'tail', tails:'tail', wing:'wings', wings:'wings', winged:'wings', cape:'cape', cloak:'cape', caped:'cape', hood:'hood', hooded:'hood', backpack:'backpack', rucksack:'backpack', jetpack:'jetpack', rockets:'jetpack', thrusters:'jetpack', sword:'sword', blade:'sword', katana:'sword', axe:'sword', staff:'staff', wand:'staff', spear:'staff', antenna:'antenna', antennae:'antenna', antennas:'antenna', halo:'halo', crown:'crown', tiara:'crown', mask:'mask', masked:'mask', spikes:'spikes', spiky:'spikes', spiked:'spikes', mohawk:'spikes', punk:'spikes' };
+const WORD_FEATURES = { ears:'ears', ear:'ears', snout:'snout', muzzle:'snout', horn:'horns', horns:'horns', horned:'horns', antlers:'horns', tail:'tail', tails:'tail', wing:'wings', wings:'wings', winged:'wings', cape:'cape', cloak:'cape', caped:'cape', hood:'hood', hooded:'hood', backpack:'backpack', rucksack:'backpack', jetpack:'jetpack', rockets:'jetpack', thrusters:'jetpack', sword:'sword', blade:'sword', katana:'sword', axe:'sword', staff:'staff', wand:'staff', spear:'staff', antenna:'antenna', antennae:'antenna', antennas:'antenna', halo:'halo', crown:'crown', tiara:'crown', mask:'mask', masked:'mask', spikes:'spikes', spiky:'spikes', spiked:'spikes', mohawk:'spikes', punk:'spikes', overcoat:'coat', greatcoat:'coat', trenchcoat:'coat', longcoat:'coat', duster:'coat' };   // not plain 'coat': NPCs already described with it would change
 const WORD_MATERIALS = { chrome:'chrome', chromed:'chrome', metal:'chrome', metallic:'chrome', steel:'chrome', silver:'chrome', gold:'chrome', golden:'chrome', mirror:'chrome', glass:'glass', crystal:'glass', transparent:'glass', clear:'glass', ice:'glass', fur:'fur', furry:'fur', fluffy:'fur', fuzzy:'fur', hairy:'fur', cloth:'cloth', fabric:'cloth', wool:'cloth', stone:'stone', rock:'stone', rocky:'stone', marble:'stone', concrete:'stone', neon:'neon', luminous:'neon', jelly:'jelly', slime:'jelly', slimy:'jelly', gel:'jelly', gooey:'jelly', matte:'matte', rubber:'matte', plastic:'matte', leather:'matte', armour:'plate', armor:'plate', armoured:'plate', armored:'plate', plate:'plate', plated:'plate', mech:'plate', carbon:'plate' };
 const WORD_PATTERNS = { stripes:'stripes', striped:'stripes', stripy:'stripes', stripe:'stripes', plates:'plates', panels:'plates', panelled:'plates', scales:'plates', scaly:'plates', circuit:'circuits', circuits:'circuits', circuitry:'circuits', digital:'circuits', tron:'circuits', cyber:'circuits', checks:'checks', chequered:'checks', checkered:'checks', checked:'checks', chess:'checks', camo:'camo', camouflage:'camo', army:'camo' };
 const WORD_HEADS = { helmet:'helmet', helm:'helmet', visor:'visor', hood:null, mask:null, skull:'skull', screen:'screen', monitor:'screen', tv:'screen', bare:'bare', face:'bare', head:null };
@@ -3943,6 +3943,9 @@ function makeAvatar(o){
   if(has('mask')) part(new THREE.BoxGeometry(0.24, 0.07, 0.06), std(rc.body === 'beast' ? '#17171d' : col.second, {roughness:0.7}), head, 0, ey + 0.005, ez - 0.03);
   if(has('hood')){ const hd = part(new THREE.SphereGeometry(hr + 0.05, 24, 16, Math.PI / 2 + 0.72, TAU - 1.44, 0, Math.PI * 0.64), clothM, head, 0, hy + 0.01, -0.02); hd.material.side = THREE.DoubleSide; }
   if(has('spikes')) for(let i = 0; i < 5; i++){ const sp = part(new THREE.ConeGeometry(0.02, 0.09, 6), avatarMaterial('chrome', col.trim), blob ? hips : spine, 0, blob ? 0.45 + i * 0.03 : 0.55 - i * 0.09, blob ? -0.3 + i * 0.12 : -0.16 - i * 0.005); sp.rotation.x = -0.9; }
+  // a long coat: skirts from the belt to the shins, open at the front so the legs show when walking (Wick's grey coat, Goal 10)
+  if(has('coat') && !blob){ const pts = [[0.172, 0.06], [0.185, -0.08], [0.205, -0.3], [0.235, -0.55], [0.27, -0.78], [0.265, -0.8]].map(a => new V2(a[0], a[1]));
+    const ct = part(new THREE.LatheGeometry(pts, 28, 0.32, TAU - 0.64), clothM, hips, 0, 0, 0, 1, 1, 0.82); ct.material.side = THREE.DoubleSide; }
   if(has('cape')){ const geo = new THREE.PlaneGeometry(0.46, 0.85, 4, 8); const pa = geo.attributes.position; for(let i = 0; i < pa.count; i++){ const y = pa.getY(i); pa.setX(i, pa.getX(i) * (1 + (0.425 - y) * 0.5)); pa.setZ(i, -(0.425 - y) * (0.425 - y) * 0.25); } geo.translate(0, -0.425, 0); geo.computeVertexNormals();
     cape = part(geo, clothM, spine, 0, 0.5, -0.16); cape.material.side = THREE.DoubleSide; }
   if(has('wings')){ wings = new THREE.Group(); wings.position.set(0, 0.4, -0.15); spine.add(wings);
@@ -5689,6 +5692,7 @@ function buildArchive(){
     flame:glowM(0xffb45a, 2.6), bulb:glowM(0xffe0a8, 2.4), lampWarm:glowM(0xffc98a, 2.2), lampCool:glowM(0xf2f5ff, 1.3), rose:glowM(0xff4fa3, 1.8), cyan:glowM(0x5ce1e6, 1.4)
   };
   const hall = new THREE.Group(); world.add(hall);
+  const hallLabels = [];   // the E labels, hidden while the Broadcast plays
   const brick = [], plaster = [], stone = [], oak = [], dark = [], glass = [], sol = [];
   // a wall along x (thick in z from f0 to f1) or along z (thick in x), from a0 to a1, with openings {a0, a1, y0, y1}
   const wall = (list, axis, f0, f1, a0, a1, holes, solid) => {
@@ -5756,7 +5760,7 @@ function buildArchive(){
     const pg = new THREE.PlaneGeometry(0.76, 0.475); pg.rotateX(-Math.PI / 2); pg.rotateY(Math.PI); const bk = mk(pg, std(0xffffff, {map:ARCH_TEX.book(), roughness:0.85, emissive:C(0xffffff), emissiveMap:ARCH_TEX.book(), emissiveIntensity:0.12}), 0, 0.058, 0, top); bk.castShadow = false;
     mk(BX(0.02, 0.012, 0.5), M.brass, 0, 0.066, 0, top).castShadow = false; }
   aabb(L.x - 0.45, L.x + 0.45, 0, 1.3, L.z - 0.4, L.z + 0.4, {full:true, cam:false});
-  { const l = label('The Ashcombe Ledger · E', {small:true, edge:'#e8c77a', fg:'#f3e2b0'}); l.position.set(L.x, 1.95, L.z); l.scale.multiplyScalar(0.5); hall.add(l); }   // indoor labels at half size
+  { const l = label('The Ashcombe Ledger · E', {small:true, edge:'#e8c77a', fg:'#f3e2b0'}); l.position.set(L.x, 1.95, L.z); l.scale.multiplyScalar(0.5); hall.add(l); hallLabels.push(l); }   // indoor labels at half size
   // the Registrar's desk, his lamp and bell, the card index, the portrait of Wick above
   const D = A.desk; dark.push([D.x - 2.4, D.x + 2.4, 0, 1.0, D.z - 0.4, D.z + 0.4]); oak.push([D.x - 2.5, D.x + 2.5, 1.0, 1.06, D.z - 0.48, D.z + 0.48]);
   mk(CY(0.07, 0.09, 0.03, 20), M.brass, 1.6, 1.075, D.z); mk(CY(0.012, 0.012, 0.3, 8), M.brass, 1.6, 1.24, D.z); const shade = mk(CY(0.11, 0.11, 0.26, 20, true), glowM(0x2f8a5a, 0.9), 1.6, 1.42, D.z); shade.rotation.z = Math.PI / 2; shade.scale.set(1, 1, 0.55);
@@ -5775,7 +5779,7 @@ function buildArchive(){
   [-3.4, 3.4].forEach(x => { const z = A.z0 - A.apron + 0.5; mk(CY(0.07, 0.11, 3.4, 12), M.iron, x, 1.7, z, hall); mk(CY(0.26, 0.18, 0.16, 4), M.iron, x, 3.55, z, hall).rotation.y = Math.PI / 4; mk(CY(0.16, 0.12, 0.4, 4), M.lampWarm, x, 3.3, z, hall).rotation.y = Math.PI / 4; glow(0xffc98a, 3, x, 3.3, z, hall, 0.5); colliders.push({x, z, r:0.2}); });
   // the Registrar, behind the desk
   const reg = makeAvatar({recipe:parseDescription('a tall slender librarian in a long green coat with round glasses'), name:'The Registrar'}); reg.g.position.set(D.x, 0, D.z + 1.1); reg.g.rotation.y = Math.PI; hall.add(reg.g);
-  { const l = label('The Registrar · E', {small:true, edge:'#9dff6a', fg:'#d8ffc0'}); l.position.set(D.x, 2.6, D.z + 1.1); l.scale.multiplyScalar(0.5); hall.add(l); }
+  { const l = label('The Registrar · E', {small:true, edge:'#9dff6a', fg:'#d8ffc0'}); l.position.set(D.x, 2.6, D.z + 1.1); l.scale.multiplyScalar(0.5); hall.add(l); hallLabels.push(l); }
   // everything merged by material
   const put = (list, mat, tile, cast) => { if(!list.length) return; const m = mk(boxGeo(list, tile), mat, 0, 0, 0, hall); m.castShadow = cast !== false; };
   put(brick, M.brick, 3); put(plaster, M.plaster, 3); put(stone, M.stone, 2); put(oak, M.oak, 4, false); put(dark, M.dark, 2); put(glass, M.glass, 2, false); put(pave, M.pave, 4, false); put(ceil, M.plaster, 3); put(bars, M.iron, 1, false); put(cove, M.lampWarm, 1, false);
@@ -5793,7 +5797,7 @@ function buildArchive(){
   { const sc = new THREE.Mesh(new THREE.PlaneGeometry(BS.w, BS.h), std(0xffffff, {map:ARCH_TEX.bcScreen(), roughness:0.35, emissive:C(0xffffff), emissiveMap:ARCH_TEX.bcScreen(), emissiveIntensity:0.35})); sc.position.set(BS.x, BS.y, BS.z); hall.add(sc); sc.castShadow = false;
     const fr = [[BS.x - BS.w / 2 - 0.08, BS.x + BS.w / 2 + 0.08, BS.y + BS.h / 2, BS.y + BS.h / 2 + 0.08], [BS.x - BS.w / 2 - 0.08, BS.x + BS.w / 2 + 0.08, BS.y - BS.h / 2 - 0.08, BS.y - BS.h / 2], [BS.x - BS.w / 2 - 0.08, BS.x - BS.w / 2, BS.y - BS.h / 2, BS.y + BS.h / 2], [BS.x + BS.w / 2, BS.x + BS.w / 2 + 0.08, BS.y - BS.h / 2, BS.y + BS.h / 2]].map(f => [f[0], f[1], f[2], f[3], BS.z - 0.035, BS.z + 0.02]);
     mk(boxGeo(fr, 1), M.brass, 0, 0, 0, hall).castShadow = false; }
-  archive = {M, hall, rooms, lectern:{x:L.x, z:L.z - 0.75}, registrar:{x:D.x, z:D.z - 0.85}, bcScreen:{x:BS.x, z:BS.z + 0.9}, inside:false, cardAt:-1, cardT:0};
+  archive = {M, hall, rooms, lectern:{x:L.x, z:L.z - 0.75}, registrar:{x:D.x, z:D.z - 0.85}, bcScreen:{x:BS.x, z:BS.z + 0.9}, labels:hallLabels, inside:false, cardAt:-1, cardT:0};
 }
 
 /* ================= Worldsmith: describe a realm and the game builds it =================
@@ -8832,9 +8836,9 @@ const BC_PATH = [
   [30, [-2.7, 2.7, 74.8], [0, 1.4, 79.6]], [38, [2.5, 2.2, 75.4], [0, 1.5, 79.6]], [48, [0.4, 1.55, 72.6], [0, 1.6, 79.6]], [57, [1.9, 1.7, 77.2], [0.1, 1.7, 79.6]],
   [66, [-1.2, 1.85, 77.4], [0, 1.8, 79.6]], [73, [0.35, 1.8, 77.7], [0.2, 1.5, 79.3]], [81, [0, 2.2, 75.2], [0, 1.6, 79.6]], [89, [0, 4.4, 69.5], [0, 1.2, 79.6]]
 ];
-const WICK_RECIPE = {body:'humanoid', height:2.05, build:'slim', head:'bare', features:['hood', 'cape'], material:'cloth', pattern:'none',
-  colours:{main:'#6d7078', second:'#4f535b', trim:'#8a8f98', glow:'#b8894a'}, eyes:{style:'dots', glow:'#ffd9a0'}};
-const bc = {on:false, t:0, t0:0, grp:null, wick:null, lantern:null, flame:null, halo:null, line:-1, why:'', saved:null, plays:0, skipped:false};
+const WICK_RECIPE = {body:'humanoid', height:2.05, build:'slim', head:'bare', features:['coat', 'hood'], material:'cloth', pattern:'none',
+  colours:{main:'#8b8e95', second:'#6f727a', trim:'#9a9ea6', glow:'#c89a5a'}, eyes:{style:'dots', glow:'#ffd9a0'}};
+const bc = {on:false, t:0, t0:0, hold:null, grp:null, wick:null, lantern:null, flame:null, halo:null, line:-1, why:'', saved:null, plays:0, skipped:false};
 const bcEl = $('#bcast');
 /* the music bed: the harbour's wash, a slow pad, and "Low Tide" from the music box's own notes (LOW_TIDE_HZ, HUNT_CLUES.cyan.order), an octave down
    while he talks and at the box's pitch when he names it. Everything goes through one bus into the master (so N mutes it); the realm's ambience is
@@ -8913,9 +8917,9 @@ function playBroadcast(why){
   bc.saved = {yaw:cam.yaw, pitch:cam.pitch, dist:cam.dist, view:cam.view, meVis:me.g.visible, dof:post.dof ? post.dof.enabled : null};
   if(cam.view === 2) setView(0);
   setPaused(true); for(const k in keys) keys[k] = false; joy.x = joy.y = 0; jumpBuffer = 0;
-  bcBuild(); me.g.visible = false;
+  bcBuild(); me.g.visible = false; (archive.labels || []).forEach(l => { l.visible = false; });
   if(post.dof) post.dof.enabled = qLevel < 1 && !COARSE;   // a shallow focus on Wick while he speaks (the cinematic layer's own pass)
-  bc.on = true; bc.t = 0; bc.t0 = performance.now(); bc.line = -1; bc.why = why || 'replay'; bc.skipped = false; bc.plays++;
+  bc.on = true; bc.t = 0; bc.hold = null; bc.t0 = performance.now(); bc.line = -1; bc.why = why || 'replay'; bc.skipped = false; bc.plays++;
   document.body.classList.add('bcast'); bcEl.hidden = false; bcEl.classList.remove('out'); bcEl.querySelector('.bc-sub').textContent = ''; bcEl.classList.add('open');
   $('#bcSkip').focus({preventScroll:true});
   bcPathAt(0, _t0, _t1); camera.position.copy(_t0); camera.lookAt(_t1);
@@ -8924,12 +8928,12 @@ function playBroadcast(why){
 }
 function endBroadcast(skipped){
   if(!bc.on) return false;
-  bc.on = false; bc.skipped = !!skipped;
+  bc.on = false; bc.skipped = !!skipped; bc.hold = null;
   bcDispose();
   bcMusicStop(); if(snd.ctx && snd.amb) snd.amb.gain.setTargetAtTime(0.55, snd.ctx.currentTime, 0.8);
   const s = bc.saved || {}; cam.yaw = s.yaw != null ? s.yaw : cam.yaw; cam.pitch = s.pitch != null ? s.pitch : cam.pitch; cam.dist = s.dist || cam.dist; if(s.view != null && s.view !== cam.view) setView(s.view);
   if(post.dof && s.dof != null) post.dof.enabled = s.dof;
-  me.g.visible = true;
+  me.g.visible = true; if(archive) (archive.labels || []).forEach(l => { l.visible = true; });
   bcEl.classList.remove('open'); bcEl.hidden = true; document.body.classList.remove('bcast');
   const first = !state.archive.broadcast; state.archive.broadcast = true; persist(); huntState();
   setPaused(false); snapCamera();
@@ -8938,7 +8942,7 @@ function endBroadcast(skipped){
 }
 function skipBroadcast(){ return endBroadcast(true); }
 function broadcastUpdate(dt, time){
-  bc.t = (performance.now() - bc.t0) / 1000;
+  bc.t = bc.hold != null ? bc.hold : (performance.now() - bc.t0) / 1000;   // real time, so the words keep pace with the music; tests may hold a moment (seek(t, true))
   if(bc.t >= BROADCAST_END){ endBroadcast(false); return; }
   const t = bc.t;
   bcPathAt(t, _t0, _t1);
@@ -10012,7 +10016,7 @@ Object.defineProperties(window.__hub, {
   broadcast:{get:() => ({playing:bc.on, seen:state.archive.broadcast, t:+bc.t.toFixed(2), duration:BROADCAST_END, line:bc.line, subtitle:bc.on && bc.line >= 0 ? BROADCAST_LINES[bc.line].text : '', why:bc.why, plays:bc.plays, skipped:bc.skipped,
     lines:BROADCAST_LINES.map(L => L.text), script:BROADCAST_LINES.map(L => Object.assign({}, L)), wickVisible:!!(bc.wick && bc.wick.g.visible),
     leftovers:scene.children.filter(o => o.name === 'broadcast').length, audioNodes:bcAudio.nodes.length, bus:!!bcAudio.bus, meVisible:me.g.visible, controls:playing, overlay:!bcEl.hidden, board:($('#huntState') || {}).textContent || '', screen:archive && archive.bcScreen ? Object.assign({}, archive.bcScreen) : null, near:!!(archNear && archNear.kind === 'broadcast'),
-    seek(t){ if(!bc.on) return false; bc.t = clamp(+t || 0, 0, BROADCAST_END - 0.05); bc.t0 = performance.now() - bc.t * 1000; bcMusic(bc.t); return true; }})},
+    seek(t, hold){ if(!bc.on) return false; bc.t = clamp(+t || 0, 0, BROADCAST_END - 0.05); bc.t0 = performance.now() - bc.t * 1000; bc.hold = hold ? bc.t : null; bcMusic(bc.t); return true; }, get held(){ return bc.hold != null; }})},
   playBroadcast:{value:() => playBroadcast('test')}, skipBroadcast:{value:() => skipBroadcast()}
 });
 })();
