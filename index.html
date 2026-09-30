@@ -213,7 +213,7 @@ body.paused #joy, body.paused #jumpBtn{ display:none; }
     <input id="nameInput" maxlength="16" autocomplete="off" spellcheck="false" placeholder="Pick a name">
     <label class="field" for="avatarText">Describe your avatar, and the game builds it</label>
     <textarea id="avatarText" rows="2" maxlength="300" spellcheck="false" placeholder="e.g. a tall chrome knight with a red cape and glowing blue eyes"></textarea>
-    <div class="look-row avatar-row"><button class="ghost" id="avatarMake">Make it</button><button class="ghost" id="avatarRandom">Surprise me</button><button class="ghost" id="avatarReset">Reset</button></div>
+    <div class="look-row avatar-row"><button class="ghost" id="avatarMake">Make it</button><button class="ghost" id="avatarAgain">Try again</button><button class="ghost" id="avatarRandom">Surprise me</button><button class="ghost" id="avatarReset">Reset</button></div>
     <p class="lede" id="avatarState">Any species, size or style. Watch it appear on the left.</p>
     <div class="swatch-row"><span>Suit</span><span class="swatches" id="suitSw"></span></div>
     <div class="swatch-row"><span>Glow</span><span class="swatches" id="visorSw"></span></div>
@@ -2773,7 +2773,7 @@ const state = {
   name: typeof sv.name === 'string' ? sv.name : '', color: typeof sv.color === 'string' ? sv.color : '#1f2a44',
   visor: typeof sv.visor === 'string' ? sv.visor : '#5ce1e6', xp: num(sv.xp, 0), credits: num(sv.credits, 20),
   won: !!sv.won, world: 'hub', started: false,
-  look: typeof sv.look === 'string' ? sv.look.slice(0, 300) : '', recipe: null, owned: new Set(arr(sv.owned)), mute: !!sv.mute, best: (sv.best && typeof sv.best === 'object') ? sv.best : {},
+  look: typeof sv.look === 'string' ? sv.look.slice(0, 300) : '', lookSeed: (num(sv.lookSeed, 0) >>> 0), lookPath: [1, 2].indexOf(sv.lookPath) >= 0 ? sv.lookPath : (sv.look ? 1 : 0), recipe: null, owned: new Set(arr(sv.owned)), mute: !!sv.mute, best: (sv.best && typeof sv.best === 'object') ? sv.best : {},
   inv: (sv.inv && typeof sv.inv === 'object' && !Array.isArray(sv.inv)) ? sv.inv : {}, picked: new Set(arr(sv.picked)),   // inv is cleaned once ITEMS exists (cleanInv)
   fuel: Math.min(100, Math.max(0, num(sv.fuel, 100))),  // the hoverbike tank, 0-100 (FUEL_MAX), shared by the bike in every realm
   enrolled: !!sv.enrolled                                // enrolled at Campus (Goal 8): warps to and from Campus cost nothing
@@ -2781,7 +2781,7 @@ const state = {
 // state.recipe is filled in once the recipe schema below is defined (see loadRecipe)
 function persist(){
   try{ localStorage.setItem(SAVE_KEY, JSON.stringify({coins:[...state.coins], shards:[...state.shards], visited:[...state.visited],
-    name:state.name, color:state.color, visor:state.visor, xp:state.xp, credits:state.credits, won:state.won, look:state.look, recipe:state.recipe, owned:[...state.owned], mute:state.mute, best:state.best, inv:state.inv, picked:[...state.picked], fuel:Math.round(state.fuel * 10) / 10, enrolled:state.enrolled})); }catch(e){}
+    name:state.name, color:state.color, visor:state.visor, xp:state.xp, credits:state.credits, won:state.won, look:state.look, lookSeed:state.lookSeed, lookPath:state.lookPath, recipe:state.recipe, owned:[...state.owned], mute:state.mute, best:state.best, inv:state.inv, picked:[...state.picked], fuel:Math.round(state.fuel * 10) / 10, enrolled:state.enrolled})); }catch(e){}
 }
 function rng(seed){ return function(){ seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
 function makeNoise(seed){
@@ -3453,7 +3453,8 @@ function cleanRecipe(r){
   return { body:pick(o.body, R_BODIES, d.body), height:clamp(num(o.height, d.height), 0.6, 2.4), build:pick(o.build, R_BUILDS, d.build), head:pick(o.head, R_HEADS, d.head),
     features:arr(o.features).filter((f, i, a) => R_FEATURES.indexOf(f) >= 0 && a.indexOf(f) === i).slice(0, 12), material:pick(o.material, R_MATERIALS, d.material), pattern:pick(o.pattern, R_PATTERNS, d.pattern),
     colours:{main:hex(cols.main, d.colours.main), second:hex(cols.second, d.colours.second), trim:hex(cols.trim, d.colours.trim), glow},
-    eyes:{style:pick(eyes.style, R_EYES, d.eyes.style), glow:hex(eyes.glow, glow)} };
+    eyes:{style:pick(eyes.style, R_EYES, d.eyes.style), glow:hex(eyes.glow, glow)},
+    ...(typeof o.voice_line === 'string' && o.voice_line.trim() ? {voice_line:o.voice_line.trim().replace(/\s+/g, ' ').slice(0, 120)} : {}) };
 }
 function describeRecipe(r){
   const bits = [r.build === 'normal' ? '' : r.build, r.height >= 2.1 ? 'tall' : r.height <= 1.3 ? 'small' : '', r.material, r.body === 'humanoid' ? '' : r.body, r.head === 'visor' ? '' : r.head + ' head'].filter(Boolean);
@@ -3512,7 +3513,8 @@ const WORD_PATTERNS = { stripes:'stripes', striped:'stripes', stripy:'stripes', 
 const WORD_HEADS = { helmet:'helmet', helm:'helmet', visor:'visor', hood:null, mask:null, skull:'skull', screen:'screen', monitor:'screen', tv:'screen', bare:'bare', face:'bare', head:null };
 function mixHex(a, b, t){ const A = hexArr(parseInt(a.slice(1), 16)), B = hexArr(parseInt(b.slice(1), 16)); const m = mixA(A, B, t); return '#' + m.map(v => Math.round(clamp(v, 0, 1) * 255).toString(16).padStart(2, '0')).join(''); }
 function modColour(hex, k){ if(k === 1) return hex; if(k < 1) return mixHex(hex, '#000000', 1 - k); const t = clamp((k - 1) / 0.8, 0, 1); return mixHex(hex, '#ffffff', t * 0.55); }
-function parseDescription(text){
+function parseDescription(text, seed){
+  // seed: "Try again" varies only what the words leave open (size, colours, eyes, pattern, build); no seed gives the plain reading
   const words = String(text || '').toLowerCase().replace(/[^a-z0-9\s\-']/g, ' ').split(/\s+/).filter(Boolean);
   let r = JSON.parse(JSON.stringify(RECIPE_DEFAULT));
   const merge = (preset) => { if(!preset) return; if(typeof preset === 'string') return merge(SPECIES[preset]);
@@ -3559,6 +3561,17 @@ function parseDescription(text){
   });
   if(species === 0 && r.head === 'visor' && r.eyes.style === 'visor' && (r.material === 'fur' || r.material === 'jelly')) r.eyes.style = 'dots';
   if(r.body === 'beast' && r.head === 'visor') r.head = 'animal';
+  if(seed){
+    // every draw is made whatever the words say, so one fixed word never shifts the other variations
+    const q = rng((seed >>> 0) * 7919 + 17), has = re => words.some(w => re.test(w));
+    const dh = (q() - 0.5) * 0.22, pals = Object.keys(COLOUR_WORDS), c1 = pals[Math.floor(q() * pals.length)], c2 = pals[Math.floor(q() * pals.length)], mix = 0.25 + q() * 0.3;
+    const eye = R_EYES[1 + Math.floor(q() * 3)], patRoll = q(), pat = R_PATTERNS[1 + Math.floor(q() * 5)], bRoll = q();
+    if(!has(/^(tall|towering|lanky|long|giant|huge|massive|enormous|colossal|short|small|little|mini|compact|tiny|teeny|pocket|micro)$/)) r.height = clamp(r.height + dh, 0.6, 2.4);
+    if(!words.some(w => COLOUR_WORDS[w])){ r.colours.main = mixHex(r.colours.main, COLOUR_WORDS[c1], mix); r.colours.second = mixHex(r.colours.second, COLOUR_WORDS[c2], mix); }
+    if(!has(/^eyes?$/) && !has(/^(cyclops|faceless|noface)$/) && species === 0 && r.eyes.style !== 'visor' && r.eyes.style !== 'one') r.eyes.style = eye;
+    if(!words.some(w => WORD_PATTERNS[w]) && r.pattern === 'none' && patRoll < 0.3) r.pattern = pat;
+    if(!has(/^(slim|thin|skinny|slender|lean|wiry|muscular|buff|beefy|stocky|chunky|chubby|broad|bulky|big|strong|fat|round|heavy|thick|giant|huge|massive|enormous|colossal)$/) && r.build === 'normal') r.build = bRoll < 0.25 ? 'slim' : bRoll < 0.75 ? 'normal' : 'heavy';
+  }
   return cleanRecipe(r);
 }
 const NPC_LOOKS = ['a tall chrome knight with a red cape', 'a small fox in a green hoodie', 'a purple wizard with a golden staff', 'a chunky orange robot with antennae', 'a black cat with pink glowing eyes', 'a white angel with gold trim',
@@ -7010,26 +7023,103 @@ function swatchSet(el, list, key, apply){
 swatchSet($('#suitSw'), ['#1f2a44','#6b1d2e','#1d4a46','#2a2a30','#dad9de','#3b2a5a','#5ce1e6'], 'color', setSuit);
 swatchSet($('#visorSw'), ['#5ce1e6','#ff4fa3','#ffb020','#9dff6a','#b18cff'], 'visor', setGlow);
 $('#nameInput').value = state.name;
-/* describe-your-avatar (blueprint 5a). Path 1, the on-device parser, is always on. Paths 2 and 3 (a language model for the recipe, the
-   Decart image model for a face) plug in here: makeFromWords() calls recipeFromAI() first and falls back to parseDescription(). */
-async function recipeFromAI(text){ return null; }
+/* describe-your-avatar (blueprint 5a). Three paths, best available wins:
+   1. parseDescription (on this device, always works, the floor);
+   2. recipeFromAI: the player's own Anthropic key (the one pasted in the Worldsmith panel, dreamer.key) turns any wording into recipe JSON;
+   3. makeFace (below): the Decart key adds a face decal and a portrait.
+   The recipe is what saves, never the words, so a reload makes no call. */
+const AVATAR_MODEL = 'claude-opus-5-5';   // the model for path 2; the owner can change it here (the Dreamer keeps its own model)
+const RECIPE_SCHEMA = { type:'object', additionalProperties:false,
+  required:['body','height','build','head','features','material','pattern','colours','eyes','voice_line'],
+  properties:{
+    body:{type:'string', enum:R_BODIES}, height:{type:'number', description:'metres, 0.6 to 2.4; 1.8 is average'}, build:{type:'string', enum:R_BUILDS},
+    head:{type:'string', enum:R_HEADS}, features:{type:'array', items:{type:'string', enum:R_FEATURES}}, material:{type:'string', enum:R_MATERIALS}, pattern:{type:'string', enum:R_PATTERNS},
+    colours:{type:'object', additionalProperties:false, required:['main','second','trim','glow'], properties:{
+      main:{type:'string', description:'hex colour #rrggbb, the body or suit'}, second:{type:'string', description:'hex colour #rrggbb, secondary parts: cape, belly, plates, muzzle'},
+      trim:{type:'string', description:'hex colour #rrggbb, glowing trim lines'}, glow:{type:'string', description:'hex colour #rrggbb, the glow'}}},
+    eyes:{type:'object', additionalProperties:false, required:['style','glow'], properties:{style:{type:'string', enum:R_EYES}, glow:{type:'string', description:'hex colour #rrggbb'}}},
+    voice_line:{type:'string', description:'one short line this avatar would say, under 12 words'} } };
+const AVATAR_EXAMPLES = [
+  ['a tall chrome knight with a red cape and glowing blue eyes', {body:'humanoid', height:2.15, build:'normal', head:'helmet', features:['sword','cape'], material:'chrome', pattern:'none', colours:{main:'#d0d4dc', second:'#b3172a', trim:'#2b6cd6', glow:'#2b6cd6'}, eyes:{style:'slits', glow:'#3d8bff'}, voice_line:'My blade answers to no one.'}],
+  ['a small fox in a hoodie', {body:'beast', height:1.3, build:'normal', head:'animal', features:['ears','snout','tail','hood'], material:'fur', pattern:'none', colours:{main:'#e8772e', second:'#f2efe8', trim:'#17171d', glow:'#ffb020'}, eyes:{style:'slits', glow:'#ffb020'}, voice_line:'Quick paws, quicker plans.'}],
+  ['looks like a lighthouse keeper who fell in a vat of paint', {body:'humanoid', height:1.75, build:'heavy', head:'bare', features:['hood','backpack'], material:'cloth', pattern:'checks', colours:{main:'#ffd166', second:'#ff4fa3', trim:'#2dc7c0', glow:'#ffb020'}, eyes:{style:'dots', glow:'#17171d'}, voice_line:'The lamp is lit. Mind the wet paint.'}]
+];
+function avatarSystem(){
+  return 'You design avatars for Hub, a game universe. The player describes their avatar in their own words; you reply with one recipe that the game builds as a 3D figure.\n' +
+    'Recipe fields (the reply is checked against this JSON schema):\n' + JSON.stringify(RECIPE_SCHEMA) + '\n' +
+    'Rules:\n- Choose the body that best matches the words: humanoid for people and costumes, robot for machines, beast for animals and creatures, blob for shapeless or ghostly things.\n' +
+    '- height: tall 2.1-2.3, giant 2.4, small 1.2-1.4, tiny 0.8-1.0, otherwise 1.6-1.9. build: slim, normal, heavy or huge.\n' +
+    '- head: helmet or visor for armour and suits, screen for robots with a display face, animal for beasts, skull for the undead, bare for faces and skin.\n' +
+    '- features: only parts the words ask for or clearly imply (a fox has ears, snout and tail; a hoodie is hood). Six at most.\n' +
+    '- Colours are hex strings #rrggbb. Named colours in the words must appear where the words put them (a red cape makes second red; glowing blue eyes make eyes.glow blue).\n' +
+    '- Unusual wording ("a lighthouse keeper who fell in paint") is fine: pick the closest shapes, materials and colours.\n' +
+    '- Hub has its own culture: never use real people, brands, films, games or characters, even in voice_line. If the words name one, design an original avatar in the same spirit.\n' +
+    '- voice_line is one short in-character line, friendly and suitable for children.\n' +
+    'Examples:\n' + AVATAR_EXAMPLES.map(e => 'Words: "' + e[0] + '"\nRecipe: ' + JSON.stringify(e[1])).join('\n');
+}
+const avatarAI = { testResponse:null, lastRequest:null, timeoutMs:20000, path:0, why:'', busy:false };
+async function recipeFromAI(text, seed){
+  // path 2 with the player's own Anthropic key; anything that goes wrong falls back to path 1 on this device
+  const t = String(text || '').trim().replace(/\s+/g, ' ').slice(0, 300); seed = (seed >>> 0) || 0;
+  const floor = why => { avatarAI.path = 1; avatarAI.why = why; return parseDescription(t, seed); };
+  const test = avatarAI.testResponse;
+  if(!t) return floor('no words');
+  if(!dreamer.key && test == null) return floor('no key');
+  const body = { model:AVATAR_MODEL, max_tokens:2000, system:avatarSystem(),
+    output_config:{effort:'low', format:{type:'json_schema', schema:RECIPE_SCHEMA}}, fallbacks:'default',
+    messages:[{role:'user', content:'Make my avatar from these words: "' + t + '"' + (seed ? '\n(Try again #' + seed + ': keep everything the words say, and choose differently wherever the words leave it open.)' : '')}] };
+  const headers = {'content-type':'application/json', 'x-api-key':dreamer.key || 'test', 'anthropic-version':'2023-06-01', 'anthropic-dangerous-direct-browser-access':'true', 'anthropic-beta':'server-side-fallback-2026-07-01'};
+  avatarAI.lastRequest = {url:'https://api.anthropic.com/v1/messages', headers:Object.assign({}, headers, {'x-api-key':'(hidden)'}), body:JSON.parse(JSON.stringify(body))};
+  const ctl = new AbortController(); let timer = null;
+  const timeout = new Promise((res, rej) => { timer = setTimeout(() => { ctl.abort(); rej({code:'timeout'}); }, avatarAI.timeoutMs); });
+  let j;
+  try{
+    const call = async () => {
+      if(test != null){ // tester hook: a canned API reply ('hang' never answers, {__status:n} is an HTTP error)
+        if(test === 'hang') return new Promise(() => {});
+        if(test && test.__status) throw {code:'http_' + test.__status};
+        return JSON.parse(JSON.stringify(test));
+      }
+      const r = await fetch('https://api.anthropic.com/v1/messages', {method:'POST', headers, body:JSON.stringify(body), signal:ctl.signal});
+      if(!r.ok) throw {code:'http_' + r.status};
+      return r.json();
+    };
+    j = await Promise.race([call(), timeout]);
+  }catch(e){
+    const code = (e && (e.code || e.name)) || 'network';
+    if(code === 'http_401' || code === 'http_403') console.warn('avatar: the Anthropic key was refused (' + code + ')');
+    return floor(code === 'AbortError' ? 'timeout' : code);
+  }finally{ clearTimeout(timer); }
+  if(!j || typeof j !== 'object') return floor('empty reply');
+  if(j.stop_reason !== 'end_turn') return floor(j.stop_reason === 'refusal' ? 'refusal' : 'stop_reason ' + j.stop_reason);
+  const txt = (Array.isArray(j.content) ? j.content : []).filter(c => c && c.type === 'text').map(c => c.text || '').join('');
+  let obj = null; try{ obj = JSON.parse(txt); }catch(e){ return floor('invalid JSON'); }
+  if(!obj || typeof obj !== 'object' || Array.isArray(obj) || R_BODIES.indexOf(obj.body) < 0) return floor('not a recipe');
+  avatarAI.path = 2; avatarAI.why = 'ok';
+  return cleanRecipe(obj);
+}
+const PATH_NAMES = {1:'Built on this device', 2:'Built by Claude'};
+function avatarStateText(){ return (PATH_NAMES[state.lookPath] || 'Made') + ': ' + describeRecipe(state.recipe) + '.'; }
 $('#avatarText').value = state.look || '';
-if(state.look) $('#avatarState').textContent = 'Made: ' + describeRecipe(state.recipe);
+if(state.look) $('#avatarState').textContent = avatarStateText();
 let avatarBusy = false;
-async function makeFromWords(t){
+async function makeFromWords(t, seed){
   t = String(t || '').trim().replace(/\s+/g, ' ').slice(0, 300);
   if(!t){ toast('Describe your avatar first'); return; }
   if(avatarBusy) return; avatarBusy = true;
-  $('#avatarState').textContent = 'Building…';
-  let rc = null; try{ rc = await recipeFromAI(t); }catch(e){ rc = null; }
-  state.recipe = rc ? cleanRecipe(rc) : parseDescription(t); state.look = t; persist(); rebuildPlayer();
-  $('#avatarState').textContent = 'Made: ' + describeRecipe(state.recipe) + '.';
+  $('#avatarState').textContent = dreamer.key || avatarAI.testResponse != null ? 'Asking Claude…' : 'Building…';
+  let rc = null; try{ rc = await recipeFromAI(t, seed); }catch(e){ avatarAI.path = 1; avatarAI.why = 'error'; rc = null; }
+  state.recipe = rc ? cleanRecipe(rc) : parseDescription(t, seed); state.look = t; state.lookSeed = (seed >>> 0) || 0; state.lookPath = rc ? avatarAI.path : 1;
+  persist(); rebuildPlayer();
+  $('#avatarState').textContent = avatarStateText();
   avatarBusy = false;
+  return state.recipe;
 }
-$('#avatarMake').addEventListener('click', () => makeFromWords($('#avatarText').value));
-$('#avatarRandom').addEventListener('click', () => { const t = randomLook(); $('#avatarText').value = t; makeFromWords(t); });
-$('#avatarReset').addEventListener('click', () => { state.look = ''; state.recipe = cleanRecipe({colours:{main:state.color, glow:state.visor}, eyes:{glow:state.visor}}); $('#avatarText').value = ''; persist(); rebuildPlayer(); $('#avatarState').textContent = 'Back to the default suit.'; });
-$('#avatarText').addEventListener('keydown', e => { if(e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); e.stopPropagation(); makeFromWords(e.target.value); } });
+$('#avatarMake').addEventListener('click', () => makeFromWords($('#avatarText').value, 0));
+$('#avatarAgain').addEventListener('click', () => { const t = $('#avatarText').value.trim() || state.look; if(!t){ toast('Describe your avatar first'); return; } $('#avatarText').value = t; makeFromWords(t, 1 + Math.floor(Math.random() * 1e6)); });
+$('#avatarRandom').addEventListener('click', () => { const t = randomLook(); $('#avatarText').value = t; makeFromWords(t, 0); });
+$('#avatarReset').addEventListener('click', () => { state.look = ''; state.lookSeed = 0; state.lookPath = 0; state.recipe = cleanRecipe({colours:{main:state.color, glow:state.visor}, eyes:{glow:state.visor}}); $('#avatarText').value = ''; persist(); rebuildPlayer(); $('#avatarState').textContent = 'Back to the default suit.'; });
+$('#avatarText').addEventListener('keydown', e => { if(e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); e.stopPropagation(); makeFromWords(e.target.value, 0); } });
 
 let playing = false;
 const keys = {};
@@ -8664,6 +8754,10 @@ Object.defineProperties(window.__hub, {
   landing:{get:() => planetLanding()},
   gravK:{get:() => gravK},
   planetStream:{get:() => { const E = endless; return E && E.rec && E.rec.planet ? {chunks:E.chunks.size, visible:[...E.chunks.values()].filter(c => c.g.visible).length, shadowCells:[...E.chunks.values()].filter(c => c.near).length, terrainJob:!!E.job, grassJob:!!E.grassJob, stepMs:+(E.stepMs || 0).toFixed(2), maxMs:+(E.maxMs || 0).toFixed(2), chunkMs:+(E.chunkMs || 0).toFixed(2), chunkMax:+(E.chunkMax || 0).toFixed(2), centre:E.terrain ? [E.terrain.userData.terrain.cx, E.terrain.userData.terrain.cz] : null} : null; }},
+  // Goal 2 (describe-your-avatar): paths 2 and 3; aiTestResponse is a canned API reply that replaces the network call
+  recipeFromAI:{value:recipeFromAI}, AVATAR_MODEL:{value:AVATAR_MODEL}, RECIPE_SCHEMA:{value:RECIPE_SCHEMA}, avatarSystem:{value:avatarSystem},
+  lastAvatarPath:{get:() => avatarAI.path}, lastAvatarWhy:{get:() => avatarAI.why}, aiLastRequest:{get:() => avatarAI.lastRequest && JSON.parse(JSON.stringify(avatarAI.lastRequest))},
+  aiTestResponse:{get:() => avatarAI.testResponse, set:v => { avatarAI.testResponse = v == null ? null : v; }}, aiTimeoutMs:{get:() => avatarAI.timeoutMs, set:v => { avatarAI.timeoutMs = Math.max(50, +v || 20000); }},
   explorerLog:{get:() => Object.values(explorer.planets).map(e => ({id:e.id, name:e.name, proposed:e.proposed, sector:e.sector, rules:e.rules, gravity:e.gravity, first:e.first, firstDate:new Date(e.first).toISOString().slice(0, 10), walked:Math.round(e.walked || 0), landmarks:(e.landmarks || []).slice(), visits:e.visits}))}
 });
 })();
