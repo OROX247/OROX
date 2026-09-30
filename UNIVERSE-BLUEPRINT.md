@@ -130,6 +130,21 @@ The fixed rules still hold everywhere: solid real geometry and fixed textures (n
 
 **Done means.** Walking or riding 1 km out of any built-in realm never meets an edge or a wall, the hand-made core is unchanged when you return, and the same spot looks the same after leaving and coming back. Picking three different uncharted stars lands on three different planets, each identical on a second visit, each charted in the Explorer Log. Frame time in the endless parts is no worse than in the hand-made cores.
 
+## 5f. Hybrid Reality: AI video mixed into the solid world (the owner's new tech)
+
+The owner's words: mix the AI videos into the game and make a new kind of tech. The old Live AI mode (R) repaints the whole frame, so the ground swims (LESSONS.md). Hybrid Reality keeps the world solid and uses live AI video only where it cannot break solidity, blended by the game frame by frame. It is Hub's own tech; the name for it in the game is **Dreamglass**.
+
+Layers, in the order to build them:
+1. **Dreamglass sky and horizon.** The game sends its own frame (with the near world masked out) to the live video model and composites the AI result only beyond a distance the depth buffer marks, blending in with distance. Near ground, avatars, UI and anything you can touch are always drawn by the game. Far hills, cities and clouds gain photoreal AI detail; nothing you stand on ever moves.
+2. **Temporal lock.** Each AI frame is reprojected with the camera's motion (the game knows the exact camera and depth), and blended with the previous frames, so the far layer holds still as you turn instead of swimming. Where the AI and the reprojection disagree, the game's own frame wins.
+3. **Portals that show the other side.** Each portal's disc shows a live AI-dreamed view of the destination realm, driven by that realm's fixed look prompt and a render of it, so you see where you are going before you step through.
+4. **Screens in the world.** Cabinets, the Archive's replay screen, Neon Grid billboards and the Drift's walls can show live AI video, styled by a prompt per screen.
+5. **The Dreamglass lens (an item).** Hold it up and a round window in the middle of your view shows the full AI-repainted world through the lens only, like a magic glass; the rest of the screen stays solid. It is a gameplay tool: the Hunt can hide clues that only show through the lens.
+
+Rules: everything here is optional, off when there is no Decart key or network (the claude.ai link blocks outside services), and the game looks complete without it. The quality ladder drops Dreamglass layers first. Never AI on near ground, avatars or text. Original content only in every prompt (no real places, brands or characters).
+
+**Done means (checked by the tester with a fake video stream standing in for the AI, since the test machine cannot reach Decart):** the far layer composites only beyond the depth threshold (near pixels identical to the plain game frame), the reprojected layer stays locked to the world when the camera turns, a portal shows its stream, the lens shows the stream only inside its circle, and with no key the game renders exactly as before.
+
 ## 6. Money
 
 - Joining is a one-off tiny fee; after that everything inside costs: teleports, fuel, ammunition, gear, food, clothing, rent for private rooms.
