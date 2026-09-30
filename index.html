@@ -2877,7 +2877,7 @@ const state = {
   fuel: Math.min(100, Math.max(0, num(sv.fuel, 100))),  // the hoverbike tank, 0-100 (FUEL_MAX), shared by the bike in every realm
   enrolled: !!sv.enrolled,                               // enrolled at Campus (Goal 8): warps to and from Campus cost nothing
   archive: {ledger:!!(sv.archive && sv.archive.ledger), rooms:new Set(arr(sv.archive && sv.archive.rooms).filter(n => n >= 0 && n < 6)), found:new Set(arr(sv.archive && sv.archive.found).filter(n => n >= 0 && n < 6)), broadcast:!!(sv.archive && sv.archive.broadcast)},   // Goal 9 (+ Goal 10: the Broadcast seen): the Ledger taken, rooms visited, hidden details found
-  hunt: {door:!!(sv.hunt && sv.hunt.door), rallyBest:num(sv.hunt && sv.hunt.rallyBest, 0), rallyPlays:num(sv.hunt && sv.hunt.rallyPlays, 0), hoard:!!(sv.hunt && sv.hunt.hoard)}   // Goal 11: the Hollow's door opened, the Comet Rally high score and plays, the hoard chest taken
+  hunt: {door:!!(sv.hunt && sv.hunt.door), rallyBest:num(sv.hunt && sv.hunt.rallyBest, 0), rallyPlays:num(sv.hunt && sv.hunt.rallyPlays, 0), hoard:!!(sv.hunt && sv.hunt.hoard), rose:!!(sv.hunt && sv.hunt.rose), roseTries:num(sv.hunt && sv.hunt.roseTries, 0)}   // Goal 11: the Hollow's door opened, the Comet Rally high score and plays, the hoard chest taken
 };
 // state.recipe is filled in once the recipe schema below is defined (see loadRecipe)
 function persist(){
@@ -4795,7 +4795,7 @@ BUILD.grid = (r, n) => {
     mk(new THREE.TorusGeometry(rad, 0.06, 6, 8), glowM(i % 2 ? 0x5ce1e6 : 0xff4fa3, 3), zx, top, zz).rotation.x = Math.PI / 2;
     addPlatform(zx, zz, rad * 0.95, top);
   });
-  addShard('grid', zx, 6.5 + 1.2, zz);
+  // (Goal 12: the Rose Shard is no longer a pickup on top of the ziggurat; it waits at the end of the hallway behind The Drift)
   for(let i = 0; i < 9; i++){
     const s = freeSpot(r, 12, 52, 5); if(!s) continue;
     const k = 2.5 + r() * 3.5, geo = new THREE.ConeGeometry(k, k * 1.6, 4), col = i % 2 ? 0x5ce1e6 : 0xff4fa3;
@@ -5119,8 +5119,9 @@ function buildHall(T){
 }
 
 /* the zero-g gym: a marble drum with a glass dome. Inside the drum gravity is off (see update): WASD drifts, Space pushes up, Shift pushes down, walls bounce you. */
-const gymIn = (x, z) => !!gym && Math.hypot(x - gym.x, z - gym.z) < gym.r - 0.25;
-const gymCeil = (x, z) => gym.h + Math.sqrt(Math.max(0, (gym.r - 0.2) * (gym.r - 0.2) - (x - gym.x) * (x - gym.x) - (z - gym.z) * (z - gym.z)));
+// (Goal 12: the same volume serves The Drift; zgVol finds whichever drum you are in)
+const gymIn = (x, z) => !!zgVol(x, z);
+const gymCeil = (x, z) => { const v = zgVol(x, z) || gym || drift; return v.h + Math.sqrt(Math.max(0, (v.r - 0.2) * (v.r - 0.2) - (x - v.x) * (x - v.x) - (z - v.z) * (z - v.z))); };
 // soft gym ball: six stitched gores (orange and cream) meeting round caps at the poles, sunken seams in the normal map, a light pebbled grain
 function gymBallMaterial(){
   const S = 512, f = new Float32Array(S * S), px = new Uint8ClampedArray(S * S * 4), q = rng(919), cap = 0.075;
@@ -7677,17 +7678,18 @@ let simTime = 0;
 function updateHazards(time){
   for(const h of hazards){
     const a = h.a0 + h.w * time; h.g.rotation.y = a;
-    if(hurtCool > 0 || zeroing || !playing || p.y - G(p.x, p.z) > 0.9) continue;
+    if(hurtCool > 0 || zeroing || !playing || p.y - G(p.x, p.z) > 0.9 || pocketIn()) continue;
     const dx = p.x - h.x, dz = p.z - h.z, bx = Math.cos(a), bz = -Math.sin(a), along = dx * bx + dz * bz, perp = Math.abs(dx * bz - dz * bx);
     if(along > 0.3 && along < h.L + 0.3 && perp < 0.5){ hurtCool = 0.8; p.vy = 6; p.grounded = false; hurt(20, 'laser'); }
   }
 }
 function buildWorld(key){
+  if(drift) driftSound(false);
   clearWorld();
   const W = WORLDS[key]; state.world = key; gravK = W.gravity || 1; if(explorer.dirty) saveExplorer();
   world = new THREE.Group(); scene.add(world);
   if(camHid){ camHid = false; if(!zeroing) me.g.visible = true; }
-  grassMeshes = []; lods = []; slotMats = {}; mainTerrain = null; coreSolids = []; coreFollow = []; boxes = []; desk = null; gym = null; floaters = []; p.zeroG = false; colliders = []; platforms = []; coins = []; portals = []; spinners = []; npcs = []; shardObj = null; vault = null; gridSun = null; fireflies = null; shopKiosk = null; forgeStand = null; vendor = null; archive = null; archRoom = -1; hollow = null; if(rally.open) closeRally(); rally.tex = null; rally.cab = null; rally.trophy = null; hazards = []; burst = null; pickups = []; bike.g = null; bike.riding = false; bike.near = false; engineStop(); $('#rideBtn').style.display = 'none'; trial.active = false; trial.rings = []; trial.pad = null; trial.padPos = null; $('#trialPanel').style.display = 'none';
+  grassMeshes = []; lods = []; slotMats = {}; mainTerrain = null; coreSolids = []; coreFollow = []; boxes = []; desk = null; gym = null; floaters = []; p.zeroG = false; colliders = []; platforms = []; coins = []; portals = []; spinners = []; npcs = []; shardObj = null; vault = null; gridSun = null; fireflies = null; shopKiosk = null; forgeStand = null; vendor = null; archive = null; archRoom = -1; hollow = null; drift = null; corr = null; if(rally.open) closeRally(); rally.tex = null; rally.cab = null; rally.trophy = null; hazards = []; burst = null; pickups = []; bike.g = null; bike.riding = false; bike.near = false; engineStop(); $('#rideBtn').style.display = 'none'; trial.active = false; trial.rings = []; trial.pad = null; trial.padPos = null; $('#trialPanel').style.display = 'none';
   const r = rng(W.seed), noise = makeNoise(W.seed * 7 + 1);
   waterBody = null; if(weatherFx){ scene.remove(weatherFx.pts); weatherFx.geo.dispose(); weatherFx.pts.material.dispose(); weatherFx = null; } clearSkyProps(); flyers = []; ships = []; endless = null; buildParent = null; chunkAt = null; waterMeshes.forEach(w => { if(w.renderTarget) w.renderTarget.dispose(); }); waterMeshes = [];
   applyLook(W);
@@ -7717,6 +7719,7 @@ function buildWorld(key){
   addPickups(key);
   addVendor(key);
   if(key === 'dunes') buildHollowDoor();   // Goal 11: the Hollow's door (and nothing else) goes in after everything is placed; it draws no rng
+  if(key === 'grid') buildDrift();   // Goal 12: The Drift goes up after everything is placed; it draws only from its own rng
   if(key === 'hub') buildArchive();   // Goal 9: the Archive goes up after every coin, NPC, pickup and the vendor are placed, so none of them moves
   bundles.forEach(b => { b.g = null; if(b.world === key) addBundleMesh(b); });
   if(ENDLESS[key] && !W.custom) startBuiltin(key);   // no boundaries (Goal 8a): the land goes on past the hand-made core
@@ -7758,6 +7761,7 @@ function hpHud(){
 }
 function hurt(n, why){
   if(!(n > 0) || zeroing || traveling || !WORLDS[state.world].rules.danger) return 0;
+  if(driftSafe()) return 0;   // Goal 12: The Drift, its porch and the hallway are danger-free (every scare is a fake-out)
   n = Math.round(n); state.hp = Math.max(0, state.hp - n); hpHud(); sfx('hit');
   const el = $('#idPanel'); el.classList.remove('hurt'); void el.offsetWidth; el.classList.add('hurt');
   const fx = $('#hurtFx'); fx.classList.add('on'); clearTimeout(hurtFxT); hurtFxT = setTimeout(() => fx.classList.remove('on'), 90);
@@ -7826,7 +7830,7 @@ function zeroOut(why){
   if(zeroing) return;
   if(trySecondBreath(why)) return;
   zeroing = true;
-  const where = state.world, y = hollow && hollow.inside ? hollowFloor(p.x, p.z) : groundAt(p.x, p.z, p.y);
+  const where = state.world, y = pocketIn() ? pocketFloor(p.x, p.z) : groundAt(p.x, p.z, p.y);
   const b = {id:++bundleSeq, world:where, x:p.x, y, z:p.z, credits:state.credits, items:takeCarried(), why:why || ''};
   const empty = !b.credits && !b.items.length;
   if(!empty){ bundles.push(b); addBundleMesh(b); }
@@ -8409,7 +8413,7 @@ function huntState(){ const el = $('#huntState'); if(!el) return; const on = sta
   el.textContent = (on ? 'The Hunt has begun. Three shards (amber, rose, cyan) open three gates on Ashfall; the Seed is behind the third. Every clue is in the Ashcombe Ledger.'
     : held.length ? 'You are on the Hunt already. Three shards open three gates on Ashfall; the Architect\'s broadcast and the Ledger wait in the Archive, south of the plaza.'
     : 'The Hunt has not begun for you yet. Walk into the Archive, south of the plaza.')
-    + (held.length ? ' You hold ' + held.length + ' of 3: ' + held.join(', ') + (state.shards.has('dunes') ? ' (Comet Rally, the last lap driven the wrong way round).' : '.') : ''); }
+    + (held.length ? ' You hold ' + held.length + ' of 3: ' + held.join(', ') + (how => how.length ? ' (' + how.join('; ') + ').' : '.')([state.shards.has('dunes') && 'Comet Rally, the last lap driven the wrong way round', state.shards.has('grid') && state.hunt.rose && 'the hallway behind The Drift, walked without turning round'].filter(Boolean)) : ''); }
 const boardRng = rng(99);
 const BOARD = NPC_NAMES.slice(0, 11).map(nm => ({name:nm, shards:Math.floor(boardRng() * 2.6), xp:Math.floor(150 + boardRng() * 2300)}));
 function openWarp(){
@@ -8671,7 +8675,7 @@ let archNear = null, archRoom = -1, cardTimer = 0;
 const ARCH_DOOR_OPEN = Math.PI - 0.1;
 const ledgerEl = $('#ledger'), regEl = $('#reg'), memoEl = $('#memo');
 function archiveUpdate(dt){
-  if(!archive || state.world !== 'hub'){ if(archNear){ archNear = null; $('#archBtn').style.display = 'none'; } if(me.tag) me.tag.visible = !(hollow && hollow.inside); return; }   // indoors (the Hollow too) your own name tag would fill the view
+  if(!archive || state.world !== 'hub'){ if(archNear){ archNear = null; $('#archBtn').style.display = 'none'; } if(me.tag) me.tag.visible = !pocketIn(); return; }   // indoors (the Hollow too) your own name tag would fill the view
   const A = ARCHIVE, px = p.x, pz = p.z, cp = camera.position;
   // the rooms are built the first time you come near (one a frame), so the Spaceport loads exactly as fast as before
   if(Math.hypot(px, pz - 77) < 60){ const k = archive.rooms.findIndex(R => !R.built); if(k >= 0) archiveBuildRoom(k); }
@@ -9530,7 +9534,7 @@ function drawMap(){
   mx2.fillStyle = 'rgba(14,12,40,0.78)'; mx2.fillRect(0, 0, w, w);
   if(endless && endless.style && endless.style.minimap) endless.style.minimap(mx2, T, sc);
   let o = T(0, 0); if(!endless){ mx2.strokeStyle = 'rgba(92,225,230,0.5)'; mx2.lineWidth = 1.5 * sc; mx2.beginPath(); mx2.arc(o[0], o[1], R * sc, 0, TAU); mx2.stroke(); }
-  mx2.fillStyle = 'rgba(255,255,255,0.3)'; const inH = !!(hollow && hollow.inside); boxes.forEach(b => { if(b.hollow ? !inH || b.y0 > HOLLOW.y + 1.9 : (inH || b.y0 > 1.9 || b.map === false)) return; mx2.beginPath(); [[-1, -1], [1, -1], [1, 1], [-1, 1]].forEach((k, i) => { const lx = k[0] * b.hx, lz = k[1] * b.hz; o = T(b.x + lx * b.c - lz * b.s, b.z + lx * b.s + lz * b.c); if(i) mx2.lineTo(o[0], o[1]); else mx2.moveTo(o[0], o[1]); }); mx2.fill(); });
+  mx2.fillStyle = 'rgba(255,255,255,0.3)'; const inH = pocketIn(); boxes.forEach(b => { if(b.hollow ? !inH || b.y0 > HOLLOW.y + 1.9 : (inH || b.y0 > 1.9 || b.map === false)) return; mx2.beginPath(); [[-1, -1], [1, -1], [1, 1], [-1, 1]].forEach((k, i) => { const lx = k[0] * b.hx, lz = k[1] * b.hz; o = T(b.x + lx * b.c - lz * b.s, b.z + lx * b.s + lz * b.c); if(i) mx2.lineTo(o[0], o[1]); else mx2.moveTo(o[0], o[1]); }); mx2.fill(); });
   mx2.fillStyle = 'rgba(255,255,255,0.14)'; platforms.forEach(s => { o = T(s.x, s.z); mx2.beginPath(); mx2.arc(o[0], o[1], s.r * sc, 0, TAU); mx2.fill(); });
   portals.forEach(q => { o = T(q.x, q.z); mx2.strokeStyle = hexStr(PORTAL_COLORS[q.to]); mx2.lineWidth = 2.5; mx2.beginPath(); mx2.arc(o[0], o[1], 2.2 * sc, 0, TAU); mx2.stroke(); });
   mx2.fillStyle = '#ffd166'; coins.forEach(k => { o = T(k.g.position.x, k.g.position.z); mx2.beginPath(); mx2.arc(o[0], o[1], Math.max(2, 0.6 * sc), 0, TAU); mx2.fill(); });
@@ -10081,11 +10085,11 @@ function tone(type, f0, f1, dur, gain, t0, dest){
   g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(gain, t0 + 0.012); g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
   o.connect(g); g.connect(dest || snd.master); o.start(t0); o.stop(t0 + dur + 0.05);
 }
-function noiseHit(cut, q, dur, gain, t0, sweepTo){
+function noiseHit(cut, q, dur, gain, t0, sweepTo, dest){
   const c = snd.ctx, src = c.createBufferSource(); src.buffer = bufs().whiteBuf; t0 = t0 || c.currentTime;
   const f = c.createBiquadFilter(); f.type = 'bandpass'; f.frequency.setValueAtTime(cut, t0); if(sweepTo) f.frequency.exponentialRampToValueAtTime(sweepTo, t0 + dur); f.Q.value = q;
   const g = c.createGain(); g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(gain, t0 + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
-  src.connect(f); f.connect(g); g.connect(snd.master); src.start(t0); src.stop(t0 + dur + 0.05);
+  src.connect(f); f.connect(g); g.connect(dest || snd.master); src.start(t0); src.stop(t0 + dur + 0.05);
 }
 function sfx(name){
   if(!snd.ctx || !snd.on) return;
@@ -10113,6 +10117,379 @@ function setMute(m){ snd.on = !m; state.mute = m; persist(); if(!snd.ctx && !m) 
 $('#sndBtn').addEventListener('click', () => setMute(snd.on));
 $('#sndBtn').textContent = snd.on ? 'Sound' : 'Muted'; $('#sndBtn').classList.toggle('on', snd.on);
 window.addEventListener('pointerdown', audioInit, {once:true, capture:true}); window.addEventListener('keydown', audioInit, {once:true, capture:true});
+
+/* ================= Goal 12: The Drift, Neon Grid's zero-g club (and, in the next section, the hallway behind it) =================
+   Mara Quist built The Drift (Archive room 5; the Ledger's second riddle). A drum with a dark glass dome north of the plaza, its door facing the plaza;
+   inside, gravity is off (the Campus gym's zero-g volume, see zgVol) over a glowing dance floor, and the dancers float with their backs to the rear wall.
+   It is built after every coin, NPC, pickup, hazard and the vendor are placed and draws only from its own rng, so nothing in Neon Grid moves.
+   Everything about it is danger-free: hurt() does nothing inside it, in its porch or in the hallway. */
+const DRIFT = {x:0, z:66, r:11, t:0.6, h:4.6, door:3.4, doorW:2.0, back:{w:1.3, h:3.0}, porch:3.2, hear:36, bpm:118, track:'Mooring Lights'};
+let drift = null, corr = null;
+// the zero-g volumes (the Campus gym, The Drift): a drum of radius r with a dome on top at height h
+const zgVol = (x, z) => { for(const v of [gym, drift]) if(v && Math.hypot(x - v.x, z - v.z) < v.r - 0.25) return v; return null; };
+function driftDancers(){
+  // invented club-goers, described in words like any avatar; [description, local x, local z, height off the floor (0 = dancing on the floor), phase]
+  return [['a tall chrome robot with pink glowing eyes', -4.2, 3.4, 0, 0.0], ['a small fox in a violet jacket', -2.3, 5.8, 1.7, 1.1], ['a slim dancer in a silver suit with a cyan visor', 0.2, 4.2, 0.6, 2.3],
+    ['a round blue blob with gold eyes', 2.4, 6.0, 2.5, 3.1], ['a tall woman in a long pink coat', 4.3, 3.6, 0, 4.2], ['a black cat with cyan glowing eyes', -0.9, 7.5, 3.1, 5.0], ['a golden knight with a white cape', 1.6, 2.2, 1.2, 0.7]];
+}
+function buildDrift(){
+  const D = DRIFT, g0 = new THREE.Group(); g0.position.set(D.x, 0, D.z); world.add(g0);
+  const q = rng(1212), Ro = D.r + D.t, H = D.h + 0.3, af = Math.asin(D.doorW / D.r), ab = Math.asin(D.back.w / D.r);
+  drift = {x:D.x, z:D.z, r:D.r, h:D.h, g:g0, dancers:[], open:0, opening:false, told:false, bus:null, beatEnv:0, step:0, nextT:0};
+  const tileUV = (geo, cu, cv) => { const uv = geo.attributes.uv; for(let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * cu, uv.getY(i) * cv); return geo; };
+  // the walls: black lacquer panels outside; inside, dark violet panels with rose and cyan seams that glow
+  const seam = canvasTex(1024, 512, (x, w, h) => { x.fillStyle = '#07050d'; x.fillRect(0, 0, w, h);
+    for(let i = 0; i < 8; i++){ const gx = i * w / 8; const gr = x.createLinearGradient(gx, 0, gx + w / 8, 0); gr.addColorStop(0, '#120c20'); gr.addColorStop(0.5, '#0b0716'); gr.addColorStop(1, '#100a1c'); x.fillStyle = gr; x.fillRect(gx + 3, 0, w / 8 - 6, h); }
+    x.fillStyle = 'rgba(255,79,163,0.85)'; for(let i = 0; i < 8; i++) x.fillRect(i * w / 8 - 1, 0, 2, h);
+    x.fillStyle = 'rgba(92,225,230,0.7)'; x.fillRect(0, h * 0.62, w, 2); });
+  const outM = phys(0x0b0914, {roughness:0.22, metalness:0.55, normalMap:detailNormal, normalScale:new V2(0.25, 0.25)});
+  const inM = std(0xffffff, {map:seam, emissive:C(0xffffff), emissiveMap:seam, emissiveIntensity:0.9, roughness:0.3, metalness:0.2, side:THREE.BackSide});
+  const arc = (rad, y0, y1, a0, len, m, cu) => mk(tileUV(new THREE.CylinderGeometry(rad, rad, y1 - y0, 96, 1, true, a0, len), cu, 1), m, 0, (y0 + y1) / 2, 0, g0);
+  const side = Math.PI - af - ab;   // each side wall runs from the back gap (theta 0, +z) round to the front door (theta PI, -z)
+  [[ab, side], [Math.PI + af, side]].forEach(([a0, len]) => { arc(Ro, -0.3, D.h, a0, len, outM, 1); arc(D.r, -0.3, D.h, a0, len, inM, Math.round(D.r * len / 4.2)); });
+  arc(Ro, D.door, D.h, Math.PI - af, 2 * af, outM, 1); arc(D.r, D.door, D.h, Math.PI - af, 2 * af, inM, 1);
+  arc(Ro, D.back.h, D.h, -ab, 2 * ab, outM, 1); arc(D.r, D.back.h, D.h, -ab, 2 * ab, inM, 1);
+  const rim = mk(new THREE.RingGeometry(D.r - 0.05, Ro + 0.2, 128, 1), phys(0x14101f, {roughness:0.3, metalness:0.6, side:THREE.DoubleSide}), 0, D.h, 0, g0); rim.rotation.x = -Math.PI / 2;
+  // neon bands: at the floor (it crosses both doorways as a threshold line) and under the rim, inside and out
+  [[D.r - 0.07, 0.07, 0xff4fa3], [D.r - 0.07, D.h - 0.25, 0x5ce1e6], [Ro + 0.06, D.h - 0.12, 0xff4fa3], [Ro + 0.06, 0.12, 0x5ce1e6]].forEach(([rad, y, c]) => { const b = mk(new THREE.TorusGeometry(rad, 0.045, 8, 192), glowM(c, 2.6), 0, y, 0, g0); b.rotation.x = Math.PI / 2; b.castShadow = false; });
+  // the dome: smoked glass with glowing ribs; from outside a dark bubble drawn in neon
+  const dome = mk(new THREE.SphereGeometry(Ro, 96, 32, 0, TAU, 0, Math.PI / 2), std(0x1a0f2e, {roughness:0.06, metalness:0.3, transparent:true, opacity:0.62, envMapIntensity:1.4, depthWrite:false, side:THREE.DoubleSide}), 0, D.h, 0, g0);
+  dome.castShadow = false; dome.receiveShadow = false; dome.renderOrder = 2;
+  const ribs = []; for(let k = 0; k < 10; k++){ const t = new THREE.TorusGeometry(Ro + 0.02, 0.05, 6, 72, Math.PI); t.rotateY(k * Math.PI / 10); ribs.push(t); }
+  [0.45, 0.85, 1.2].forEach(lat => { const t = new THREE.TorusGeometry((Ro + 0.02) * Math.cos(lat), 0.045, 6, 128); t.rotateX(Math.PI / 2); t.translate(0, (Ro + 0.02) * Math.sin(lat), 0); ribs.push(t); });
+  { const m = mk(merge(ribs), glowM(0xff4fa3, 2.2), 0, D.h, 0, g0); m.castShadow = false; }
+  // the dance floor: rings of glass tiles lit from below (the beat pulses them), a mirror ball under the dome, specks of its light sweeping the walls
+  const ft = canvasTex(1024, 1024, (x, w) => { const c = w / 2, pal = ['#ff4fa3', '#5ce1e6', '#8a5cff', '#ffd166', '#ff7a45']; x.fillStyle = '#05030a'; x.fillRect(0, 0, w, w);
+    for(let ring = 0; ring < 9; ring++){ const r0 = 30 + ring * 53, n = 8 + ring * 6; for(let k = 0; k < n; k++){ const a0 = k / n * TAU, a1 = (k + 1) / n * TAU, on = q();
+      x.fillStyle = on < 0.55 ? pal[Math.floor(q() * pal.length)] : '#140c22'; x.globalAlpha = on < 0.55 ? 0.35 + q() * 0.6 : 1;
+      x.beginPath(); x.arc(c, c, r0 + 50, a0 + 0.012, a1 - 0.012); x.arc(c, c, r0 + 4, a1 - 0.012, a0 + 0.012, true); x.closePath(); x.fill(); } }
+    x.globalAlpha = 1; x.fillStyle = '#ff4fa3'; x.beginPath(); x.arc(c, c, 26, 0, TAU); x.fill(); });
+  drift.floorM = std(0x2a2a2a, {map:ft, emissive:C(0xffffff), emissiveMap:ft, emissiveIntensity:0.55, roughness:0.18, metalness:0.35});
+  const fl = mk(new THREE.CircleGeometry(D.r - 0.02, 128), drift.floorM, 0, 0.03, 0, g0); fl.rotation.x = -Math.PI / 2; fl.castShadow = false; drift.floor = fl;
+  const ball = mk(new THREE.IcosahedronGeometry(0.75, 3), std(0xd8d8e0, {metalness:0.95, roughness:0.12, flatShading:true, emissive:C(0x3a2a4a), emissiveIntensity:0.4}), 0, D.h + 3.4, 0, g0); drift.ball = ball;
+  mk(new THREE.CylinderGeometry(0.02, 0.02, Ro + D.h - D.h - 3.4 + 1.2, 6), phys(0x222228, {metalness:0.8, roughness:0.4}), 0, D.h + 3.4 + (Ro - 3.4 + 1.2) / 2 - 0.4, 0, g0).castShadow = false;
+  { const n = 220, pos = new Float32Array(n * 3); for(let i = 0; i < n; i++){ const a = q() * TAU, e = q() * 1.2, rr = D.r - 0.35; const ce = Math.cos(e); pos[i * 3] = Math.sin(a) * rr * (e < 0.35 ? 1 : ce); pos[i * 3 + 1] = e < 0.35 ? 0.4 + q() * (D.h - 0.8) : D.h + Math.sin(e) * (Ro - 0.3); pos[i * 3 + 2] = Math.cos(a) * rr * (e < 0.35 ? 1 : ce); }
+    const gg = new THREE.BufferGeometry(); gg.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    const pts = new THREE.Points(gg, new THREE.PointsMaterial({map:glowTex, color:C(0xffe6f4), size:0.32, transparent:true, opacity:0.75, blending:THREE.AdditiveBlending, depthWrite:false, fog:false}));
+    pts.frustumCulled = false; g0.add(pts); drift.specks = pts; }
+  glow(0xff4fa3, 9, 0, 0.4, 0, g0, 0.18);
+  // outside: the name over the door and a floating label, like every other building
+  const signT = signTex(1024, 256, (x, w, h) => { x.clearRect(0, 0, w, h); x.textAlign = 'center'; x.textBaseline = 'middle'; x.font = 'italic 700 150px ' + SERIF;
+    x.shadowColor = '#ff4fa3'; x.shadowBlur = 28; x.fillStyle = '#ffd6ea'; x.fillText('The Drift', w / 2, h / 2 + 8); x.shadowBlur = 0; x.strokeStyle = '#ff4fa3'; x.lineWidth = 3; x.strokeText('The Drift', w / 2, h / 2 + 8); });
+  const sign = new THREE.Mesh(new THREE.PlaneGeometry(4.4, 1.1), new THREE.MeshBasicMaterial({map:signT, transparent:true, toneMapped:false, depthWrite:false}));
+  sign.position.set(0, (D.door + D.h) / 2 + 0.05, -(Ro + 0.08)); sign.rotation.y = Math.PI; g0.add(sign);
+  { const l = label('The Drift · zero-g club', {small:true, edge:'#ff4fa3', fg:'#ff4fa3'}); l.position.set(0, D.h + Ro + 1.4, -2); g0.add(l); }
+  glow(0xff4fa3, 4, 0, 0.5, -(Ro + 0.6), g0, 0.35);
+  // the dancers, with their backs to the rear wall
+  driftDancers().forEach(([words, lx, lz, y0, ph]) => {
+    const av = makeAvatar({recipe:parseDescription(words)}); av.g.position.set(D.x + lx, y0, D.z + lz); av.g.rotation.y = Math.PI; world.add(av.g);
+    drift.dancers.push({av, x:D.x + lx, z:D.z + lz, y0, ph, floor:y0 === 0});
+    if(y0 === 0) colliders.push({x:D.x + lx, z:D.z + lz, r:0.45});
+  });
+  // the rear wall: a panel with a hairline of rose light round it. It sinks into the floor when you come to it (see driftUpdate)
+  const pw = 2 * D.back.w + 0.3, panel = mk(new THREE.BoxGeometry(pw, D.back.h, D.t + 0.1), phys(0x0d0a16, {roughness:0.28, metalness:0.5, normalMap:detailNormal, normalScale:new V2(0.2, 0.2)}), 0, D.back.h / 2, D.r + D.t / 2, g0);
+  drift.panel = panel;
+  { const fr = [], e = 0.035; fr.push(new THREE.BoxGeometry(e, D.back.h, e).translate(-D.back.w, D.back.h / 2, 0), new THREE.BoxGeometry(e, D.back.h, e).translate(D.back.w, D.back.h / 2, 0), new THREE.BoxGeometry(2 * D.back.w, e, e).translate(0, D.back.h, 0));
+    const m = mk(merge(fr), glowM(0xff4fa3, 3.2), 0, 0, D.r - 0.03, g0); m.castShadow = false; }
+  drift.panelBox = addBox(D.x, D.z + D.r + D.t / 2, D.back.w + 0.2, D.t / 2 + 0.05, -1, D.back.h + 0.1);
+  // the porch behind it: a black box two paces deep whose far wall shows a hallway going on and on (painted, like every door in it will be)
+  const P = D.porch, pz0 = Ro - 0.05, black = std(0x050408, {roughness:0.9}), porchOut = phys(0x0b0914, {roughness:0.25, metalness:0.5});
+  const box = (x0, x1, y0, y1, z0, z1) => [x0, x1, y0, y1, z0, z1];
+  const walls = [box(-D.back.w - 0.45, -D.back.w - 0.15, 0, D.back.h + 0.4, pz0, pz0 + P), box(D.back.w + 0.15, D.back.w + 0.45, 0, D.back.h + 0.4, pz0, pz0 + P), box(-D.back.w - 0.45, D.back.w + 0.45, D.back.h + 0.1, D.back.h + 0.4, pz0, pz0 + P), box(-D.back.w - 0.45, D.back.w + 0.45, 0, D.back.h + 0.4, pz0 + P, pz0 + P + 0.3)];
+  mk(boxGeo(walls, 2), porchOut, 0, 0, 0, g0);
+  const inner = []; inner.push(box(-D.back.w - 0.16, -D.back.w - 0.14, 0, D.back.h + 0.1, pz0, pz0 + P), box(D.back.w + 0.14, D.back.w + 0.16, 0, D.back.h + 0.1, pz0, pz0 + P), box(-D.back.w - 0.15, D.back.w + 0.15, D.back.h + 0.08, D.back.h + 0.1, pz0, pz0 + P), box(-D.back.w - 0.15, D.back.w + 0.15, -0.02, 0.05, pz0, pz0 + P));
+  mk(boxGeo(inner, 2), black, 0, 0, 0, g0).castShadow = false;
+  const hall = signTex(512, 768, (x, w, h) => { x.fillStyle = '#030206'; x.fillRect(0, 0, w, h); const vx = w / 2, vy = h * 0.47;
+    for(let i = 0; i < 26; i++){ const k = Math.pow(0.86, i), k2 = Math.pow(0.86, i + 1), l = 0.1 + 0.25 * Math.pow(0.9, i);
+      x.fillStyle = 'rgba(' + Math.round(60 * l * 3) + ',' + Math.round(40 * l * 3) + ',' + Math.round(34 * l * 3) + ',1)';
+      [[-1, 0], [1, 0]].forEach(([sx]) => { x.beginPath(); x.moveTo(vx + sx * w / 2 * k, vy - h * 0.47 * k); x.lineTo(vx + sx * w / 2 * k2, vy - h * 0.47 * k2); x.lineTo(vx + sx * w / 2 * k2, vy + h * 0.53 * k2); x.lineTo(vx + sx * w / 2 * k, vy + h * 0.53 * k); x.closePath(); x.fill(); });
+      if(i % 3 === 1){ const lx = vx + (i % 2 ? -1 : 1) * w / 2 * k * 0.93, ly = vy - h * 0.1 * k, gr = x.createRadialGradient(lx, ly, 0, lx, ly, 40 * k + 3); gr.addColorStop(0, 'rgba(255,196,110,' + (0.9 * Math.pow(0.93, i)).toFixed(2) + ')'); gr.addColorStop(1, 'rgba(255,160,80,0)'); x.fillStyle = gr; x.fillRect(lx - 60, ly - 60, 120, 120); } }
+    x.fillStyle = 'rgba(0,0,0,0.9)'; x.fillRect(vx - 6, vy - 12, 12, 24); });
+  const back = new THREE.Mesh(new THREE.PlaneGeometry(2 * D.back.w + 0.3, D.back.h + 0.1), std(0x000000, {emissive:C(0xffffff), emissiveMap:hall, emissiveIntensity:0.9, roughness:1}));
+  back.position.set(0, (D.back.h + 0.1) / 2, pz0 + P - 0.02); back.rotation.y = Math.PI; g0.add(back);
+  addBox(D.x - D.back.w - 0.3, D.z + pz0 + P / 2, 0.15, P / 2, -1, D.back.h + 0.4); addBox(D.x + D.back.w + 0.3, D.z + pz0 + P / 2, 0.15, P / 2, -1, D.back.h + 0.4); addBox(D.x, D.z + pz0 + P + 0.15, D.back.w + 0.45, 0.15, -1, D.back.h + 0.4);
+  // collision: the drum as straight segments with both doorways left open, and the wall over each doorway; tall, so nobody floats over the top
+  const N = 30, rm = D.r + D.t / 2;
+  [[ab, side], [Math.PI + af, side]].forEach(([a0, len]) => { const st = len / (N / 2); for(let k = 0; k < N / 2; k++){ const th = a0 + st * (k + 0.5); addBox(D.x + Math.sin(th) * rm, D.z + Math.cos(th) * rm, rm * st / 2 + 0.06, D.t / 2, -1, D.h + D.r, {a:-th}); } });
+  addBox(D.x, D.z - rm, D.doorW + 0.3, D.t / 2, D.door, D.h + D.r); addBox(D.x, D.z + rm, D.back.w + 0.3, D.t / 2, D.back.h, D.h + D.r);
+  if(corr === null) corr = {built:false, inside:false, S:null};
+}
+// the sound of the club: an original four-bar loop ("Mooring Lights", the Drift's house track), synthesised on its own bus; muffled outside, faint and far in the hallway
+function driftSound(on, vol, cut){
+  if(!snd.ctx || !drift) return; const c = snd.ctx, now = c.currentTime;
+  if(!on || !snd.on){ if(drift.bus){ const b = drift.bus; b.gain.setTargetAtTime(0, now, 0.15); setTimeout(() => { try{ b.disconnect(); }catch(e){} }, 800); drift.bus = null; } return; }
+  if(!drift.bus){ const b = c.createGain(), lp = c.createBiquadFilter(); b.gain.value = 0; lp.type = 'lowpass'; lp.frequency.value = cut; lp.Q.value = 0.6; b.connect(lp); lp.connect(snd.master); b.lp = lp; drift.bus = b; drift.nextT = now + 0.08; }
+  const b = drift.bus; b.gain.setTargetAtTime(vol, now, 0.25); b.lp.frequency.setTargetAtTime(cut, now, 0.25);
+  if(drift.nextT < now - 0.3) drift.nextT = now + 0.05;   // a long frame: pick the beat up again rather than play a burst of late notes
+  const s16 = 60 / DRIFT.bpm / 4;
+  while(drift.nextT < now + 0.22){ driftNote(drift.step, drift.nextT, b); drift.step++; drift.nextT += s16; }
+}
+const DRIFT_ROOTS = [110, 87.31, 130.81, 98];   // A, F, C, G: the loop's four bars
+function driftNote(i, t, bus){
+  const s = i % 16, bar = Math.floor(i / 16) % 4, root = DRIFT_ROOTS[bar];
+  try{
+    if(s % 4 === 0){ tone('sine', 150, 42, 0.32, 0.55, t, bus); drift.beatAt = t; }
+    if(s === 4 || s === 12) noiseHit(1500, 0.9, 0.16, 0.16, t, 700, bus);
+    if(s % 2 === 1) noiseHit(8200, 1.8, 0.035, s % 4 === 3 ? 0.06 : 0.035, t, null, bus);
+    if([0, 3, 6, 10, 13].indexOf(s) >= 0){ const f = root * (s === 6 || s === 13 ? 2 : 1); tone('sawtooth', f, f * 0.995, 0.2, 0.07, t, bus); tone('square', f / 2, f / 2, 0.22, 0.04, t, bus); }
+    if((s === 2 || s === 10) && bar % 2 === 0) [1, 1.1892, 1.4983].forEach(k => tone('triangle', root * 4 * k, root * 4 * k, 0.28, 0.022, t, bus));
+    if(s === 14 && bar === 3) tone('sine', root * 6, root * 8, 0.35, 0.03, t, bus);
+  }catch(e){}
+}
+function driftUpdate(dt, time){
+  const D = drift; if(!D || state.world !== 'grid') return;
+  const inHall = !!(corr && corr.inside), d = Math.hypot(p.x - D.x, p.z - D.z);
+  // the club: floor pulse on the beat, the ball turning, its specks sweeping, the dancers
+  const c = snd.ctx, beat = c && D.beatAt != null ? Math.exp(-Math.max(0, c.currentTime - D.beatAt) * 7) : 0.5 + 0.5 * Math.sin(time * TAU * DRIFT.bpm / 60);
+  D.floorM.emissiveIntensity = 0.45 + 0.55 * beat; D.floor.rotation.z = time * 0.05;
+  D.ball.rotation.y = time * 0.6; D.specks.rotation.y = time * 0.35;
+  if(!inHall && d < D.r + 40) D.dancers.forEach(n => { const a = n.av, t = time + n.ph;
+    if(n.floor){ a.g.position.y = Math.abs(Math.sin(t * Math.PI * DRIFT.bpm / 60)) * 0.12; a.g.rotation.y = Math.PI + Math.sin(t * 0.9) * 0.5; animateAvatar(a, dt, 2.2, true, time + n.ph); }
+    else { a.g.position.y = n.y0 + Math.sin(t * 0.8) * 0.35; a.g.rotation.y = Math.PI + Math.sin(t * 0.35) * 0.9; a.g.rotation.z = Math.sin(t * 0.6) * 0.15; animateAvatar(a, dt, 0, false, time + n.ph); } });
+  // the rear wall opens when you come up to it (behind the dancers), and stays open
+  if(!D.opening && D.open === 0 && Math.hypot(p.x - D.x, p.z - (D.z + D.r)) < 4.5 && !inHall){ D.opening = true; if(playing){ sfx('rumble'); toast('The wall behind the dancers sinks into the floor. Behind it, a hallway that cannot fit behind it.', 4200); } }
+  if(D.opening && D.open < 1){ D.open = Math.min(1, D.open + dt / 1.6); driftWall(); }
+  // walk into the porch and the hallway takes you
+  if(D.open >= 1 && !inHall && playing && !traveling && !zeroing && p.z - D.z > D.r + D.t + 1.1 && Math.abs(p.x - D.x) < DRIFT.back.w + 0.2 && p.y < DRIFT.back.h) enterHall();
+  // the music: full inside, muffled outside, faint and further away with every step down the hallway
+  if(inHall) driftSound(true, 0.5 * (1 - smooth(4, 46, corr.S ? corr.S.u : 0)), 420);
+  else if(d < DRIFT.hear) driftSound(true, d < D.r ? 0.75 : 0.75 * (1 - smooth(D.r, DRIFT.hear, d)), d < D.r - 0.5 ? 14000 : 700);
+  else driftSound(false);
+  if(!D.told && d < D.r - 1 && playing && !inHall){ D.told = true; toast('The Drift. Gravity is off in here: Space pushes up, Shift pushes down. On the decks: "' + DRIFT.track + '".', 4200); }
+}
+function driftWall(){ const D = drift, e = 1 - Math.pow(1 - D.open, 3); D.panel.position.y = DRIFT.back.h / 2 - e * (DRIFT.back.h + 0.1); D.panelBox.y1 = DRIFT.back.h + 0.1 - e * (DRIFT.back.h + 1.3); }
+function driftSafe(){ return !!(drift && state.world === 'grid' && ((corr && corr.inside) || Math.hypot(p.x - drift.x, p.z - drift.z) < drift.r + DRIFT.porch + 2)); }
+
+/* ================= Goal 12: the hallway behind The Drift, and the Rose Shard =================
+   Mara's ticket (Archive room 5): "go through the wall behind the dancers and keep walking. Nothing in there can touch you unless you turn round."
+   A pocket under Neon Grid, entered through the Drift's porch (like the Hollow: its own floor, only its own walls, the sun off while you are in it).
+   84 m long, it slowly turns from the club's back corridor (black glass, neon) into a house hallway (plaster, boards) and then into Lantern Row
+   at night (brick, setts, a sky of stars), and ends at the door of No. 9, where the Rose Shard waits on the step.
+   Everything it does to you is a fake-out, and nothing in it can hurt you: the lanterns behind you go dim, false WAY OUT signs point back
+   the way you came, painted doors creak open on painted rooms from the Archive's memories, Wick's footsteps echo yours, "Low Tide" plays
+   from a music box and slides out of tune, the floor seems to tilt, the club music stops behind you, someone behind you says your name.
+   The rule is corrStep (one step function for the played walk and for __hub.corridor.simulate): face more than 110 degrees away from the
+   hallway's axis (camera or avatar) for more than 0.6 s, or walk back more than 4 m, and you have turned round: the hallway lets you out on
+   the dance floor with no shard, to try again. Reach the step of No. 9 without turning round and the Rose Shard is yours (giveShard('grid')). */
+const CORR = {x:0, z0:100, L:84, y:-40, hw:1.4, h:3.4, turn:110 * Math.PI / 180, turnT:0.6, back:4, win:80.5, grace:0.5, zoneB:26, zoneC:54};
+const CORR_EVENTS = [{u:9, id:'sign0'}, {u:18, id:'music'}, {u:22, id:'tune'}, {u:27, id:'door0'}, {u:31, id:'sign1'}, {u:36, id:'steps'}, {u:39, id:'door1'},
+  {u:44, id:'tilt'}, {u:50, id:'quiet'}, {u:53, id:'sign2'}, {u:57, id:'door2'}, {u:66, id:'lamps'}, {u:71, id:'hush'}, {u:75, id:'name'}];
+const CORR_LINES = {music:'Behind you the music is still playing. It would be easy to go back.', steps:'Footsteps behind you, keeping time with yours.', quiet:'Behind you, the music stops.',
+  lamps:'Every lantern behind you goes out at once.', name:() => 'Someone behind you says "' + (state.name || 'you') + '", very close.'};
+const CORR_SIGNS = [{u:15, text:'WAY OUT', sub:'back the way you came'}, {u:37, text:'WAY OUT', sub:'is behind you'}, {u:59, text:'TURN ROUND', sub:'the way out is behind you'}];
+const CORR_DOORS = [{u:33, side:-1, tex:'cityRain', label:'Above the Laundrette'}, {u:45, side:1, tex:'cityNight', label:'The Glass Room'}, {u:63, side:-1, tex:'harbour', label:'Low Water'}];
+const CORR_LANTERNS = Array.from({length:13}, (_, k) => ({u:6 + 6 * k, side:k % 2 ? 1 : -1}));
+function corrNew(){ return {state:'walking', t:0, u:0, maxU:0, turnT:0, fired:[], why:null}; }
+// the rule, one step. pose = {u: metres along the hallway, cam: camera angle from the hallway's axis, face: the avatar's angle from it} (radians, 0..PI)
+function corrStep(S, pose, dt){
+  const ev = []; if(S.state !== 'walking') return ev;
+  S.t += dt; S.u = pose.u; S.maxU = Math.max(S.maxU, pose.u);
+  S.turnT = S.t > CORR.grace && Math.max(pose.cam, pose.face) > CORR.turn ? S.turnT + dt : 0;
+  if(S.turnT > CORR.turnT){ S.state = 'turned'; S.why = 'faced back'; ev.push('turned'); return ev; }
+  if(S.maxU - pose.u > CORR.back){ S.state = 'turned'; S.why = 'walked back'; ev.push('turned'); return ev; }
+  for(const e of CORR_EVENTS) if(pose.u >= e.u && S.fired.indexOf(e.id) < 0){ S.fired.push(e.id); ev.push(e.id); }
+  if(pose.u >= CORR.win){ S.state = 'won'; ev.push('won'); }
+  return ev;
+}
+// the player's pose in the hallway's terms (the axis runs along +z)
+function corrPose(){ return {u:p.z - CORR.z0, cam:Math.acos(clamp(-Math.cos(cam.yaw), -1, 1)), face:Math.acos(clamp(Math.cos(p.facing), -1, 1))}; }
+// one result for played and simulated walks: a win gives the Rose Shard, a turn counts a try
+function corrResult(S, how){
+  state.hunt.roseTries = (state.hunt.roseTries || 0) + 1;
+  let given = false;
+  if(S.state === 'won'){ state.hunt.rose = true; given = giveShard('grid', 'The Rose Shard, on the step of No. 9 Lantern Row. You never turned round.'); }
+  persist(); huntState();
+  corr && (corr.last = {how, result:S.state, why:S.why, u:+S.u.toFixed(1), t:+S.t.toFixed(1), shard:given});
+  return given;
+}
+// scripted walkers for the headless check: the same corrStep, 30 steps a second
+function corrSimulate(policy, o){
+  o = o || {}; const S = corrNew(), dt = 1 / 30, log = []; let u = 1.5, camA = 0, face = 0, back = false, t = 0;
+  for(let i = 0; i < 30 * 120 && S.state === 'walking'; i++){
+    t += dt;
+    if(policy === 'straight') u += 5 * dt;
+    else if(policy === 'turn-at-50%'){ if(u < CORR.L * 0.5) u += 5 * dt; else camA = Math.min(Math.PI, camA + dt * Math.PI / 0.4); }      // stops halfway and swings the camera round
+    else if(policy === 'walk-back'){ if(!back && u < CORR.L * 0.3) u += 5 * dt; else { back = true; u -= 2 * dt; } }                    // still facing forward, steps backwards
+    else if(policy === 'glance'){ u += 5 * dt; camA = u > 30 && u < 32 ? 2.6 : 0; }                                                   // a 0.4 s look over the shoulder is allowed
+    else return {error:'unknown policy', policies:['straight', 'turn-at-50%', 'walk-back', 'glance']};
+    corrStep(S, {u, cam:camA, face}, dt).forEach(e => log.push(e));
+  }
+  const res = {policy, result:S.state, why:S.why, u:+S.u.toFixed(1), maxU:+S.maxU.toFixed(1), t:+S.t.toFixed(1), events:log, scares:log.filter(e => e !== 'won' && e !== 'turned').length};
+  if(!o.dry) res.shard = corrResult(S, 'simulated'); else res.shard = false;
+  res.roseWon = state.shards.has('grid'); return res;
+}
+function corrPainting(key){ const src = ARCH_TEX[key](), t = src.clone(); t.needsUpdate = true; t.repeat.set(0.28, 1); t.offset.set(0.36, 0); return t; }
+function signCanvas(s){ return signTex(512, 192, (x, w, h) => { x.fillStyle = '#0a0806'; x.fillRect(0, 0, w, h); x.strokeStyle = '#3a2a1a'; x.lineWidth = 6; x.strokeRect(3, 3, w - 6, h - 6);
+  x.fillStyle = '#ffb870'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.font = '700 64px "Trebuchet MS",sans-serif'; x.fillText(s.text, w / 2 + 34, 78);
+  x.font = '400 26px "Trebuchet MS",sans-serif'; x.fillText(s.sub, w / 2, 150);
+  // a U-turn arrow: up, over and back down, pointing the way you came
+  x.strokeStyle = '#ffb870'; x.lineWidth = 9; x.beginPath(); x.moveTo(40, 110); x.lineTo(40, 60); x.arc(70, 60, 30, Math.PI, 0); x.lineTo(100, 96); x.stroke();
+  x.fillStyle = '#ffb870'; x.beginPath(); x.moveTo(84, 92); x.lineTo(116, 92); x.lineTo(100, 118); x.closePath(); x.fill(); }); }
+function buildHall(){
+  const C0 = CORR, Y = C0.y, hw = C0.hw, H = C0.h, L = C0.L, zB = C0.zoneB, zC = C0.zoneC, g = new THREE.Group(); world.add(g);
+  const T = campusTextures(), S = archiveStone(), q = rng(1313);
+  const F = {cx:C0.x, cz:C0.z0, sd:1, ry:a => a}, K = roomKit(F, g);
+  const M = {
+    brick:std(0xffffff, {map:S.brick.map, normalMap:S.brick.normal, roughnessMap:S.brick.rough, roughness:1}), cobble:std(0xffffff, {map:S.cobble.map, normalMap:S.cobble.normal, roughnessMap:S.cobble.rough, roughness:1}),
+    boards:std(0x8a6a50, {map:T.wood.map, normalMap:T.wood.normal, normalScale:new V2(0.6, 0.6), roughnessMap:T.wood.rough, roughness:1}), wain:std(0x5a3e2c, {map:T.wood.map, normalMap:T.wood.normal, normalScale:new V2(0.4, 0.4), roughness:0.7}),
+    plaster:std(0x9a9a86, {map:detailTex, normalMap:detailNormal, normalScale:new V2(0.15, 0.15), roughness:0.92}), ceil:std(0x6e6a60, {map:detailTex, roughness:0.95}),
+    glass:phys(0x0b0714, {roughness:0.12, metalness:0.55, normalMap:detailNormal, normalScale:new V2(0.12, 0.12)}), black:std(0x050407, {roughness:0.95}),
+    iron:std(0x2a2c31, {metalness:0.6, roughness:0.5}), flame:glowM(0xffb45a, 2.6), stone:std(0x9a948a, {map:detailTex, normalMap:detailNormal, normalScale:new V2(0.4, 0.4), roughness:0.85}),
+    frame:std(0xd8cfbe, {roughness:0.6}), blue:std(0x284a7a, {roughness:0.45, map:detailTex}), green:std(0x2f4a3a, {roughness:0.5, map:detailTex}), red:std(0x6a2a24, {roughness:0.5, map:detailTex}),
+    pane:std(0x0c1018, {roughness:0.06, metalness:0.4}), neonP:glowM(0xff4fa3, 2.4), neonC:glowM(0x5ce1e6, 2.0), rose:glowM(0xff4fa3, 3)
+  };
+  const hall = corr; hall.g = g; hall.M = M; hall.lanterns = []; hall.doors = []; hall.signs = [];
+  // floors, ceilings and the two long walls, zone by zone; the walls leave a doorway for each painted door
+  const wall = (mat, tile, side, z0, z1, y0, y1) => { const x0 = side < 0 ? -hw - 0.2 : hw, x1 = side < 0 ? -hw : hw + 0.2; let a = z0;
+    CORR_DOORS.filter(d => d.side === side && d.u > z0 && d.u < z1).forEach(d => { K.box(mat, tile, x0, x1, y0, y1, a, d.u - 0.55); if(y1 > Y + 2.25) K.box(mat, tile, x0, x1, Math.max(y0, Y + 2.25), y1, d.u - 0.55, d.u + 0.55); a = d.u + 0.55; });
+    K.box(mat, tile, x0, x1, y0, y1, a, z1); };
+  K.box(M.glass, 2, -hw, hw, Y - 0.3, Y, 0, zB); K.box(M.boards, 3, -hw, hw, Y - 0.3, Y, zB, zC); K.box(M.cobble, 2.4, -hw, hw, Y - 0.3, Y, zC, L);
+  K.box(M.black, 2, -hw - 0.2, hw + 0.2, Y + H, Y + H + 0.2, 0, zB); K.box(M.ceil, 3, -hw - 0.2, hw + 0.2, Y + H, Y + H + 0.2, zB, zC); K.box(M.black, 2, -hw - 0.2, hw + 0.2, Y + H + 0.6, Y + H + 0.8, zC, L);
+  [-1, 1].forEach(sd => { wall(M.glass, 2, sd, 0, zB, Y, Y + H); wall(M.plaster, 3, sd, zB, zC, Y + 1.0, Y + H); wall(M.wain, 2, sd, zB, zC, Y, Y + 1.0); wall(M.brick, 3, sd, zC, L, Y, Y + H + 0.6); });
+  // neon strips along the club end, thinning out as the club is left behind
+  [-1, 1].forEach(sd => { for(let z = 0.5; z < zB - 2; z += 2.2){ const x = sd * (hw - 0.03); K.box(sd < 0 ? M.neonP : M.neonC, 1, x - 0.02, x + 0.02, Y + 0.08, Y + 0.12, z, z + 1.7 - z / 30); K.box(sd < 0 ? M.neonC : M.neonP, 1, x - 0.02, x + 0.02, Y + H - 0.12, Y + H - 0.08, z, z + 1.7 - z / 30); } });
+  // doorframes where the club ends and where the street begins
+  [[zB, M.frame], [zC, M.brick]].forEach(([z, m]) => { [-1, 1].forEach(sd => K.box(m, 1, sd * hw - (sd > 0 ? 0.28 : 0), sd * hw + (sd < 0 ? 0.28 : 0), Y, Y + H, z - 0.18, z + 0.18)); K.box(m, 1, -hw, hw, Y + H - 0.3, Y + H, z - 0.18, z + 0.18); });
+  // the way you came: the back of the Drift's panel with its hairline of rose light
+  K.box(M.glass, 1, -hw, hw, Y, Y + H, -0.2, 0); K.box(M.rose, 1, -1.32, 1.32, Y + 3.0, Y + 3.04, 0.0, 0.03); [-1.32, 1.32].forEach(x => K.box(M.rose, 1, x - 0.02, x + 0.02, Y, Y + 3.0, 0.0, 0.03));
+  // Lantern Row: the night sky over the street, house fronts with windows (some lit), front doors painted on the brick
+  { const sky = signTex(512, 2048, (x, w, h) => { const gr = x.createLinearGradient(0, 0, w, 0); gr.addColorStop(0, '#0a0f24'); gr.addColorStop(0.5, '#050814'); gr.addColorStop(1, '#0a0f24'); x.fillStyle = gr; x.fillRect(0, 0, w, h);
+      for(let i = 0; i < 700; i++){ const a = 0.2 + q() * 0.7, s = q() < 0.06 ? 2.4 : 1.3; x.fillStyle = 'rgba(235,240,255,' + a.toFixed(2) + ')'; x.fillRect(q() * w, q() * h, s, s); } });
+    K.panel(sky, 2 * hw + 0.4, L - zC, 0, Y + H + 0.58, zC + (L - zC) / 2, 0, {rx:Math.PI / 2, emi:0.7}); }
+  for(let z = zC + 3; z < L - 3; z += 4.6){ [-1, 1].forEach(sd => { if(CORR_DOORS.some(d => d.side === sd && Math.abs(d.u - z) < 1.6)) return; const x = sd * hw, lit = q() < 0.35;
+    K.box(M.frame, 1, x - sd * 0.03 - 0.02, x - sd * 0.03 + 0.02, Y + 1.15, Y + 2.35, z - 0.55, z + 0.55); K.box(M.stone, 1, x - sd * 0.1 - 0.05, x - sd * 0.1 + 0.05, Y + 1.07, Y + 1.15, z - 0.65, z + 0.65);
+    if(lit) K.panel(ARCH_TEX.curtain(), 1.0, 1.1, x - sd * 0.06, Y + 1.75, z, sd < 0 ? Math.PI / 2 : -Math.PI / 2, {emi:0.55}); else K.box(M.pane, 1, x - sd * 0.06 - 0.01, x - sd * 0.06 + 0.01, Y + 1.2, Y + 2.3, z - 0.5, z + 0.5);
+    if(q() < 0.5){ const dz = z + 2.1; if(dz < L - 2 && !CORR_DOORS.some(d => d.side === sd && Math.abs(d.u - dz) < 1.2)){ const m = [M.blue, M.green, M.red][Math.floor(q() * 3)]; K.box(m, 1, x - sd * 0.05 - 0.02, x - sd * 0.05 + 0.02, Y, Y + 2.1, dz - 0.45, dz + 0.45); K.box(M.stone, 1, x - sd * 0.25 - 0.2, x - sd * 0.25 + 0.2, Y, Y + 0.14, dz - 0.6, dz + 0.6); } }
+  }); }
+  // No. 9 at the end: brick front, the blue door (it opens once the shard is yours), the lit window with the lantern, the step
+  K.box(M.brick, 3, -hw, hw, Y, Y + H + 0.6, L, L + 0.2);
+  K.box(M.frame, 1, -1.2, -0.02, Y + 2.2, Y + 2.3, L - 0.04, L); [-1.2, -0.1].forEach(x => K.box(M.frame, 1, x, x + 0.08, Y, Y + 2.3, L - 0.04, L));
+  K.box(M.black, 1, -1.12, -0.1, Y, Y + 2.2, L - 0.01, L);
+  K.panel(ARCH_TEX.curtain(), 0.95, 1.05, 0.78, Y + 1.7, L - 0.03, Math.PI, {emi:1.1}); K.box(M.frame, 1, 0.25, 1.3, Y + 1.12, Y + 1.18, L - 0.3, L); K.box(M.frame, 1, 0.25, 1.3, Y + 2.24, Y + 2.3, L - 0.06, L);
+  K.box(M.stone, 1, -1.3, 0.0, Y, Y + 0.17, L - 0.45, L);
+  archLantern(K, M, 0.78, Y + 1.18, L - 0.17); K.glow(0xffc070, 2.2, 0.78, Y + 1.35, L - 0.2, 0.5);
+  K.panel(ARCH_TEX.houseNo(), 0.22, 0.22, -0.66, Y + 2.55, L - 0.01, Math.PI);
+  { const hinge = new THREE.Group(); hinge.position.set(C0.x - 1.12, Y, C0.z0 + L - 0.06); g.add(hinge);
+    const leaf = new THREE.Mesh(new THREE.BoxGeometry(1.02, 2.2, 0.06), M.blue); leaf.position.set(0.51, 1.1, 0); leaf.castShadow = false; leaf.receiveShadow = true; hinge.add(leaf); hall.no9 = hinge; }
+  // the Rose Shard on the step
+  { const col = SHARD_COLORS.grid, m = new THREE.Mesh(new THREE.OctahedronGeometry(0.42, 0), phys(col, {emissive:C(col), emissiveIntensity:2.2, roughness:0.1})); m.scale.set(0.8, 1.7, 0.8);
+    m.position.set(C0.x - 0.62, Y + 1.15, C0.z0 + L - 0.75); g.add(m); hall.shard = m; hall.shardGlow = glow(col, 3, C0.x - 0.62, Y + 1.15, C0.z0 + L - 0.75, g, 0.6); hall.shardBase = m.position.clone(); }
+  // lanterns: an iron bracket and a glass cage on the wall, a pool of light on the wall and the floor (no point lights); each one dims on its own
+  const pool = archTex('lightPool', 256, 256, (x, w) => { const gr = x.createRadialGradient(w / 2, w / 2, 0, w / 2, w / 2, w / 2); gr.addColorStop(0, 'rgba(255,190,120,0.9)'); gr.addColorStop(0.35, 'rgba(255,170,100,0.35)'); gr.addColorStop(1, 'rgba(255,150,80,0)'); x.fillStyle = gr; x.fillRect(0, 0, w, w); });
+  CORR_LANTERNS.forEach(Ln => { const sd = Ln.side, x = C0.x + sd * (hw - 0.02), z = C0.z0 + Ln.u, y = Y + 2.25;
+    const brk = merge([new THREE.BoxGeometry(0.04, 0.04, 0.3).rotateY(Math.PI / 2).translate(-sd * 0.15, 0.25, 0), new THREE.CylinderGeometry(0.1, 0.11, 0.03, 12).translate(-sd * 0.3, -0.18, 0), new THREE.ConeGeometry(0.12, 0.12, 12).translate(-sd * 0.3, 0.2, 0), new THREE.CylinderGeometry(0.008, 0.008, 0.12, 5).translate(-sd * 0.3, 0.3, 0)]);
+    mk(brk, M.iron, x, y, z, g).castShadow = false;
+    const gm = glowM(0xffc070, 2.4), cage = mk(new THREE.CylinderGeometry(0.085, 0.085, 0.3, 12), gm, x - sd * 0.3, y, z, g); cage.castShadow = false;
+    const sp = glow(0xffb870, 1.6, x - sd * 0.3, y, z, g, 0.55);
+    const pm = () => new THREE.MeshBasicMaterial({map:pool, color:C(0xffc890), transparent:true, opacity:0.5, blending:THREE.AdditiveBlending, depthWrite:false});
+    const wp = new THREE.Mesh(new THREE.PlaneGeometry(2.4, 2.4), pm()); wp.position.set(x - sd * 0.015, y - 0.2, z); wp.rotation.y = sd < 0 ? Math.PI / 2 : -Math.PI / 2; g.add(wp);
+    const fp = new THREE.Mesh(new THREE.PlaneGeometry(3.0, 3.0), pm()); fp.position.set(x - sd * 0.9, Y + 0.012, z); fp.rotation.x = -Math.PI / 2; g.add(fp);
+    hall.lanterns.push({u:Ln.u, m:gm, sp, wp:wp.material, fp:fp.material, lvl:1, want:1, flick:0}); });
+  // the painted doors: a leaf that creaks open on a shallow room that is only a painting of a memory (the Ledger: "every door in it is painted on")
+  CORR_DOORS.forEach(D0 => { const sd = D0.side, x = sd * hw, z = D0.u;
+    K.box(M.black, 1, sd < 0 ? -hw - 0.95 : hw, sd < 0 ? -hw : hw + 0.95, Y, Y + 0.02, z - 0.55, z + 0.55);
+    [z - 0.57, z + 0.57].forEach(zz => K.box(M.black, 1, sd < 0 ? -hw - 0.95 : hw, sd < 0 ? -hw : hw + 0.95, Y, Y + 2.3, zz - 0.02, zz + 0.02)); K.box(M.black, 1, sd < 0 ? -hw - 0.95 : hw, sd < 0 ? -hw : hw + 0.95, Y + 2.25, Y + 2.3, z - 0.55, z + 0.55);
+    K.panel(corrPainting(D0.tex), 1.1, 2.25, x + sd * 0.9, Y + 1.12, z, sd < 0 ? Math.PI / 2 : -Math.PI / 2, {emi:0.5});
+    K.box(M.frame, 1, x - 0.06, x + 0.06, Y + 2.2, Y + 2.3, z - 0.62, z + 0.62); [z - 0.62, z + 0.55].forEach(zz => K.box(M.frame, 1, x - 0.06, x + 0.06, Y, Y + 2.3, zz, zz + 0.07));
+    const hinge = new THREE.Group(); hinge.position.set(C0.x + x, Y, C0.z0 + z + 0.53); g.add(hinge);
+    const leaf = new THREE.Mesh(new THREE.BoxGeometry(0.05, 2.18, 1.04), sd < 0 ? M.green : M.red); leaf.position.set(0, 1.09, -0.52); leaf.castShadow = false; leaf.receiveShadow = true; hinge.add(leaf);
+    const knob = new THREE.Mesh(new THREE.SphereGeometry(0.035, 12, 8), M.iron); knob.position.set(-sd * 0.05, 1.0, -0.95); hinge.add(knob);
+    hall.doors.push({u:D0.u, side:sd, hinge, ang:0, want:0}); });
+  // the false WAY OUT signs, hung from the ceiling facing you as you come; each lights up as you reach it
+  CORR_SIGNS.forEach(s => { const z = C0.z0 + s.u, y = Y + H - 0.42, mat = new THREE.MeshBasicMaterial({map:signCanvas(s), color:C(0x1a1a1a), toneMapped:false});
+    mk(new THREE.BoxGeometry(1.4, 0.5, 0.08), M.black, C0.x, y, z + 0.05, g).castShadow = false; mk(new THREE.CylinderGeometry(0.01, 0.01, 0.2, 5), M.iron, C0.x, y + 0.35, z + 0.05, g).castShadow = false;
+    const pl = new THREE.Mesh(new THREE.PlaneGeometry(1.34, 0.46), mat); pl.position.set(C0.x, y, z); pl.rotation.y = Math.PI; g.add(pl);
+    const sp = glow(0xffb870, 1.8, C0.x, y, z - 0.2, g, 0); hall.signs.push({u:s.u, mat, sp, on:0, flick:0}); });
+  K.done();
+  // collision: the pocket's own walls (flagged hollow, the flag for "counts only while you are in a pocket")
+  const zc = C0.z0 + L / 2, o = {hollow:true};
+  addBox(C0.x - hw - 0.1, zc, 0.1, L / 2 + 0.3, Y - 1, Y + H + 1, o); addBox(C0.x + hw + 0.1, zc, 0.1, L / 2 + 0.3, Y - 1, Y + H + 1, o);
+  addBox(C0.x, C0.z0 - 0.1, hw + 0.2, 0.1, Y - 1, Y + H + 1, o); hall.endBox = addBox(C0.x, C0.z0 + L + 0.1, hw + 0.2, 0.1, Y - 1, Y + H + 1, o);
+  // (the step of No. 9 is in the floor function, pocketFloor, so you walk up onto it)
+  g.visible = false; hall.built = true;
+}
+const pocketIn = () => !!((hollow && hollow.inside) || (corr && corr.inside));
+function pocketFloor(x, z){ if(hollow && hollow.inside) return hollowFloor(x, z); const u = z - CORR.z0; return CORR.y + (u > CORR.L - 0.45 && x < CORR.x ? 0.17 : 0); }
+function corrReset(){
+  const H = corr; H.S = corrNew(); H.stepT = 0.2; H.echoOn = false; H.tuneOn = false; H.tuneNext = 0; H.roll = 0; H.stopEcho = false; H.lastSpeed = 0;
+  H.lanterns.forEach(l => { l.lvl = l.want = 1; l.flick = 0; }); H.doors.forEach(d => { d.ang = d.want = 0; d.hinge.rotation.y = 0; }); H.signs.forEach(s => { s.on = 0; s.flick = 0; });
+  H.no9.rotation.y = 0; H.no9open = false; H.endBox.y1 = CORR.y + CORR.h + 1; H.shard.visible = H.shardGlow.visible = !state.shards.has('grid'); H.shard.position.copy(H.shardBase); H.shardGlow.position.copy(H.shardBase);
+  corrLights();
+}
+function enterHall(){
+  if(traveling || !drift || !corr) return; traveling = true; fadeEl.classList.add('on'); sfx('thud');
+  setTimeout(() => { try{
+    if(drift && corr && state.world === 'grid'){ if(!corr.built) buildHall();
+      corr.saved = {hc:hemi.color.getHex(), hg:hemi.groundColor.getHex(), hi:hemi.intensity, si:sunLight.intensity, fc:scene.fog ? scene.fog.color.getHex() : 0, fd:scene.fog ? scene.fog.density : 0};
+      corr.inside = true; corr.g.visible = true; corrReset(); p.zeroG = false;
+      p.x = CORR.x; p.z = CORR.z0 + 1.5; p.y = CORR.y; p.vx = p.vy = p.vz = 0; p.speed = 0; p.facing = 0; cam.yaw = Math.PI; cam.pitch = Math.min(Math.max(cam.pitch, 0.05), 0.22);
+      sunLight.intensity = 0; snapCamera(); clipCamera();
+      toast(state.hunt.roseTries ? 'The hallway again. Keep walking.' : 'A hallway that cannot fit behind the club. The music is behind you. Keep walking.', 4200); }
+  } finally { fadeEl.classList.remove('on'); traveling = false; } }, 500);
+}
+// out of the hallway, onto the dance floor, facing the open wall (after turning round, or through No. 9's door with the shard)
+function leaveHall(why){
+  if(traveling || !corr || !corr.inside) return; traveling = true; fadeEl.classList.add('on');
+  setTimeout(() => { try{
+    if(corr){ corr.inside = false; if(corr.g) corr.g.visible = false; const s = corr.saved; if(s){ hemi.color.setHex(s.hc); hemi.groundColor.setHex(s.hg); hemi.intensity = s.hi; sunLight.intensity = s.si; if(scene.fog){ scene.fog.color.setHex(s.fc); scene.fog.density = s.fd; } } corr.roll = 0; }
+    if(drift){ p.x = drift.x; p.z = drift.z + 1.5; p.y = 0.05; p.vx = p.vy = p.vz = 0; p.speed = 0; p.facing = 0; cam.yaw = Math.PI; snapCamera(); clipCamera(); if(camHid){ cam.yaw += Math.PI; p.facing = Math.PI; snapCamera(); clipCamera(); } }
+    toast(why === 'won' ? 'You come out through the wall behind the dancers, the Rose Shard in your hand.' : 'You turned round. The hallway lets you out onto the dance floor. Try again whenever you like.', 5000);
+  } finally { fadeEl.classList.remove('on'); traveling = false; } }, 600);
+}
+// light, fog and sky bounce along the hallway: club violet at the start, a cold street night at the end; the fog closes in behind and ahead
+function corrLights(){
+  const u = corr.S ? corr.S.u : 0, a = smooth(CORR.zoneB - 6, CORR.zoneB + 6, u), b = smooth(CORR.zoneC - 6, CORR.zoneC + 8, u);
+  const mix3 = (A, B, Cc) => [0, 1, 2].map(i => lerp(lerp(A[i], B[i], a), Cc[i], b));
+  const sky = mix3([0.42, 0.3, 0.62], [0.5, 0.42, 0.33], [0.3, 0.35, 0.55]), gnd = mix3([0.08, 0.03, 0.16], [0.16, 0.1, 0.06], [0.14, 0.1, 0.07]), fog = mix3([0.03, 0.015, 0.05], [0.03, 0.02, 0.014], [0.012, 0.016, 0.035]);
+  hemi.color.setRGB(sky[0], sky[1], sky[2]); hemi.groundColor.setRGB(gnd[0], gnd[1], gnd[2]); hemi.intensity = lerp(0.5, 0.42, b);
+  if(scene.fog){ scene.fog.color.setRGB(fog[0], fog[1], fog[2]); scene.fog.density = 0.024; }
+}
+function corrEvent(id){
+  const H = corr, c = snd.ctx, t = c ? c.currentTime : 0, line = CORR_LINES[id];
+  if(line && playing) toast(typeof line === 'function' ? line() : line, 3200);
+  if(id.indexOf('sign') === 0){ const s = H.signs[+id.slice(4)]; if(s){ s.on = 1; s.flick = 0.9; } if(c && snd.on) tone('square', 60, 60, 0.35, 0.02); }
+  if(id.indexOf('door') === 0){ const d = H.doors[+id.slice(4)]; if(d){ d.want = 1; if(c && snd.on) try{ noiseHit(700, 9, 1.4, 0.06, t, 1500); tone('sawtooth', 92, 128, 1.3, 0.012, t); tone('sine', 310, 260, 1.2, 0.01, t + 0.2); }catch(e){} } }
+  if(id === 'steps') H.echoOn = true;
+  if(id === 'tune'){ H.tuneOn = true; H.tuneNext = 0; }
+  if(id === 'hush') H.tuneOn = false;
+  if(id === 'quiet' && drift) driftSound(false);
+  if(id === 'lamps'){ H.lanterns.forEach(l => { if(l.u < H.S.u - 1){ l.lvl = l.want = 0; } else l.flick = 1.2; }); sfx('thud'); }
+}
+// "Low Tide" from a music box somewhere ahead, sliding further out of tune the further you walk (in tune again at No. 9)
+function corrTune(cents){ if(!snd.ctx || !snd.on) return; const t = snd.ctx.currentTime + 0.1, wob = [0, 1, -1, 2, -2, 1, -1];
+  HUNT_CLUES.cyan.order.forEach((n, k) => { const f = LOW_TIDE_HZ[n - 1] * Math.pow(2, (cents * (1 + 0.35 * wob[k])) / 1200); tone('sine', f, f * Math.pow(2, cents * 0.2 / 1200), 1.1, 0.035, t + k * 0.62); tone('triangle', f * 2, f * 2, 0.35, 0.008, t + k * 0.62); }); }
+function hallUpdate(dt, time){
+  const H = corr; if(!H || !H.inside || !H.built) return;
+  const S = H.S, u = p.z - CORR.z0, c = snd.ctx;
+  // the ceiling
+  const top = CORR.y + CORR.h - 1.9 + (u > CORR.zoneC ? 0.6 : 0); if(p.y > top){ p.y = top; if(p.vy > 0) p.vy = 0; }
+  if(playing && !traveling && !zeroing){
+    if(S.state === 'walking'){ corrStep(S, corrPose(), dt).forEach(e => { if(e === 'turned'){ corrResult(S, 'played'); sfx('rumble'); leaveHall('turned'); } else if(e === 'won') corrWin(); else corrEvent(e); }); }
+    else if(S.state === 'won' && (u > CORR.L - 0.9 || u < 0.9) && H.no9open) leaveHall('won');
+  }
+  // lanterns: lit ahead, dimming behind you (the ones you have passed fade out over a few seconds); a flicker after the big blackout
+  H.lanterns.forEach(l => { if(S.state === 'walking' && l.u < u - 2.5) l.want = Math.max(0.06, 1 - (u - 2.5 - l.u) / 10); if(S.state === 'won') l.want = 1;
+    l.lvl += (l.want - l.lvl) * (1 - Math.exp(-dt * 1.5)); l.flick = Math.max(0, l.flick - dt); const f = l.flick > 0 ? 0.55 + 0.45 * Math.sin(time * 43 + l.u) * Math.sin(time * 17) : 1, v = l.lvl * f;
+    l.m.emissiveIntensity = 0.15 + 2.3 * v; l.sp.material.opacity = 0.55 * v; l.wp.opacity = 0.5 * v; l.fp.opacity = 0.42 * v; });
+  H.doors.forEach(d => { if(d.ang < d.want){ d.ang = Math.min(d.want, d.ang + dt * 0.55); const e = 1 - Math.pow(1 - d.ang, 2); d.hinge.rotation.y = d.side * 1.7 * e; } });
+  H.signs.forEach(s => { if(!s.on) return; s.flick = Math.max(0, s.flick - dt); const b = s.flick > 0 ? (Math.sin(time * 37 + s.u) > 0.1 ? 1 : 0.15) : 1; s.mat.color.setScalar(0.12 + 1.1 * b); s.sp.material.opacity = 0.35 * b; });
+  if(H.no9open && H.no9.rotation.y > -1.6) H.no9.rotation.y = Math.max(-1.6, H.no9.rotation.y - dt * 1.2);
+  if(S.state === 'won' && H.shard.visible){ H.shardT = (H.shardT || 0) + dt; const k = Math.min(1, H.shardT / 1.2); H.shard.position.lerpVectors(H.shardBase, new V3(p.x, p.y + 1.2, p.z), k); H.shardGlow.position.copy(H.shard.position); H.shard.scale.setScalar(1 - 0.8 * k).multiply(new V3(0.8, 1.7, 0.8)); if(k >= 1) H.shard.visible = H.shardGlow.visible = false; }
+  else if(H.shard.visible){ H.shard.rotation.y += dt * 1.5; H.shard.position.y = H.shardBase.y + Math.sin(time * 2) * 0.1; H.shardGlow.position.y = H.shard.position.y; }
+  // the floor seems to tilt (the camera rolls a little) for a stretch in the middle, then settles
+  H.roll = S.state === 'walking' && S.fired.indexOf('tilt') >= 0 ? 0.055 * Math.sin(Math.PI * clamp((u - 44) / 20, 0, 1)) * (0.8 + 0.2 * Math.sin(time * 0.9)) : H.roll * Math.exp(-dt * 3);
+  corrLights();
+  // Wick's footsteps echo yours, a beat late and heavier; when you stop, his take one step more
+  if(H.echoOn && S.state === 'walking' && c && snd.on){ const k = 0.5 + 0.5 * smooth(36, 70, u);
+    if(p.grounded && p.speed > 0.6){ H.stepT -= dt; H.stopEcho = true; if(H.stepT <= 0){ H.stepT = p.speed > 7 ? 0.27 : 0.42; const t = c.currentTime + 0.3; try{ noiseHit(240, 1.3, 0.1, 0.06 * k, t); tone('sine', 72, 48, 0.12, 0.07 * k, t); }catch(e){} } }
+    else if(H.stopEcho && p.speed < 0.3){ H.stopEcho = false; const t = c.currentTime + 0.5; try{ noiseHit(240, 1.3, 0.1, 0.07 * k, t); tone('sine', 72, 48, 0.12, 0.08 * k, t); }catch(e){} } }
+  if(H.tuneOn && c && c.currentTime > H.tuneNext){ H.tuneNext = c.currentTime + 7.5; corrTune(-95 * smooth(22, 70, u)); }
+}
+function corrWin(){
+  const H = corr; corrResult(H.S, 'played'); H.no9open = true; H.endBox.y1 = CORR.y + 0.1 - 5; H.tuneOn = false;
+  if(snd.ctx) playLowTide();
+  setTimeout(() => { if(corr && corr.inside && playing) toast('The door of No. 9 stands open. Walk through it to go back to The Drift.', 4200); }, 5400);
+}
 
 /* ================= VR (WebXR) =================
    Put a headset on and the same world is around you at real scale. The camera rides a rig that stands where the
@@ -10207,7 +10584,7 @@ function update(dt, time){
   // walls, floor and dome bounce it softly. Stepping out of the drum hands it straight back to normal walking and gravity.
   const zg = gymIn(p.x, p.z);
   if(zg !== !!p.zeroG){ p.zeroG = zg;
-    if(zg){ p.vx = dirx * p.speed * 0.6; p.vz = dirz * p.speed * 0.6; p.zgIdle = 0; if(!zgHinted && playing){ zgHinted = true; toast('Zero-G Gym: gravity is off. Space pushes up, Shift pushes down, WASD drifts.', 3600); } }
+    if(zg){ p.vx = dirx * p.speed * 0.6; p.vz = dirz * p.speed * 0.6; p.zgIdle = 0; if(!zgHinted && playing && zgVol(p.x, p.z) === gym){ zgHinted = true; toast('Zero-G Gym: gravity is off. Space pushes up, Shift pushes down, WASD drifts.', 3600); } }
     else p.speed = Math.min(9.5, Math.hypot(p.vx, p.vz)); }
   let nx, nz;
   if(p.zeroG){
@@ -10225,7 +10602,7 @@ function update(dt, time){
   const ix = nx, iz = nz;
   const push = (cx, cz, m) => { const dx = nx - cx, dz = nz - cz, d = Math.hypot(dx, dz); if(d < m && d > 1e-4){ nx = cx + dx / d * m; nz = cz + dz / d * m; } };
   const gHere = G(p.x, p.z);
-  const HI = !!(hollow && hollow.inside);   // inside the Hollow (Goal 11) only its own walls and floor count
+  const HI = pocketIn();   // inside a pocket (the Hollow, Goal 11; the hallway behind The Drift, Goal 12) only its own walls and floor count
   for(const c of colliders) if(HI ? c.hollow : p.y - gHere < 10) push(c.x, c.z, c.r + 0.35);
   for(const s of platforms) if(!HI && p.y < s.top - 0.35 && p.y + 1.85 > s.bottom) push(s.x, s.z, (s.rAt ? s.rAt(p.y + 0.4 - s.bottom) : s.r) + 0.35);
   for(const nn of npcs) push(nn.x, nn.z, nn.av.rad);
@@ -10248,7 +10625,7 @@ function update(dt, time){
   }
   p.vy -= 24 * gravK * dt; p.y += p.vy * dt;
   for(const s of platforms) if(p.vy > 0 && s.bottom > 0.5 && Math.hypot(p.x - s.x, p.z - s.z) < s.r && prevY + 1.85 <= s.bottom + 0.01 && p.y + 1.85 > s.bottom){ p.y = s.bottom - 1.85; p.vy = 0; }
-  let ground = HI ? hollowFloor(p.x, p.z) : G(p.x, p.z);
+  let ground = HI ? pocketFloor(p.x, p.z) : G(p.x, p.z);
   if(!HI) for(const s of platforms) if(Math.hypot(p.x - s.x, p.z - s.z) < s.r + 0.2 && prevY >= s.top - 0.05) ground = Math.max(ground, s.top);
   if(p.y <= ground || (wasGrounded && p.vy <= 0 && p.y - ground < 0.45)){
     if(!wasGrounded && -p.vy > FALL_SAFE) hurt((-p.vy - FALL_SAFE) * 4.5, 'fall');
@@ -10269,13 +10646,15 @@ function update(dt, time){
   if(vr.on){ vrUpdate(dt); camera.getWorldPosition(camWorld); sky.position.copy(camWorld); sunLight.position.set(p.x + lightDir.x * 150, p.y + lightDir.y * 150, p.z + lightDir.z * 150); sunLight.target.position.set(p.x, p.y, p.z); sunLight.target.updateMatrixWorld(); if(gridSun) gridSun.lookAt(camWorld.x, gridSun.position.y, camWorld.z); waterNormal.offset.x += dt * 0.015; waterNormal.offset.y += dt * 0.01; }
   else {
   if(bc.on) camera.position.copy(_t0); else { camera.position.lerp(_t0, 1 - Math.exp(-dt * 10)); clipCamera(); }
-  if(gym && Math.hypot(p.x - gym.x, p.z - gym.z) < gym.r){   // inside the gym the camera stays under the dome
-    const dx = camera.position.x - gym.x, dz = camera.position.z - gym.z, d = Math.hypot(dx, dz), lim = gym.r - 0.5;
-    if(d > lim){ camera.position.x = gym.x + dx / d * lim; camera.position.z = gym.z + dz / d * lim; }
+  const zv = [gym, drift].find(v => v && Math.hypot(p.x - v.x, p.z - v.z) < v.r);
+  if(zv){   // inside the gym (or The Drift) the camera stays under the dome
+    const dx = camera.position.x - zv.x, dz = camera.position.z - zv.z, d = Math.hypot(dx, dz), lim = zv.r - 0.5;
+    if(d > lim){ camera.position.x = zv.x + dx / d * lim; camera.position.z = zv.z + dz / d * lim; }
     const c = gymCeil(camera.position.x, camera.position.z) - 0.5; if(camera.position.y > c) camera.position.y = c;
   }
-  const cg = (hollow && hollow.inside ? hollowFloor(camera.position.x, camera.position.z) : G(camera.position.x, camera.position.z)) + 0.4; if(camera.position.y < cg) camera.position.y = cg;
-  camera.lookAt(_t1); camera.updateMatrixWorld(); camWorld.copy(camera.position);
+  const cg = (pocketIn() ? pocketFloor(camera.position.x, camera.position.z) : G(camera.position.x, camera.position.z)) + 0.4; if(camera.position.y < cg) camera.position.y = cg;
+  if(corr && corr.inside){ const top = CORR.y + CORR.h - 0.2 + (camera.position.z - CORR.z0 > CORR.zoneC ? 0.6 : 0); if(camera.position.y > top) camera.position.y = top; }
+  camera.lookAt(_t1); if(corr && corr.inside && corr.roll) camera.rotateZ(corr.roll); camera.updateMatrixWorld(); camWorld.copy(camera.position);
   sky.position.copy(camera.position);
   sunLight.position.set(p.x + lightDir.x * 150, p.y + lightDir.y * 150, p.z + lightDir.z * 150);
   sunLight.target.position.set(p.x, p.y, p.z); sunLight.target.updateMatrixWorld();
@@ -10311,7 +10690,7 @@ function update(dt, time){
     if(sp === 0 && nn.wait > 0.3){ for(const o of npcs){ if(o === nn) continue; const d = Math.hypot(o.x - nn.x, o.z - nn.z); if(d < 3.2 && d > 0.3){ nn.facing = lerpAngle(nn.facing, Math.atan2(o.x - nn.x, o.z - nn.z), 1 - Math.exp(-dt * 4)); if(nn.wait < 2.5 && Math.random() < dt * 0.3) nn.wait += 3; break; } } }
     nn.av.g.position.set(nn.x, G(nn.x, nn.z), nn.z); nn.av.g.rotation.y = nn.facing;
     animateAvatar(nn.av, dt, sp, true, time);
-    if(playing && !nn.spoke && !(hollow && hollow.inside) && Math.hypot(nn.x - p.x, nn.z - p.z) < 3 && p.y - G(p.x, p.z) < 1){ nn.spoke = true; nn.wait = 3; nn.facing = Math.atan2(p.x - nn.x, p.z - nn.z); toast(nn.name + ': ' + nn.line, 3600); }
+    if(playing && !nn.spoke && !pocketIn() && Math.hypot(nn.x - p.x, nn.z - p.z) < 3 && p.y - G(p.x, p.z) < 1){ nn.spoke = true; nn.wait = 3; nn.facing = Math.atan2(p.x - nn.x, p.z - nn.z); toast(nn.name + ': ' + nn.line, 3600); }
   }
   const px = p.x, py = p.y + 1, pz = p.z;
   for(let i = coins.length - 1; i >= 0; i--){
@@ -10332,11 +10711,11 @@ function update(dt, time){
     state.won = true; reward(500, 200); sfx('win'); setHalo(); toast('You opened the vault. First to crack the Hub.   +500 XP', 5000);
   }
   if(playing && p.grounded && p.speed > 0.6){ snd.stepT -= dt; if(snd.stepT <= 0){ sfx('step'); snd.stepT = p.speed > 7 ? 0.27 : 0.42; } } else snd.stepT = 0.1;
-  shopProximity(); bikeProximity(); vendProximity(); deskProximity(); archiveUpdate(dt); hollowUpdate(dt, time); rallyTick(dt, time); trialUpdate(dt, time);
+  shopProximity(); bikeProximity(); vendProximity(); deskProximity(); archiveUpdate(dt); hollowUpdate(dt, time); driftUpdate(dt, time); hallUpdate(dt, time); rallyTick(dt, time); trialUpdate(dt, time);
   updatePickups(dt, time); hurtCool -= dt; simTime += dt; updateHazards(simTime); updateBurst(dt); checkBundles();
   if(!WORLDS[state.world].rules.danger && !zeroing && state.hp < maxHp()){ state.hp = Math.min(maxHp(), state.hp + 12 * dt); hpHud(); }
   portalCool -= dt;
-  if(playing && portalCool <= 0 && !traveling && !zeroing) for(const q of portals){ if(Math.hypot(p.x - q.x, p.z - q.z) < 1.6 && p.y - G(p.x, p.z) < 2){ travel(q.to); break; } }
+  if(playing && portalCool <= 0 && !traveling && !zeroing && !pocketIn()) for(const q of portals){ if(Math.hypot(p.x - q.x, p.z - q.z) < 1.6 && p.y - G(p.x, p.z) < 2){ travel(q.to); break; } }
 }
 
 // where the sun is on screen this frame: drives the sun rays and the lens flare (both fade out as the sun leaves the frame)
@@ -10509,6 +10888,40 @@ Object.defineProperties(window.__hub, {
       done:!!(R && R.done), way:R ? R.way : null, score:R ? R.score : null, best:state.hunt.rallyBest, plays:state.hunt.rallyPlays, last:rally.last && Object.assign({}, rally.last), track:{length:+RLINE.L.toFixed(1), laps:RALLY.laps}}; }}},
   amberWon:{get:() => state.shards.has('dunes')}, shards:{get:() => [...state.shards]},
   ledgerBoard:{get:() => { const rows = BOARD.concat([{name:state.name || 'You', shards:state.shards.size, xp:state.xp, you:true}]).sort((a, b) => b.shards - a.shards || b.xp - a.xp); huntState(); return {you:rows.find(x => x.you), rank:rows.findIndex(x => x.you) + 1, hunt:($('#huntState') || {}).textContent || ''}; }}
+});
+// Goal 12: The Drift and the hallway behind it. corridor.simulate(policy) runs corrStep headless (a win gives the Rose Shard unless {dry:true});
+// corridor.walk(policy) is a played walk through the real update() (keys held, no rendering); viewCorridor(u) stands you u metres in for a screenshot
+function corrState(){ const H = corr, S = H && H.S; return {built:!!(H && H.built), inside:!!(H && H.inside), state:S ? S.state : 'idle', u:S ? +S.u.toFixed(2) : null, maxU:S ? +S.maxU.toFixed(2) : null, turnT:S ? +S.turnT.toFixed(2) : null, why:S ? S.why : null,
+  fired:S ? S.fired.slice() : [], length:CORR.L, rule:{turnDeg:110, turnSeconds:CORR.turnT, backMetres:CORR.back, winAt:CORR.win}, pose:H && H.inside ? (o => ({u:+o.u.toFixed(2), camDeg:Math.round(o.cam * 180 / Math.PI), faceDeg:Math.round(o.face * 180 / Math.PI)}))(corrPose()) : null,
+  lanterns:H && H.built ? H.lanterns.map(l => +l.lvl.toFixed(2)) : [], doorsOpen:H && H.built ? H.doors.filter(d => d.ang > 0.05).length : 0, signsOn:H && H.built ? H.signs.filter(s => s.on).length : 0, roll:H ? +(H.roll || 0).toFixed(3) : 0,
+  last:H && H.last ? Object.assign({}, H.last) : null, tries:state.hunt.roseTries || 0, safe:driftSafe(), hp:state.hp}; }
+Object.defineProperties(window.__hub, {
+  drift:{get:() => drift && {x:drift.x, z:drift.z, r:drift.r, h:drift.h, inside:zgVol(p.x, p.z) === drift, zeroG:!!p.zeroG && zgVol(p.x, p.z) === drift, gravityOffInside:!!zgVol(drift.x, drift.z + 3), wallOpen:drift.open >= 1, open:+drift.open.toFixed(2),
+    dancers:drift.dancers.length, dancersBehind:drift.dancers.filter(n => n.z > drift.z).length, music:!!drift.bus, track:DRIFT.track, safe:driftSafe(), backWall:{x:drift.x, z:drift.z + drift.r}, door:{x:drift.x, z:drift.z - drift.r - DRIFT.t - 1.5}}},
+  // stand somewhere in or by The Drift: 'door' (outside the front door, facing in), 'floor' (the middle of the dance floor), 'back' (behind the dancers, in front of the rear wall), 'float' (3 m up over the floor)
+  driftGoto:{value:where => { if(!drift) return null; const D = drift, at = {door:[0, -D.r - DRIFT.t - 1.5, 0], floor:[0, 0, 0], back:[0, D.r - 2.2, 0], float:[0, 1, 3]}[where] || [0, 0, 0];
+    p.x = D.x + at[0]; p.z = D.z + at[1]; p.y = at[2] + G(p.x, p.z); p.vx = p.vy = p.vz = 0; p.speed = 0; p.facing = 0; cam.yaw = Math.PI; cam.pitch = where === 'door' ? 0.12 : 0.18; snapCamera(); clipCamera();
+    return {x:+p.x.toFixed(2), z:+p.z.toFixed(2), y:+p.y.toFixed(2), zeroG:!!zgVol(p.x, p.z)}; }},
+  settleWall:{value:() => { if(!drift) return false; drift.opening = true; drift.open = 1; driftWall(); return true; }},
+  corridor:{value:{get state(){ return corrState(); },
+    simulate:(policy, o) => corrSimulate(policy, o),
+    enter:() => new Promise(res => { if(!drift || !corr) return res(false); drift.opening = true; drift.open = 1; driftWall(); enterHall(); const t = setInterval(() => { if(!traveling){ clearInterval(t); res(!!corr.inside); } }, 50); }),
+    leave:() => new Promise(res => { leaveHall('test'); const t = setInterval(() => { if(!traveling){ clearInterval(t); res(!(corr && corr.inside)); } }, 50); }),
+    walk:(policy, o) => new Promise(res => { if(!corr || !corr.inside || !playing) return res({error:'not in the hallway (or not playing)'}); o = o || {};
+      renderer.setAnimationLoop(null); let t = clock.elapsedTime, n = 0; keys.KeyW = true;
+      for(; n < 4000; n++){ const u = p.z - CORR.z0;
+        if(policy === 'turn-at-50%' && u >= CORR.L * 0.5){ keys.KeyW = false; cam.yaw = lerpAngle(cam.yaw, 0, 0.25); }   // stop halfway and turn the camera round
+        if(policy === 'walk-back' && u >= CORR.L * 0.3){ keys.KeyW = false; keys.KeyS = true; }
+        update(0.05, t += 0.05); if(!corr || !corr.inside || traveling) break; }
+      keys.KeyW = keys.KeyS = false; const at = corrState();
+      const t2 = setInterval(() => { if(!traveling){ clearInterval(t2); renderer.setAnimationLoop(frame); res({policy, steps:n, at, after:corrState(), roseWon:state.shards.has('grid'), onDanceFloor:!!drift && Math.hypot(p.x - drift.x, p.z - drift.z) < drift.r}); } }, 50); })}},
+  viewCorridor:{value:(u, o) => { if(!corr || !corr.inside) return null; o = o || {}; u = clamp(+u || 0, 1, CORR.L - 1);
+    p.x = CORR.x + (o.x || 0); p.z = CORR.z0 + u; p.y = pocketFloor(p.x, p.z); p.vx = p.vy = p.vz = 0; p.speed = 0; p.facing = 0; cam.yaw = Math.PI; cam.pitch = o.pitch == null ? 0.06 : o.pitch; cam.dist = o.dist || 3.4;
+    const S = corr.S; if(S.state === 'walking') corrStep(S, corrPose(), 0).forEach(e => { if(e === 'won') corrWin(); else if(e !== 'turned') corrEvent(e); });
+    corr.doors.forEach(d => { d.ang = d.want; d.hinge.rotation.y = d.side * 1.7 * (1 - Math.pow(1 - d.ang, 2)); });
+    corr.lanterns.forEach(l => { if(S.state === 'walking' && l.u < u - 2.5) l.want = Math.max(0.06, 1 - (u - 2.5 - l.u) / 10); l.lvl = l.want; l.flick = 0; }); corr.signs.forEach(s => { s.flick = 0; });
+    hallUpdate(0, clock.elapsedTime); snapCamera(); clipCamera(); return corrState(); }},
+  roseWon:{get:() => state.shards.has('grid')}
 });
 })();
 </script>
