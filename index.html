@@ -9033,7 +9033,7 @@ function archiveUpdate(dt){
   if(!archive || state.world !== 'hub'){ if(archNear){ archNear = null; $('#archBtn').style.display = 'none'; } if(me.tag) me.tag.visible = !pocketIn() && !driftSafe() && chimeNear == null && !ashIndoors() && !fbIndoors(); return; }   // indoors (the Hollow, The Drift, its hallway) your own name tag would fill the view
   const A = ARCHIVE, px = p.x, pz = p.z, cp = camera.position;
   // the rooms are built the first time you come near (one a frame), so the Spaceport loads exactly as fast as before
-  if(Math.hypot(px, pz - 77) < 60){ const k = archive.rooms.findIndex(R => !R.built); if(k >= 0) archiveBuildRoom(k); }
+  if(Math.hypot(px, pz - 77) < 60 && !pocketIn()){ const k = archive.rooms.findIndex(R => !R.built); if(k >= 0) archiveBuildRoom(k); }   // not from a pocket overhead (the Den, Goal 21)
   const inB = px > A.x0 - 0.3 && px < A.x1 + 0.3 && pz > A.z0 - 0.3 && pz < A.z1 + 0.3, camIn = cp.x > A.x0 && cp.x < A.x1 && cp.z > A.z0 && cp.z < A.z1;
   archive.inside = inB; if(me.tag) me.tag.visible = !inB && !pocketIn();
   // Goal 10: the first time you walk into the entrance hall, the Architect's Last Broadcast plays (once; replay it from the brass screen by the door)
@@ -18437,6 +18437,7 @@ function denBuildRoom(){
   wb([X, Z + hd + 0.15, hw + 0.3, 0.15]); wb([X, Z - hd - 0.15, hw + 0.3, 0.15]); wb([X - hw - 0.15, Z, 0.15, hd + 0.3]); wb([X + hw + 0.15, Z, 0.15, hd + 0.3]);
   R.boxes.push(addBox(X, Z, hw + 0.3, hd + 0.3, Y + H, Y + H + 0.6, {hollow:true, den:true}));   // the ceiling (the camera stops under it)
   { const [x, z] = denW(DEN.term.x, DEN.term.z); R.boxes.push(addBox(x, z, 0.3, 0.4, Y - 0.5, Y + 1.4, {hollow:true, den:true, cam:false})); }
+  denBake(g);   // the lamps, the lift door and the terminal: one mesh per material
   return R;
 }
 // a soft round pool of lamp light on the floor: additive, no depth write, a little above the boards
@@ -18800,8 +18801,24 @@ function denPose(o, e){
     if(o.children[0]) o.children[0].rotation.z = e.r ? Math.PI / 2 : 0; return o; }
   o.position.set(DEN.x - DEN.hw + (f.i0 + f.i1) / 2 * c, DEN.y, DEN.z - DEN.hd + (f.j0 + f.j1) / 2 * c); o.rotation.set(0, e.r * Math.PI / 2 + Math.PI, 0); return o;
 }
-// one piece: an outer group placed by denPose, an inner one holding the shapes (wall pieces turn the inner one for landscape)
-function denMakePiece(id, M){ const o = new THREE.Group(), g = new THREE.Group(); o.add(g); const info = DEN_BUILD[id](g, M) || {}; o.userData.den = info; o.userData.id = id; return o; }
+/* fewer draw calls: every static mesh under root (not animated, not alpha-tested cards, not see-through, not sprites) is moved into root's frame and
+   merged with the others of the same material and shadow flag, one mesh each (lesson 58: the look is unchanged, UVs and normals are copied as they are) */
+function denBake(root, keep){
+  root.updateMatrixWorld(true); const inv = new THREE.Matrix4().copy(root.matrixWorld).invert(), bins = new Map(), drop = [], _m = new THREE.Matrix4();
+  const skip = o => { for(let q = o; q && q !== root; q = q.parent) if(q.userData.anim || (keep && keep(q))) return true; return false; };
+  root.traverse(o => { if(!o.isMesh || o.isInstancedMesh || skip(o) || o.customDepthMaterial || o.userData.noAO || o.renderOrder || o.material.transparent || Array.isArray(o.material) || !o.geometry.attributes.normal) return;
+    const k = o.material.uuid + (o.castShadow ? '|s' : '|n'); let b = bins.get(k); if(!b){ b = {mat:o.material, cast:o.castShadow, list:[]}; bins.set(k, b); }
+    b.list.push(o); });
+  let n = 0;
+  bins.forEach(b => { if(b.list.length < 2) return; const geos = b.list.map(o => { _m.multiplyMatrices(inv, o.matrixWorld); const g2 = (o.geometry.index ? o.geometry : o.geometry).clone().applyMatrix4(_m); if(!g2.attributes.uv){ g2.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(g2.attributes.position.count * 2), 2)); } return g2; });
+    b.list.forEach(o => { o.parent.remove(o); o.geometry.dispose(); });
+    const m = new THREE.Mesh(merge(geos), b.mat); m.castShadow = b.cast; m.receiveShadow = true; root.add(m); n += b.list.length - 1; });
+  return n;
+}
+// one piece: an outer group placed by denPose, an inner one holding the shapes (wall pieces turn the inner one for landscape); its static parts are baked
+function denMakePiece(id, M){ const o = new THREE.Group(), g = new THREE.Group(); o.add(g); const info = DEN_BUILD[id](g, M) || {};
+  if(info.fish) info.fish.forEach(f => { f.m.userData.anim = true; }); if(info.platter) info.platter.userData.anim = true; if(info.globe) info.globe.userData.anim = true;
+  denBake(g); o.userData.den = info; o.userData.id = id; return o; }
 // draw the placed list: build what is new, drop what was removed, place everything, and give the floor pieces their solid boxes
 function denLayout(){
   const R = denRT && denRT.room; if(!R) return;
@@ -19002,7 +19019,7 @@ function denShowcaseShell(R){
   // the shelf lights' wash on the velvet: soft additive panels (no lights), one per shelf bay
   [[0.9, 1.55], [1.59, 2.2], [2.24, 2.67]].forEach(b => { const w = denPool(g, X, DEN.y, Z - 0.045, 1, 0.3); w.rotation.set(0, Math.PI, 0); w.scale.set(W - 0.2, (b[1] - b[0]) * 1.6, 1); w.position.y = DEN.y + (b[0] + b[1]) / 2 + 0.1; });
   R.boxes.push(aabb(X - W / 2, X + W / 2, DEN.y - 0.5, DEN.y + H, Z - D, Z, {hollow:true, den:true, cam:false}));
-  R.show = {g, X, Z, D, items:new THREE.Group()}; g.add(R.show.items);
+  denBake(g); R.show = {g, X, Z, D, items:new THREE.Group()}; g.add(R.show.items);
 }
 function denShowcase(){
   const R = denRT && denRT.room; if(!R) return denRecord(); if(!R.show) noRandom(() => denShowcaseShell(R));
@@ -19034,6 +19051,7 @@ function denShowcase(){
       x.strokeStyle = '#5a3e18'; x.lineWidth = 6; x.strokeRect(8, 8, w - 16, h - 16); x.fillStyle = '#3a2610'; x.textAlign = 'center'; x.font = '700 50px ' + SERIF; x.fillText('RECORD OF PLAY', w / 2, 70);
       x.font = '34px ' + SERIF; x.fillText('Shards ' + rec.shards.length + ' of 3   ·   The Seed: ' + (rec.seed ? 'won' : 'not yet') + '   ·   Artifacts ' + rec.artifacts.length + ' of ' + ART_ORDER.length, w / 2, 140);
       x.fillText('Quest ribbons ' + rec.ribbons.length + ' of ' + QP_ORDER.length + '   ·   Planets charted ' + rec.planets, w / 2, 196); });
+    denBake(SG);
     const pq = mk(new THREE.PlaneGeometry(1.6, 0.4), std(0xffffff, {map:tex, metalness:0.6, roughness:0.35}), S.X, Y + 0.62, S.Z - S.D - 0.012, SG); pq.rotation.y = Math.PI; pq.castShadow = false;
   });
   renderer.shadowMap.needsUpdate = true;
