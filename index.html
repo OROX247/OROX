@@ -115,6 +115,26 @@ html,body{ height:100%; margin:0; overflow:hidden; background:#07061a; color:var
 .reg-ask{ display:flex; gap:8px; }
 #regQ{ flex:1; min-width:0; padding:9px 12px; font:15px 'Chakra Petch','Trebuchet MS',sans-serif; color:#f3f0ff; background:rgba(255,255,255,.07); border:1.5px solid rgba(255,255,255,.2); border-radius:0; user-select:text; -webkit-user-select:text; }
 #regQ:focus{ outline:none; border-color:var(--cyan); }
+/* Living Locals: the conversation card sits at the side so the local and its speech bubble stay in view */
+#talk{ position:fixed; right:12px; bottom:calc(env(safe-area-inset-bottom,0px) + 16px); width:min(390px,calc(100vw - 24px)); z-index:10; padding:14px 16px 12px; }
+@media (min-width:600px){ #talk{ width:min(390px,48vw); } }
+@media (max-height:500px){ #talkLog{ max-height:22vh; } #talkSrc{ display:none; } }
+#talk.hidden{ display:none; } body.talking #toast{ visibility:hidden; }
+#talk .talk-head{ display:flex; align-items:baseline; gap:10px; } #talk .talk-head b{ font-size:20px; } #talk .talk-head small{ flex:1; color:var(--muted); font-size:12px; }
+#talkClose{ border:none; background:none; color:#f3f0ff; font-size:20px; cursor:pointer; padding:0 4px; }
+#talkLog{ max-height:34vh; overflow:auto; display:grid; gap:6px; margin:8px 0; padding-right:4px; }
+#talkLog .reg-line{ font-size:14px; padding:6px 10px; }
+#talkQuest{ display:flex; flex-wrap:wrap; align-items:center; gap:6px 8px; margin:0 0 8px; padding:8px 10px; background:rgba(255,209,102,.1); box-shadow:inset 0 0 0 1px rgba(255,209,102,.4); font-size:13px; }
+#talkQuest span{ flex:1 1 100%; } #talkQuest button{ padding:6px 12px; border:none; background:var(--gold); color:#07061a; font:700 13px 'Chakra Petch','Trebuchet MS',sans-serif; cursor:pointer; } #talkQuest .ghost{ width:auto; margin:0; background:none; color:#f3f0ff; }
+#talkQ{ flex:1; min-width:0; padding:9px 12px; font:15px 'Chakra Petch','Trebuchet MS',sans-serif; color:#f3f0ff; background:rgba(255,255,255,.07); border:1.5px solid rgba(255,255,255,.2); border-radius:0; user-select:text; -webkit-user-select:text; }
+#talkQ:focus{ outline:none; border-color:var(--cyan); }
+#talkSend{ padding:9px 16px; border:none; background:linear-gradient(90deg,var(--cyan),var(--pink)); color:var(--btn-ink); font:700 15px 'Chakra Petch','Trebuchet MS',sans-serif; cursor:pointer; } #talkSend:disabled{ opacity:.5; }
+#talkSrc{ display:block; margin-top:6px; color:var(--muted); font-size:11px; }
+#bubbles{ position:fixed; inset:0; pointer-events:none; z-index:4; overflow:hidden; }
+.bubble{ position:absolute; left:0; top:-8px; max-width:210px; padding:6px 10px 7px; background:rgba(250,248,255,.94); color:#14122b; font:13px/1.32 Georgia,'Times New Roman',serif; border-radius:10px; box-shadow:0 2px 10px rgba(0,0,0,.3); white-space:normal; will-change:transform; }
+.bubble b{ display:block; font:700 10px 'Chakra Petch','Trebuchet MS',sans-serif; letter-spacing:.08em; text-transform:uppercase; color:#6b3fd1; }
+.bubble::after{ content:''; position:absolute; left:50%; bottom:-7px; margin-left:-7px; border:7px solid transparent; border-bottom:0; border-top-color:rgba(250,248,255,.94); }
+body.vr #bubbles, body.bcast #bubbles{ visibility:hidden; }
 #regAsk{ padding:9px 16px; border:none; background:linear-gradient(90deg,var(--cyan),var(--pink)); color:var(--btn-ink); font:700 15px 'Chakra Petch','Trebuchet MS',sans-serif; cursor:pointer; }
 #regChips{ display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
 #regChips button{ padding:5px 10px; background:none; border:1.5px solid rgba(255,255,255,.22); color:#dcd7f5; font:13px 'Chakra Petch','Trebuchet MS',sans-serif; cursor:pointer; }
@@ -267,7 +287,7 @@ body.bcast #hud, body.bcast #corner, body.bcast #roomCard, body.bcast #toast{ vi
 
 <div id="corner">
   <canvas id="minimap" aria-label="Minimap"></canvas>
-  <div class="btns"><button class="hbtn" id="aiBtn" title="AI reality mode (R)">AI</button><button class="hbtn" id="lookBtn" title="Realm look (L)">Look</button><button class="hbtn" id="forgeBtn" title="Worldsmith: describe a realm (F)">Forge</button><button class="hbtn" id="rideBtn" style="display:none">Ride</button><button class="hbtn" id="sndBtn" title="Sound on/off (N)">Sound</button><button class="hbtn" id="shopBtn" style="display:none">Shop</button><button class="hbtn" id="vendBtn" style="display:none">Vend</button><button class="hbtn" id="enrolBtn" style="display:none">Enrol</button><button class="hbtn" id="archBtn" style="display:none">Inspect</button><button class="hbtn" id="hollowBtn" style="display:none">Knock</button><button class="hbtn" id="chimeBtn" style="display:none">Strike</button><button class="hbtn" id="ashBtn" style="display:none">Recite</button><button class="hbtn" id="invBtn" title="Inventory (I)">Bag</button><button class="hbtn" id="mapBtn">Warp</button><button class="hbtn" id="helpBtn" aria-label="Avatar and controls">?</button></div>
+  <div class="btns"><button class="hbtn" id="aiBtn" title="AI reality mode (R)">AI</button><button class="hbtn" id="lookBtn" title="Realm look (L)">Look</button><button class="hbtn" id="forgeBtn" title="Worldsmith: describe a realm (F)">Forge</button><button class="hbtn" id="rideBtn" style="display:none">Ride</button><button class="hbtn" id="sndBtn" title="Sound on/off (N)">Sound</button><button class="hbtn" id="shopBtn" style="display:none">Shop</button><button class="hbtn" id="vendBtn" style="display:none">Vend</button><button class="hbtn" id="enrolBtn" style="display:none">Enrol</button><button class="hbtn" id="archBtn" style="display:none">Inspect</button><button class="hbtn" id="hollowBtn" style="display:none">Knock</button><button class="hbtn" id="chimeBtn" style="display:none">Strike</button><button class="hbtn" id="ashBtn" style="display:none">Recite</button><button class="hbtn" id="talkBtn" style="display:none" title="Talk (E)">Talk</button><button class="hbtn" id="invBtn" title="Inventory (I)">Bag</button><button class="hbtn" id="mapBtn">Warp</button><button class="hbtn" id="helpBtn" aria-label="Avatar and controls">?</button></div>
 </div>
 
 <div id="intro" class="overlay" role="dialog" aria-labelledby="introTitle">
@@ -436,6 +456,14 @@ body.bcast #hud, body.bcast #corner, body.bcast #roomCard, body.bcast #toast{ vi
 </div>
 <div id="bcast" hidden aria-live="polite"><div class="bc-bar top"></div><div class="bc-bar bot"></div><div class="bc-title"><small>Recorded at No. 9 Lantern Row, Fennick Bay</small><b>The Architect's Last Broadcast</b></div><p class="bc-sub"></p><button id="bcSkip" class="ghost">Skip (Esc)</button><div class="bc-fade"></div></div>
 <div id="roomCard" class="panel" aria-live="polite"><small></small><b></b><p></p></div>
+<div id="bubbles" aria-hidden="true"></div>
+<div id="talk" class="card hidden" role="dialog" aria-labelledby="talkName">
+  <div class="talk-head"><b id="talkName"></b><small id="talkWho"></small><button id="talkClose" aria-label="Close">×</button></div>
+  <div id="talkLog" aria-live="polite"></div>
+  <div id="talkQuest" style="display:none"></div>
+  <div class="reg-ask"><input id="talkQ" maxlength="200" autocomplete="off" placeholder="Say something…"><button id="talkSend">Say</button></div>
+  <small id="talkSrc"></small>
+</div>
 <div id="toast" class="panel" role="status"></div>
 <div id="fade"></div>
 <div id="hurtFx"></div>
@@ -9519,6 +9547,7 @@ window.addEventListener('keydown', e => {
   if(bc.on){ if(e.code === 'Escape'){ e.preventDefault(); skipBroadcast(); } else if(e.code === 'KeyN') setMute(snd.on); else if(e.code === 'Space' || e.code.indexOf('Arrow') === 0) e.preventDefault(); return; }   // the Broadcast owns the keys until it ends
   if(!ledgerEl.classList.contains('hidden')){ if(e.code === 'Escape'){ e.preventDefault(); closeLedger(); } else if(e.code === 'ArrowRight' || e.code === 'KeyD' || e.code === 'PageDown'){ e.preventDefault(); if(!$('#lgNext').disabled) turnLedger(1); } else if(e.code === 'ArrowLeft' || e.code === 'KeyA' || e.code === 'PageUp'){ e.preventDefault(); if(!$('#lgPrev').disabled) turnLedger(-1); } return; }
   if(!regEl.classList.contains('hidden')){ if(e.code === 'Escape') closeRegistrar(); return; }
+  if(!talkEl.classList.contains('hidden')){ if(e.code === 'Escape'){ e.preventDefault(); closeTalk(); } else if(e.code === 'Enter' || (e.code === 'KeyE' && !e.repeat)){ e.preventDefault(); $('#talkQ').focus(); } return; }   // Living Locals: the conversation
   if(!memoEl.classList.contains('hidden')){ if(e.code === 'Escape' || e.code === 'Enter' || (e.code === 'KeyE' && !e.repeat)){ e.preventDefault(); closeMemo(); } return; }
   if(!introEl.classList.contains('hidden')){ if(e.code === 'Enter' || (e.code === 'Escape' && state.started)){ e.preventDefault(); startGame(); } return; }
   if(!lookEl.classList.contains('hidden')){ if(e.code === 'Escape') closeLook(); return; }
@@ -10638,7 +10667,7 @@ function vrUpdate(dt){
   if(Math.abs(turn) > 0.7 && vr.snapCool <= 0){ vr.rig.rotation.y -= Math.sign(turn) * Math.PI / 6; vr.snapCool = 0.3; }
   if(Math.abs(turn) < 0.4) vr.snapCool = Math.min(vr.snapCool, 0);
 }
-function interactKey(){ if(bike.riding) dismountBike(); else if(bike.near) mountBike(); else if(shopNear) openShop(); else if(vendNear) openVendor(); else if(deskNear) enroll(); else if(forgeNear) openForge(); else if(archNear) archiveAct(); else if(hollowNear) hollowAct(); else if(chimeNear != null) strikeChime(chimeNear + 1, 'key'); else if(ashNear) ashAct(); }
+function interactKey(){ if(bike.riding) dismountBike(); else if(bike.near) mountBike(); else if(shopNear) openShop(); else if(vendNear) openVendor(); else if(deskNear) enroll(); else if(forgeNear) openForge(); else if(archNear) archiveAct(); else if(hollowNear) hollowAct(); else if(chimeNear != null) strikeChime(chimeNear + 1, 'key'); else if(ashNear) ashAct(); else if(localNear) openTalk(localNear); }
 vrSetup();
 
 /* ================= Goal 13: the Cyan Shard, the wind chimes on Sky Isles' highest isle =================
@@ -10890,8 +10919,10 @@ function update(dt, time){
     if(sp === 0 && nn.wait > 0.3){ for(const o of npcs){ if(o === nn) continue; const d = Math.hypot(o.x - nn.x, o.z - nn.z); if(d < 3.2 && d > 0.3){ nn.facing = lerpAngle(nn.facing, Math.atan2(o.x - nn.x, o.z - nn.z), 1 - Math.exp(-dt * 4)); if(nn.wait < 2.5 && Math.random() < dt * 0.3) nn.wait += 3; break; } } }
     nn.av.g.position.set(nn.x, G(nn.x, nn.z), nn.z); nn.av.g.rotation.y = nn.facing;
     animateAvatar(nn.av, dt, sp, true, time);
+    if(nn.gest) npcGesture(nn, dt);   // Living Locals: a gesture laid over the walk cycle, only while one plays
     if(playing && !nn.spoke && !pocketIn() && Math.hypot(nn.x - p.x, nn.z - p.z) < 3 && p.y - G(p.x, p.z) < 1){ nn.spoke = true; nn.wait = 3; nn.facing = Math.atan2(p.x - nn.x, p.z - nn.z); if(living(nn)){ const g = localGreeting(nn); nn.lastSay = g; nn.sayT = 7; localEmote(nn, 'wave'); toast(nn.name + ': ' + g + '   (E to talk)', 4200); } else toast(nn.name + ': ' + nn.line, 3600); }
   }
+  localsTick(dt);
   const px = p.x, py = p.y + 1, pz = p.z;
   for(let i = coins.length - 1; i >= 0; i--){
     const k = coins[i]; k.g.rotation.y += dt * 2.4; k.g.children[0].position.y = Math.sin(time * 2 + k.phase) * 0.12;
@@ -10968,6 +10999,7 @@ function frame(){
   } else if(post.on && !vr.on){ if(post.dof && post.dof.enabled){ post.dof.uniforms.focus.value = camera.position.distanceTo(_t1); } updateSun(); renderMirrors(); post.composer.render(); dgAfter(); }
   else { renderMirrors(); renderer.render(scene, camera); }
   if(!vr.on) drawMap();
+  localsBubbles(dt);
 }
 window.addEventListener('resize', () => { if(vr.on) return; renderer.setSize(innerWidth, innerHeight); camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); if(post.on){ post.composer.setSize(innerWidth, innerHeight); const pr = renderer.getPixelRatio(); post.grade.uniforms.aspect.value = innerWidth / innerHeight; post.sharpen.uniforms.texel.value.set(1 / (innerWidth * pr), 1 / (innerHeight * pr)); } sizeMap(); });
 
@@ -12212,6 +12244,99 @@ Object.defineProperties(window.__hub, {
   localGreeting:{value:i => living(npcs[i]) ? localGreeting(npcs[i]) : null},
   talkTo:{value:(i, text) => living(npcs[i]) ? localTalk(npcs[i], text) : Promise.resolve(null)},
   npcWhy:{get:() => ({path:npcAI.path, why:npcAI.why})}
+});
+// Living Locals: the conversation panel (side card, the world keeps drawing), speech bubbles over heads, and the gestures
+const talkEl = $('#talk'), bubblesEl = $('#bubbles');
+const talk = {nn:null, turns:[], offer:null};
+let localNear = null, talkHinted = false;
+function talkLine(who, text, cls){ const d = document.createElement('div'); d.className = 'reg-line ' + (cls || ''); d.innerHTML = '<b>' + esc(who) + '</b> ' + esc(text); $('#talkLog').appendChild(d); $('#talkLog').scrollTop = 1e9; return d; }
+function talkHead(){ const nn = talk.nn; if(!nn) return; const P = personaOf(nn), m = memOf(nn);
+  $('#talkName').textContent = P.name; $('#talkWho').textContent = P.trade + ' · ' + P.homeName + ' · ' + moodWord(m.mood).replace(' with the player', '').replace(' of the player', ''); }
+function openTalk(nn){
+  if(zeroing || !living(nn)) return false;
+  if(talk.nn !== nn){ talk.nn = nn; talk.turns = []; talk.offer = null; $('#talkLog').innerHTML = ''; }
+  talkEl.classList.remove('hidden'); setPaused(true); document.body.classList.add('talking');
+  if(!$('#talkLog').children.length){ const g = localGreeting(nn, {open:true}); talkLine(nn.name, g, 'reg'); nn.lastSay = g; nn.sayT = 9; localEmote(nn, 'wave'); talk.turns.push({role:'assistant', content:g}); }
+  talkHead(); talkOffer(); talkSrc();
+  if(!COARSE) $('#talkQ').focus();
+  return true;
+}
+function closeTalk(){ talkEl.classList.add('hidden'); document.body.classList.remove('talking'); setPaused(false); if(talk.nn) talk.nn.wait = Math.min(talk.nn.wait, 1.5); }
+function talkSrc(r){ $('#talkSrc').textContent = r && r.source === 'claude' ? 'Answering in character with Claude.' : (r && r.rest) ? 'Resting: answering from memory for now.' : 'Answering from memory and what they have seen.' + (dreamer.sample || dreamer.key ? '' : ' With the Dreamer key (Forge panel, local file) or the claude.ai link, locals answer in their own words.'); }
+function talkOffer(){ const box = $('#talkQuest'), o = talk.offer; box.innerHTML = '';
+  if(!o){ box.style.display = 'none'; return; } box.style.display = '';
+  box.innerHTML = '<span><b>Favour:</b> ' + esc(o.text) + ' · reward ₵' + o.reward.credits + ' + ' + o.reward.xp + ' XP</span>';
+  const a = document.createElement('button'); a.textContent = 'Accept'; a.addEventListener('click', () => acceptQuest()); box.appendChild(a);
+  const n = document.createElement('button'); n.className = 'ghost'; n.textContent = 'Not now'; n.addEventListener('click', () => { talk.offer = null; talkOffer(); }); box.appendChild(n); }
+async function talkSubmit(text){
+  text = String(text || '').trim(); const nn = talk.nn; if(!text || !nn || npcAI.busy) return null;
+  $('#talkQ').value = ''; talkLine('You', text, 'you'); const w = talkLine(nn.name, '…', 'reg');
+  $('#talkSend').disabled = true;
+  let r = null; try{ r = await localTalk(nn, text); }finally{ $('#talkSend').disabled = false; }
+  w.innerHTML = '<b>' + esc(nn.name) + '</b> ' + esc(r ? r.say : '…');
+  if(r){ talk.turns.push({role:'user', content:text}, {role:'assistant', content:r.say}); if(talk.turns.length > 12) talk.turns.splice(0, talk.turns.length - 12); if(r.offer){ talk.offer = r.offer; } }
+  talkHead(); talkOffer(); talkSrc(r); $('#talkLog').scrollTop = 1e9;
+  return r;
+}
+$('#talkClose').addEventListener('click', closeTalk);
+$('#talkSend').addEventListener('click', () => talkSubmit($('#talkQ').value));
+$('#talkQ').addEventListener('keydown', e => { e.stopPropagation(); if(e.code === 'Enter' || e.key === 'Enter'){ e.preventDefault(); talkSubmit($('#talkQ').value); } if(e.code === 'Escape') closeTalk(); });
+$('#talkBtn').addEventListener('click', () => { if(localNear) openTalk(localNear); });
+// who is close enough to talk to (the nearest living local within 3.2 m, on the same level)
+function localsProximity(){
+  let best = null, bd = 3.2;
+  if(playing && !bike.riding && !pocketIn() && !traveling) for(const nn of npcs){ if(!living(nn)) continue; const d = Math.hypot(nn.x - p.x, nn.z - p.z); if(d < bd && p.y - G(p.x, p.z) < 1.5){ bd = d; best = nn; } }
+  if(talkEl && !talkEl.classList.contains('hidden')) best = talk.nn;
+  if(best !== localNear){ localNear = best; $('#talkBtn').style.display = best ? '' : 'none'; if(best && !talkHinted && playing){ talkHinted = true; } }
+}
+// speech bubbles: one per local with a recent line, placed over the head every frame
+const _bubV = new V3();
+function localsBubbles(dt){
+  if(!bubblesEl) return;
+  const live = new Set();
+  if(!vr.on && !document.body.classList.contains('bcast')) for(const nn of npcs){
+    if(nn.sayT > 0 && nn !== talk.nn) nn.sayT -= dt;
+    const open = talk.nn === nn && !talkEl.classList.contains('hidden');
+    if(!(nn.lastSay && (nn.sayT > 0 || open))) continue;
+    const top = (nn.av.recipe.height || 1.8) + 0.35; _bubV.set(nn.x, G(nn.x, nn.z) + top, nn.z);
+    const dist = _bubV.distanceTo(camWorld); if(dist > 32) continue;
+    _bubV.project(camera); if(_bubV.z > 1 || Math.abs(_bubV.x) > 1.1 || Math.abs(_bubV.y) > 1.1) continue;
+    if(!nn.bubble){ nn.bubble = document.createElement('div'); nn.bubble.className = 'bubble'; bubblesEl.appendChild(nn.bubble); }
+    const b = nn.bubble; if(b.dataset.t !== nn.lastSay){ b.dataset.t = nn.lastSay; b.innerHTML = '<b>' + esc(nn.name) + '</b>' + esc(nn.lastSay.length > 130 ? nn.lastSay.slice(0, 128) + '…' : nn.lastSay); }
+    b.style.transform = 'translate(-50%,-100%) translate(' + ((_bubV.x * 0.5 + 0.5) * innerWidth).toFixed(1) + 'px,' + ((-_bubV.y * 0.5 + 0.5) * innerHeight).toFixed(1) + 'px)';
+    b.style.opacity = open ? 1 : clamp(nn.sayT, 0, 1).toFixed(2); live.add(b);
+  }
+  for(const el of [...bubblesEl.children]) if(!live.has(el)){ el.remove(); for(const nn of npcs) if(nn.bubble === el) nn.bubble = null; }
+}
+// gestures: laid over the walk cycle after animateAvatar, only while one is playing, so idle locals look exactly as before
+function npcGesture(nn, dt){
+  const g = nn.gest, a = nn.av; g.t += dt; if(g.t >= g.dur){ nn.gest = null; return; }
+  const w = smooth(0, 0.25, g.t) * (1 - smooth(g.dur - 0.35, g.dur, g.t)), t = g.t;
+  if(a.blob){ const s = 1 + Math.sin(t * 10) * 0.06 * w; a.hips.scale.y *= s; a.head.rotation.x += Math.sin(t * 8) * 0.15 * w; return; }
+  const AL = a.armL, AR = a.armR;
+  if(g.kind === 'wave'){ AR.sh.rotation.z = lerp(AR.sh.rotation.z, 2.5 + Math.sin(t * 9) * 0.3, w); AR.sh.rotation.x = lerp(AR.sh.rotation.x, 0, w); AR.el.rotation.x = lerp(AR.el.rotation.x, -0.35, w); a.head.rotation.z = 0.08 * w; }
+  else if(g.kind === 'cheer'){ AR.sh.rotation.z = lerp(AR.sh.rotation.z, 2.7, w); AL.sh.rotation.z = lerp(AL.sh.rotation.z, -2.7, w); AR.el.rotation.x = AL.el.rotation.x = -0.25 * w; a.hips.position.y += Math.abs(Math.sin(t * 7)) * 0.07 * w; }
+  else if(g.kind === 'nod'){ a.head.rotation.x += Math.sin(t * 9) * 0.22 * w; }
+  else if(g.kind === 'shrug'){ AR.sh.rotation.z = lerp(AR.sh.rotation.z, 0.45, w); AL.sh.rotation.z = lerp(AL.sh.rotation.z, -0.45, w); AR.el.rotation.x = lerp(AR.el.rotation.x, -1.3, w); AL.el.rotation.x = lerp(AL.el.rotation.x, -1.3, w); a.head.rotation.z = 0.16 * w; a.spine.position && (a.spine.rotation.z = 0); }
+  else if(g.kind === 'laugh'){ a.spine.rotation.x += (-0.12 + Math.sin(t * 16) * 0.05) * w; a.head.rotation.x += -0.25 * w; }
+  else if(g.kind === 'bow'){ a.spine.rotation.x += 0.5 * w; a.head.rotation.x += 0.2 * w; AR.sh.rotation.x = lerp(AR.sh.rotation.x, 0.3, w); }
+  else if(g.kind === 'think'){ AR.sh.rotation.x = lerp(AR.sh.rotation.x, -1.5, w); AR.sh.rotation.z = lerp(AR.sh.rotation.z, -0.3, w); AR.el.rotation.x = lerp(AR.el.rotation.x, -1.9, w); a.head.rotation.z = 0.12 * w; a.head.rotation.x += 0.1 * w; }
+  else if(g.kind === 'sad'){ a.spine.rotation.x += 0.22 * w; a.head.rotation.x += 0.35 * w; }
+}
+// once a frame, after the NPC loop: the local you are talking to stands still and faces you
+function localsTick(dt){
+  localsProximity();
+  const nn = talk.nn; if(nn && !talkEl.classList.contains('hidden')){ if(npcs.indexOf(nn) < 0){ closeTalk(); talk.nn = null; return; } nn.wait = Math.max(nn.wait, 0.5); nn.facing = lerpAngle(nn.facing, Math.atan2(p.x - nn.x, p.z - nn.z), 1 - Math.exp(-dt * 6)); }
+}
+// test helper: stand in front of a local, facing it, ready for a screenshot of the conversation
+function talkView(i){ const nn = npcs[i]; if(!nn) return null; const a = nn.facing, d = 2.6;
+  p.x = nn.x + Math.sin(a) * d; p.z = nn.z + Math.cos(a) * d; p.y = G(p.x, p.z); p.vy = 0; nn.wait = Math.max(nn.wait, 30);
+  const dx = nn.x - p.x, dz = nn.z - p.z; cam.yaw = Math.atan2(-dx, -dz) - 1.05; cam.pitch = 0.1; p.facing = Math.atan2(dx, dz); me.g.position.set(p.x, p.y, p.z); me.g.rotation.y = p.facing; snapCamera(); return {x:p.x, z:p.z}; }
+Object.defineProperties(window.__hub, {
+  openTalk:{value:i => living(npcs[i]) ? openTalk(npcs[i]) : false}, closeTalk:{value:() => closeTalk()},
+  talkSay:{value:text => talkSubmit(text)}, talkView:{value:i => talkView(i)},
+  talk:{get:() => ({open:!talkEl.classList.contains('hidden'), with:talk.nn ? talk.nn.name : null, turns:talk.turns.slice(), offer:talk.offer, log:[...$('#talkLog').children].map(d => d.textContent)})},
+  localNear:{get:() => localNear ? localNear.name : null}
 });
 })();
 </script>
