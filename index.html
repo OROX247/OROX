@@ -8523,13 +8523,20 @@ const ITEMS = {
   'brass-cog':      {name:'Brass Cog', rarity:'common', value:5, shape:'coil', col:0xc8a050, desc:'A cog from a clockwork sentry. It still turns if you blow on it.'},
   'mainspring':     {name:'Wound Mainspring', rarity:'uncommon', value:15, shape:'coil', col:0xd8c070, desc:'A sentry\'s mainspring, wound tight. It hums when you hold it.'},
   'sentry-key':     {name:'Sentry Winding Key', rarity:'rare', value:42, shape:'chip', col:0xe0b060, desc:'The key that kept a clockwork sentry on its rounds. Nobody remembers who first wound them.'},
-  'match-ribbon':   {name:'Long Match Ribbon', rarity:'uncommon', value:20, shape:'gem', col:0xe0703a, desc:'Pinned on after Signal Run, for holding three beacons under fire.'}
+  'match-ribbon':   {name:'Long Match Ribbon', rarity:'uncommon', value:20, shape:'gem', col:0xe0703a, desc:'Pinned on after Signal Run, for holding three beacons under fire.'},
+  // Goal 20 part 2: Lampblack. Street pickups and The Low Hour Case's first-clear prize; added last so every earlier id keeps its place
+  'tram-token':     {name:'Tram Token', rarity:'common', value:5, shape:'coil', col:0xc8b88a, desc:'A brass token for the El. Good for one ride, or one wish, depending who you ask.'},
+  'matchbook':      {name:'Low Hour Matchbook', rarity:'common', value:6, shape:'chip', col:0xb8323a, desc:'A matchbook from The Low Hour. Inside the cover someone has pencilled four bars of a tune.'},
+  'late-edition':   {name:'Late Edition', rarity:'uncommon', value:16, shape:'chip', col:0xe8e0c8, desc:'Tomorrow\'s Evening Wire, somehow. The headline is smudged by the rain.'},
+  'neon-tube':      {name:'Neon Glass Tube', rarity:'uncommon', value:18, shape:'coil', col:0xff4a3a, desc:'A bent glass tube from an old sign. It still glows faintly whenever it rains, which is always.'},
+  'agent-card':     {name:'Inquiry Agent\'s Card', rarity:'uncommon', value:22, shape:'chip', col:0xe8c070, desc:'E. Vanterpool\'s card, signed on the back: "for the one who solved The Low Hour Case".'}
 };
 // fixed, seeded pickups per realm (placed by addPickups with their own rng, so nothing else moves)
 const LOOT = {
   hub:['dock-token', 'beacon-lens'], dunes:['glass-bead', 'glass-bead', 'sunfire-opal'], grid:['grid-chip', 'grid-chip', 'pulse-core'],
   grove:['glowcap', 'glowcap', 'moonwood-charm'], sky:['sky-feather', 'sky-feather', 'stormglass-idol'],
-  warfront:['match-token', 'banner-scrap', 'signal-lens']
+  warfront:['match-token', 'banner-scrap', 'signal-lens'],
+  lampblack:['tram-token', 'matchbook', 'late-edition', 'neon-tube']
 };
 function cleanInv(o){ const out = {}; for(const id in o) if(ITEMS[id]){ const n = Math.floor(num(o[id], 0)); if(n > 0) out[id] = ITEMS[id].rarity === 'artifact' ? 1 : Math.min(n, 999); } return out; }
 state.inv = cleanInv(state.inv);
@@ -8850,7 +8857,9 @@ const VENDOR_LOOK = {
   campus:{body:() => phys(0xefebe4, {roughness:0.3}), trim:() => std(0x23385e, {metalness:0.6, roughness:0.35}), acc:0x7fd0ff, bg:'#0a1830', shape:'box', top:'ring'},
   sky:  {body:() => phys(0xf4f1ea, {roughness:0.25}), trim:() => std(0xffd166, {metalness:1, roughness:0.2}), acc:0x9fd0ff, bg:'#0b1a33', shape:'pillar', top:'crystal'},
   // Warfront: a field supply locker, dark iron with riveted brass bands and an ember lamp on top
-  warfront:{body:() => std(0x3e3a34, {map:detailTex, normalMap:detailNormal, normalScale:new V2(0.4, 0.4), metalness:0.55, roughness:0.6}), trim:() => std(0xb08a4a, {metalness:1, roughness:0.35}), acc:0xe8a04a, bg:'#1a120c', shape:'box', top:'dome'}
+  warfront:{body:() => std(0x3e3a34, {map:detailTex, normalMap:detailNormal, normalScale:new V2(0.4, 0.4), metalness:0.55, roughness:0.6}), trim:() => std(0xb08a4a, {metalness:1, roughness:0.35}), acc:0xe8a04a, bg:'#1a120c', shape:'box', top:'dome'},
+  // Lampblack: a cast-iron street box, bottle green with brass trim and a warm lamp on top
+  lampblack:{body:() => std(0x1f2a24, {map:detailTex, normalMap:detailNormal, normalScale:new V2(0.4, 0.4), metalness:0.5, roughness:0.42}), trim:() => std(0xb89a5a, {metalness:1, roughness:0.3}), acc:0xffc98a, bg:'#0e0c0a', shape:'box', top:'dome'}
 };
 const vendorsSeen = {};
 function vendorSpot(key){
@@ -9864,7 +9873,8 @@ const AI_PROMPTS = {
   grove:'Photorealistic real-life video. A moonlit pine forest at night: dark grass, tall pine trees, large glowing pink, cyan and violet mushrooms, a still pond reflecting the moon, fireflies, snow-capped mountains far away, cold blue moonlight and mist. True to life.',
   campus:'Photorealistic real-life video. A sunny university campus in bright late morning: a white marble hall with tall fluted columns and a pediment, pale granite walkways across a mown green lawn, a round gymnasium with a glass dome, a dense green broadleaf wood to one side, clear blue sky with small white clouds. True to life.',
   sky:'Photorealistic real-life drone video. A lush green floating island high above a sea of white clouds on a bright morning: soft grass with wildflowers, round leafy trees, grey rocks, small floating islands with rocky undersides, clear blue sky. True to life.',
-  warfront:'Photorealistic real-life video. A vast muddy battlefield under a dramatic stormy sky at dusk: zigzag trenches lined with timber planks and sandbags, shell craters with rain puddles, loose wire on wooden posts, a ruined round stone keep with a broken crown inside crumbling walls, shattered stone towers on the horizon, rust-red and teal banners on poles, low golden sunlight breaking under heavy slate clouds, soft flashes of light inside the clouds. True to life. No people, no weapons.'
+  warfront:'Photorealistic real-life video. A vast muddy battlefield under a dramatic stormy sky at dusk: zigzag trenches lined with timber planks and sandbags, shell craters with rain puddles, loose wire on wooden posts, a ruined round stone keep with a broken crown inside crumbling walls, shattered stone towers on the horizon, rust-red and teal banners on poles, low golden sunlight breaking under heavy slate clouds, soft flashes of light inside the clouds. True to life. No people, no weapons.',
+  lampblack:'Photorealistic real-life video. A rain-soaked city street at night, nearly black and white with a few colours: wet asphalt mirroring street lamps and neon signs, puddles with rain rings, old brick and pale limestone buildings with a few lit windows and iron fire escapes, an elevated railway on riveted steel columns crossing the street, steam rising from a grate, a red neon sign over a jazz club marquee of bulbs, a tall teal vertical hotel sign, heavy rain, low clouds glowing with city light. True to life. No logos, no readable brand names.'
 };
 const AI_KEY = 'hub-decart-key', aiVid = $('#aiVideo');
 const ai = {on:false, busy:false, rt:null, ctx:null, stream:null, w:1280, h:704, fps:25, last:0};
@@ -10396,6 +10406,7 @@ function ambience(key){
   else if(key === 'ashfall'){ wind(220, 0.32, 0.09, 0.5); hum([41.2, 61.7], 140, 0.02, 0.3); }
   else if(key === 'campus'){ wind(240, 0.16, 0.07, 0.4); chirps(); }
   else if(key === 'warfront'){ wind(340, 0.34, 0.12, 0.6); wind(120, 0.18, 0.05, 0.4); booms(); }
+  else if(key === 'lampblack'){ lbRainSound(); wind(140, 0.14, 0.03, 0.5); lbTraffic(); }   // the jazz from The Low Hour is its own bus (lbJazz), louder by the club
   else wind(300, 0.3, 0.1, 0.5);
 }
 function tone(type, f0, f1, dur, gain, t0, dest){
@@ -10436,7 +10447,8 @@ function sfx(name){
       case 'mdie': tone('triangle', 660, 110, 0.5, 0.09); noiseHit(700, 0.6, 0.5, 0.11, t, 120); break;
       case 'mwind': if(w === 'grid') tone('sine', 300, 1700, 0.7, 0.045); else if(w === 'grove') tone('sawtooth', 70, 110, 0.5, 0.05); else if(w === 'warfront'){ [0, 0.11, 0.22, 0.33].forEach(d => tone('square', 1900, 1750, 0.03, 0.03, t + d)); tone('sine', 260, 880, 0.8, 0.03); } else noiseHit(500, 0.7, 0.55, 0.06, t, 1600); break;
       case 'zap': tone('sawtooth', 1900, 180, 0.22, 0.06); noiseHit(4200, 1, 0.16, 0.07); break;
-      case 'step': { const soft = w === 'dunes' || w === 'sky' || w === 'grove' || w === 'campus' || w === 'warfront'; noiseHit(soft ? 340 : w === 'grid' ? 2100 : 800, soft ? 0.7 : 2.5, soft ? 0.07 : 0.045, soft ? 0.045 : 0.035); break; }
+      case 'step': { if(w === 'lampblack'){ noiseHit(1300, 1.1, 0.07, 0.05); noiseHit(3600, 2.2, 0.035, 0.022, t + 0.012); break; }   // a wet step
+        const soft = w === 'dunes' || w === 'sky' || w === 'grove' || w === 'campus' || w === 'warfront'; noiseHit(soft ? 340 : w === 'grid' ? 2100 : 800, soft ? 0.7 : 2.5, soft ? 0.07 : 0.045, soft ? 0.045 : 0.035); break; }
     }
   }catch(e){}
 }
@@ -13744,7 +13756,10 @@ const LP_TRADES = {
     ['wind reader', 'I read the wind. Today it says: hold on to your hat.'], ['isle-hopper courier', 'I carry letters from isle to isle with a boost and a prayer.']],
   warfront:[['trench warden', 'I sweep the duckboards in the Ember line. Every morning the mud puts itself back.'], ['scorekeeper', 'I chalk the Long Match score on the board by the portal. It has been three points in it for nine years.'],
     ['banner mender', 'I sew the Ember Pact banners back together. The wind here has opinions.'], ['sentry winder', 'I used to wind the clockwork sentries. Then they learned to wind each other.'],
-    ['signal runner', 'I carry messages between the lines. Both sides tip well.'], ['wire stringer', 'I string the wire so it looks fierce and catches nobody. That is the whole job.']]
+    ['signal runner', 'I carry messages between the lines. Both sides tip well.'], ['wire stringer', 'I string the wire so it looks fierce and catches nobody. That is the whole job.']],
+  lampblack:[['newspaper seller', 'I sell the Evening Wire from the kiosk on Vesper Square. The late edition is always the wetter one.'], ['jazz pianist', 'I play the late set at The Low Hour. One key sticks, so I play round it. Nobody has noticed in nine years.'],
+    ['night cab driver', 'I drive a cab all night. The fares are short and the stories are long.'], ['tailor', 'I press suits at Abernathy\'s. Rain is good for business: everybody needs a hem taken up.'],
+    ['detective\'s secretary', 'I type the reports for E. Vanterpool, upstairs over the square. Most cases are lost gloves. Some are not.'], ['lamplighter', 'I wipe the rain off the lamp glass, one street at a time. The city is very long.']]
 };
 const LP_TEMPERS = {
   cheerful:{base:2, first:'Oh, hello! A new face!', word:'cheerful and quick to laugh'}, gruff:{base:-1, first:'Hm. Not seen you round here.', word:'gruff but fair'},
@@ -13783,7 +13798,8 @@ const LP_REALM_FACTS = {
   grid:'Neon Grid: a neon city at night with laser sweepers on the plaza, out-of-order arcade cabinets, and The Drift, a zero-g dance club; grid drones patrol the streets.',
   grove:'Night Grove: a dark forest of glowing mushrooms, fireflies and lantern-lit paths; grove stalkers hunt between the pines.',
   sky:'Sky Isles: floating islands joined by jumps and boosts; seven wind chimes hang on the highest isle; wild sky harpies wheel round the isles.',
-  warfront:'Warfront: a battlefield planet where the war is a game, the Long Match between the Ember Pact (rust banners, a white flame) and the Tidewall Company (teal banners, three waves); trenches, wire and shell holes, the Old Bastion (a ruined keep you climb by the stair round its outside), clockwork sentries that still patrol, the Signal Run quest portal, and nobody is hurt for real: you zero out and walk back in.'
+  warfront:'Warfront: a battlefield planet where the war is a game, the Long Match between the Ember Pact (rust banners, a white flame) and the Tidewall Company (teal banners, three waves); trenches, wire and shell holes, the Old Bastion (a ruined keep you climb by the stair round its outside), clockwork sentries that still patrol, the Signal Run quest portal, and nobody is hurt for real: you zero out and walk back in.',
+  lampblack:'Lampblack: a rain-soaked city held at night for ever, where nothing can hurt you; the El and its night tram over Vesper Street station, the Hotel Vesperine, The Low Hour jazz club (the Late Lamps Trio play "Rain on Vesper"), the Kettle & Crow diner, Abernathy the tailor, the Evening Wire kiosk and E. Vanterpool\'s inquiry office over Vesper Square; pigeons on the ledges, cats in the alleys, steam from the grates; The Low Hour Case is the quest portal by the club door.'
 };
 function strHash(t){ let h = 2166136261; t = String(t); for(let i = 0; i < t.length; i++) h = Math.imul(h ^ t.charCodeAt(i), 16777619); return h >>> 0; }
 const localId = nn => nn.home + ':' + nn.name;
@@ -14184,7 +14200,8 @@ const QUEST_LANDMARKS = {
   hollow:{realm:'dunes', name:'the Hollow\'s door in the Glass Dunes', at:() => ({x:HOLLOW.x, z:HOLLOW.z, r:7})},
   drift:{realm:'grid', name:'The Drift in Neon Grid', at:() => ({x:DRIFT.x, z:DRIFT.z, r:DRIFT.r + 3})},
   chimes:{realm:'sky', name:'the wind chimes on the highest isle of Sky Isles', at:() => chimes ? {x:chimes.x, z:chimes.z, r:5} : null},
-  bastion:{realm:'warfront', name:'the top of the Old Bastion on Warfront', at:() => ({x:WAR.keep.x, z:WAR.keep.z, r:WAR.keep.r - 0.3})}   // inside the keep's footprint is only reachable on top of it
+  bastion:{realm:'warfront', name:'the top of the Old Bastion on Warfront', at:() => ({x:WAR.keep.x, z:WAR.keep.z, r:WAR.keep.r - 0.3})},   // inside the keep's footprint is only reachable on top of it
+  vesperine:{realm:'lampblack', name:'the front steps of the Hotel Vesperine in Lampblack', at:() => ({x:(LB.steps.x0 + LB.steps.x1) / 2, z:(LB.steps.z0 + LB.steps.z1) / 2, r:3})}
 };
 const QUEST_MAX = 3, QUEST_CREDITS = [10, 60];
 const bringIds = () => Object.keys(ITEMS).filter(id => ['artifact', 'epic'].indexOf(ITEMS[id].rarity) < 0 && id !== 'dreamglass');
@@ -16338,6 +16355,50 @@ BUILD.lampblack = (r, n) => {
   addWeather('rain');
 };
 HEIGHTS.lampblack = () => lbG;
+/* ---- Lampblack's sound: rain on everything, the city far off (a low hum and a wet car going by now and then), and from The Low Hour an original
+   loop for the Late Lamps Trio, "Rain on Vesper": brushed drums, a walking bass and a piano, swung, in four bars (Dm7, G7, Cmaj7, A7), synthesised on its
+   own bus like the Drift's track. Every chance is drawn from its own rng, never Math.random. ---- */
+LB.club = {x:-9.5, z:22};
+const lbSndR = rng(6501);
+function lbRainSound(){
+  const c = snd.ctx, src = c.createBufferSource(); src.buffer = bufs().whiteBuf; src.loop = true;
+  const hp = c.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 900; const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 6500;
+  const g = c.createGain(); g.gain.value = 0.07; src.connect(hp); hp.connect(lp); lp.connect(g); g.connect(snd.amb); src.start(); snd.nodes.push(src, g);
+  const drip = () => { if(state.world !== 'lampblack' || !snd.ctx) return; const t = c.currentTime;   // drops off the awnings and the El
+    try{ for(let i = 0; i < 3; i++) if(lbSndR() < 0.6) tone('sine', 1800 + lbSndR() * 1600, 900, 0.06, 0.012 + lbSndR() * 0.012, t + lbSndR() * 0.5, snd.amb); }catch(e){}
+    snd.timers.push(setTimeout(drip, 300 + lbSndR() * 900)); };
+  snd.timers.push(setTimeout(drip, 500));
+}
+function lbTraffic(){
+  const one = () => { if(state.world !== 'lampblack' || !snd.ctx) return; const t = snd.ctx.currentTime, g = 0.025 + lbSndR() * 0.03;
+    try{ noiseHit(1200, 0.7, 2.6, g, t, 260, snd.amb); if(lbSndR() < 0.25) tone('square', 330, 330, 0.35, 0.006, t + 0.6 + lbSndR(), snd.amb); }catch(e){}   // tyres on the wet street, now and then a horn far off
+    snd.timers.push(setTimeout(one, 3000 + lbSndR() * 8000)); };
+  snd.timers.push(setTimeout(one, 1800));
+}
+const lbJ = {bus:null, nextT:0, step:0};
+const LB_JAZZ = {bpm:96, roots:[146.83, 98.0, 130.81, 110.0], q:[[1, 1.1892, 1.4983, 1.7818], [1, 1.2599, 1.4983, 1.7818], [1, 1.2599, 1.4983, 1.8877], [1, 1.2599, 1.4983, 1.7818]],
+  bass:[[0, 3, 7, 6], [0, 4, 7, 1], [0, 4, 7, 8], [0, 4, 7, -1]],   // semitones over each bar's root: a walking line that leans into the next chord
+  tune:[[0, 14], [3, 17], [6, 15], [12, 12], [16, 10], [20, 12], [22, 14], [32, 11], [36, 9], [38, 7], [48, 9], [52, 13], [56, 12]]};   // eighth-note step, semitones over D4
+function lbJazz(on, vol, cut){
+  if(!snd.ctx) return; const c = snd.ctx, now = c.currentTime;
+  if(!on || !snd.on){ if(lbJ.bus){ const b = lbJ.bus; b.gain.setTargetAtTime(0, now, 0.2); setTimeout(() => { try{ b.disconnect(); }catch(e){} }, 900); lbJ.bus = null; } return; }
+  if(!lbJ.bus){ const b = c.createGain(), lp = c.createBiquadFilter(); b.gain.value = 0; lp.type = 'lowpass'; lp.frequency.value = cut; lp.Q.value = 0.5; b.connect(lp); lp.connect(snd.master); b.lp = lp; lbJ.bus = b; lbJ.nextT = now + 0.08; }
+  const b = lbJ.bus; b.gain.setTargetAtTime(vol, now, 0.3); b.lp.frequency.setTargetAtTime(cut, now, 0.3);
+  if(lbJ.nextT < now - 0.3) lbJ.nextT = now + 0.05;
+  const beat = 60 / LB_JAZZ.bpm;
+  while(lbJ.nextT < now + 0.25){ lbJazzNote(lbJ.step, lbJ.nextT, b); lbJ.nextT += beat * (lbJ.step % 2 ? 1 / 3 : 2 / 3); lbJ.step++; }   // swung eighths
+}
+function lbJazzNote(i, t, bus){
+  const J = LB_JAZZ, s = i % 8, bar = Math.floor(i / 8) % 4, root = J.roots[bar], st = i % 64;
+  try{
+    if(s % 2 === 0){ const f = root / 2 * Math.pow(2, J.bass[bar][s / 2] / 12); tone('triangle', f, f, 0.5, 0.11, t, bus); }   // the walking bass on every beat
+    if(s === 2 || s === 6) noiseHit(2400, 0.8, 0.22, 0.05, t, 1200, bus);   // brushes on two and four
+    noiseHit(9000, 2.5, 0.05, s % 2 ? 0.012 : 0.02, t, null, bus);   // the ride, swung
+    if(s === 1 || s === 5 || (s === 3 && bar % 2)) J.q[bar].forEach((k, n) => tone('triangle', root * 2 * k, root * 2 * k, 0.32, 0.016 - n * 0.002, t + n * 0.008, bus));   // piano comping, a little rolled
+    J.tune.forEach(([at, semi]) => { if(at === st){ const f = 293.66 * Math.pow(2, (semi - 12) / 12); tone('sine', f, f, 0.55, 0.035, t, bus); tone('triangle', f * 2, f * 2, 0.3, 0.008, t, bus); } });
+  }catch(e){}
+}
+
 /* ---- no boundaries (Goal 8a rule): past the core the city goes on for ever, one block to a cell. A block's plan (buildings, an alley, its sign, its
    cars, a steaming grate) is fixed by the cell before anything is built (big()), so every tier of it agrees and a block rebuilt later is the same block.
    Tiers: 'far' the buildings (walls, shopfronts, roofs, cornices), the neon sign and, on the z = 0 street, the El; 'mid' the street round the block
@@ -16360,7 +16421,9 @@ ENDLESS.lampblack = {
   ]
 };
 function lbUpdate(dt, time){
-  if(!lb || state.world !== 'lampblack') return;
+  if(!lb || state.world !== 'lampblack'){ if(lbJ.bus) lbJazz(false); return; }
+  { const d = Math.hypot(p.x - LB.club.x, p.z - LB.club.z), near = d < 110 && !(qa && qa.inside);   // the club's music: louder and brighter by its door, muffled down the street
+    if(near) lbJazz(true, 0.34 * (1 - smooth(5, 110, d)) + 0.02, 450 + 2600 * (1 - smooth(3, 28, d))); else if(lbJ.bus) lbJazz(false); }
   if(lb.mirror){ lb.mirror.position.x = Math.round(p.x / LB.S) * LB.S; lb.mirror.position.z = Math.round(p.z / LB.S) * LB.S; }
   if(lbSteamMat){ const hgt = renderer.getDrawingBufferSize(_cellV2).y; lbSteamMat.uniforms.scale.value = hgt / (2 * Math.tan(camera.fov * Math.PI / 360)); }
 }
