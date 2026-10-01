@@ -2997,6 +2997,10 @@ function loadSave(){ try{ const v = localStorage.getItem(SAVE_KEY); return v ? J
 const sv = loadSave() || {};
 const arr = v => Array.isArray(v) ? v : [];
 const num = (v, d) => (typeof v === 'number' && isFinite(v)) ? v : d;
+// saved data is forged easily: look ids up with hasOwn (a plain object also "has" toString, constructor, __proto__ ...), and read saved maps
+// back through bareMap (own keys only, no prototype), so a key such as "__proto__" or "toString" is only ever a key
+const hasOwn = (o, k) => !!o && typeof k === 'string' && Object.prototype.hasOwnProperty.call(o, k);
+const bareMap = o => { const n = Object.create(null); if(o && typeof o === 'object' && !Array.isArray(o)) for(const k of Object.keys(o)) n[k] = o[k]; return n; };
 const state = {
   coins: new Set(arr(sv.coins)), shards: new Set(arr(sv.shards)), visited: new Set(arr(sv.visited).concat(['hub'])),
   name: typeof sv.name === 'string' ? sv.name : '', color: typeof sv.color === 'string' ? sv.color : '#1f2a44',
@@ -6243,7 +6247,8 @@ function rollPlanet(star){
   const name = planetName(q);
   return {text, gravity, relief, flora, name};
 }
-let explorer = (() => { try{ const o = JSON.parse(lsGet(PLANET_KEY) || '{}'); return o && typeof o === 'object' && o.planets && typeof o.planets === 'object' ? o : {planets:{}}; }catch(e){ return {planets:{}}; } })();
+let explorer = (() => { try{ const o = JSON.parse(lsGet(PLANET_KEY) || '{}'); if(!(o && typeof o === 'object' && o.planets && typeof o.planets === 'object')) return {planets:bareMap(null)};
+  const pl = bareMap(o.planets); for(const k in pl){ const e = pl[k]; if(!/^\d+-\d+$/.test(k) || !e || typeof e !== 'object' || e.id !== k || typeof e.name !== 'string') delete pl[k]; } o.planets = pl; return o; }catch(e){ return {planets:bareMap(null)}; } })();   // charted planets only (a forged entry is dropped)
 function saveExplorer(){ try{ localStorage.setItem(PLANET_KEY, JSON.stringify(explorer)); }catch(e){} explorer.dirty = false; }
 // everything about a planet: from the chart when it has been seen (never changes again), else rolled from the star
 function planetSpec(id){
@@ -7083,7 +7088,10 @@ const shareMat = m => { m.userData.shared = true; return m; };
 const cellSeed = (key, cx, cz, salt) => ((WORLDS[key].seed * 73856093) ^ Math.imul(cx, 19349663) ^ Math.imul(cz, 83492791) ^ Math.imul(salt + 1, 0x9E3779B1)) | 0;
 const DREAMS_KEY = 'hub-dreams-v1';
 let dreamStore = null;
-function dreamsOf(key){ if(!dreamStore){ try{ dreamStore = JSON.parse(lsGet(DREAMS_KEY) || '{}') || {}; }catch(e){ dreamStore = {}; } } return dreamStore[key] || (dreamStore[key] = {}); }
+function dreamsOf(key){
+  if(!dreamStore){ let o = null; try{ o = JSON.parse(lsGet(DREAMS_KEY) || '{}'); }catch(e){} dreamStore = bareMap(o);
+    for(const k in dreamStore){ const m = dreamStore[k] = bareMap(dreamStore[k]); for(const c in m){ const d = m[c]; if(!d || typeof d !== 'object' || typeof d.text !== 'string' || typeof d.name !== 'string') delete m[c]; } } }   // a forged dream is dropped (and dreamt again)
+  return dreamStore[key] || (dreamStore[key] = bareMap(null)); }
 function saveDreams(){ try{ for(const k in dreamStore){ const o = dreamStore[k], ks = Object.keys(o); if(ks.length > 400) ks.slice(0, ks.length - 400).forEach(x => { if(!o[x].found) delete o[x]; }); } localStorage.setItem(DREAMS_KEY, JSON.stringify(dreamStore)); }catch(e){} }
 // many glows in one draw (sprites are one draw call each): additive points sized in metres, like glow()
 let glowCloudMat = null;
@@ -8593,7 +8601,7 @@ const LOOT = {
   saltlark:['wishing-shell', 'sea-glass', 'tidebell-token', 'lighthouse-lens'],
   fennick:['sea-coal', 'ferry-ticket', 'saltbox-token', 'tide-table']
 };
-function cleanInv(o){ const out = {}; for(const id in o) if(ITEMS[id]){ const n = Math.floor(num(o[id], 0)); if(n > 0) out[id] = ITEMS[id].rarity === 'artifact' ? 1 : Math.min(n, 999); } return out; }
+function cleanInv(o){ const out = {}; if(o && typeof o === 'object') for(const id of Object.keys(o)) if(hasOwn(ITEMS, id)){ const n = Math.floor(num(o[id], 0)); if(n > 0) out[id] = ITEMS[id].rarity === 'artifact' ? 1 : Math.min(n, 999); } return out; }
 state.inv = cleanInv(state.inv);
 /* Goal 17: artifacts, the data. ART[id] is the named power and the one deed that wins it; the rows in ITEMS above carry name, rarity, appraisal and look.
    Each is won in one place by one deed, checked by the game's own rules (never by giveItem, which refuses artifacts unless artWin is giving one):
@@ -13905,11 +13913,11 @@ function personaOf(nn){
   return (nn.persona = {id, name:nn.name, home:nn.home, homeName:WORLDS[nn.home].name, trade:tr[0], tradeLine:tr[1], temper, temperWord:LP_TEMPERS[temper].word, want:want[0], wantLine:want[1], secret, style:style.id, styleWord:style.d, tail:style.tail});
 }
 // the memory store: one slot per player name
-let localsStore = (() => { try{ const o = JSON.parse(lsGet(LOCALS_KEY) || '{}'); return o && typeof o === 'object' && o.players && typeof o.players === 'object' ? o : {v:1, players:{}}; }catch(e){ return {v:1, players:{}}; } })();
+let localsStore = (() => { try{ const o = JSON.parse(lsGet(LOCALS_KEY) || '{}'); if(o && typeof o === 'object' && o.players && typeof o.players === 'object'){ o.players = bareMap(o.players); return o; } return {v:1, players:bareMap(null)}; }catch(e){ return {v:1, players:bareMap(null)}; } })();   // players by name: a name like "__proto__" is just a name
 const playerKey = () => (state.name || '').trim().slice(0, 40) || '(no name)';
 function lp(){ const k = playerKey(); let P = localsStore.players[k];
   if(!P || typeof P !== 'object') P = localsStore.players[k] = {};
-  P.locals = P.locals && typeof P.locals === 'object' ? P.locals : {}; P.gossip = Array.isArray(P.gossip) ? P.gossip : []; P.deedsSeen = Array.isArray(P.deedsSeen) ? P.deedsSeen : [];
+  if(!P.locals || typeof P.locals !== 'object' || Object.getPrototypeOf(P.locals) !== null) P.locals = bareMap(P.locals);   /* once: later calls keep the same object */ P.gossip = Array.isArray(P.gossip) ? P.gossip : []; P.deedsSeen = Array.isArray(P.deedsSeen) ? P.deedsSeen : [];
   P.quests = Array.isArray(P.quests) ? P.quests : []; P.zeros = num(P.zeros, 0); P.qseq = num(P.qseq, 0); return P; }
 function saveLocals(){ try{ localStorage.setItem(LOCALS_KEY, JSON.stringify(localsStore)); }catch(e){} }
 function memOf(nn){ const P = lp(), id = localId(nn); let m = P.locals[id];
@@ -18352,6 +18360,7 @@ function denTextures(){
 function denOnBuild(key){
   if(!denBooted) return;
   if(denRT && denRT.music) denMusic(false);
+  if(denRT && denRT.mode) try{ denDecorate(false); }catch(e){ denBarEl.classList.add('hidden'); }   // warped or zeroed out mid-decorate: the held piece goes back, the bar closes
   denRT = {key, lift:null, room:null, inside:false, near:null, inT:0, items:[]};
   denNear = null; denShowBtn(null);
   if(key === 'hub' && WORLDS.hub && !WORLDS.hub.custom) noRandom(() => addDenLift());
@@ -18534,66 +18543,95 @@ var DECOR = {
   'poster-starling':{name:'Starling poster', price:12, kind:'wall', w:2, d:3, h:0, max:2, desc:'The poster for Starling: one screen, one ship, and the birds come down in waves of eleven.'}
 };
 var DECOR_IDS = Object.keys(DECOR), DEN_KEY = 'hub-den-v1';
+const denItem = id => hasOwn(DECOR, id) ? DECOR[id] : null;   // the catalogue entry, or null for anything else (a forged "toString" included)
 var DEN_NX = 28, DEN_NZ = 20, DEN_NV = 8, DEN_WALLS = {back:DEN_NX, west:DEN_NZ, east:DEN_NZ};
 // cells kept clear: the walk from the lift door to where you arrive, the terminal, the showcase (floor [i0, i1) x [j0, j1); walls [u0, u1) x [v0, v1))
 var DEN_RES = {floor:[[18, 28, 11, 15, 'the walk from the lift'], [25, 28, 3, 7, 'the catalogue terminal'], [2, 12, 18, 20, 'the showcase']],
   wall:{east:[[11, 15, 0, 6, 'the lift door'], [3, 7, 0, 5, 'the catalogue terminal']], back:[[2, 12, 0, 6, 'the showcase']], west:[]}};
 // an entry's cells: floor and rugs {i0, j0, i1, j1}; wall pieces {wall, u0, v0, u1, v1}
 function denFoot(e){
-  const D = DECOR[e.id]; if(!D) return null;
+  const D = denItem(e.id); if(!D) return null;
   if(D.kind === 'wall'){ const sw = e.r & 1, w = sw ? D.d : D.w, h = sw ? D.w : D.d; return {wall:e.wall, u0:e.a, v0:e.b, u1:e.a + w, v1:e.b + h}; }
   const sw = e.r & 1, w = sw ? D.d : D.w, d = sw ? D.w : D.d; return {i0:e.a, j0:e.b, i1:e.a + w, j1:e.b + d};
 }
 const denHit = (a0, a1, b0, b1, c0, c1, d0, d1) => a0 < a1 && c0 < c1 && a0 < b1 && b0 < a1 && c0 < d1 && d0 < c1;
 // a tall floor piece standing against a wall covers that wall's cells below its height
 function denWallShadow(e){
-  const D = DECOR[e.id]; if(!D || D.kind !== 'floor' || !(D.h > 0)) return []; const f = denFoot(e), v1 = Math.min(DEN_NV, Math.ceil(D.h / DEN.cell)), out = [];
+  const D = denItem(e.id); if(!D || D.kind !== 'floor' || !(D.h > 0)) return []; const f = denFoot(e), v1 = Math.min(DEN_NV, Math.ceil(D.h / DEN.cell)), out = [];
   if(f.j1 === DEN_NZ) out.push({wall:'back', u0:f.i0, u1:f.i1, v0:0, v1});
   if(f.i0 === 0) out.push({wall:'west', u0:f.j0, u1:f.j1, v0:0, v1});
   if(f.i1 === DEN_NX) out.push({wall:'east', u0:f.j0, u1:f.j1, v0:0, v1});
   return out;
 }
-function denOwned(id){ return denStore && denStore.own[id] || 0; }
+function denOwned(id){ return denStore && hasOwn(denStore.own, id) && denStore.own[id] || 0; }
 function denPlacedN(id, list, skip){ let n = 0; (list || denStore.placed).forEach((e, i) => { if(i !== skip && e.id === id) n++; }); return n; }
 function denStored(id){ return Math.max(0, denOwned(id) - denPlacedN(id)); }
+/* Can you still walk from the lift to where you stand, and to the catalogue terminal, with this piece in? Spots on a 0.25 m grid where an avatar fits
+   (0.34 m round, the walls push at 0.35) are flooded from where the lift lets you out; the terminal and the showcase are solid. One flood per layout
+   (memoised: the ghost asks every frame), then each spot is a lookup. A spot with no free grid point near it counts as cut off. */
+let denReachMemo = {key:''};
+function denReach(list, e, skip, player){
+  const c = DEN.cell, hw = DEN.hw, hd = DEN.hd, R = 0.34, st = 0.25, nx = Math.round(2 * hw / st) + 1, nz = Math.round(2 * hd / st) + 1;
+  const key = JSON.stringify([list.map((x, i) => i === skip ? 0 : [x.id, x.a, x.b, x.r]), e.id, e.a, e.b, e.r]);
+  if(denReachMemo.key !== key){
+    const rects = [], add = (i0, i1, j0, j1) => rects.push([-hw + i0 * c, -hw + i1 * c, -hd + j0 * c, -hd + j1 * c]);
+    DEN_RES.floor.slice(1).forEach(q => add(q[0], q[1], q[2], q[3]));
+    list.concat([e]).forEach((x, i) => { if(i === skip) return; const X = denItem(x.id); if(!X || X.kind !== 'floor') return; const f = denFoot(x); add(f.i0, f.i1, f.j0, f.j1); });
+    const free = new Uint8Array(nx * nz), seen = new Uint8Array(nx * nz);
+    for(let a = 0; a < nx; a++) for(let b = 0; b < nz; b++){ const x = -hw + a * st, z = -hd + b * st; if(x < -hw + R || x > hw - R || z < -hd + R || z > hd - R) continue;
+      let ok = 1; for(const r of rects){ const dx = Math.max(r[0] - x, 0, x - r[1]), dz = Math.max(r[2] - z, 0, z - r[3]); if(dx * dx + dz * dz < R * R){ ok = 0; break; } } free[a * nz + b] = ok; }
+    const near = (x, z, rad) => { let best = -1, bd = rad * rad; const a0 = Math.round((x + hw) / st), b0 = Math.round((z + hd) / st), n = Math.ceil(rad / st);
+      for(let a = Math.max(0, a0 - n); a <= Math.min(nx - 1, a0 + n); a++) for(let b = Math.max(0, b0 - n); b <= Math.min(nz - 1, b0 + n); b++){ const k = a * nz + b, d = (-hw + a * st - x) ** 2 + (-hd + b * st - z) ** 2; if(free[k] && d <= bd){ bd = d; best = k; } }
+      return best; };
+    const s0 = near(DEN.arrive[0], DEN.arrive[1], 0.6), stack = s0 >= 0 ? [s0] : []; if(s0 >= 0) seen[s0] = 1;
+    while(stack.length){ const k = stack.pop(), a = Math.floor(k / nz), b = k % nz;
+      [[1, 0], [-1, 0], [0, 1], [0, -1]].forEach(([da, db]) => { const A = a + da, B = b + db; if(A < 0 || B < 0 || A >= nx || B >= nz) return; const q = A * nz + B; if(free[q] && !seen[q]){ seen[q] = 1; stack.push(q); } }); }
+    denReachMemo = {key, near, seen};
+  }
+  const M = denReachMemo, at = (x, z, rad) => { const k = M.near(x, z, rad); return k >= 0 && !!M.seen[k]; };
+  return {player:player ? (M.near(player[0], player[1], 0.45) < 0 ? true : at(player[0], player[1], 0.45)) : true, term:at(DEN.term.x - 1.0, DEN.term.z, 0.6)};
+}
 /* The placement rule: the only test for buying-then-placing, moving, turning, the ghost's colour and the cleaning of a saved Den.
    list is the placed list, skip the index of the entry being moved (or -1), o.player the avatar's room position to keep clear. */
 function denCheck(list, e, skip, o){
-  o = o || {}; const D = e && DECOR[e.id];
+  o = o || {}; const D = e && denItem(e.id);
   if(!D) return {ok:false, why:'That is not something from the catalogue.'};
   const isInt = v => Number.isInteger(v);
   if(!isInt(e.a) || !isInt(e.b) || !isInt(e.r)) return {ok:false, why:'Off the grid.'};
   if(D.kind === 'wall'){ if(!DEN_WALLS[e.wall]) return {ok:false, why:'Posters hang on the back, west or east wall.'}; if(e.r < 0 || e.r > 1) return {ok:false, why:'Off the grid.'}; }
   else if(e.r < 0 || e.r > 3 || e.wall) return {ok:false, why:'Off the grid.'};
   const own = o.own || denStore.own;
-  if(denPlacedN(e.id, list, skip) + 1 > (own[e.id] || 0)) return {ok:false, why:'You have no ' + D.name + ' in storage. Buy one at the terminal.'};
+  if(denPlacedN(e.id, list, skip) + 1 > (hasOwn(own, e.id) && own[e.id] || 0)) return {ok:false, why:'You have no ' + D.name + ' in storage. Buy one at the terminal.'};
   const f = denFoot(e);
   if(D.kind === 'wall'){
     if(f.u0 < 0 || f.v0 < 0 || f.u1 > DEN_WALLS[e.wall] || f.v1 > DEN_NV) return {ok:false, why:'It does not fit on the wall there.'};
     for(const q of DEN_RES.wall[e.wall]) if(denHit(f.u0, f.u1, q[0], q[1], f.v0, f.v1, q[2], q[3])) return {ok:false, why:'That would cover ' + q[4] + '.'};
-    for(let i = 0; i < list.length; i++){ if(i === skip) continue; const x = list[i], X = DECOR[x.id]; if(!X) continue;
+    for(let i = 0; i < list.length; i++){ if(i === skip) continue; const x = list[i], X = denItem(x.id); if(!X) continue;
       if(X.kind === 'wall'){ const g = denFoot(x); if(g.wall === e.wall && denHit(f.u0, f.u1, g.u0, g.u1, f.v0, f.v1, g.v0, g.v1)) return {ok:false, why:'Something already hangs there.'}; }
       else for(const s of denWallShadow(x)) if(s.wall === e.wall && denHit(f.u0, f.u1, s.u0, s.u1, f.v0, f.v1, s.v0, s.v1)) return {ok:false, why:'The ' + X.name + ' stands in front of that bit of wall.'}; }
     return {ok:true};
   }
   if(f.i0 < 0 || f.j0 < 0 || f.i1 > DEN_NX || f.j1 > DEN_NZ) return {ok:false, why:'It does not fit inside the walls there.'};
   for(const q of DEN_RES.floor) if(denHit(f.i0, f.i1, q[0], q[1], f.j0, f.j1, q[2], q[3])) return {ok:false, why:'Keep ' + q[4] + ' clear.'};
-  for(let i = 0; i < list.length; i++){ if(i === skip) continue; const x = list[i], X = DECOR[x.id]; if(!X) continue;
+  for(let i = 0; i < list.length; i++){ if(i === skip) continue; const x = list[i], X = denItem(x.id); if(!X) continue;
     if(X.kind === 'wall'){ if(D.kind === 'floor') for(const s of denWallShadow(e)){ const g = denFoot(x); if(g.wall === s.wall && denHit(s.u0, s.u1, g.u0, g.u1, s.v0, s.v1, g.v0, g.v1)) return {ok:false, why:'The ' + X.name + ' hangs on the wall there.'}; } continue; }
     if((X.kind === 'rug') !== (D.kind === 'rug')) continue;   // furniture may stand on a rug
     const g = denFoot(x); if(denHit(f.i0, f.i1, g.i0, g.i1, f.j0, f.j1, g.j0, g.j1)) return {ok:false, why:'It would overlap the ' + X.name + '.'}; }
   if(D.kind === 'floor' && o.player){ const c = DEN.cell, x0 = -DEN.hw + f.i0 * c - 0.35, x1 = -DEN.hw + f.i1 * c + 0.35, z0 = -DEN.hd + f.j0 * c - 0.35, z1 = -DEN.hd + f.j1 * c + 0.35;
     if(o.player[0] > x0 && o.player[0] < x1 && o.player[1] > z0 && o.player[1] < z1) return {ok:false, why:'You are standing there. Step aside first.'}; }
+  if(D.kind === 'floor'){ const r = denReach(list, e, skip, o.player);
+    if(!r.player) return {ok:false, why:'That would shut you in. Leave a way back to the lift.'};
+    if(!r.term) return {ok:false, why:'That would cut the catalogue terminal off from the lift.'}; }
   return {ok:true};
 }
 // the saved Den: owned counts per catalogue id and the placed list. Cleaned at load: unknown ids, bad numbers, counts over the item's
 // limit, pieces you do not own, off-grid, overlapping or on reserved cells are all dropped (each piece is put back through denCheck)
 function denClean(o){
-  const out = {own:{}, placed:[]}; if(!o || typeof o !== 'object' || Array.isArray(o)) return out;
+  const out = {own:bareMap(null), placed:[]}; if(!o || typeof o !== 'object' || Array.isArray(o)) return out;
   const own = o.own && typeof o.own === 'object' && !Array.isArray(o.own) ? o.own : {};
-  DECOR_IDS.forEach(id => { const n = Math.floor(num(own[id], 0)); if(n > 0) out.own[id] = Math.min(n, DECOR[id].max); });
+  DECOR_IDS.forEach(id => { const n = Math.floor(num(hasOwn(own, id) ? own[id] : 0, 0)); if(n > 0) out.own[id] = Math.min(n, DECOR[id].max); });
   (Array.isArray(o.placed) ? o.placed.slice(0, 64) : []).forEach(q => {
-    if(!q || typeof q !== 'object' || !DECOR[q.id]) return;
+    if(!q || typeof q !== 'object' || !denItem(q.id)) return;
     const e = {id:String(q.id), a:q.a, b:q.b, r:q.r == null ? 0 : q.r}; if(DECOR[e.id].kind === 'wall') e.wall = String(q.wall);
     if(denCheck(out.placed, e, -1, {own:out.own}).ok) out.placed.push(e);
   });
@@ -18603,7 +18641,7 @@ var denStore = (() => { try{ return denClean(JSON.parse(lsGet(DEN_KEY) || '{}'))
 function denSave(){ try{ localStorage.setItem(DEN_KEY, JSON.stringify({v:1, own:denStore.own, placed:denStore.placed.map(e => e.wall ? {id:e.id, wall:e.wall, a:e.a, b:e.b, r:e.r} : {id:e.id, a:e.a, b:e.b, r:e.r})})); }catch(e){} }
 // buying: whole credits from state.credits, one at a time, never past the item's limit
 function denBuy(id){
-  const D = DECOR[id]; if(!D) return {ok:false, why:'Not in the catalogue.'};
+  const D = denItem(id); if(!D) return {ok:false, why:'Not in the catalogue.'};
   if(denOwned(id) >= D.max){ const why = 'You already have ' + D.max + ' ' + D.name + (D.max > 1 ? 's' : '') + ', all a Den can hold.'; toast(why, 2600); return {ok:false, why}; }
   if(state.credits < D.price){ const why = 'Not enough credits: the ' + D.name + ' is ₵' + D.price + '.'; toast(why, 2600); return {ok:false, why}; }
   state.credits -= D.price; denStore.own[id] = denOwned(id) + 1; denSave(); persist(); refreshHud(); sfx('buy');
@@ -18613,7 +18651,7 @@ function denBuy(id){
 }
 // changing the layout: every change goes through denCheck, saves, and rebuilds what is drawn
 function denPlayerAt(){ return denInside() ? [p.x - DEN.x, p.z - DEN.z] : null; }
-function denPlace(e){ e = Object.assign({r:0}, e); const c = denCheck(denStore.placed, e, -1, {player:denPlayerAt()}); if(!c.ok) return c;
+function denPlace(e){ e = Object.assign({r:0}, e); if(!denItem(e.id)) return {ok:false, why:'That is not something from the catalogue.'}; const c = denCheck(denStore.placed, e, -1, {player:denPlayerAt()}); if(!c.ok) return c;
   const q = {id:e.id, a:e.a, b:e.b, r:e.r}; if(DECOR[e.id].kind === 'wall') q.wall = e.wall; denStore.placed.push(q); denSave(); denLayout(); localsNotice(); return {ok:true, index:denStore.placed.length - 1}; }
 function denMove(i, e){ const old = denStore.placed[i]; if(!old) return {ok:false, why:'Nothing there.'};
   const q = Object.assign({id:old.id, a:old.a, b:old.b, r:old.r, wall:old.wall}, e, {id:old.id}); if(DECOR[q.id].kind !== 'wall') delete q.wall;
@@ -18816,7 +18854,7 @@ function denBake(root, keep){
   return n;
 }
 // one piece: an outer group placed by denPose, an inner one holding the shapes (wall pieces turn the inner one for landscape); its static parts are baked
-function denMakePiece(id, M){ const o = new THREE.Group(), g = new THREE.Group(); o.add(g); const info = DEN_BUILD[id](g, M) || {};
+function denMakePiece(id, M){ const o = new THREE.Group(), g = new THREE.Group(); o.add(g); const info = (hasOwn(DEN_BUILD, id) ? DEN_BUILD[id](g, M) : null) || {};
   if(info.fish) info.fish.forEach(f => { f.m.userData.anim = true; }); if(info.platter) info.platter.userData.anim = true; if(info.globe) info.globe.userData.anim = true;
   denBake(g); o.userData.den = info; o.userData.id = id; return o; }
 // draw the placed list: build what is new, drop what was removed, place everything, and give the floor pieces their solid boxes
@@ -18824,10 +18862,11 @@ function denLayout(){
   const R = denRT && denRT.room; if(!R) return;
   const M = denItemMats(); R.drawn = R.drawn || new Map();
   for(const [e, o] of R.drawn) if(denStore.placed.indexOf(e) < 0){ R.g.remove(o); disposeTree(o); R.drawn.delete(e); }
-  noRandom(() => denStore.placed.forEach(e => { let o = R.drawn.get(e); if(!o){ o = denMakePiece(e.id, M); R.g.add(o); R.drawn.set(e, o); } denPose(o, e); }));
+  // one piece that fails to build must not stop the rest (the boxes and the showcase come after this)
+  noRandom(() => denStore.placed.forEach(e => { try{ let o = R.drawn.get(e); if(!o){ o = denMakePiece(e.id, M); R.g.add(o); R.drawn.set(e, o); } denPose(o, e); }catch(err){ console.warn('den piece', e.id, err); } }));
   for(let i = boxes.length - 1; i >= 0; i--) if(boxes[i].denItem) boxes.splice(i, 1);
   const c = DEN.cell;
-  denStore.placed.forEach(e => { const D = DECOR[e.id]; if(D.kind !== 'floor') return; const f = denFoot(e);
+  denStore.placed.forEach(e => { const D = denItem(e.id); if(!D || D.kind !== 'floor') return; const f = denFoot(e);
     aabb(DEN.x - DEN.hw + f.i0 * c, DEN.x - DEN.hw + f.i1 * c, DEN.y - 0.5, DEN.y + Math.max(0.6, D.h), DEN.z - DEN.hd + f.j0 * c, DEN.z - DEN.hd + f.j1 * c, {hollow:true, den:true, denItem:true, cam:false}); });
   R.anim = []; for(const [e, o] of R.drawn){ const u = o.userData.den; if(u.fish || u.platter || u.globe) R.anim.push(Object.assign({o, e}, u)); }
   renderer.shadowMap.needsUpdate = true;
