@@ -14599,6 +14599,8 @@ function artRevealEnd(){ const R = artRt.reveal; if(!R) return; artDispose(R.g);
 function artRevealStep(dt){
   const R = artRt.reveal; if(!R) return;
   if(R.world !== state.world){ artRevealEnd(); return; }
+  // won inside a quest arena or the Hollow and then carried out (or teleported): raise it again where you are now, once, from the start
+  if(!R.again && !artRt.hold && R.t < ART_REVEAL.hold && (Math.hypot(p.x - R.x, p.z - R.z) > 25 || Math.abs(p.y - R.fy) > 12)){ if(!traveling){ const n = artReveal(R.id); if(n) n.again = true; } return; }
   if(!artRt.hold) R.t += dt; const t = R.t, E = ART_REVEAL, e = smooth(0, E.rise, t), out = smooth(E.hold, E.fly, t), gone = smooth(E.fly - 0.3, E.end, t);
   R.plinth.position.y = -1.2 * (1 - e) - 1.2 * gone;
   R.disc.material.uniforms.op.value = e * (1 - gone); R.disc.material.uniforms.t.value = artRt.clock;
