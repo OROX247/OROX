@@ -13541,10 +13541,10 @@ const LP_STYLES = [
 const LP_REALM_FACTS = {
   hub:'Hub Spaceport, the crossroads: portals to every realm, the Archive (the Registrar keeps the Ashcombe Ledger there), Outfitters, a vending terminal and the vault in the plaza.',
   campus:'Campus, the school planet: marble halls on green hills, the enrolment desk, the zero-g gym dome, Orbital Maths classes.',
-  dunes:'Glass Dunes: a desert of glass and sandstone pillars under a hot sun; a buried chamber called the Hollow holds the Comet Rally cabinet.',
-  grid:'Neon Grid: a neon city at night with laser sweepers on the plaza, out-of-order arcade cabinets, and The Drift, a zero-g dance club.',
-  grove:'Night Grove: a dark forest of glowing mushrooms, fireflies and lantern-lit paths.',
-  sky:'Sky Isles: floating islands joined by jumps and boosts; seven wind chimes hang on the highest isle.'
+  dunes:'Glass Dunes: a desert of glass and sandstone pillars under a hot sun; a buried chamber called the Hollow holds the Comet Rally cabinet; sand wraiths drift out on the open dunes.',
+  grid:'Neon Grid: a neon city at night with laser sweepers on the plaza, out-of-order arcade cabinets, and The Drift, a zero-g dance club; grid drones patrol the streets.',
+  grove:'Night Grove: a dark forest of glowing mushrooms, fireflies and lantern-lit paths; grove stalkers hunt between the pines.',
+  sky:'Sky Isles: floating islands joined by jumps and boosts; seven wind chimes hang on the highest isle; wild sky harpies wheel round the isles.'
 };
 function strHash(t){ let h = 2166136261; t = String(t); for(let i = 0; i < t.length; i++) h = Math.imul(h ^ t.charCodeAt(i), 16777619); return h >>> 0; }
 const localId = nn => nn.home + ':' + nn.name;
@@ -13583,6 +13583,9 @@ function deedsNow(){
   if(state.coins.size >= 12 * WORLD_ORDER.length) out.push({id:'coins', big:true, realm:'hub', text:'has found every coin in the charted realms', line:'Every single coin in Hub, found. You must have looked under every rock.'});
   const qpN = QP_ORDER.filter(k => state.qp[k] && state.qp[k].wins > 0).length;   // Goal 15: quest portals cleared
   if(qpN >= 1) out.push({id:qpN >= 6 ? 'qp:6' : 'qp:1', big:qpN >= 6, realm:'hub', text:qpN >= 6 ? 'has cleared every quest portal in Hub' : 'has cleared ' + qpN + (qpN === 1 ? ' quest portal' : ' quest portals'), line:qpN >= 6 ? 'Every quest portal in Hub, cleared! Is there anything you cannot do?' : 'I hear you have been through a quest portal or two. What was inside?'});
+  const KN = state.kills.n, KF = state.kills.first && MON[state.kills.first.realm] ? state.kills.first.realm : null;   // Goal 16: the first monster seen off, and a big tally
+  if(KN >= 1 && KF) out.push({id:'hunt:1', big:false, realm:KF, text:'saw off their first ' + MON[KF].name.toLowerCase() + ' in ' + WORLDS[KF].name + (KN > 1 ? ' (' + KN + ' monsters so far)' : ''), line:MON[KF].gossip});
+  if(KN >= 25) out.push({id:'hunt:25', big:true, realm:'hub', text:'has seen off ' + KN + ' monsters across Hub', line:KN + ' monsters seen off! The wraiths and the drones must tell stories about you.'});
   if(done >= 1){ const last = P.quests.filter(q => q.state === 'done').slice(-1)[0]; out.push({id:'helper', big:false, realm:last.realm, text:'has helped ' + done + (done === 1 ? ' local' : ' locals') + ' with a favour', line:'People say you help folks out. That is rarer than shards.'}); }
   return out;
 }
@@ -13802,7 +13805,7 @@ const NPC_REPLY_SCHEMA = {type:'object', additionalProperties:false, required:['
     emote:{type:'string', enum:NPC_EMOTES, description:'the gesture you make while saying it'},
     remember:{type:'string', description:'one short note (under 15 words) worth remembering about the player from this exchange, or an empty string; never personal real-world details'},
     quest:{type:'object', additionalProperties:false, required:['type', 'param'], description:'optional: a favour you ask, only when the player asks for work or it fits naturally; only from the templates',
-      properties:{type:{type:'string', enum:['bring', 'visit', 'rally', 'chart', 'coin', 'portal']}, param:{type:'string', description:'bring: an item id; visit: a landmark id or realm id; rally: a score; chart: a sector number; coin: a realm id; portal: the realm id whose quest portal they should clear'}}}
+      properties:{type:{type:'string', enum:['bring', 'visit', 'rally', 'chart', 'coin', 'portal', 'hunt']}, param:{type:'string', description:'bring: an item id; visit: a landmark id or realm id; rally: a score; chart: a sector number; coin: a realm id; portal: the realm id whose quest portal they should clear; hunt: realm id and how many of its monsters, 1 to 5, as realm:N'}}}
   }};
 const NPC_EXAMPLES = [
   ['hello!', {say:'Oh, hello again, Robin! The beacons are humming in tune today, for once.', mood_delta:1, emote:'wave', remember:''}],
@@ -13924,7 +13927,7 @@ Object.defineProperties(window.__hub, {
   npcLimits:{get:() => ({gapMs:npcAIcfg.gapMs, cap:npcAIcfg.cap, calls:npcAIcfg.calls, timeoutMs:npcAIcfg.timeoutMs, busy:npcAI.busy, rested:npcAIcfg.rested}),
     set:v => { v = v || {}; if(v.gapMs != null) npcAIcfg.gapMs = Math.max(0, +v.gapMs); if(v.cap != null) npcAIcfg.cap = Math.max(0, +v.cap); if(v.calls != null) npcAIcfg.calls = Math.max(0, +v.calls); if(v.timeoutMs != null) npcAIcfg.timeoutMs = Math.max(50, +v.timeoutMs); if(v.rested != null) npcAIcfg.rested = !!v.rested; }}
 });
-/* Living Locals quests: five templates only. A local (AI or offline) may propose {type, param}; questCheck() validates it against the game's
+/* Living Locals quests: seven templates only (Goal 15 added portal, Goal 16 hunt). A local (AI or offline) may propose {type, param}; questCheck() validates it against the game's
    own lists and state, the game sets the reward (₵10-60 plus XP), and completeQuestCheck() is the only thing that pays. */
 const QUEST_LANDMARKS = {
   archive:{realm:'hub', name:'the Archive on the Spaceport', at:() => ({x:0, z:77, r:16})},
@@ -13940,7 +13943,8 @@ const chartSectors = () => { const a = []; for(let n = 2; n <= 27; n++) if(secto
 function questMenu(nn){ const P = personaOf(nn);
   return '- bring: ' + bringIds().join(', ') + '\n- visit: landmarks ' + Object.keys(QUEST_LANDMARKS).join(', ') + ', or realms ' + WORLD_ORDER.filter(k => k !== P.home).join(', ') + '\n' +
     '- rally: a Comet Rally score from 2000 to 60000 (their best is ' + state.hunt.rallyBest + ')\n- chart: a sector number from 2 to 27\n- coin: a realm with coins left: ' + WORLD_ORDER.filter(k => coinsIn(k) < 12).join(', ') +
-    '\n- portal: clear the quest portal in a realm (param is the realm id): ' + QP_ORDER.filter(k => QPORTALS[k]).map(k => k + ' (' + QPORTALS[k].name + ')').join(', '); }
+    '\n- portal: clear the quest portal in a realm (param is the realm id): ' + QP_ORDER.filter(k => QPORTALS[k]).map(k => k + ' (' + QPORTALS[k].name + ')').join(', ') +
+    '\n- hunt: see off 1 to 5 of a realm\'s monsters (param realm:N): ' + Object.keys(MON).map(k => k + ' (' + MON[k].plural + ')').join(', '); }
 // the one gate: {ok, why, q} with the game's text and reward
 function questCheck(nn, q){
   const P = personaOf(nn), Pl = lp(); if(!q || typeof q !== 'object') return {ok:false, why:'no quest'};
@@ -13963,6 +13967,10 @@ function questBuild(P, q, o){
   else if(type === 'chart'){ const n = parseInt(raw.replace(/^sector\s*/i, ''), 10); if(chartSectors().indexOf(n) < 0) return {ok:false, why:'not a sector with stars: ' + raw}; param = String(n); text = 'chart a new planet in sector ' + n + ' (land on one of its stars)'; short = 'the planet in sector ' + n; credits = 50; }
   else if(type === 'portal'){ const k = QPORTALS[low] ? low : QP_ORDER.find(r => QPORTALS[r] && QPORTALS[r].name.toLowerCase() === low); if(!k) return {ok:false, why:'not a realm with a quest portal: ' + raw};
     param = k; const nm = QPORTALS[k].name.replace(/^The /, ''); text = 'clear the ' + nm + ' quest portal in ' + WORLDS[k].name; short = 'the ' + nm; credits = 30; }   // Goal 15: the game sets the reward, as for every template
+  else if(type === 'hunt'){   // Goal 16: see off N (1-5) of a realm's monsters; param 'realm:N' (also takes a monster's name, and a bare realm means 3)
+    const k = Object.keys(MON).find(r => low.indexOf(r) >= 0 || low.indexOf(MON[r].kind) >= 0 || low.indexOf(MON[r].name.toLowerCase()) >= 0 || low.indexOf(MON[r].plural) >= 0 || low.indexOf(WORLDS[r].name.toLowerCase()) >= 0);
+    if(!k) return {ok:false, why:'not a realm with monsters: ' + raw}; const dg = low.match(/\d+/), n = dg ? parseInt(dg[0], 10) : 3; if(!(n >= 1 && n <= 5)) return {ok:false, why:'hunt count must be 1 to 5: ' + raw};
+    const D = MON[k]; param = k + ':' + n; text = D.verb + ' ' + n + ' ' + (n === 1 ? D.name.toLowerCase() : D.plural) + ' in ' + WORLDS[k].name; short = 'those ' + D.plural; credits = 8 + 7 * n; }
   else if(type === 'coin'){ if(WORLD_ORDER.indexOf(low) < 0) return {ok:false, why:'not a realm: ' + raw}; if(coinsIn(low) >= 12 && !o.load) return {ok:false, why:'no coins left there'}; param = low; text = 'find a coin in ' + WORLDS[low].name; short = 'that coin in ' + WORLDS[low].name; credits = 15; }
   else return {ok:false, why:'not a template: ' + type};
   credits = clamp(Math.round(credits), QUEST_CREDITS[0], QUEST_CREDITS[1]);
@@ -13986,6 +13994,8 @@ function localQuestOffer(nn){
     {type:'visit', param:away[h % away.length], say:i => 'Take a trip to ' + WORLDS[i].name + ' for me. I never get away from my stall.'}
   ];
   if(QPORTALS[P.home] && strHash(P.id + ':portal:' + k) % 4 === 0){ const c = {type:'portal', param:P.home}; if(questCheck(nn, c).ok) return {offer:c, say:'Have you seen the glowing doorway here, ' + QPORTALS[P.home].name + '? Clear it for me and I will make it worth your while.'}; }   // Goal 15
+  if(MON[P.home] && strHash(P.id + ':hunt:' + k) % 4 === 1){ const D = MON[P.home], n = 1 + strHash(P.id + ':huntn:' + k) % 5, c = {type:'hunt', param:P.home + ':' + n};   // Goal 16
+    if(questCheck(nn, c).ok) return {offer:c, say:(monHostile(P.home) ? 'The ' + D.plural + ' have been bothering everyone out past the stalls. ' : 'The ' + D.plural + ' keep pinching shiny things off the isles. ') + 'Could you ' + D.verb + ' ' + n + ' of them for me?'}; }
   for(let j = 0; j < cands.length; j++){ const c = cands[(h + j) % cands.length]; const v = questCheck(nn, c); if(v.ok) return {offer:{type:c.type, param:c.param}, say:c.say(c.param)}; }
   return {say:'Nothing right now, ' + who + '. Ask me again another day.'};
 }
@@ -13996,7 +14006,7 @@ function acceptQuest(o){
   const refuse = why => { questWhy = why; if(talk.offer === o){ talk.offer = null; if(typeof talkOffer === 'function') talkOffer(); } return null; };
   if(!nn) return refuse('no such local here: ' + String(o.giver).slice(0, 40));
   const c = questCheck(nn, {type:o.type, param:o.param}); if(!c.ok){ toast(c.why, 2600); return refuse(c.why); }
-  const Pl = lp(), q = Object.assign({}, c.q, {id:'q' + (++Pl.qseq), state:'active', t:Date.now(), base:{coins:c.q.type === 'coin' ? coinsIn(c.q.param) : 0, qp:c.q.type === 'portal' ? qpRec(c.q.param).wins : 0}});
+  const Pl = lp(), q = Object.assign({}, c.q, {id:'q' + (++Pl.qseq), state:'active', t:Date.now(), base:{coins:c.q.type === 'coin' ? coinsIn(c.q.param) : 0, qp:c.q.type === 'portal' ? qpRec(c.q.param).wins : 0, kills:c.q.type === 'hunt' ? monKills(c.q.param.split(':')[0]) : 0}});
   Pl.quests.push(q); if(Pl.quests.length > 40) Pl.quests.splice(0, Pl.quests.length - 40);
   const m = Pl.locals[o.giver]; if(m){ m.promises = m.promises || []; remember(m, 'promises', 'a reward if they ' + q.text, 4); }
   saveLocals(); if(talk.offer === o) talk.offer = null; if(typeof talkOffer === 'function') talkOffer(); questHud(); sfx('ui');
@@ -14017,13 +14027,14 @@ function completeQuestCheck(){
     else if(q.type === 'chart') done = Object.values(explorer.planets || {}).some(e => e && e.sector === +q.param && num(e.first, 0) >= q.t);
     else if(q.type === 'coin') done = coinsIn(q.param) > q.base.coins;
     else if(q.type === 'portal') done = !!QPORTALS[q.param] && qpRec(q.param).wins > num(q.base && q.base.qp, 0);   // Goal 15: a clear after the favour was accepted
+    else if(q.type === 'hunt'){ const h = String(q.param).split(':'); done = !!MON[h[0]] && monKills(h[0]) - num(q.base && q.base.kills, 0) >= +h[1]; }   // Goal 16: monsters seen off since the favour was accepted
     if(!done) continue;
     if(q.type === 'bring'){ takeItem(q.param); invRefresh(); }
     q.state = 'done'; q.doneT = Date.now();
     const m = Pl.locals[q.giver]; if(m){ remember(m, 'thanks', q.text, 6); remember(m, 'notes', pname() + ' did my favour: ' + q.text, 8); m.promises = (m.promises || []).filter(t => t.indexOf(q.text) < 0); m.mood = clamp(num(m.mood, 0) + 3, -10, 10); }
     reward(q.reward.xp, q.reward.credits); sfx('level');
     const did = {bring:() => 'For me? ' + (ITEMS[q.param] ? 'A ' + ITEMS[q.param].name : 'It') + '! Just what I wanted.', visit:() => 'You went to ' + q.short.replace(/^the trip to /, '') + ' for me!', rally:() => 'You beat ' + q.param + ' at Comet Rally!',
-      chart:() => 'A new planet in sector ' + q.param + ', charted!', coin:() => 'You found ' + q.short + '!', portal:() => 'You cleared ' + q.short + '!'}[q.type];
+      chart:() => 'A new planet in sector ' + q.param + ', charted!', coin:() => 'You found ' + q.short + '!', portal:() => 'You cleared ' + q.short + '!', hunt:() => 'You saw off ' + q.short + '!'}[q.type];
     const line = (did ? did() : 'You did it!') + ' Thank you, ' + pname() + '. I will not forget it.';
     toast(q.giverName + ': ' + line + '   +₵' + q.reward.credits + ' +' + q.reward.xp + ' XP', 5200);
     if(nn){ nn.lastSay = line; nn.sayT = 9; localEmote(nn, 'cheer'); if(talk.nn === nn && !talkEl.classList.contains('hidden')) talkLine(nn.name, line, 'reg'); }
@@ -14053,7 +14064,7 @@ function cleanLocalsStore(){
       if(i < 0 || WORLD_ORDER.indexOf(home) < 0 || NPC_NAMES.indexOf(name) < 0){ changed = true; continue; }
       if(q.state === 'active' && (act.has(g) || act.size >= QUEST_MAX)){ changed = true; continue; }
       const c = questBuild({id:g, name, home, homeName:WORLDS[home].name}, {type:q.type, param:q.param}, {load:true}); if(!c.ok){ changed = true; continue; }
-      const n = Object.assign({}, c.q, {id:String(q.id || '').slice(0, 12) || 'q0', state:q.state, t:num(q.t, 0), base:{coins:num(q.base && q.base.coins, 0), qp:num(q.base && q.base.qp, 0)}}); if(q.state === 'done') n.doneT = num(q.doneT, 0);
+      const n = Object.assign({}, c.q, {id:String(q.id || '').slice(0, 12) || 'q0', state:q.state, t:num(q.t, 0), base:{coins:num(q.base && q.base.coins, 0), qp:num(q.base && q.base.qp, 0), kills:num(q.base && q.base.kills, 0)}}); if(q.state === 'done') n.doneT = num(q.doneT, 0);
       if(JSON.stringify(n) !== JSON.stringify(q)) changed = true;
       if(q.state === 'active') act.add(g); out.push(n); }
     Pl.quests = out;
@@ -14094,7 +14105,8 @@ Object.defineProperties(window.__hub, {
 // Goal 16 test hooks: list, find, hit, kill, loot and frame the realm's monsters headless
 const monCanHunt = () => !!(mon && mon.hostile && playing && !zeroing && !traveling && !pocketIn() && !monInSafe(p.x, p.z, 0) && !driftSafe());
 function monSummary(m){ return {id:m.id, x:+m.x.toFixed(2), y:+m.y.toFixed(2), z:+m.z.toFixed(2), hp:m.hp, max:m.max, mode:m.mode, home:[+m.sp.x.toFixed(2), +m.sp.z.toFixed(2)], core:!!m.sp.core, dHome:+Math.hypot(m.x - m.sp.x, m.z - m.sp.z).toFixed(2), dPlayer:+Math.hypot(m.x - p.x, m.z - p.z).toFixed(2), safeClear:+Math.min(...mon.safe.map(s => Math.hypot(m.x - s.x, m.z - s.z) - s.r)).toFixed(2)}; }
-const monFind = i => !mon ? null : typeof i === 'string' ? mon.live.find(m => m.id === i) || null : mon.live[i == null ? 0 : i] || null;
+const monAlive = () => mon ? mon.live.filter(m => m.mode !== 'dying') : [];
+const monFind = i => !mon ? null : (!mon.live.length && monRefresh(), typeof i === 'string') ? mon.live.find(m => m.id === i) || null : monAlive()[i == null ? 0 : i] || null;
 // stand d metres from core spawn i, on the side away from the nearest safe circle, so it can see you
 function monNearHook(i, d){
   if(!mon) return null; const s = mon.core[i == null ? 0 : i]; if(!s) return null; d = d == null ? 9 : d;
@@ -14131,7 +14143,7 @@ function monSafeCheck(R){
   return {spawns:all.length, cells, minSpawnClear:+Math.min(...all.map(clear)).toFixed(2), patrol:mon.def.patrol, liveMinClear:live.length ? +Math.min(...live).toFixed(2) : null, safe:mon.safe.map(s => ({x:+s.x.toFixed(1), z:+s.z.toFixed(1), r:s.r, why:s.why}))};
 }
 Object.defineProperties(window.__hub, {
-  mon:{get:() => mon ? {realm:mon.key, kind:mon.def.kind, name:mon.def.name, hostile:mon.hostile, danger:WORLDS[mon.key].rules.danger, mode:atkMode(), live:mon.live.map(monSummary), core:mon.core.map(s => ({id:s.id, x:+s.x.toFixed(2), z:+s.z.toFixed(2)})), drops:mon.drops.map(d => ({id:d.id, x:+d.x.toFixed(2), y:+d.y.toFixed(2), z:+d.z.toFixed(2), credits:d.credits, item:d.item})), dead:[...mon.dead.keys()], last:mon.last || null, lastPick:mon.lastPick || null, freeze:mon.freeze, ms:+(mon.ms || 0).toFixed(3), maxMs:+(mon.maxMs || 0).toFixed(3), kills:JSON.parse(JSON.stringify(state.kills)), draws:mon.root.children.filter(o => o.isInstancedMesh && o.count > 0).length} : {realm:state.world, none:true, kills:JSON.parse(JSON.stringify(state.kills))}},
+  mon:{get:() => mon ? {realm:mon.key, kind:mon.def.kind, name:mon.def.name, hostile:mon.hostile, danger:WORLDS[mon.key].rules.danger, mode:atkMode(), live:monAlive().map(monSummary), core:mon.core.map(s => ({id:s.id, x:+s.x.toFixed(2), z:+s.z.toFixed(2)})), drops:mon.drops.map(d => ({id:d.id, x:+d.x.toFixed(2), y:+d.y.toFixed(2), z:+d.z.toFixed(2), credits:d.credits, item:d.item})), dead:[...mon.dead.keys()], last:mon.last || null, lastPick:mon.lastPick || null, freeze:mon.freeze, ms:+(mon.ms || 0).toFixed(3), maxMs:+(mon.maxMs || 0).toFixed(3), kills:JSON.parse(JSON.stringify(state.kills)), draws:mon.root.children.filter(o => o.isInstancedMesh && o.count > 0).length} : {realm:state.world, none:true, kills:JSON.parse(JSON.stringify(state.kills))}},
   monTable:{value:() => WORLD_ORDER.concat(HUNT_WORLDS).map(k => ({realm:k, kind:MON[k] ? MON[k].kind : null, name:MON[k] ? MON[k].name : null, danger:WORLDS[k].rules.danger, hostile:monHostile(k)}))},
   monNear:{value:(i, d) => monNearHook(i, d)},
   monHit:{value:(i, n) => { const m = monFind(i); return m ? {dealt:monDamage(m, n == null ? 10 : n, 'test'), after:monSummary(m)} : null; }},
