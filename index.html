@@ -17001,9 +17001,9 @@ BUILD.saltlark = (r, n) => {
     for(let i = 0; i < 14; i++){ const an = i / 14 * TAU, x = H.x + Math.sin(an) * (H.r - 0.3), z = H.z + Math.cos(an) * (H.r - 0.3), b = hf(x, z) - 0.6; piles.push(mat4(x, (b + P.y) / 2, z, 0, 0, 0, 1.25, P.y - b, 1.25)); }
     const N = 24, rr = H.r - 0.08; for(let i = 0; i < N; i++){ const a0 = i / N * TAU, a1 = (i + 1) / N * TAU, am = (a0 + a1) / 2; if(Math.abs(angGap(am, Math.PI)) < 0.32) continue;
       const x = H.x + Math.sin(am) * rr, z = H.z + Math.cos(am) * rr, len = 2 * rr * Math.sin(Math.PI / N);
-      const rail = new THREE.BoxGeometry(len, 0.08, 0.1); rail.rotateY(am + Math.PI / 2); rail.translate(x, P.y + 0.96, z); K.rail2 = (K.rail2 || []).concat([rail]);
+      const rail = new THREE.BoxGeometry(len, 0.08, 0.1); rail.rotateY(am); rail.translate(x, P.y + 0.96, z); K.rail2 = (K.rail2 || []).concat([rail]);
       K.rail2.push(new THREE.BoxGeometry(0.12, 1.0, 0.12).translate(H.x + Math.sin(a0) * rr, P.y + 0.5, H.z + Math.cos(a0) * rr));
-      addBox(x, z, len / 2 + 0.05, 0.08, -12, P.y + 1.0, {a:-(am + Math.PI / 2), cam:false}); } }
+      addBox(x, z, len / 2 + 0.05, 0.08, -12, P.y + 1.0, {a:-am, cam:false}); } }
   // ---- the lighthouse: white with red bands, a gallery, a glowing lantern room, a red cap; its beam turns slowly (slUpdate)
   { const L = SLK.light, y0 = P.y, body = new THREE.CylinderGeometry(L.r * 0.68, L.r, L.h, 40, 12, true); body.translate(0, L.h / 2, 0); const uv = body.attributes.uv; for(let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i), body.attributes.position.getY(i) / L.h);
     mk(body, std(0xffffff, {map:T.light, roughness:0.6}), L.x, y0, L.z);
