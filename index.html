@@ -3083,16 +3083,23 @@ const WORLDS = {
   saltlark:{ name:'Saltlark Isle', seed:191, exposure:0.92, fog:0.0024, sector:5, rules:{magic:true, tech:true, danger:false},
            sky:{top:0x3c7fd2, horizon:0xf6d9a6, ground:0xe8d8b8, sun:0xffd59a, dir:[-0.72,0.2,0.66], size:0.011, clouds:0.24, lit:0xfff0d6, shade:0xc4b4c0},
            atm:{turb:3.4, ray:1.35, mie:0.006, g:0.8, bright:0.64, tint:0xffe0b0, clouds:0.24, cloudH:1500, cirrus:0.4, rays:0.55, flare:0.6, fogSun:0.9, wind:[0.7, 0.25]}, fogH:0.02,
-           sun:[0xffd6a0,3.1], hemi:[0xbcd8ff,0xe0c8a0,0.62], portals:[{to:'hub',x:0,z:-26}], pads:[] }
+           sun:[0xffd6a0,3.1], hemi:[0xbcd8ff,0xe0c8a0,0.62], portals:[{to:'hub',x:0,z:-26}], pads:[] },
+  // Fennick Bay (Goal 20 part 4, the roadmap's "memory copy of the Architect's home town"): Lyle Ashcombe's harbour town as he remembered it, held for ever
+  // at a misty dusk with the tide out; the sun just down behind the Ness. Sector 10 was uncharted: one step from Sector 1 on the cube, so the warp is
+  // 25 credits. A memory, not a combat zone: danger false, tech true (the lamps, the arcade's cabinets, the boost), magic false (there was no magic in it).
+  fennick:{ name:'Fennick Bay', seed:211, exposure:1.0, fog:0.0045, sector:10, rules:{magic:false, tech:true, danger:false},
+           sky:{top:0x1c2140, horizon:0xd88a6a, ground:0x2a2628, sun:0xf09a70, dir:[-0.82,0.05,0.57], size:0.012, clouds:0.55, lit:0xe8a080, shade:0x3a3a52},
+           atm:{turb:6, ray:2.0, mie:0.016, g:0.82, bright:0.34, tint:0xf0b8a8, sat:0.85, clouds:0.55, cloudH:1100, cirrus:0.35, rays:0.4, flare:0.35, fogSun:0.9, wind:[0.4, 0.15]}, fogH:0.03,
+           sun:[0xffb08a,1.25], hemi:[0x8a90b8,0x3a3236,0.62], portals:[{to:'hub',x:0,z:-26}], pads:[] }
 };
 // Warfront joins at the end, so every existing coin id (realm:index) and every realm's order stay as they were; the coin total grows by 12
-const WORLD_ORDER = ['hub','campus','dunes','grid','grove','sky','warfront','lampblack','saltlark'];   // Lampblack (Goal 20 part 2) joins last too, then Saltlark Isle (part 3)
+const WORLD_ORDER = ['hub','campus','dunes','grid','grove','sky','warfront','lampblack','saltlark','fennick'];   // Lampblack (Goal 20 part 2) joins last too, then Saltlark Isle (part 3), then Fennick Bay (part 4)
 /* the universe is a 3x3x3 cube of 27 sectors (blueprint section 3); a sector's coordinates come from its number */
 const sectorXYZ = n => [(n - 1) % 3, Math.floor((n - 1) / 3) % 3, Math.floor((n - 1) / 9)];
 function sectorDistance(a, b){ const A = sectorXYZ(a), B = sectorXYZ(b); return Math.max(Math.abs(A[0] - B[0]), Math.abs(A[1] - B[1]), Math.abs(A[2] - B[2])); }
 function fare(from, to){ if(to === 'hub') return 0; if(WORLDS[to] && WORLDS[to].own) return 0; if(state.enrolled && (from === 'campus' || to === 'campus')) return 0; const d = sectorDistance(WORLDS[from].sector, WORLDS[to].sector); return d === 0 ? 10 : d === 1 ? 25 : d === 2 ? 60 : 120; }
 const rulesText = W => (W.rules.magic ? 'magic' : 'no magic') + ' · ' + (W.rules.tech ? 'tech' : 'no tech') + ' · ' + (W.rules.danger ? 'danger zone' : 'safe');
-const PORTAL_COLORS = { hub:0xffd166, campus:0xb6ff7a, dunes:0xf2a07b, grid:0xff4fa3, grove:0x5ce1e6, sky:0xbfe0ff, ashfall:0xff7a3a, warfront:0xe8a04a, lampblack:0xd9b25c, saltlark:0x6fe0d0 };
+const PORTAL_COLORS = { hub:0xffd166, campus:0xb6ff7a, dunes:0xf2a07b, grid:0xff4fa3, grove:0x5ce1e6, sky:0xbfe0ff, ashfall:0xff7a3a, warfront:0xe8a04a, lampblack:0xd9b25c, saltlark:0x6fe0d0, fennick:0xf0a868 };
 // Ashfall is not in WORLD_ORDER (that list counts the coins, 12 a realm); it joins the Warp list and the star map here, sealed until you hold three shards
 const HUNT_WORLDS = ['ashfall'];
 const NPC_NAMES = ['Kestrel','Nyx_77','Pixelwolf','Dune Rider','Glitch','Moth','Sable','Byte Queen','Vektor','Ember','Lumen','Rook','Juno','Static','Marrow','Quill','Tallow','Orbit','Sixpence','Halcyon','Wren','Cinder'];
@@ -3100,6 +3107,9 @@ const SUITS = [0x1f2a44,0x6b1d2e,0x1d4a46,0x2a2a30,0xdad9de,0x3b2a5a,0x4a3a22,0x
 const PLATES = [0xeceef2,0xb9bec8,0x2b2d33,0xd9b26a,0xf2efe8];
 const GLOWS = [0x5ce1e6,0xff4fa3,0xffb020,0x9dff6a,0xb18cff];
 const LINES = {
+  fennick: ['The tide has been out as long as anyone can remember. The boats do not mind.','Mind the setts on Lantern Row, they are slippery after dark.',
+    'You can walk right out on the mud at low water. Keep to the hard bits.','Somebody always leaves the lamp lit in the window of No. 9.',
+    'The night ferry is out. You can see her lights from the harbour wall.','Saltbox Arcade is open till the last ferry. It always is.'],
   any: ['Three shards open three gates on Ashfall. Nobody has reached the Seed yet.','Press M to warp if your legs are tired.','Boost mid-air. Changed my life.','Coins turn into credits. Credits turn into warps.','I have been farming XP all week.'],
   hub: ['Each portal here leads somewhere different.','The vault field only drops when all three sockets are lit.','Welcome to the spaceport, newbie.'],
   dunes: ['Those stones by the crystals climb higher than they look.','It is too bright out here.'],
@@ -7263,6 +7273,7 @@ function coreSum(detail){
   qpList.forEach(q => skip.add(q.g)); if(qa) skip.add(qa.g);   // Goal 15: the quest portal and its arena are added after the core
   portals.forEach(q => { if(q.late) skip.add(q.g); });
   if(lb && state.world === 'lampblack') lb.skip.forEach(o => skip.add(o));
+  if(fb && state.world === 'fennick') fb.skip.forEach(o => skip.add(o));   // Goal 20 part 4: Fennick Bay's water follows you; the ferry crosses, the lighthouse flashes, the smoke rises
   if(sl && state.world === 'saltlark') sl.skip.forEach(o => skip.add(o));   // Goal 20 part 3: Saltlark's sea follows you; the lighthouse beam turns, the boats sail, the crabs and fish move   // Goal 20: Lampblack's road mirror follows you; the tram and the cats move   // Goal 20: a portal added after the core (the Spaceport's Warfront portal)
   if(mer && mer.g) skip.add(mer.g);   // Goal 18: Meridian's pylons come and go with the Hunt
   if(mon && mon.root) skip.add(mon.root);   // Goal 16: monsters move (and their loot comes and goes)
@@ -7822,7 +7833,7 @@ ENDLESS.campus = {
 /* ================= spawning ================= */
 function spawnNPCs(key, r){
   if(!LINES[key]) return;   // Ashfall: nobody walks the ash
-  const pool = NPC_NAMES.slice(), count = (key === 'hub' ? 12 : 5) - (COARSE ? 2 : 0);
+  const pool = NPC_NAMES.slice(), count = (key === 'hub' ? 12 : key === 'fennick' ? 6 : 5) - (COARSE ? 2 : 0);   // Fennick Bay has six locals (Goal 20 part 4)
   for(let i = 0; i < count; i++){
     const s = freeSpot(r, 6, 40, 2); if(!s) continue;
     const name = pool.splice(Math.floor(r() * pool.length), 1)[0];
@@ -7833,7 +7844,7 @@ function spawnNPCs(key, r){
     pickTarget(npc); npcs.push(npc);
   }
 }
-function pickTarget(n){ const a = Math.random() * TAU, d = 6 + Math.random() * 44; n.tx = Math.cos(a) * d; n.tz = Math.sin(a) * d; if(state.world === 'saltlark') slNpcTarget(n); }
+function pickTarget(n){ const a = Math.random() * TAU, d = 6 + Math.random() * 44; n.tx = Math.cos(a) * d; n.tz = Math.sin(a) * d; if(state.world === 'saltlark') slNpcTarget(n); else if(state.world === 'fennick') fbNpcTarget(n); }
 
 /* fixed, seeded hazards (Phase 1: no monsters yet). They use their own rng so nothing placed before them moves.
    Neon Grid: laser sweepers, a pylon whose knee-high beam turns in a circle marked on the floor; jump it or take 20 HP. */
@@ -7884,7 +7895,7 @@ function buildWorld(key){
   const pads = W.portals.map(q => ({x:q.x, z:q.z, r:4})).concat(W.pads || []).concat(W.custom ? [{x:0, z:14, r:6}] : []);
   const pf = (x, z) => { let f = 1; for(const q of pads) f *= smooth(q.r, q.r + 7, Math.hypot(x - q.x, z - q.z)); return f; };
   hf = W.custom ? customHeight(W.custom)(noise, pf) : HEIGHTS[key](noise, pf);
-  G = key === 'grid' ? (x, z) => Math.max(0, hf(x, z)) : key === 'warfront' ? warG : key === 'saltlark' ? slG : W.custom ? (x, z) => { const h = hf(x, z); return waterBody && waterBody.kind !== 'ice' ? Math.max(h, waterBody.level - 0.75) : h; } : hf;
+  G = key === 'grid' ? (x, z) => Math.max(0, hf(x, z)) : key === 'warfront' ? warG : key === 'saltlark' ? slG : key === 'fennick' ? fbG : W.custom ? (x, z) => { const h = hf(x, z); return waterBody && waterBody.kind !== 'ice' ? Math.max(h, waterBody.level - 0.75) : h; } : hf;
   W.portals.forEach(addPortal);
   if(W.planet) addBeacon(W.portals[0]);
   if(W.custom) customBuild(W.custom)(r, noise); else BUILD[key](r, noise);
@@ -8985,7 +8996,7 @@ let archNear = null, archRoom = -1, cardTimer = 0;
 const ARCH_DOOR_OPEN = Math.PI - 0.1;
 const ledgerEl = $('#ledger'), regEl = $('#reg'), memoEl = $('#memo');
 function archiveUpdate(dt){
-  if(!archive || state.world !== 'hub'){ if(archNear){ archNear = null; $('#archBtn').style.display = 'none'; } if(me.tag) me.tag.visible = !pocketIn() && !driftSafe() && chimeNear == null && !ashIndoors(); return; }   // indoors (the Hollow, The Drift, its hallway) your own name tag would fill the view
+  if(!archive || state.world !== 'hub'){ if(archNear){ archNear = null; $('#archBtn').style.display = 'none'; } if(me.tag) me.tag.visible = !pocketIn() && !driftSafe() && chimeNear == null && !ashIndoors() && !fbIndoors(); return; }   // indoors (the Hollow, The Drift, its hallway) your own name tag would fill the view
   const A = ARCHIVE, px = p.x, pz = p.z, cp = camera.position;
   // the rooms are built the first time you come near (one a frame), so the Spaceport loads exactly as fast as before
   if(Math.hypot(px, pz - 77) < 60){ const k = archive.rooms.findIndex(R => !R.built); if(k >= 0) archiveBuildRoom(k); }
@@ -12506,7 +12517,7 @@ function update(dt, time){
   const sy = Math.sin(cam.yaw), cy = Math.cos(cam.yaw);
   const mx = -sy * fwd + cy * side, mz = -cy * fwd - sy * side, mag = Math.hypot(mx, mz), moving = mag > 0.05;
   const running = keys.ShiftLeft || keys.ShiftRight || Math.hypot(joy.x, joy.y) > 0.95;
-  const target = moving ? (running ? 9.5 : 5) * Math.min(1, mag) * slWadeK() : 0;   // slWadeK: wading and swimming on Saltlark Isle (1 everywhere else)
+  const target = moving ? (running ? 9.5 : 5) * Math.min(1, mag) * slWadeK() * fbWadeK() : 0;   // slWadeK: wading and swimming on Saltlark Isle (1 everywhere else)
   p.speed += (target - p.speed) * (1 - Math.exp(-dt * 10));
   const prevY = p.y, dirx = moving ? mx / mag : Math.sin(p.facing), dirz = moving ? mz / mag : Math.cos(p.facing);
   // zero-g gym (Goal 8): inside the drum there is no gravity. The avatar keeps its momentum, WASD thrusts, Space pushes up, Shift pushes down,
@@ -12582,7 +12593,7 @@ function update(dt, time){
     if(d > lim){ camera.position.x = zv.x + dx / d * lim; camera.position.z = zv.z + dz / d * lim; }
     const c = gymCeil(camera.position.x, camera.position.z) - 0.5; if(camera.position.y > c) camera.position.y = c;
   }
-  const cg = (pocketIn() ? pocketFloor(camera.position.x, camera.position.z) : G(camera.position.x, camera.position.z)) + 0.4; if(camera.position.y < cg) camera.position.y = cg; slCam();
+  const cg = (pocketIn() ? pocketFloor(camera.position.x, camera.position.z) : G(camera.position.x, camera.position.z)) + 0.4; if(camera.position.y < cg) camera.position.y = cg; slCam(); fbCam();
   if(qa && qa.inside && qa.M.ceil){ const top = qa.A.y + qa.M.ceil - 0.25; if(camera.position.y > top) camera.position.y = top; }
   if(corr && corr.inside){ const top = CORR.y + CORR.h - 0.2 + (camera.position.z - CORR.z0 > CORR.zoneC ? 0.6 : 0); if(camera.position.y > top) camera.position.y = top; }
   camera.lookAt(_t1); if(corr && corr.inside && corr.roll) camera.rotateZ(corr.roll); camera.updateMatrixWorld(); camWorld.copy(camera.position);
@@ -12644,7 +12655,7 @@ function update(dt, time){
     state.won = true; reward(500, 200); sfx('win'); setHalo(); toast('You opened the vault. First to crack the Hub.   +500 XP', 5000);
   }
   if(playing && p.grounded && p.speed > 0.6){ snd.stepT -= dt; if(snd.stepT <= 0){ sfx('step'); snd.stepT = p.speed > 7 ? 0.27 : 0.42; } } else snd.stepT = 0.1;
-  shopProximity(); bikeProximity(); vendProximity(); deskProximity(); archiveUpdate(dt); hollowUpdate(dt, time); chimeUpdate(dt, time); ashUpdate(dt, time); merUpdate(dt, time); warUpdate(dt, time); lbUpdate(dt, time); slUpdate(dt, time); starTick(dt, time); driftUpdate(dt, time); hallUpdate(dt, time); rallyTick(dt, time); trialUpdate(dt, time); qpTick(dt, time);
+  shopProximity(); bikeProximity(); vendProximity(); deskProximity(); archiveUpdate(dt); hollowUpdate(dt, time); chimeUpdate(dt, time); ashUpdate(dt, time); merUpdate(dt, time); warUpdate(dt, time); lbUpdate(dt, time); slUpdate(dt, time); fbUpdate(dt, time); starTick(dt, time); driftUpdate(dt, time); hallUpdate(dt, time); rallyTick(dt, time); trialUpdate(dt, time); qpTick(dt, time);
   const wdt = dt * artTideK();   // Goal 17: Slack Water slows monsters, traps and lasers (simTime), never the player
   updatePickups(dt, time); monUpdate(wdt, time); hurtCool -= dt; simTime += wdt; updateHazards(simTime); updateBurst(dt); checkBundles(); artUpdate(dt, time);
   if(!WORLDS[state.world].rules.danger && !zeroing && state.hp < maxHp()){ state.hp = Math.min(maxHp(), state.hp + 12 * dt); hpHud(); }
@@ -15890,7 +15901,7 @@ QPORTALS.lampblack = {kind:'case', name:'The Low Hour Case', x:-8.2, z:13, face:
 // portals added to a realm after its core was finished (Goal 20): no pad (the Spaceport's plaza is level there), no rng, and built with Math.random pointed
 // away from the NPCs' sequence (three.js draws it for every new object's id), so every coin, NPC, pickup, kiosk and their wander stay exactly as they were.
 // The Spaceport's Warfront portal stands at the head of the plaza between the Neon Grid and Night Grove portals, more than 15 m from every coin and pickup spot.
-const LATE_PORTALS = { hub:[{to:'warfront', x:0, z:-31, late:true}, {to:'lampblack', x:14, z:-31, late:true}, {to:'saltlark', x:-14, z:-31, late:true}] };   // Saltlark's at the plaza's north-west, 6.9 m from the nearest coin, clear of every NPC and pickup spot   // Lampblack's at the plaza's north-east, more than 6 m from every coin, NPC and pickup
+const LATE_PORTALS = { hub:[{to:'warfront', x:0, z:-31, late:true}, {to:'lampblack', x:14, z:-31, late:true}, {to:'saltlark', x:-14, z:-31, late:true}, {to:'fennick', x:-28, z:-6, late:true}] };   // Fennick Bay's on the plaza's west side, more than 6 m from every coin, NPC spawn, pickup and the quest portal   // Saltlark's at the plaza's north-west, 6.9 m from the nearest coin, clear of every NPC and pickup spot   // Lampblack's at the plaza's north-east, more than 6 m from every coin, NPC and pickup
 function addLatePortals(key){ const L = LATE_PORTALS[key]; if(!L || !WORLDS[key] || WORLDS[key].custom) return; noRandom(() => L.forEach(q => addPortal(q))); }
 // ---- Warfront test hooks (Goal 20): the realm's facts, a walk up the Bastion's stair and along the trenches through the real update, the wire, the outskirts, one framed view
 function warWalkTo(tx, tz, n, close){ let k = 0; for(; k < (n || 200); k++){ if(Math.hypot(p.x - tx, p.z - tz) < (close || 0.4)) break; cam.yaw = Math.atan2(p.x - tx, p.z - tz); keys.KeyW = true; update(0.05, simTime); } keys.KeyW = false; return k; }
@@ -17474,6 +17485,535 @@ Object.defineProperties(window.__hub, {
     slPut(px, pz, y); cam.yaw = Math.atan2(px - tx, pz - tz) + 0.1; p.facing = cam.yaw + Math.PI; cam.pitch = pitch; cam.dist = dist; cam.view = 0;
     me.g.position.set(p.x, p.y, p.z); me.g.rotation.y = p.facing; snapCamera(); clipCamera(); renderer.shadowMap.needsUpdate = true; return {what, x:+p.x.toFixed(1), z:+p.z.toFixed(1), y:+p.y.toFixed(2)}; }}
 });
+/* ================= Fennick Bay (Goal 20 part 4, blueprint 2, 3, 5e, 7, 9) =================
+   The Architect's home town, rebuilt as a memory: Hub's own invented harbour town (no real place, brand, film or song), the Fennick Bay of the
+   Archive, the Ledger and the Broadcast. Lantern Row runs down the hill from the square to Harbour Street; No. 9 is the fifth house on the
+   right going down (odd numbers on the west side), with its blue door, the lantern in its front window and the jar of milk money on its step.
+   Harbour Street keeps Bright Suds (the two rooms above it were the first office), the post office, the fishmonger, Gannet Stores and the
+   chandlery; the Pellows' garage stands on the square at the top. The harbour is two stone arms round a basin, the tide is out, the boats lie
+   on the mud and the ferry slip runs down into the channel; the pier carries the Saltbox Arcade, where Comet Rally first had a cabinet. Across
+   the bay the lighthouse stands on the Ness. Held for ever at a misty dusk at low water, because that is how he remembered it.
+   Sector 10 was uncharted: one step from Sector 1 on the cube (straight "above" the Spaceport), so the warp is 25 credits; the Spaceport portal is
+   free. Rules: nothing can hurt you (danger false); tech works (the lamps, the arcade, the boost); magic does not (a memory has no spells).
+   Everything is drawn from its own rng seeds (9000 and up) or cell seeds, never Math.random, so the town looks the same on every visit. */
+const FB = {
+  sea:-1.2, swim:1.05, out:340, RY:7.6, QY:1.6, top:-22, foot:22, hw:4, road:2.9, house:4.3,
+  sq:{x0:-9, x1:9, z0:-40, z1:-22},                                    // the square at the top of the Row (the Spaceport portal stands in it)
+  hs:{x0:-96, x1:96, z0:22, z1:32.6},                                  // Harbour Street and the quay; the shop fronts at z 22, the quay's edge at 32.6
+  hb:{x0:-44, x1:30, z0:32.6, z1:96},                                  // the harbour basin (mud at low water)
+  arms:[[-48, -44, 32.6, 100], [-48, -10, 96, 100], [30, 34, 32.6, 100], [10, 34, 96, 100]],
+  slip:{x0:-38, x1:-32, z0:32.6, z1:54, y1:-1.45},                     // the ferry slip, down into the channel
+  steps:{x0:-44, x1:-40, z0:62, z1:65},                                // stone steps down the west arm's inner face
+  pier:{x0:50, x1:54, s0:28, z0:32, z1:104, y:3.2},                    // steps up from Harbour Street (z 28-32), the deck, then the head
+  head:{x0:42, x1:62, z0:104, z1:122}, arcade:{x0:44, x1:60, z0:106, z1:120, d0:50.4, d1:53.6},
+  garage:{x0:9.5, x1:15.5, z0:-36, z1:-29.5},
+  ness:[-128, 26, -168, 250], light:{x:-170, z:262, r:2.1, h:13},
+  chan:[[-35, 54], [-24, 66], [-8, 80], [0, 97], [14, 128], [40, 170], [72, 220]],
+  ferry:{z:232, x0:-330, x1:330, v:2.4},
+  no9:{x:-4, z0:-4.8, z1:-0.5}                                         // the fifth house on the west side: No. 9 Lantern Row
+};
+let fb = null, fbG = (x, z) => 0;
+const fbRowY = z => z <= FB.top ? FB.RY : z >= FB.foot ? FB.QY : FB.RY + (FB.QY - FB.RY) * (z - FB.top) / (FB.foot - FB.top);
+const fbSeg = (x, z, a, b, c, d) => { const dx = c - a, dz = d - b, t = clamp(((x - a) * dx + (z - b) * dz) / (dx * dx + dz * dz), 0, 1); return [Math.hypot(x - a - dx * t, z - b - dz * t), t]; };
+// the shore (z of the high-water line) as a function of x: the quay in the town, a wobbly coast past it
+function fbShore(n, x){ return 32 + (n.fbm(x * 0.0045 + 11, 3.7, 3) * 34 + n.fbm(x * 0.017, 9.1, 2) * 7) * smooth(90, 240, Math.abs(x)); }
+// the land and the flats from e = metres inland of the shore: mud a little above low water, the beach, then the hill rising to the moor
+function fbProf(n, x, z, e){
+  if(e < 0){ const f = -e, ripple = n.fbm(x * 0.05 + 3, z * 0.05 - 1, 3) * 0.22 + n.fbm(x * 0.013, z * 0.013 + 4, 2) * 0.3;
+    let h = -0.72 - f * 0.0016 + ripple; if(f < 14) h = lerp(0.9, h, smooth(0, 14, f));
+    return lerp(h, -5.5 + n.fbm(x * 0.006, z * 0.006, 2) * 1.5, smooth(150, 330, f)); }
+  let h = e < 10 ? lerp(0.9, FB.QY, smooth(0, 6, e)) : e < 54 ? FB.QY + (e - 10) * 0.136 : FB.RY + (e - 54) * 0.16;
+  const m = smooth(70, 170, e); if(m > 0) h += m * (n.fbm(x * 0.006 + 2, z * 0.006 - 5, 4) * 26 + n.fbm(x * 0.03, z * 0.03, 2) * 3) - m * 6;
+  return h;
+}
+function fbHeights(n){
+  const K = FB, chan = K.chan;
+  const base = (x, z) => {
+    const shore = fbShore(n, x), e = shore - z; let h = fbProf(n, x, z, e);
+    // the Ness: a long ridge across the bay, with the lighthouse on its knob
+    { const [d, t] = fbSeg(x, z, ...K.ness); if(d < 60){ const top = 9 + 5 * smooth(0.6, 1, t) + n.fbm(x * 0.04, z * 0.04, 2) * 1.5; h = Math.max(h, top * smooth(46, 10, d) - 1); } }
+    { const dl = Math.hypot(x - K.light.x, z - K.light.z); if(dl < 30) h = Math.max(h, 14.2 * smooth(30, 7, dl)); }
+    // the town: the square is level, the Row and the streets sit on the profile, the harbour basin is a bowl of mud with the channel through it
+    { const m = 1 - smooth(0, 5, rectDist(x, z, K.sq, 0)); if(m > 0) h = lerp(h, K.RY - 0.04, m); }
+    if(Math.abs(x) < 110 && z > 18 && z < 32.6) h = Math.min(h, K.QY - 0.05);
+    if(Math.abs(x) < K.hw + 0.6 && z > K.top - 0.5 && z < K.foot) h = Math.min(h, fbRowY(z) - 0.05);   // the Row's setts always lie on top
+    { const B = K.hb; if(x > B.x0 - 4 && x < B.x1 + 4 && z > 32 && z < B.z1 + 4) h = Math.min(h, -0.72 + n.fbm(x * 0.06, z * 0.06 + 7, 2) * 0.12 - 0.18 * (1 - smooth(0, 14, rectDist(x, z, {x0:B.x0 + 14, x1:B.x1 - 14, z0:B.z0 + 14, z1:B.z1 - 8}, 0)))); }
+    { let dc = 1e9; for(let i = 0; i < chan.length - 1; i++){ const d = fbSeg(x, z, chan[i][0], chan[i][1], chan[i + 1][0], chan[i + 1][1])[0]; if(d < dc) dc = d; }
+      if(dc < 9) h = Math.min(h, -1.62 + smooth(1.5, 9, dc) * 0.95 + n.fbm(x * 0.1, z * 0.1, 2) * 0.05); }
+    return h;
+  };
+  fbG = (x, z) => fbGround(x, z, base(x, z));
+  return base;
+}
+// where you can stand: the ground, raised to the setts and pavements, the quay, the harbour arms, the slip, the steps and the pier; in deep water you float
+function fbGround(x, z, h){
+  const K = FB;
+  if(z > K.top - 0.01 && z < K.foot && Math.abs(x) < K.hw) return Math.abs(x) > K.road ? fbRowY(z) + 0.12 : fbRowY(z);
+  if(x > K.sq.x0 && x < K.sq.x1 && z > K.sq.z0 && z <= K.top) return K.RY;
+  if(x > K.pier.x0 && x < K.pier.x1 && z >= K.pier.s0 && z <= K.pier.z0) return K.QY + Math.min(10, Math.ceil((z - K.pier.s0) / 0.4 - 1e-6)) * 0.16;
+  if(x > K.hs.x0 && x < K.hs.x1 && z >= K.hs.z0 && z <= K.hs.z1 && !(x > K.slip.x0 && x < K.slip.x1 && z > 32.1)) return z < 23.6 ? K.QY + 0.12 : K.QY;
+  for(const a of K.arms) if(x >= a[0] && x <= a[1] && z >= a[2] && z <= a[3]) return K.QY;
+  { const S = K.slip; if(x > S.x0 && x < S.x1 && z > 32.1 && z < S.z1) return Math.max(h, lerp(K.QY, S.y1, (z - 32.1) / (S.z1 - 32.1))); }
+  { const S = K.steps; if(x > S.x0 && x < S.x1 && z > S.z0 && z < S.z1) return Math.max(h, K.QY - Math.ceil((x - S.x0) / 0.33 - 1e-6) * 0.2); }
+  if(x > K.pier.x0 && x < K.pier.x1 && z > K.pier.z0 && z <= K.pier.z1) return K.pier.y;
+  if(x > K.head.x0 && x < K.head.x1 && z > K.head.z0 && z < K.head.z1) return K.pier.y;
+  return Math.max(h, K.sea - K.swim);
+}
+// how deep the water is where you stand (0 on dry land or mud), and the wading speed (1 everywhere else)
+function fbDepth(){ if(state.world !== 'fennick' || !fb || (qa && qa.inside) || pocketIn()) return 0; return Math.max(0, FB.sea - p.y); }
+function fbWadeK(){ const d = fbDepth(); return d < 0.12 ? 1 : lerp(1, 0.56, smooth(0.12, 0.95, d)); }
+// indoors in Fennick Bay (the arcade, the garage): your own name tag is hidden, as in the Archive
+function fbIndoors(){ if(!fb || state.world !== 'fennick') return false; const A = FB.arcade, Gr = FB.garage; return (p.x > A.x0 && p.x < A.x1 && p.z > A.z0 && p.z < A.z1) || (p.x > Gr.x0 && p.x < Gr.x1 && p.z > Gr.z0 && p.z < Gr.z1); }
+function fbCam(){ if(!fb || state.world !== 'fennick' || (qa && qa.inside) || pocketIn()) return; if(camera.position.y < FB.sea + 0.3) camera.position.y = FB.sea + 0.3; }
+// locals keep to the streets and the mud: a target inside a building is drawn again (only in Fennick Bay, so no other realm's wander changes)
+function fbNpcTarget(n){ for(let i = 0; i < 8 && boxes.some(b => b.y0 < 2 && boxOut(n.tx, n.tz, b, 0.6)); i++){ const a = Math.random() * TAU, d = 6 + Math.random() * 44; n.tx = Math.cos(a) * d; n.tz = Math.sin(a) * d; } }
+
+/* ---- textures (made once per session): slates, the harbour's granite blocks, pavement flags, a window-and-door atlas, the shop signs ---- */
+let fbTexCache = null;
+function fbTex(){
+  if(fbTexCache) return fbTexCache;
+  const n = a => a.map(h => hexArr(h));
+  const T = {
+    slate:stoneSet({seed:9011, size:2, cols:8, rows:18, bond:true, base:n([0x3c4048, 0x464a52, 0x34383f, 0x4a4e56, 0x3a3d44]), vein:0, veinCol:[0, 0, 0], joint:0.01, jointDark:0.45, rough:0.6, grain:0.06, cloud:0.08, tint:0.12, bump:0.2, nStrength:8}),
+    block:stoneSet({seed:9021, size:4, cols:5, rows:9, bond:true, base:n([0x6a655e, 0x5c5852, 0x75706a, 0x625d57, 0x57534e]), vein:0, veinCol:[0, 0, 0], joint:0.012, jointDark:0.5, rough:0.82, grain:0.12, cloud:0.12, tint:0.2, bump:0.35, nStrength:10}),
+    flag:stoneSet({seed:9031, size:3, cols:5, rows:5, bond:true, base:n([0x8a857c, 0x7c776f, 0x948f86, 0x837e76]), vein:0, veinCol:[0, 0, 0], joint:0.006, jointDark:0.45, rough:0.75, grain:0.08, cloud:0.1, tint:0.12, bump:0.12, nStrength:6}),
+    atlas:canvasTex(1024, 768, (x, w, h) => { const q = rng(9041);
+      const bars = (X, Y, lit) => { x.fillStyle = '#eee8dc'; x.fillRect(X, Y, 256, 12); x.fillRect(X, Y + 244, 256, 12); x.fillRect(X, Y, 14, 256); x.fillRect(X + 242, Y, 14, 256); x.fillRect(X, Y + 122, 256, 12); x.fillRect(X + 125, Y, 7, 256);
+        x.fillStyle = lit ? 'rgba(255,240,210,0.25)' : 'rgba(255,255,255,0.08)'; x.fillRect(X + 14, Y + 12, 228, 3); };
+      const cell = (i, f) => { const X = (i % 4) * 256, Y = Math.floor(i / 4) * 256; x.save(); x.beginPath(); x.rect(X, Y, 256, 256); x.clip(); f(X, Y); x.restore(); };
+      cell(0, (X, Y) => { const g = x.createLinearGradient(X, 0, X + 256, 0); for(let i = 0; i <= 10; i++) g.addColorStop(i / 10, i % 2 ? '#ffcf7a' : '#e2944a'); x.fillStyle = g; x.fillRect(X, Y, 256, 256);
+        const v = x.createRadialGradient(X + 150, Y + 140, 10, X + 150, Y + 140, 200); v.addColorStop(0, 'rgba(255,248,215,0.6)'); v.addColorStop(1, 'rgba(110,45,20,0.45)'); x.fillStyle = v; x.fillRect(X, Y, 256, 256); bars(X, Y, true); });
+      cell(1, (X, Y) => { const g = x.createLinearGradient(0, Y, 0, Y + 256); g.addColorStop(0, '#c98a4a'); g.addColorStop(1, '#f6d08a'); x.fillStyle = g; x.fillRect(X, Y, 256, 256);
+        x.fillStyle = '#6a3a24'; x.fillRect(X + 40, Y + 60, 60, 46); x.fillStyle = '#fff2c8'; x.beginPath(); x.moveTo(X + 170, Y + 120); x.lineTo(X + 210, Y + 120); x.lineTo(X + 200, Y + 150); x.lineTo(X + 180, Y + 150); x.fill();
+        const v = x.createRadialGradient(X + 190, Y + 150, 5, X + 190, Y + 150, 120); v.addColorStop(0, 'rgba(255,250,220,0.8)'); v.addColorStop(1, 'rgba(255,220,150,0)'); x.fillStyle = v; x.fillRect(X, Y, 256, 256);
+        x.fillStyle = '#5a3424'; x.fillRect(X, Y + 200, 256, 56); bars(X, Y, true); });
+      cell(2, (X, Y) => { const g = x.createLinearGradient(0, Y, 0, Y + 256); g.addColorStop(0, '#5a6680'); g.addColorStop(0.45, '#2a3040'); g.addColorStop(1, '#141820'); x.fillStyle = g; x.fillRect(X, Y, 256, 256);
+        x.fillStyle = 'rgba(255,200,170,0.12)'; x.beginPath(); x.moveTo(X + 30, Y); x.lineTo(X + 110, Y); x.lineTo(X + 40, Y + 256); x.lineTo(X - 40, Y + 256); x.fill(); bars(X, Y, false); });
+      cell(3, (X, Y) => { x.fillStyle = '#4a4a50'; x.fillRect(X, Y, 256, 256); for(let i = 0; i < 900; i++){ x.fillStyle = 'rgba(230,230,235,' + (0.05 + q() * 0.12).toFixed(2) + ')'; x.fillRect(X + q() * 256, Y + q() * 256, 3, 3); }
+        x.strokeStyle = 'rgba(240,240,240,0.18)'; x.lineWidth = 2; for(let i = 0; i < 16; i++){ x.beginPath(); x.moveTo(X + i * 16, Y); x.quadraticCurveTo(X + i * 16 + 6, Y + 128, X + i * 16, Y + 256); x.stroke(); } bars(X, Y, false); });
+      cell(4, (X, Y) => { const g = x.createLinearGradient(0, Y, 0, Y + 256); g.addColorStop(0, '#fff6d8'); g.addColorStop(1, '#e8c890'); x.fillStyle = g; x.fillRect(X, Y, 256, 256);
+        x.fillStyle = 'rgba(120,80,50,0.55)'; for(let r = 0; r < 4; r++){ x.fillRect(X + 10, Y + 40 + r * 56, 236, 6); for(let i = 0; i < 9; i++){ x.fillStyle = ['#c84a3a', '#3a7ac8', '#e8c040', '#5aa04a', '#8a5ac8'][Math.floor(q() * 5)]; x.fillRect(X + 16 + i * 26, Y + 14 + r * 56, 18, 26); } x.fillStyle = 'rgba(120,80,50,0.55)'; }
+        x.fillStyle = '#eee8dc'; x.fillRect(X, Y, 256, 8); x.fillRect(X, Y + 248, 256, 8); x.fillRect(X + 124, Y, 8, 256); });
+      const door = (i, col, dark) => cell(i, (X, Y) => { x.fillStyle = col; x.fillRect(X, Y, 256, 256); x.fillStyle = dark; [[30, 70, 80, 70], [146, 70, 80, 70], [30, 160, 80, 80], [146, 160, 80, 80]].forEach(r => { x.fillRect(X + r[0], Y + r[1], r[2], 5); x.fillRect(X + r[0], Y + r[1], 5, r[3]); });
+        x.fillStyle = 'rgba(255,255,255,0.12)'; [[30, 70, 80, 70], [146, 70, 80, 70], [30, 160, 80, 80], [146, 160, 80, 80]].forEach(r => { x.fillRect(X + r[0] + r[2] - 5, Y + r[1], 5, r[3]); x.fillRect(X + r[0], Y + r[1] + r[3] - 5, r[2], 5); });
+        x.fillStyle = '#ffd58a'; x.beginPath(); x.ellipse(X + 128, Y + 34, 100, 26, 0, Math.PI, TAU); x.fill(); x.fillStyle = dark; for(let k = 0; k < 5; k++){ x.fillRect(X + 40 + k * 44, Y + 10, 4, 26); } x.fillRect(X, Y + 34, 256, 8);
+        x.fillStyle = '#d8b860'; x.beginPath(); x.arc(X + 210, Y + 150, 8, 0, TAU); x.fill(); x.fillRect(X + 108, Y + 120, 40, 8); });
+      door(5, '#2c4f8a', '#1c3460'); door(6, '#2f5a3a', '#1c3a24'); door(7, '#8a2a24', '#5a1a16');
+      cell(8, (X, Y) => { x.fillStyle = '#3a3026'; x.fillRect(X, Y, 256, 256); const v = x.createRadialGradient(X + 70, Y + 200, 5, X + 70, Y + 200, 170); v.addColorStop(0, 'rgba(255,210,140,0.55)'); v.addColorStop(1, 'rgba(255,210,140,0)'); x.fillStyle = v; x.fillRect(X, Y, 256, 256);
+        x.fillStyle = '#d8d0b8'; x.beginPath(); x.arc(X + 170, Y + 76, 34, 0, TAU); x.fill(); x.strokeStyle = '#3a2a1a'; x.lineWidth = 4; x.stroke(); x.lineWidth = 5;
+        [[(5 + 40 / 60) / 12 * TAU, 18, 5], [40 / 60 * TAU, 28, 3]].forEach(([a, L, lw]) => { x.lineWidth = lw; x.beginPath(); x.moveTo(X + 170, Y + 76); x.lineTo(X + 170 + Math.sin(a) * L, Y + 76 - Math.cos(a) * L); x.stroke(); });   // stopped at twenty to six
+        x.fillStyle = '#5a4030'; x.fillRect(X + 20, Y + 180, 100, 10); x.fillRect(X + 140, Y + 190, 100, 10); bars(X, Y, false); });
+      cell(9, (X, Y) => { const g = x.createLinearGradient(0, Y, 0, Y + 256); g.addColorStop(0, '#e8fbff'); g.addColorStop(1, '#a8d8e0'); x.fillStyle = g; x.fillRect(X, Y, 256, 256);
+        for(let i = 0; i < 4; i++){ const cx = X + 34 + i * 62, cy = Y + 170; x.fillStyle = '#f4f4f0'; x.fillRect(cx - 28, cy - 50, 56, 90); x.fillStyle = '#4a5a6a'; x.beginPath(); x.arc(cx, cy, 20, 0, TAU); x.fill(); x.fillStyle = '#9ac8e8'; x.beginPath(); x.arc(cx, cy, 14, 0, TAU); x.fill(); }
+        x.fillStyle = '#eee8dc'; x.fillRect(X, Y, 256, 8); x.fillRect(X, Y + 248, 256, 8); x.fillRect(X + 124, Y, 8, 256); });
+      door(10, '#1e1e22', '#0e0e10');
+      cell(11, (X, Y) => { x.fillStyle = '#f4f8f6'; x.fillRect(X, Y, 256, 256); x.strokeStyle = 'rgba(120,150,160,0.5)'; x.lineWidth = 2; for(let i = 0; i < 256; i += 24){ x.beginPath(); x.moveTo(X + i, Y); x.lineTo(X + i, Y + 256); x.stroke(); x.beginPath(); x.moveTo(X, Y + i); x.lineTo(X + 256, Y + i); x.stroke(); }
+        x.fillStyle = '#8a9aa8'; x.fillRect(X + 10, Y + 170, 236, 40); for(let i = 0; i < 8; i++){ x.fillStyle = ['#c8d0d8', '#e8b0a0', '#d8d8c0'][i % 3]; x.beginPath(); x.ellipse(X + 26 + i * 29, Y + 182, 12, 5, 0.2, 0, TAU); x.fill(); }
+        x.fillStyle = '#eee8dc'; x.fillRect(X, Y, 256, 8); x.fillRect(X, Y + 248, 256, 8); x.fillRect(X + 124, Y, 8, 256); });
+    }),
+    signs:canvasTex(1024, 1024, (x, w, h) => {
+      const rows = [['BRIGHT SUDS · LAUNDRETTE', '#13324a', '#8fe8f0'], ['FENNICK BAY POST OFFICE', '#9a1e1e', '#f2d27a'], ['J. TALLOW · FISHMONGER', '#e8eef2', '#1e4a7a'], ['GANNET STORES', '#1e4a32', '#f0e6c8'],
+        ['KITTIWAKE TEAROOM', '#5a1a2a', '#f2d27a'], ['ROPE & TAR · CHANDLERY', '#141414', '#d8b860'], ['PELLOW & SON · MOTOR REPAIRS', '#202428', '#f0f0e8'], ['THE SALTBOX ARCADE', '#7a1414', '#ffd860']];
+      rows.forEach(([t, bg, fg], i) => { const Y = i * 128; x.fillStyle = bg; x.fillRect(0, Y, w, 128); x.strokeStyle = fg; x.lineWidth = 6; x.strokeRect(10, Y + 10, w - 20, 108);
+        x.fillStyle = fg; fitFont(x, t, w - 80, 76, '700'); x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText(t, w / 2, Y + 68); }); })
+  };
+  [T.atlas, T.signs].forEach(t => { SHARED_TEX.add(t); t.anisotropy = 8; });
+  return (fbTexCache = T);
+}
+// a plane's UVs into one cell of the window atlas (4 x 3 cells) or one row of the sign sheet (8 rows)
+function fbCellUV(g, cell){ const uv = g.attributes.uv, c = cell % 4, r = Math.floor(cell / 4); for(let i = 0; i < uv.count; i++) uv.setXY(i, (c + uv.getX(i)) / 4, (3 - r - 1 + uv.getY(i)) / 3); return g; }
+function fbRowUV(g, row){ const uv = g.attributes.uv; for(let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i), (8 - row - 1 + uv.getY(i)) / 8); return g; }
+// the shared materials (kept for the session: the core and every streamed cell draw with these)
+let fbKitCache = null;
+function fbKit(){
+  if(fbKitCache) return fbKitCache;
+  const T = fbTex(), A = archiveStone(), set = (s, hex, o) => shareMat(std(hex || 0xffffff, Object.assign({map:s.map, normalMap:s.normal, roughnessMap:s.rough, roughness:1}, o || {})));
+  const K = {T, brick:set(A.brick), cobble:set(A.cobble), slate:set(T.slate, 0xffffff, {side:THREE.DoubleSide}), block:set(T.block), flag:set(T.flag),
+    gabBrick:shareMat(std(0xffffff, {map:A.brick.map, normalMap:A.brick.normal, roughnessMap:A.brick.rough, roughness:1, side:THREE.DoubleSide})),
+    trim:shareMat(std(0xe6e0d2, {roughness:0.62})), dark:shareMat(std(0x2a2a2e, {roughness:0.5, metalness:0.3})), iron:shareMat(std(0x23262a, {roughness:0.45, metalness:0.6})),
+    pot:shareMat(std(0xa8583a, {map:detailTex, roughness:0.85})), wood:shareMat(std(0x7a5a40, {map:surface('bark').map, roughness:0.9})),
+    lit:shareMat(std(0xffffff, {map:T.atlas, emissive:C(0xffe0b8), emissiveMap:T.atlas, emissiveIntensity:0.85, roughness:0.35})),
+    glass:shareMat(std(0xffffff, {map:T.atlas, roughness:0.12, metalness:0.25})), doorM:shareMat(std(0xffffff, {map:T.atlas, roughness:0.42})),
+    sign:shareMat(std(0xffffff, {map:T.signs, emissive:C(0xffffff), emissiveMap:T.signs, emissiveIntensity:0.22, roughness:0.6})),
+    flame:shareMat(glowM(0xffc070, 1.7)), render:{}, deck:shareMat(std(0xffffff, {map:slTex().deck.map, normalMap:slTex().deck.normal, roughnessMap:slTex().deck.rough, roughness:1})),
+    boatHull:shareMat(std(0xffffff, {map:detailTex, normalMap:detailNormal, normalScale:new V2(0.3, 0.3), roughness:0.5})), glass2:shareMat(std(0x1a2028, {roughness:0.1, metalness:0.4}))};
+  K.renderM = hex => K.render[hex] || (K.render[hex] = shareMat(std(hex, {map:detailTex, normalMap:detailNormal, normalScale:new V2(0.3, 0.3), roughness:0.92})));
+  return (fbKitCache = K);
+}
+// bins: everything of one material is merged into one mesh when the bins are flushed (the core once, each streamed cell once)
+const fbBins = () => ({brick:[], render:{}, block:[], trim:[], dark:[], iron:[], pot:[], wood:[], flag:[], roofs:[], gab:[], gabR:{}, lit:[], glass:[], door:[], sign:[], flame:[], cob:[], flagG:[], blockG:[], ironG:[], vents:[], glows:[]});
+function fbFlush(B, K){
+  const box = (L, m, t, cast) => { if(L.length){ const o = mk(boxGeo(L, t), m, 0, 0, 0); o.castShadow = cast !== false; } };
+  const geo = (L, m, cast) => { if(L.length){ const o = mk(merge(L), m, 0, 0, 0); o.castShadow = !!cast; } };
+  box(B.brick, K.brick, 3); for(const h in B.render) box(B.render[h], K.renderM(+h), 4); box(B.block, K.block, 4); box(B.trim, K.trim, 2); box(B.dark, K.dark, 2); box(B.iron, K.iron, 2, false); box(B.pot, K.pot, 1); box(B.wood, K.wood, 2); box(B.flag, K.flag, 3);
+  geo(B.roofs, K.slate, true); geo(B.gab, K.gabBrick, true); for(const h in B.gabR){ const m = K.renderM(+h); if(!m.userData.gab){ m.userData.gab = shareMat(m.clone()); m.userData.gab.side = THREE.DoubleSide; } geo(B.gabR[h], m.userData.gab, true); }
+  geo(B.lit, K.lit); geo(B.glass, K.glass); geo(B.door, K.doorM); geo(B.sign, K.sign); geo(B.flame, K.flame); geo(B.cob, K.cobble); geo(B.flagG, K.flag); geo(B.blockG, K.block, true); geo(B.ironG, K.iron, true);
+  if(B.glows.length) glowCloud(B.glows, 0.5);
+}
+/* a house in a terrace. F = {face '+x' | '-x' | '+z', X (the facade line), a0..a1 (along the facade), D (depth), floor, st (storeys), mat ('brick' or a
+   render colour), lit (chance a window is lit), door (atlas cell), doorAt ('a0' | 'a1'), shop (sign row), shopCell, noFront (No. 9 builds its own window)} */
+function fbHouse(B, F, q){
+  const s = F.face === '-x' ? -1 : 1, alongZ = F.face !== '+z', ry = F.face === '+x' ? Math.PI / 2 : F.face === '-x' ? -Math.PI / 2 : 0;
+  const W = (a, o) => alongZ ? [F.X + s * o, a] : [a, F.X + o];
+  const box = (a0, a1, o0, o1, y0, y1) => { const p0 = W(a0, o0), p1 = W(a1, o1); return [Math.min(p0[0], p1[0]), Math.max(p0[0], p1[0]), y0, y1, Math.min(p0[1], p1[1]), Math.max(p0[1], p1[1])]; };
+  const quad = (L, w, h, a, o, y, cell, rowUV) => { const g = new THREE.PlaneGeometry(w, h); if(rowUV != null) fbRowUV(g, rowUV); else fbCellUV(g, cell); g.rotateY(ry); const [x, z] = W(a, o); g.translate(x, y, z); L.push(g); return g; };
+  const fl = F.floor, st = F.st || 2, D = F.D || 7, a0 = F.a0, a1 = F.a1, wd = a1 - a0, eave = fl + 0.25 + st * 2.75, base = F.base != null ? F.base : fl - 1.4, rh = Math.min(3.2, D * 0.42);
+  const wall = F.mat === 'brick' ? B.brick : (B.render[F.mat] || (B.render[F.mat] = []));
+  wall.push(box(a0, a1, -D, 0, base, eave));
+  { const b = box(a0, a1, -D, 0, base, eave); addBox((b[0] + b[1]) / 2, (b[4] + b[5]) / 2, (b[1] - b[0]) / 2, (b[5] - b[4]) / 2, base - 3, eave + rh); }
+  // the roof: two slate slopes with eaves front and back; gables at both ends in the wall's own material (they show where the terrace steps)
+  { const oF = 0.3, oB = -D - 0.3, oM = -D / 2, y0 = eave - 0.12, y1 = eave + rh, e0 = a0 - 0.04, e1 = a1 + 0.04;
+    const P = (a, o, y) => { const [x, z] = W(a, o); return new V3(x, y, z); };
+    const slope = (oa, ob) => { const g = new THREE.BufferGeometry(); g.setFromPoints([P(e0, oa, y0), P(e1, oa, y0), P(e1, ob, y1), P(e0, oa, y0), P(e1, ob, y1), P(e0, ob, y1)]);
+      const L = Math.hypot(ob - oa, y1 - y0); g.setAttribute('uv', new THREE.Float32BufferAttribute([e0 / 2, 0, e1 / 2, 0, e1 / 2, L / 2, e0 / 2, 0, e1 / 2, L / 2, e0 / 2, L / 2], 2)); g.computeVertexNormals(); B.roofs.push(g); };
+    slope(oF, oM); slope(oB, oM);
+    const gab = F.mat === 'brick' ? B.gab : (B.gabR[F.mat] || (B.gabR[F.mat] = []));
+    [a0, a1].forEach(a => { const g = new THREE.BufferGeometry(); g.setFromPoints([P(a, 0, eave), P(a, -D, eave), P(a, oM, y1 - 0.08)]); g.setAttribute('uv', new THREE.Float32BufferAttribute([0, eave / 3, D / 3, eave / 3, D / 6, (y1 - 0.08) / 3], 2)); g.computeVertexNormals(); gab.push(g); });
+    // the chimney stack on the party wall, two pots; smoke from some of them
+    const ca = a1 - 0.45, cb = box(ca - 0.4, ca + 0.4, oM - 0.35, oM + 0.35, y1 - 1.0, y1 + 1.05); B.brick.push(cb);
+    B.pot.push([cb[0] - 0.02, cb[1] + 0.02, y1 + 1.0, y1 + 1.12, cb[4] - 0.02, cb[5] + 0.02]);
+    [-0.17, 0.17].forEach(d => { const [x, z] = W(ca + d, oM); B.pot.push([x - 0.09, x + 0.09, y1 + 1.12, y1 + 1.5, z - 0.09, z + 0.09]); });
+    if(q() < (F.smoke == null ? 0.5 : F.smoke)){ const [x, z] = W(ca, oM); B.vents.push([x, y1 + 1.55, z]); } }
+  // the front: door, windows with sills and lintels, a shopfront and its sign
+  const dA = F.doorAt === 'a0' ? a0 + 0.85 : a1 - 0.85, gy = fl + 1.45, uy = fl + 0.25 + 2.75 + 1.3;
+  quad(B.door, 0.98, 2.15, dA, 0.02, fl + 1.075, F.door != null ? F.door : [5, 6, 7, 10][Math.floor(q() * 4)]);
+  B.trim.push(box(dA - 0.62, dA - 0.49, 0, 0.08, fl, fl + 2.3), box(dA + 0.49, dA + 0.62, 0, 0.08, fl, fl + 2.3), box(dA - 0.62, dA + 0.62, 0, 0.1, fl + 2.15, fl + 2.32));
+  if(F.step !== false) B.block.push(box(dA - 0.65, dA + 0.65, 0, 0.42, base, fl));
+  const win = (a, y, w, h, lit, force) => { const cell = force != null ? force : lit ? (q() < 0.65 ? 0 : 1) : (q() < 0.6 ? 2 : 3); quad(lit || force === 8 ? B.lit : B.glass, w, h, a, 0.03, y, cell);
+    B.trim.push(box(a - w / 2 - 0.1, a + w / 2 + 0.1, 0, 0.12, y - h / 2 - 0.09, y - h / 2), box(a - w / 2 - 0.06, a + w / 2 + 0.06, 0, 0.05, y + h / 2, y + h / 2 + 0.14)); };
+  if(F.shop != null){ const sw = wd - 2.4, sa = F.doorAt === 'a0' ? a1 - 0.25 - sw / 2 : a0 + 0.25 + sw / 2; quad(B.lit, sw, 1.9, sa, 0.03, fl + 1.3, F.shopCell != null ? F.shopCell : 4);
+    B.dark.push(box(a0 + 0.1, a1 - 0.1, 0, 0.16, fl + 2.45, fl + 3.15)); quad(B.sign, wd - 0.5, 0.58, (a0 + a1) / 2, 0.17, fl + 2.8, 0, F.shop);
+    B.trim.push(box(sa - sw / 2 - 0.1, sa + sw / 2 + 0.1, 0, 0.14, fl + 0.18, fl + 0.32)); }
+  else if(!F.noFront){ const wa = F.doorAt === 'a0' ? a0 + wd * 0.64 : a0 + wd * 0.36; win(wa, gy, 1.0, 1.42, q() < F.lit); }
+  for(let k = 1; k < st; k++) [0.27, 0.73].forEach((t, j) => { const c = F.upper ? F.upper[(k - 1) * 2 + j] : null; win(a0 + wd * t, uy + (k - 1) * 2.75, 0.92, 1.3, c != null ? c <= 1 : q() < F.lit * 0.7, c); });
+  return {W, box, eave, rh};
+}
+// a sheet of ground (setts, flags, the slip) over a rectangle, following h(x, z), with world-space UVs (one tile per `tile` metres)
+function fbSheet(x0, x1, z0, z1, nx, nz, h, tile){
+  const g = new THREE.PlaneGeometry(x1 - x0, z1 - z0, nx, nz); g.rotateX(-Math.PI / 2); g.translate((x0 + x1) / 2, 0, (z0 + z1) / 2);
+  const a = g.attributes.position, uv = g.attributes.uv; for(let i = 0; i < a.count; i++){ const x = a.getX(i), z = a.getZ(i); a.setY(i, h(x, z)); uv.setXY(i, x / tile, -z / tile); }
+  g.computeVertexNormals(); return g;
+}
+// a kerb's face: a vertical strip between two points on the ground, `ht` high, drawn from both sides (non-indexed, so each side keeps its own normal)
+function fbKerb(L, x0, z0, x1, z1, n, yAt, ht){
+  const pos = [], uv = []; for(let i = 0; i < n; i++){ const t0 = i / n, t1 = (i + 1) / n, ax = lerp(x0, x1, t0), az = lerp(z0, z1, t0), bx = lerp(x0, x1, t1), bz = lerp(z0, z1, t1), ya = yAt(ax, az), yb = yAt(bx, bz), u0 = t0 * Math.hypot(x1 - x0, z1 - z0) / 2, u1 = t1 * Math.hypot(x1 - x0, z1 - z0) / 2;
+    const A = [ax, ya, az], Bp = [bx, yb, bz], Ct = [bx, yb + ht, bz], Dt = [ax, ya + ht, az];
+    [[A, Bp, Ct, A, Ct, Dt], [A, Ct, Bp, A, Dt, Ct]].forEach(tri => tri.forEach(v => { pos.push(...v); uv.push(v === A || v === Dt ? u0 : u1, v === Ct || v === Dt ? 0.06 : 0); })); }
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); g.computeVertexNormals(); L.push(g);
+}
+// the streets: Lantern Row's setts and its pavements, the square, Harbour Street; the quay, the harbour arms and their parapets, the slip and the steps
+function fbStreets(B){
+  const K = FB, ry = (x, z) => fbRowY(z);
+  B.cob.push(fbSheet(-K.road, K.road, K.top, K.foot, 4, 44, (x, z) => fbRowY(z) + 0.005, 2.4), fbSheet(K.sq.x0, K.sq.x1, K.sq.z0, K.top, 9, 9, () => K.RY + 0.005, 2.4));
+  [-1, 1].forEach(sd => { B.flagG.push(fbSheet(sd < 0 ? -K.hw : K.road, sd < 0 ? -K.road : K.hw, K.top, K.foot, 1, 44, (x, z) => fbRowY(z) + 0.125, 3)); fbKerb(B.blockG, sd * K.road, K.top, sd * K.road, K.foot, 22, ry, 0.125); });
+  B.flagG.push(fbSheet(K.hs.x0, K.hs.x1, 22, 23.6, 96, 1, () => K.QY + 0.125, 3)); fbKerb(B.blockG, K.hs.x0, 23.6, -K.hw, 23.6, 46, () => K.QY, 0.125); fbKerb(B.blockG, K.hw, 23.6, K.hs.x1, 23.6, 46, () => K.QY, 0.125);
+  B.cob.push(fbSheet(K.hs.x0, K.hs.x1, 23.6, 32.1, 96, 2, () => K.QY + 0.005, 2.4), fbSheet(-K.hw, K.hw, 22, 23.6, 4, 1, () => K.QY + 0.005, 2.4));
+  // the quay's face of granite blocks and its coping; the lower sea walls outside the arms; the arms with a parapet on the sea side
+  B.block.push([K.hb.x0, K.slip.x0, -2.2, K.QY, 32.1, 32.6], [K.slip.x1, K.hb.x1, -2.2, K.QY, 32.1, 32.6], [K.hs.x0, -48, -0.8, K.QY, 32.1, 32.6], [34, K.hs.x1, -0.8, K.QY, 32.1, 32.6]);
+  K.arms.forEach(a => B.block.push([a[0], a[1], -2.2, K.QY, a[2], a[3]]));
+  const par = [[-48.6, -48, 32.6, 100.6], [-48.6, -10, 100, 100.6], [34, 34.6, 32.6, 100.6], [10, 34.6, 100, 100.6], [-10.6, -10, 96, 100], [10, 10.6, 96, 100]];
+  par.forEach(([x0, x1, z0, z1], i) => { B.block.push([x0, x1, i < 4 ? -2.2 : K.QY, K.QY + (i < 4 ? 1.0 : 0.5), z0, z1]); aabb(x0, x1, -3, K.QY + (i < 4 ? 1.0 : 0.5), z0, z1, {cam:false}); });
+  // edges you cannot climb from the mud: the quay (but for the slip), the arms' inner faces (but for the steps)
+  [[K.hb.x0, K.slip.x0, 32.55, 32.75], [K.slip.x1, K.hb.x1, 32.55, 32.75], [-44, -43.8, 32.6, K.steps.z0], [-44, -43.8, K.steps.z1, 96], [-44, -10, 95.8, 96], [29.8, 30, 32.6, 96], [10, 30, 95.8, 96]]
+    .forEach(([x0, x1, z0, z1]) => aabb(x0, x1, -3, K.QY - 0.12, z0, z1, {cam:false}));
+  { const S = K.slip; B.blockG.push(fbSheet(S.x0, S.x1, 32.1, S.z1, 3, 12, (x, z) => lerp(K.QY, S.y1, (z - 32.1) / (S.z1 - 32.1)) + 0.01, 4)); B.block.push([S.x0 - 0.4, S.x0, -2.2, -0.4, 34, S.z1], [S.x1, S.x1 + 0.4, -2.2, -0.4, 34, S.z1]); }
+  { const S = K.steps; for(let k = 1; k <= 12; k++) B.block.push([S.x0 + (k - 1) * 0.33, S.x0 + k * 0.33, -2.2, K.QY - k * 0.2, S.z0, S.z1]); }
+  // bollards along the quay, and the iron rings for the boats' ropes
+  for(let x = K.hb.x0 + 3; x < K.hb.x1; x += 9){ if(x > K.slip.x0 - 1 && x < K.slip.x1 + 1) continue; B.ironG.push(new THREE.CylinderGeometry(0.16, 0.2, 0.62, 12).translate(x, K.QY + 0.31, 32.25), new THREE.SphereGeometry(0.19, 12, 6, 0, TAU, 0, Math.PI / 2).translate(x, K.QY + 0.62, 32.25)); colliders.push({x, z:32.25, r:0.22}); }
+}
+// Lantern Row: eight houses a side (No. 1 at the top on the west), the corners at its foot are shops on Harbour Street
+function fbRow(B, q){
+  const K = FB;
+  for(let i = 0; i < 8; i++) [-1, 1].forEach(sd => {
+    const a0 = K.top + i * K.house, a1 = a0 + K.house, num = sd < 0 ? 2 * i + 1 : 2 * i + 2, no9 = num === 9;
+    const F = {face:sd < 0 ? '+x' : '-x', X:sd * K.hw, a0:a0 + 0.02, a1:a1 - 0.02, D:7, floor:fbRowY((a0 + a1) / 2) + 0.3, base:fbRowY(a1) - 0.8, st:2, mat:'brick', lit:0.55, doorAt:'a1', smoke:0.55};
+    if(no9){ F.door = 5; F.noFront = true; F.upper = [3, 1]; F.smoke = 1; }
+    const h = fbHouse(B, F, q); if(no9) fb.no9 = {F, h};
+  });
+  // the corner shops at the foot: the fishmonger (west) and Bright Suds with its two rooms above (east)
+  fbHouse(B, {face:'+z', X:K.foot, a0:-12, a1:-K.hw - 0.02, D:9.4, floor:K.QY + 0.15, base:K.QY - 1, st:2, mat:0xeef0ea, lit:0.4, shop:2, shopCell:11, doorAt:'a1'}, q);
+  fb.suds = fbHouse(B, {face:'+z', X:K.foot, a0:K.hw + 0.02, a1:12, D:9.4, floor:K.QY + 0.15, base:K.QY - 1, st:2, mat:'brick', lit:0.4, shop:0, shopCell:9, doorAt:'a0', upper:[8, 2], smoke:0}, q);
+}
+// Harbour Street: shops and colour-washed houses facing the harbour, a lane now and then
+function fbHarbourSt(B, q){
+  const K = FB, cols = [0xf2ead8, 0xe8e2d0, 0xd8e4ea, 0xf0d8d0, 0xdfe6d2, 0xf4e6b8, 0xe6dccb, 0xcfdcd8];
+  const shops = {east:[[1, 4], [3, 4], [5, 4]], west:[[4, 1]]};   // post office, Gannet Stores, the chandlery; the tearoom
+  [[12.4, K.hs.x1 - 2, 1, shops.east], [-12.4, K.hs.x0 + 2, -1, shops.west]].forEach(([s0, s1, sd, list]) => { let x = s0, k = 0;
+    while(sd > 0 ? x < s1 - 5 : x > s1 + 5){ const w = 6 + q() * 2.4, st = q() < 0.3 ? 3 : 2, hex = cols[Math.floor(q() * cols.length)], lane = q() < 0.18 && k > list.length;
+      if(lane){ x += sd * 2.2; k++; continue; }
+      const a0 = sd > 0 ? x : x - w, a1 = sd > 0 ? x + w : x, sh = list[k];
+      fbHouse(B, {face:'+z', X:K.foot, a0, a1, D:8, floor:K.QY + 0.15, base:K.QY - 1, st, mat:q() < 0.25 ? 'brick' : hex, lit:0.5, shop:sh ? sh[0] : null, shopCell:sh ? sh[1] : null, doorAt:sd > 0 ? 'a0' : 'a1'}, q);
+      if(sh && sh[0] === 3) fb.stores = {x:(a0 + a1) / 2, z:K.foot};
+      x += sd * (w + 0.04); k++; } });
+}
+// the square at the top: houses round it, the Pellows' garage on its east side (its door up, the bench lamp on)
+function fbSquare(B, q){
+  const K = FB, S = K.sq, G0 = K.garage;
+  for(let i = 0; i < 5; i++){ const a0 = -21 + i * 8.4; fbHouse(B, {face:'+z', X:S.z0, a0:a0 + 0.02, a1:a0 + 8.38, D:7, floor:K.RY + 0.2, base:K.RY - 1, st:i === 2 ? 3 : 2, mat:i % 2 ? 'brick' : 0xe8e2d4, lit:0.6, doorAt:i < 2 ? 'a1' : 'a0'}, q); }
+  [[S.z0 + 0.02, S.z0 + 9], [S.z0 + 9.02, K.top - 0.02]].forEach(([a0, a1]) => fbHouse(B, {face:'+x', X:S.x0, a0, a1, D:7, floor:K.RY + 0.2, base:K.RY - 1, st:2, mat:'brick', lit:0.6, doorAt:'a1'}, q));
+  fbHouse(B, {face:'-x', X:S.x1, a0:G0.z1 + 0.2, a1:K.top - 0.02, D:7, floor:K.RY + 0.2, base:K.RY - 1, st:2, mat:0xf0e6d0, lit:0.6, doorAt:'a0'}, q);
+  fbHouse(B, {face:'-x', X:S.x1, a0:S.z0 + 0.02, a1:G0.z0 - 0.2, D:7, floor:K.RY + 0.2, base:K.RY - 1, st:2, mat:'brick', lit:0.6, doorAt:'a1'}, q);
+  // the garage: three brick walls and a flat roof, the up-and-over door raised, a bench along the back wall under its lamp
+  const y = K.RY, x0 = G0.x0, x1 = G0.x1, z0 = G0.z0, z1 = G0.z1, h = 2.9;
+  B.brick.push([x0, x1, y - 1, y + h, z0, z0 + 0.25], [x0, x1, y - 1, y + h, z1 - 0.25, z1], [x1 - 0.25, x1, y - 1, y + h, z0, z1], [x0, x0 + 0.25, y + 2.2, y + h, z0 + 0.25, z1 - 0.25]);
+  B.dark.push([x0 - 0.1, x1 + 0.1, y + h, y + h + 0.18, z0 - 0.1, z1 + 0.1], [x0 + 0.05, x0 + 2.2, y + 2.15, y + 2.2, z0 + 0.3, z1 - 0.3]);   // the roof, and the door swung up on its arms
+  B.flag.push([x0 + 0.25, x1 - 0.25, y - 0.2, y + 0.02, z0 + 0.25, z1 - 0.25]);
+  B.wood.push([x1 - 1.0, x1 - 0.25, y + 0.85, y + 0.92, z0 + 0.6, z1 - 0.6], [x1 - 0.95, x1 - 0.85, y, y + 0.85, z0 + 0.7, z0 + 0.8], [x1 - 0.95, x1 - 0.85, y, y + 0.85, z1 - 0.8, z1 - 0.7], [x1 - 0.25, x1 - 0.22, y + 1.3, y + 1.32, z0 + 0.6, z1 - 0.6]);
+  B.trim.push([x1 - 0.85, x1 - 0.45, y + 0.92, y + 1.22, z0 + 2.4, z0 + 2.85], [x1 - 0.7, x1 - 0.68, y + 1.22, y + 1.24, z0 + 2.45, z0 + 2.8]);   // a beige computer box under a dust sheet's corner
+  B.iron.push([x1 - 0.55, x1 - 0.5, y + 0.92, y + 1.5, z1 - 1.6, z1 - 1.55], [x1 - 0.7, x1 - 0.5, y + 1.48, y + 1.52, z1 - 1.6, z1 - 1.55]); B.flame.push(new THREE.CylinderGeometry(0.06, 0.12, 0.12, 12, 1, true).translate(x1 - 0.72, y + 1.43, z1 - 1.57));
+  B.glows.push([x1 - 0.72, y + 1.35, z1 - 1.57, 2.4, 0xffd090, 0.6], [x1 - 0.8, y + 0.95, z1 - 1.8, 3.4, 0xffb060, 0.25]);
+  const sg = new THREE.PlaneGeometry(5.4, 0.62); fbRowUV(sg, 6); sg.rotateY(-Math.PI / 2); sg.translate(x0 - 0.03, y + 2.55, (z0 + z1) / 2); B.sign.push(sg);
+  aabb(x0, x1, y - 2, y + h, z0, z0 + 0.25); aabb(x0, x1, y - 2, y + h, z1 - 0.25, z1); aabb(x1 - 0.25, x1, y - 2, y + h, z0, z1); aabb(x1 - 1.0, x1 - 0.25, y - 2, y + 0.95, z0 + 0.6, z1 - 0.6, {full:true, cam:false});
+  fb.garage = {x:x1 - 1.3, z:(z0 + z1) / 2, y};
+}
+// terraces stepping up the hill either side of the Row, facing the harbour over Harbour Street's roofs
+function fbTerraces(B, q){
+  const K = FB;
+  [[3.6, 16, 58, 5.2], [-20, 18, 50, 5.4]].forEach(([X, s0, s1, w]) => [-1, 1].forEach(sd => {
+    for(let a = s0; a + w <= s1 + 0.1; a += w + 0.04){ const a0 = sd > 0 ? a : -a - w, a1 = a0 + w, fl = hf((a0 + a1) / 2, X + 0.5) + 0.25;
+      fbHouse(B, {face:'+z', X, a0, a1, D:7, floor:fl, base:Math.min(hf(a0, X + 0.6), hf(a1, X + 0.6)) - 0.8, st:2, mat:q() < 0.5 ? 'brick' : [0xf2ead8, 0xe8e2d0, 0xd8e4ea, 0xf0d8d0][Math.floor(q() * 4)], lit:0.5, doorAt:q() < 0.5 ? 'a0' : 'a1'}, q);
+      const gr = hf((a0 + a1) / 2, X + 0.65); B.flag.push([a0 - 0.02, a1 + 0.02, gr - 0.4, gr + 0.06, X, X + 1.3]); } }));
+}
+// lanterns on iron brackets down both sides of the Row, lamp posts along the quay and up the pier (no lights: emissive glass and glows)
+function fbLamps(B){
+  const K = FB, lantern = (x, y, z) => { B.flame.push(new THREE.BoxGeometry(0.17, 0.26, 0.17).translate(x, y, z)); B.ironG.push(new THREE.BoxGeometry(0.24, 0.05, 0.24).translate(x, y + 0.16, z), new THREE.ConeGeometry(0.14, 0.14, 4).rotateY(Math.PI / 4).translate(x, y + 0.25, z), new THREE.BoxGeometry(0.2, 0.04, 0.2).translate(x, y - 0.15, z));
+    B.glows.push([x, y, z, 2.2, 0xffc078, 0.55], [x, y - 0.4, z, 4.4, 0xffa050, 0.12]); };
+  for(let z = K.top + 3, k = 0; z < K.foot - 2; z += 6.5, k++){ const sd = k % 2 ? 1 : -1, xw = sd * K.hw, y = fbRowY(z) + 3.15; B.iron.push([Math.min(xw, xw - sd * 0.48), Math.max(xw, xw - sd * 0.48), y + 0.38, y + 0.42, z - 0.02, z + 0.02]); lantern(xw - sd * 0.42, y, z); }
+  const post = (x, z, y0, h) => { B.ironG.push(new THREE.CylinderGeometry(0.055, 0.09, h, 10).translate(x, y0 + h / 2, z), new THREE.CylinderGeometry(0.13, 0.15, 0.4, 10).translate(x, y0 + 0.2, z)); lantern(x, y0 + h + 0.14, z); colliders.push({x, z, r:0.16}); };
+  for(let x = -88; x <= 88; x += 14){ if(Math.abs(x - (K.slip.x0 + K.slip.x1) / 2) < 5 || (x > K.pier.x0 - 3 && x < K.pier.x1 + 3)) continue; post(x, 31.2, K.QY, 3.4); }
+  for(let z = K.pier.z0 + 6, k = 0; z < K.pier.z1; z += 12, k++) post(k % 2 ? K.pier.x1 - 0.25 : K.pier.x0 + 0.25, z, K.pier.y, 3.0);
+  post(-5.5, -36, K.RY, 3.4); post(5.5, -36, K.RY, 3.4);
+}
+// the pier on its piles, its rails and lamps, and the Saltbox Arcade at its head (walk in: the cabinets are fbArcade's)
+function fbPier(B){
+  const K = FB, P = K.pier, H = K.head, A = K.arcade, y = P.y, deckM = fbKit().deck;
+  mk(boxGeo([[P.x0, P.x1, y - 0.16, y, P.z0, P.z1], [H.x0, H.x1, y - 0.16, y, H.z0, H.z1]], 3), deckM, 0, 0, 0);
+  for(let k = 1; k <= 10; k++) B.block.push([P.x0, P.x1, K.QY - 0.3, K.QY + k * 0.16, P.s0 + (k - 1) * 0.4, P.s0 + k * 0.4]);
+  const piles = []; for(let z = P.z0 + 2; z < P.z1; z += 4) [P.x0 + 0.25, P.x1 - 0.25].forEach(x => { const b = hf(x, z) - 0.5; piles.push(mat4(x, (b + y) / 2, z, 0, 0, 0, 1, y - b, 1)); });
+  for(let x = H.x0 + 1; x < H.x1; x += 4.5) for(let z = H.z0 + 1; z < H.z1; z += 4.5){ const b = hf(x, z) - 0.5; piles.push(mat4(x, (b + y) / 2, z, 0, 0, 0, 1, y - b, 1)); }
+  instanced(new THREE.CylinderGeometry(0.16, 0.2, 1, 8), fbKit().wood, piles, null, true);
+  // rails: a top rail and a mid rail on posts; the boxes reach down into the mud, so nobody climbs up from below
+  const run = (x0, z0, x1, z1, yb) => { const L = Math.hypot(x1 - x0, z1 - z0), a = Math.atan2(x1 - x0, z1 - z0), cx = (x0 + x1) / 2, cz = (z0 + z1) / 2;
+    [0.98, 0.5].forEach(hh => B.ironG.push(new THREE.BoxGeometry(0.06, 0.06, L).rotateY(a).translate(cx, yb + hh, cz)));
+    for(let t = 0; t <= L + 0.01; t += 2) B.ironG.push(new THREE.BoxGeometry(0.07, 1.0, 0.07).translate(x0 + (x1 - x0) * t / L, yb + 0.5, z0 + (z1 - z0) * t / L));
+    addBox(cx, cz, 0.08, L / 2, -12, yb + 1.0, {a:-a, cam:false}); };
+  run(P.x0, P.z0, P.x0, H.z0, y); run(P.x1, P.z0, P.x1, H.z0, y);
+  [[P.x0, P.s0, P.x0, P.z0], [P.x1, P.s0, P.x1, P.z0]].forEach(([x0, z0, x1, z1]) => { aabb(x0 - 0.08, x0 + 0.08, -12, y + 1.0, z0, z1, {cam:false}); B.ironG.push(new THREE.BoxGeometry(0.06, 0.06, z1 - z0).translate(x0, (K.QY + y) / 2 + 1.0, (z0 + z1) / 2)); });
+  run(H.x0, H.z0, P.x0, H.z0, y); run(P.x1, H.z0, H.x1, H.z0, y); run(H.x0, H.z0, H.x0, H.z1, y); run(H.x1, H.z0, H.x1, H.z1, y); run(H.x0, H.z1, H.x1, H.z1, y);
+  // the Saltbox Arcade: cream boards, a red-trimmed false front with its name in bulbs, the door wide open towards the town
+  const cream = 0xeae0c6, wl = B.render[cream] || (B.render[cream] = []), h = 5.2;
+  wl.push([A.x0, A.d0, y, y + h, A.z0, A.z0 + 0.25], [A.d1, A.x1, y, y + h, A.z0, A.z0 + 0.25], [A.d0, A.d1, y + 3.0, y + h, A.z0, A.z0 + 0.25], [A.x0, A.x1, y, y + h, A.z1 - 0.25, A.z1], [A.x0, A.x0 + 0.25, y, y + h, A.z0, A.z1], [A.x1 - 0.25, A.x1, y, y + h, A.z0, A.z1],
+    [A.x0 - 0.4, A.x1 + 0.4, y + h, y + h + 2.4, A.z0 - 0.2, A.z0 + 0.25]);
+  B.dark.push([A.x0 - 0.2, A.x1 + 0.2, y + h, y + h + 0.25, A.z0, A.z1 + 0.2]);
+  B.trim.push([A.x0 - 0.5, A.x1 + 0.5, y + h + 2.4, y + h + 2.6, A.z0 - 0.3, A.z0 + 0.3], [A.d0 - 0.15, A.d0, y, y + 3.0, A.z0 - 0.08, A.z0 + 0.3], [A.d1, A.d1 + 0.15, y, y + 3.0, A.z0 - 0.08, A.z0 + 0.3]);
+  { const pt = std(0x9a1a1a, {roughness:0.5}); mk(boxGeo([[A.x0 - 0.45, A.x1 + 0.45, y + h - 0.1, y + h + 0.05, A.z0 - 0.26, A.z0 - 0.18], [A.x0 - 0.45, A.x1 + 0.45, y + h + 2.25, y + h + 2.4, A.z0 - 0.26, A.z0 - 0.18]], 2), pt, 0, 0, 0).castShadow = false; }
+  { const g = new THREE.PlaneGeometry(A.x1 - A.x0 - 1, 1.5); fbRowUV(g, 7); g.rotateY(Math.PI); g.translate((A.x0 + A.x1) / 2, y + h + 1.2, A.z0 - 0.22); mk(g, std(0xffffff, {map:fbTex().signs, emissive:C(0xffffff), emissiveMap:fbTex().signs, emissiveIntensity:0.9, roughness:0.5}), 0, 0, 0).castShadow = false; }
+  for(let i = 0; i <= 26; i++){ const t = i / 26, x = lerp(A.x0 - 0.2, A.x1 + 0.2, t); [y + h + 0.2, y + h + 2.15].forEach(yy => B.glows.push([x, yy, A.z0 - 0.3, 0.5, 0xffd060, 0.8])); }
+  [y + h + 0.6, y + h + 1.2, y + h + 1.8].forEach(yy => B.glows.push([A.x0 - 0.2, yy, A.z0 - 0.3, 0.5, 0xffd060, 0.8], [A.x1 + 0.2, yy, A.z0 - 0.3, 0.5, 0xffd060, 0.8]));
+  // inside: dark floorboards, a deep red ceiling with warm strip lights (emissive, no lights), the glow of the screens
+  B.dark.push([A.x0 + 0.25, A.x1 - 0.25, y + h - 0.12, y + h, A.z0 + 0.25, A.z1 - 0.25]);
+  for(let z = A.z0 + 2; z < A.z1 - 1; z += 3.4) B.flame.push(new THREE.BoxGeometry(A.x1 - A.x0 - 3, 0.05, 0.12).translate((A.x0 + A.x1) / 2, y + h - 0.15, z));
+  for(let z = A.z0 + 2; z < A.z1 - 1; z += 3.4) B.glows.push([(A.x0 + A.x1) / 2, y + h - 0.6, z, 7, 0xffc890, 0.12]);
+  [[A.x0, A.d0, A.z0, A.z0 + 0.25], [A.d1, A.x1, A.z0, A.z0 + 0.25], [A.x0, A.x1, A.z1 - 0.25, A.z1], [A.x0, A.x0 + 0.25, A.z0, A.z1], [A.x1 - 0.25, A.x1, A.z0, A.z1]].forEach(([x0, x1, z0, z1]) => aabb(x0, x1, -12, y + h, z0, z1));
+}
+// the cabinets: Comet Rally and Starling on their attract screens (drawRally / drawStarling with no game), four more of Hub's own invented games
+const FB_CABS = [{x:49.5, z:119.1, ry:Math.PI, game:'rally'}, {x:54.5, z:119.1, ry:Math.PI, game:'starling'},
+  {x:44.9, z:109.5, ry:Math.PI / 2, game:0}, {x:44.9, z:112.5, ry:Math.PI / 2, game:1}, {x:44.9, z:115.5, ry:Math.PI / 2, game:2},
+  {x:59.1, z:109.5, ry:-Math.PI / 2, game:3}, {x:59.1, z:112.5, ry:-Math.PI / 2, game:1}, {x:59.1, z:115.5, ry:-Math.PI / 2, game:0}];
+const FB_GAMES = [['TIDE RUNNER', '#0a2a3a', '#7fe8ff'], ['GULL PATROL', '#2a1a0a', '#ffd860'], ['CRAB CLAW', '#2a0a14', '#ff7a8a'], ['LAMPLIGHTER', '#0a0a1e', '#ffc878']];
+function fbArcade(){
+  const K = FB, y = K.pier.y, A = K.arcade, body = std(0x1a1a22, {roughness:0.55, metalness:0.2}), side = std(0x8a1a2a, {map:detailTex, roughness:0.6}), bez = std(0x0a0a0c, {roughness:0.4});
+  const gen = canvasTex(1024, 512, (x, w, h) => { FB_GAMES.forEach(([t, bg, fg], i) => { const X = (i % 2) * 512, Y = Math.floor(i / 2) * 256, q = rng(9301 + i); x.fillStyle = bg; x.fillRect(X, Y, 512, 256);
+    for(let k = 0; k < 60; k++){ x.fillStyle = fg; x.globalAlpha = 0.2 + q() * 0.5; x.fillRect(X + q() * 512, Y + q() * 256, 3, 3); } x.globalAlpha = 1;
+    x.fillStyle = fg; x.font = '700 50px "Chakra Petch","Trebuchet MS",sans-serif'; x.textAlign = 'center'; x.fillText(t, X + 256, Y + 110); x.font = '600 22px "Chakra Petch","Trebuchet MS",sans-serif'; x.fillText('INSERT COIN', X + 256, Y + 190); }); });
+  SHARED_TEX.add(gen);
+  const parts = {body:[], side:[], bez:[]}; fb.cabs = [];
+  FB_CABS.forEach((c, i) => { const g = new THREE.Group(); g.position.set(c.x, y, c.z); g.rotation.y = c.ry; world.add(g);
+    mk(new THREE.BoxGeometry(0.8, 1.0, 0.75), body, 0, 0.5, 0, g); mk(new THREE.BoxGeometry(0.8, 0.95, 0.5), body, 0, 1.47, -0.12, g); [-0.42, 0.42].forEach(sx => mk(new THREE.BoxGeometry(0.04, 1.95, 0.8), side, sx, 0.975, -0.02, g));
+    const cp = mk(new THREE.BoxGeometry(0.8, 0.1, 0.36), bez, 0, 1.02, 0.42, g); cp.rotation.x = 0.25;
+    const mq = mk(new THREE.BoxGeometry(0.8, 0.3, 0.42), glowM([0xffd860, 0x7fe8ff, 0xff7a8a, 0xffc878][i % 4], 1.6), 0, 2.08, -0.1, g); mq.castShadow = false;
+    let tex, uv = null;
+    if(c.game === 'rally' || c.game === 'starling'){ const cv = document.createElement('canvas'); cv.width = 512; cv.height = 384; (c.game === 'rally' ? drawRally : drawStarling)(cv, null, 0);
+      tex = new THREE.CanvasTexture(cv); tex.encoding = THREE.sRGBEncoding; tex.anisotropy = 4; c.cv = cv; c.tex = tex; }
+    else { tex = gen; uv = c.game; }
+    const sg = new THREE.PlaneGeometry(0.62, 0.48); if(uv != null){ const a = sg.attributes.uv, X = (uv % 2) / 2, Y = Math.floor(uv / 2); for(let k = 0; k < a.count; k++) a.setXY(k, X + a.getX(k) / 2, (1 - Y - 1 + a.getY(k)) / 2); }
+    const sc = new THREE.Mesh(sg, new THREE.MeshBasicMaterial({map:tex, toneMapped:false})); sc.position.set(0, 1.48, 0.2); sc.rotation.x = -0.22; g.add(sc);
+    const w = new V3(0, 1.48, 0.6).applyAxisAngle(new V3(0, 1, 0), c.ry).add(g.position); fb.cabs.push({game:c.game, x:w.x, z:w.z, cv:c.cv, tex:c.tex, g});
+    glow(c.game === 'rally' ? 0x7f9fff : c.game === 'starling' ? 0xff9a5a : 0x9ad8ff, 1.6, w.x, y + 1.5, w.z, world, 0.3);
+    const wc = new V3(0, 0, 0).applyAxisAngle(new V3(0, 1, 0), c.ry).add(g.position); colliders.push({x:wc.x, z:wc.z, r:0.55}); });
+}
+// a fishing boat lying on the mud: the hull a box pulled into a V and a rising bow at +z, a wheelhouse aft, a short mast
+let fbBoatCache = null;
+function fbBoatGeos(){
+  if(fbBoatCache) return fbBoatCache;
+  const h = new THREE.BoxGeometry(2.4, 1.1, 7, 6, 4, 16), a = h.attributes.position;
+  for(let i = 0; i < a.count; i++){ const x = a.getX(i), y = a.getY(i), z = a.getZ(i), t = z / 3.5, taper = t > 0 ? 1 - 0.96 * Math.pow(t, 1.7) : 1 - 0.2 * t * t, v = 0.3 + 0.7 * Math.pow(clamp((y + 0.55) / 1.1, 0, 1), 0.7);
+    a.setXYZ(i, x * taper * v, y + 0.55 + (t > 0 ? 0.32 * t * t : 0.08 * t * t), z); }
+  h.computeVertexNormals();
+  const white = merge([new THREE.BoxGeometry(1.5, 1.35, 1.7).translate(0, 1.75, -1.6), new THREE.BoxGeometry(1.7, 0.1, 1.9).translate(0, 2.45, -1.6), new THREE.BoxGeometry(2.0, 0.12, 6.2).translate(0, 1.08, -0.2).scale(1, 1, 1)]);
+  const wood = merge([new THREE.CylinderGeometry(0.06, 0.08, 3.4, 8).translate(0, 2.7, 1.2), new THREE.BoxGeometry(1.8, 0.06, 4.6).translate(0, 1.02, 0.4), new THREE.BoxGeometry(1.4, 0.06, 0.12).translate(0, 3.6, 1.2)]);
+  const glass = new THREE.BoxGeometry(1.52, 0.4, 1.72).translate(0, 2.05, -1.6);
+  return (fbBoatCache = {hull:shareGeo(h), white:shareGeo(white), wood:shareGeo(wood), glass:shareGeo(glass)});
+}
+const FB_BOATS = [[-28, 42, 0.2, 1], [-17, 47, 2.9, 1], [-31, 77, 1.1, 0.9], [-15, 89, -0.3, 1], [12, 44, 2.2, 1.05], [22, 56, 0.5, 0.95], [6, 61, 3.0, 1], [21, 79, 2.5, 0.9], [-21, 57, 1.6, 0.85],
+  [-36, 59, 1.0, 0.5], [-28, 50, 2.2, 0.5], [25, 40, 0.3, 0.5], [64, 66, 0.9, 1], [82, 52, 2.4, 0.95], [-66, 58, -0.6, 1], [-88, 72, 2.0, 0.9], [112, 82, 1.3, 1], [-60, 46, 2.6, 0.5]];
+function fbBoats(list, q){
+  const Bg = fbBoatGeos(), K = fbKit(), hulls = [], cols = [], others = [], paint = [0x2c4a7a, 0x8a2a24, 0x2f5a3a, 0xd8d0b8, 0x1e2e44, 0xb85a2a, 0x3a6a8a];
+  list.forEach(([x, z, yaw, s], i) => { const roll = (i % 2 ? 1 : -1) * (0.16 + q() * 0.1), pitch = (q() - 0.5) * 0.08, y = hf(x, z) - 0.12 * s, M = mat4(x, y, z, pitch, yaw, roll, s);
+    hulls.push(M); others.push(M); const c = C(paint[Math.floor(q() * paint.length)]); c.multiplyScalar(0.85 + q() * 0.25); cols.push(c);
+    const dx = Math.sin(yaw), dz = Math.cos(yaw); [-1.6, 1.6].forEach(o => colliders.push({x:x + dx * o * s, z:z + dz * o * s, r:1.25 * s})); });
+  instanced(Bg.hull, K.boatHull, hulls, cols, true); instanced(Bg.white, K.trim, others, null, true); instanced(Bg.wood, K.wood, others, null, true); instanced(Bg.glass, K.glass2, others, null, false);
+}
+// the lighthouse on the Ness across the bay: white with a red band (as in the Archive's picture of the town), its lamp turning; the keeper's cottage
+function fbLighthouse(B, q){
+  const L = FB.light, y0 = hf(L.x, L.z) - 0.3, tex = canvasTex(256, 512, (x, w, h) => { const r = rng(9401); x.fillStyle = '#f0ede6'; x.fillRect(0, 0, w, h); x.fillStyle = '#b8343a'; x.fillRect(0, h * 0.22, w, h * 0.16);
+    for(let i = 0; i < 1400; i++){ x.fillStyle = 'rgba(70,60,55,' + (r() * 0.06).toFixed(3) + ')'; x.fillRect(r() * w, r() * h, 2, 3 + r() * 7); } x.fillStyle = '#2a3036'; x.fillRect(w * 0.46, h * 0.9, w * 0.08, h * 0.1); });
+  SHARED_TEX.add(tex);
+  const body = new THREE.CylinderGeometry(L.r * 0.7, L.r, L.h, 32, 1, true); body.translate(0, L.h / 2, 0); mk(body, std(0xffffff, {map:tex, roughness:0.6}), L.x, y0, L.z);
+  const top = y0 + L.h, rr = L.r * 0.7, iron = fbKit().iron;
+  mk(new THREE.CylinderGeometry(rr + 0.6, rr + 0.6, 0.2, 32), fbKit().trim, L.x, top + 0.1, L.z);
+  mk(new THREE.TorusGeometry(rr + 0.55, 0.04, 6, 40).rotateX(Math.PI / 2), iron, L.x, top + 1.0, L.z).castShadow = false;
+  mk(new THREE.CylinderGeometry(rr * 0.75, rr * 0.75, 1.5, 24), glowM(0xffe8b0, 1.8), L.x, top + 0.95, L.z).castShadow = false;
+  mk(new THREE.ConeGeometry(rr * 0.9, 0.9, 24), std(0x2a2e34, {roughness:0.5, metalness:0.4}), L.x, top + 2.15, L.z);
+  glow(0xffe0a0, 7, L.x, top + 1.0, L.z, world, 0.6);
+  fb.flash = glow(0xfff0c8, 14, L.x, top + 1.0, L.z, world, 0.4); fb.flash.userData.base = new V3(L.x, top + 1.0, L.z); fb.skip.push(fb.flash);
+  colliders.push({x:L.x, z:L.z, r:L.r + 0.2});
+  fbHouse(B, {face:'+z', X:L.z - 5, a0:L.x - 12, a1:L.x - 4, D:5.5, floor:hf(L.x - 8, L.z - 7) + 0.2, st:1, mat:0xeeeae2, lit:1, doorAt:'a1', smoke:1}, q);
+}
+// the night ferry, out on the bay with its lights on, crossing and crossing back for ever (fbUpdate moves it)
+function fbFerry(){
+  const g = new THREE.Group(), Bg = fbBoatGeos(), navy = std(0x1a2a40, {roughness:0.5}), white = std(0xe8e6e0, {roughness:0.6});
+  const hull = new THREE.Mesh(Bg.hull, navy); hull.scale.set(2.6, 1.6, 3.4); g.add(hull);
+  [[0, 3.0, -2, 5.2, 1.6, 12], [0, 4.4, -3, 4.2, 1.2, 7]].forEach(([x, y, z, w, h, d]) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), white); m.position.set(x, y, z); g.add(m); });
+  const win = glowM(0xffd8a0, 1.6); [-1, 1].forEach(sd => { const m = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.35, 10.5), win); m.position.set(sd * 2.62, 3.1, -2); g.add(m); const m2 = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.3, 6), win); m2.position.set(sd * 2.12, 4.5, -3); g.add(m2); });
+  const fun = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.7, 2.2, 16), std(0x9a2a24, {roughness:0.5})); fun.position.set(0, 6.0, -4.5); g.add(fun);
+  [[0, 7.5, 3, 0xfff4e0, 2.4], [-2.7, 3.9, 4, 0xff4a3a, 1.6], [2.7, 3.9, 4, 0x4aff7a, 1.6], [0, 4.0, -11, 0xfff4e0, 1.6]].forEach(([x, yy, z, hex, s]) => glow(hex, s, x, yy, z, g, 0.85));
+  glow(0xffd8a0, 9, 0, 3.4, -2, g, 0.25);
+  g.traverse(o => { if(o.isMesh){ o.castShadow = false; o.userData.noAO = true; } });
+  g.position.set(FB.ferry.x0, FB.sea - 0.6, FB.ferry.z); world.add(g); fb.ferry = g; fb.skip.push(g);
+}
+// No. 9: the bay window with the lantern on its sill, the curtain lit behind it, the number by the door, the jar of milk money on the step
+function fbNo9(B){
+  const K = FB, N = fb.no9, F = N.F, fl = F.floor, X = K.hw * -1, zw = F.a0 + (F.a1 - F.a0) * 0.36, zd = F.a1 - 0.85, bo = 0.45, z0 = zw - 1.0, z1 = zw + 1.0, sill = fl + 0.85, top = fl + 2.3;
+  B.brick.push([X, X + bo, F.base, sill, z0, z1]); B.dark.push([X - 0.02, X + bo + 0.06, top, top + 0.14, z0 - 0.06, z1 + 0.06]);
+  B.trim.push([X, X + bo + 0.03, sill - 0.04, sill + 0.03, z0, z1], [X + bo - 0.04, X + bo + 0.02, sill, top, z0, z0 + 0.06], [X + bo - 0.04, X + bo + 0.02, sill, top, z1 - 0.06, z1], [X + bo - 0.04, X + bo + 0.02, sill, top, zw - 0.03, zw + 0.03],
+    [X + bo - 0.04, X + bo + 0.02, fl + 1.85, fl + 1.9, z0, z1], [X, X + bo, sill, top, z0, z0 + 0.05], [X, X + bo, sill, top, z1 - 0.05, z1], [X + 0.02, X + 0.4, sill - 0.01, sill + 0.03, z0 + 0.1, z1 - 0.1]);
+  const room = new THREE.PlaneGeometry(1.9, 1.42); fbCellUV(room, 0); room.rotateY(Math.PI / 2); room.translate(X + 0.012, (sill + top) / 2, zw); B.lit.push(room);
+  const glassM = std(0xdfeef0, {roughness:0.04, metalness:0.1, transparent:true, opacity:0.18, depthWrite:false});
+  const gl = merge([new THREE.PlaneGeometry(1.94, top - sill).rotateY(Math.PI / 2).translate(X + bo - 0.01, (sill + top) / 2, zw), new THREE.PlaneGeometry(bo, top - sill).translate(X + bo / 2, (sill + top) / 2, z1 - 0.02), new THREE.PlaneGeometry(bo, top - sill).rotateY(Math.PI).translate(X + bo / 2, (sill + top) / 2, z0 + 0.02)]);
+  const gm = mk(gl, glassM, 0, 0, 0); gm.renderOrder = 2; gm.castShadow = false; gm.userData.noAO = true;
+  aabb(X, X + bo + 0.05, F.base - 2, top + 0.2, z0, z1);
+  // the lantern, the same one the Archive keeps: an iron base, four posts, the flame, a cap and its ring
+  const lx = X + 0.22, lz = zw + 0.35; B.ironG.push(new THREE.CylinderGeometry(0.075, 0.085, 0.03, 20).translate(lx, sill + 0.045, lz), new THREE.CylinderGeometry(0.02, 0.07, 0.05, 20).translate(lx, sill + 0.265, lz), new THREE.TorusGeometry(0.06, 0.006, 6, 24, Math.PI).rotateY(0.3).translate(lx, sill + 0.29, lz));
+  [0, 1, 2, 3].forEach(k => B.ironG.push(new THREE.CylinderGeometry(0.004, 0.004, 0.19, 5).translate(lx + Math.cos(k * TAU / 4 + 0.7) * 0.07, sill + 0.15, lz + Math.sin(k * TAU / 4 + 0.7) * 0.07)));
+  B.flame.push(new THREE.CylinderGeometry(0.05, 0.058, 0.18, 20).translate(lx, sill + 0.15, lz)); B.glows.push([lx, sill + 0.16, lz, 0.9, 0xffc070, 0.75], [lx + 0.3, sill + 0.3, lz, 3.2, 0xffa050, 0.2]);
+  fb.lantern = {x:lx, y:sill + 0.16, z:lz};
+  // the number by the door, and the step with the jar of milk money: a few coins and a folded note (it is not yours to take)
+  { const g = new THREE.PlaneGeometry(0.24, 0.24); g.rotateY(Math.PI / 2); g.translate(X + 0.012, fl + 1.75, zd - 0.78); mk(g, std(0xffffff, {map:ARCH_TEX.houseNo(), roughness:0.6}), 0, 0, 0).castShadow = false; }
+  const jx = X + 0.24, jz = zd + 0.38, jy = fl; const jar = mk(new THREE.CylinderGeometry(0.075, 0.075, 0.17, 24), std(0xdfeef0, {roughness:0.05, transparent:true, opacity:0.35, depthWrite:false}), jx, jy + 0.085, jz); jar.renderOrder = 2; jar.castShadow = false;
+  mk(new THREE.CylinderGeometry(0.066, 0.066, 0.05, 20), std(0xffc94d, {metalness:1, roughness:0.3}), jx, jy + 0.03, jz).castShadow = false; mk(new THREE.CylinderGeometry(0.079, 0.079, 0.02, 24), fbKit().iron, jx, jy + 0.18, jz);
+  { const nt = new THREE.Mesh(new THREE.PlaneGeometry(0.15, 0.1), std(0xefe6d0, {roughness:0.9, side:THREE.DoubleSide})); nt.rotation.set(-Math.PI / 2, 0, 0.3); nt.position.set(jx + 0.03, jy + 0.004, jz - 0.13); world.add(nt); }
+  fb.jar = {x:jx, y:jy, z:jz};
+}
+// the moor above the town: dry-stone walls on a field grid with gateways, stone cottages, rocks; the walls and cottages are pure functions of where they are,
+// so the core and the outskirts build the same ones
+const fbWallH = (i, j, k) => { let n = (i * 73856093) ^ (j * 19349663) ^ (k * 83492791) ^ 0x51f7; n = Math.imul(n ^ (n >>> 13), 0x5bd1e995); return ((n ^ (n >>> 15)) >>> 0) / 4294967296; };
+function fbTownRect(x, z, m){ return x > -102 - m && x < 102 + m && z > -62 - m && z < 40 + m; }
+function fbWalls(B, x0, z0, x1, z1, core){
+  const L = 6, ok = (x, z) => (Math.hypot(x, z) < FB.out) === !!core && hf(x, z) > 2.4 && !fbTownRect(x, z, 4) && slopeAt(x, z) < 0.55 && Math.hypot(x - FB.light.x, z - FB.light.z) > 26;
+  for(let i = Math.ceil((x0 - 13) / 84); i * 84 + 13 < x1; i++){ const x = i * 84 + 13; for(let k = Math.floor(z0 / L); k * L < z1; k++){ const a = k * L, b = a + L; if(a < z0 - 1e-6 || fbWallH(i, 0, k) < 0.06) continue;
+      if(!ok(x, a + L / 2)) continue; const g = Math.min(hf(x, a), hf(x, b), hf(x, a + L / 2)); B.block.push([x - 0.32, x + 0.32, g - 0.5, g + 0.9 + fbWallH(i, 1, k) * 0.25, a, b]); aabb(x - 0.32, x + 0.32, g - 2, g + 1.0, a, b, {cam:false}); } }
+  for(let j = Math.ceil((z0 + 7) / 66); j * 66 - 7 < z1; j++){ const z = j * 66 - 7; for(let k = Math.floor(x0 / L); k * L < x1; k++){ const a = k * L, b = a + L; if(a < x0 - 1e-6 || fbWallH(j, 2, k) < 0.06) continue;
+      if(!ok(a + L / 2, z)) continue; const g = Math.min(hf(a, z), hf(b, z), hf(a + L / 2, z)); B.block.push([a, b, g - 0.5, g + 0.9 + fbWallH(j, 3, k) * 0.25, z - 0.32, z + 0.32]); aabb(a, b, g - 2, g + 1.0, z - 0.32, z + 0.32, {cam:false}); } }
+}
+const fbOffWalls = (x, z, m) => { const u = ((x - 13) % 84 + 84) % 84, v = ((z + 7) % 66 + 66) % 66; return Math.min(u, 84 - u) > m && Math.min(v, 66 - v) > m; };
+// a stone cottage on the moor facing the sea: one or two storeys, lit windows, smoke from the chimney
+function fbCottage(B, x, z, q){ const w = 7 + q() * 2, fl = Math.max(hf(x - w / 2, z), hf(x + w / 2, z), hf(x, z - 3)) + 0.2;
+  fbHouse(B, {face:'+z', X:z + 3, a0:x - w / 2, a1:x + w / 2, D:6, floor:fl, base:Math.min(hf(x - w / 2, z + 3), hf(x + w / 2, z + 3), hf(x, z - 3)) - 0.8, st:q() < 0.5 ? 1 : 2, mat:q() < 0.5 ? 0xeeeae2 : 'brick', lit:0.75, doorAt:q() < 0.5 ? 'a0' : 'a1', smoke:0.8}, q); }
+function fbMoor(B, q){
+  fbWalls(B, -FB.out, -FB.out, FB.out, FB.out, true);
+  // cottages: a few on the hill above the town and along the Ness
+  for(let t = 0, n = 0; t < 400 && n < 9; t++){ const a = q() * TAU, d = 90 + q() * 230, x = Math.cos(a) * d, z = Math.sin(a) * d - 40, h = hf(x, z);
+    if(h < 5 || h > 34 || slopeAt(x, z) > 0.28 || fbTownRect(x, z, 14) || !fbOffWalls(x, z, 8) || Math.hypot(x - FB.light.x, z - FB.light.z) < 40) continue; fbCottage(B, x, z, q); n++; }
+  const rocks = []; for(let t = 0; t < 300 && rocks.length < 70; t++){ const a = q() * TAU, d = 70 + q() * 260, x = Math.cos(a) * d, z = Math.sin(a) * d, h = hf(x, z), s = 0.5 + q() * 1.6;
+    if(h < 2.5 || fbTownRect(x, z, 6) || !fbOffWalls(x, z, 2)) continue; if(boxes.some(b => boxOut(x, z, b, s))) continue; rocks.push({x, y:h - s * 0.3, z, s, sy:0.6 + q() * 0.4, ry:q() * TAU}); colliders.push({x, z, r:s * 0.7}); }
+  placeRocks(rocks, 0x8a847a, {surf:'rock', seed:9161});
+  const built = (x, z) => { const ax = Math.abs(x); return (ax < 11.2 && z > -48 && z < 33) || (z > 13.4 && z < 33) || (z > -48 && z < -21.5 && ax < 21.6) || (z > -3.8 && z < 5.2 && ax > 15.6 && ax < 58.6) || (z > -27.6 && z < -18.4 && ax > 17.6 && ax < 50.6); };
+  makeGrass(Math.round(30000 * Q), 4, 150, [0x5a7a3a, 0x6a8a44, 0x7a8a4a, 0x6a6a3a], [0.22, 0.48], (x, z) => hf(x, z) < 2.0 || slopeAt(x, z) > 0.62 || built(x, z) || !fbOffWalls(x, z, 0.6));
+  addClutter(rng(9171), {weeds:320, weedHexes:[0x6a5a4a, 0x7a6a3a, 0x5a6a3a, 0x8a6a5a], rMin:20, rMax:160, skip:(x, z) => hf(x, z) < 2.2 || built(x, z) || slopeAt(x, z) > 0.6});
+}
+// the ground: estuary mud (darker and glossy where it is wet, near low water), shingle, rock on the steep bits, grass and moor above the shore
+const FB_TERRAIN = {layers:[{surf:'mud', rep:5}, {surf:'gravel', rep:3}, {surf:'rock', rep:6}, {surf:'grass', rep:4}], rules:{patch:[0.74, 0.9], slope:[0.5, 0.82], height:[3.0, 4.8]}};
+const fbColor = n => (x, y, z) => { const v = n.fbm(x * 0.05, z * 0.05, 3) * 0.5 + 0.5, v2 = n.fbm(x * 0.21 + 3, z * 0.21, 2) * 0.5 + 0.5, mud = 1 - smooth(-0.2, 0.9, y), moor = smooth(12, 30, y) * (0.6 + 0.4 * v2);
+  const k = (0.88 + 0.16 * v) * (1 - 0.1 * mud);
+  return [k * (1 - 0.12 * mud) * (1 + 0.08 * moor), k * (1 - 0.1 * mud) * (1 - 0.14 * moor), k * (1 - 0.02 * mud) * (1 - 0.08 * moor)]; };
+const FB_MUD_GLSL = '{ float wet = 1.0 - smoothstep(-0.95, 0.45, vTWorld.y); diffuseColor.rgb *= 1.0 - 0.3 * wet; }\n';
+function fbMudMaterial(mat){
+  const prev = mat.onBeforeCompile;
+  mat.onBeforeCompile = sh => { prev(sh); sh.fragmentShader = sh.fragmentShader.replace(/float roughnessFactor = roughness[^;]*;/, m => FB_MUD_GLSL + m + ' roughnessFactor = mix( roughnessFactor, 0.14, ( 1.0 - smoothstep( -0.95, 0.35, vTWorld.y ) ) * 0.85 );'); };
+  mat.customProgramCacheKey = () => 'terrain-fennick';
+  return mat;
+}
+// the bay at low water: THREE.Water's mirror, following you in whole cells (the channel, the pools and the sea past the flats)
+function fbSea(){
+  const w = makeWater(new THREE.CircleGeometry(950, 96), {color:0x1e2c34, distortion:0.7, size:7});
+  if(!w){ const m = new THREE.Mesh(new THREE.CircleGeometry(950, 96), std(0x1e2c34, {roughness:0.06, metalness:0.2, normalMap:waterNormal})); m.rotation.x = -Math.PI / 2; m.position.y = FB.sea; world.add(m); return m; }
+  w.material.polygonOffset = true; w.material.polygonOffsetFactor = -2; w.material.polygonOffsetUnits = -4; w.receiveShadow = true;
+  w.position.y = FB.sea; w.name = 'fbSea'; world.add(w); return w;
+}
+// chimney smoke: soft grey puffs rising and drifting inland on the evening air, one draw (the motion is in the shader, on the game's clock)
+let fbSmokeMat = null;
+function fbSmoke(vents, parent){
+  if(!vents.length) return null;
+  if(!fbSmokeMat) fbSmokeMat = shareMat(new THREE.ShaderMaterial({uniforms:{map:{value:glowTex}, time:uTime, scale:{value:600}, col:{value:C(0x9a96a0)}}, transparent:true, depthWrite:false,
+    vertexShader:'attribute float ph; varying float vA; uniform float time, scale; void main(){ float t = fract(time * 0.07 + ph); vec3 p = position; p.y += t * 7.0; p.x += t * t * 4.5 + sin(ph * 31.0 + time * 0.3) * t * 0.8; p.z -= t * t * 2.5; vA = pow(sin(t * 3.14159), 1.2) * (1.0 - t * 0.5); vec4 mv = modelViewMatrix * vec4(p, 1.0); gl_PointSize = (0.8 + t * 4.2) * scale / -mv.z; gl_Position = projectionMatrix * mv; }',
+    fragmentShader:'uniform sampler2D map; uniform vec3 col; varying float vA; void main(){ vec4 t = texture2D(map, gl_PointCoord); gl_FragColor = vec4(col, t.a * vA * 0.26); }'}));
+  const pos = [], ph = [], q = rng(9501 + vents.length);
+  vents.forEach(([x, y, z]) => { for(let i = 0; i < 16; i++){ pos.push(x + (q() - 0.5) * 0.2, y, z + (q() - 0.5) * 0.2); ph.push(i / 16 + q() * 0.04); } });
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('ph', new THREE.Float32BufferAttribute(ph, 1));
+  const pts = new THREE.Points(g, fbSmokeMat); pts.frustumCulled = false; pts.userData.noAO = true; pts.renderOrder = 3; (parent || buildParent || world).add(pts); return pts;
+}
+BUILD.fennick = (r, n) => {
+  fb = {skip:[], sea:null, smoke:null, flash:null, ferry:null, cabs:[], no9:null};
+  const q = rng(9001), K = fbKit();
+  const ter = buildTerrain({maxR:900, surf:FB_TERRAIN, color:fbColor(n)}); fbMudMaterial(ter.material);
+  fb.sea = fbSea(); fb.skip.push(fb.sea);
+  const B = fbBins();
+  fbStreets(B); fbRow(B, q); fbHarbourSt(B, q); fbSquare(B, q); fbTerraces(B, q); fbNo9(B); fbLamps(B); fbPier(B); fbLighthouse(B, q); fbMoor(B, rng(9101));
+  fbFlush(B, K); fb.smoke = fbSmoke(B.vents); if(fb.smoke) fb.skip.push(fb.smoke);
+  fbArcade(); fbBoats(FB_BOATS, rng(9201)); fbFerry();
+  addFlock('gull', 8, {rng:rng(9211), x:-6, z:60}); addFlock('gull', 5, {rng:rng(9212), x:52, z:110}); addFlock('gull', 4, {rng:rng(9213), x:-150, z:220});
+};
+HEIGHTS.fennick = (n, pf) => fbHeights(n);   // no portal pad: the square is level already
+function fbUpdate(dt, time){
+  if(!fb || state.world !== 'fennick') return;
+  if(fb.sea){ fb.sea.position.x = Math.round(p.x / 48) * 48; fb.sea.position.z = Math.round(p.z / 48) * 48; }
+  if(fb.flash){ const f = fb.flash, b = f.userData.base, ca = Math.atan2(camera.position.x - b.x, camera.position.z - b.z), k = Math.pow(Math.max(0, Math.cos(2 * (time * 0.25 - ca))), 30); f.material.opacity = 0.15 + 0.85 * k; f.scale.setScalar(10 + 26 * k); }
+  if(fb.ferry){ const F = FB.ferry, L = F.x1 - F.x0, ph = (time * F.v) % (2 * L), out = ph < L, x = out ? F.x0 + ph : F.x1 - (ph - L);
+    fb.ferry.position.x = x; fb.ferry.rotation.y = out ? Math.PI / 2 : -Math.PI / 2; fb.ferry.position.y = FB.sea - 0.6 + Math.sin(time * 0.7) * 0.06; fb.ferry.rotation.z = Math.sin(time * 0.5) * 0.015; }
+  if(fbSmokeMat){ const hgt = renderer.getDrawingBufferSize(_cellV2).y; fbSmokeMat.uniforms.scale.value = hgt / (2 * Math.tan(camera.fov * Math.PI / 360)); }
+}
+/* ---- no boundaries (Goal 8a rule): past the core the coast goes on for ever in both directions, the flats and the sea to the north and the moor to
+   the south, in the town's own fixed style: 'far' dry-stone walls (the same field grid as the core's) and now and then a stone cottage with its
+   lights on; 'mid' rocks on the moor and boats lying on the flats; 'near' heather and grass. ---- */
+ENDLESS.fennick = {
+  core:FB.out, home:R + 12, dreamOdds:0.05, dreamR:2,
+  words:'an endless misty coast at dusk at low tide: mud flats and channels, shingle beaches, a moor of heather and dry-stone walls, stone cottages with lit windows',
+  dream:{kinds:['lighthouse', 'ruins', 'tower'], surface:'rock', time:'dusk'},
+  solidAt:(x, z) => hf(x, z) > 2.4,
+  kit(){ return fbKit(); },
+  tiers:[
+    {name:'far', r:3, build(c, k){ const B = fbBins(), q = c.q, x0 = c.cx * CHUNK, z0 = c.cz * CHUNK; fbWalls(B, x0, z0, x0 + CHUNK, z0 + CHUNK, false);
+      if(q() < 0.2){ const s = c.spot(10, {slope:0.25, ok:(x, z) => { const h = hf(x, z); return h > 4 && h < 46 && fbOffWalls(x, z, 7); }}); if(s){ fbCottage(B, s[0], s[1], q); c.local.push({x:s[0], z:s[1], r:7}); } }
+      fbFlush(B, k); fbSmoke(B.vents); }},
+    {name:'mid', r:2, build(c, k){ const q = c.q, rocks = [];
+      for(let i = 0, n = Math.floor(q() * 4); i < n; i++){ const s = c.spot(2, {slope:0.6, tries:3, ok:(x, z) => fbOffWalls(x, z, 2)}); if(!s) continue; const sc = 0.6 + q() * 1.5; rocks.push(mat4(s[0], G(s[0], s[1]) - 0.25 * sc, s[1], 0, q() * TAU, 0, sc, sc * 0.7, sc)); c.local.push({x:s[0], z:s[1], r:sc}); colliders.push({x:s[0], z:s[1], r:sc * 0.7}); }
+      if(rocks.length) instanced(k.rock || (k.rock = shareGeo(rockGeo())), k.rockM || (k.rockM = shareMat(std(0x8a847a, {map:surface('rock').map, normalMap:surface('rock').normal, normalScale:new V2(0.8, 0.8), roughness:0.9}))), rocks, null, true);
+      if(q() < 0.25){ const x = (c.cx + 0.2 + q() * 0.6) * CHUNK, z = (c.cz + 0.2 + q() * 0.6) * CHUNK, h = hf(x, z), yaw = q() * TAU, s = q() < 0.3 ? 0.5 : 0.9 + q() * 0.15;
+        if(h > FB.sea + 0.15 && h < 0.2 && Math.hypot(x, z) > FB.out + 8) fbBoats([[x, z, yaw, s]], q); } }},
+    {name:'near', r:1, build(c, k){ cellWeeds(c, 34, [0x6a5a4a, 0x7a6a3a, 0x5a6a3a, 0x8a6a5a], (x, z) => hf(x, z) > 2.4); }}
+  ]
+};
 })();
 </script>
 </body>
