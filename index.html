@@ -10972,6 +10972,97 @@ QM.relay = {
 function M_relayStep(S, P, dt, log){ QM.relay.step(S, {x:P.x, z:P.z}, dt).forEach(e => log.push(e)); }
 
 
+/* ---- Glass Dunes: The Glass Maze. A 7 x 7 maze of amber storm-glass panes on sandstone kerbs under a sandstone vault with sun slots;
+   six sunfire crystals wait in its far dead ends. Gather all six before the time runs out (the limit is set from the shortest tour). ---- */
+const MAZE = {n:7, cell:4, h:2.7, ceil:4.4, seed:2323, crystals:6, ante:3.6, take:1.1};
+let mazeMemo = null;
+function mazeLayout(){
+  if(mazeMemo) return mazeMemo;
+  const N = MAZE.n, q = rng(MAZE.seed), E = [], Nw = [], seen = [];
+  for(let i = 0; i < N; i++){ E.push([]); Nw.push([]); seen.push([]); for(let j = 0; j < N; j++){ E[i].push(true); Nw[i].push(true); seen[i].push(false); } }
+  // a recursive backtracker from the entrance cell, its own rng: the same maze every visit
+  const st = [[3, 0]]; seen[3][0] = true;
+  while(st.length){ const [i, j] = st[st.length - 1], nb = [[1, 0], [-1, 0], [0, 1], [0, -1]].map(([a, b]) => [i + a, j + b]).filter(([a, b]) => a >= 0 && b >= 0 && a < N && b < N && !seen[a][b]);
+    if(!nb.length){ st.pop(); continue; } const [a, b] = nb[Math.floor(q() * nb.length)];
+    if(a > i) E[i][j] = false; else if(a < i) E[a][b] = false; else if(b > j) Nw[i][j] = false; else Nw[a][b] = false;
+    seen[a][b] = true; st.push([a, b]); }
+  const open = (i, j, a, b) => a < 0 || b < 0 || a >= N || b >= N ? false : a > i ? !E[i][j] : a < i ? !E[a][b] : b > j ? !Nw[i][j] : !Nw[a][b];
+  const bfs = (s) => { const d = {}, prev = {}, Q = [s]; d[s] = 0; while(Q.length){ const c = Q.shift(), [i, j] = c.split(',').map(Number);
+    [[1, 0], [-1, 0], [0, 1], [0, -1]].forEach(([x, y]) => { const a = i + x, b = j + y, k = a + ',' + b; if(open(i, j, a, b) && d[k] == null){ d[k] = d[c] + 1; prev[k] = c; Q.push(k); } }); } return {d, prev}; };
+  const cx = i => (i - (N - 1) / 2) * MAZE.cell, B = bfs('3,0');
+  const cells = []; for(let i = 0; i < N; i++) for(let j = 0; j < N; j++){ const ways = [[1, 0], [-1, 0], [0, 1], [0, -1]].filter(([x, y]) => open(i, j, i + x, j + y)).length; cells.push({i, j, d:B.d[i + ',' + j], dead:ways === 1 && !(i === 3 && j === 0)}); }
+  const pick = cells.filter(c => c.dead).sort((a, b) => b.d - a.d || a.i - b.i || a.j - b.j).slice(0, MAZE.crystals);
+  cells.filter(c => !c.dead && !(c.i === 3 && c.j === 0)).sort((a, b) => b.d - a.d || a.i - b.i || a.j - b.j).forEach(c => { if(pick.length < MAZE.crystals) pick.push(c); });
+  const crystals = pick.map(c => ({i:c.i, j:c.j, x:cx(c.i), z:cx(c.j)}));
+  // the shortest greedy tour (by maze distance) from the entrance through every crystal: the sims walk it, and the time limit comes from it
+  const route = [[0, cx(0) - MAZE.ante + 0.6], [0, cx(0)]]; let cur = '3,0', left = crystals.slice(), L = MAZE.ante - 0.6;
+  while(left.length){ const P = bfs(cur); left.sort((a, b) => P.d[a.i + ',' + a.j] - P.d[b.i + ',' + b.j]); const c = left.shift(), k = c.i + ',' + c.j, path = []; let x = k; while(x !== cur){ path.unshift(x); x = P.prev[x]; }
+    path.forEach(p2 => { const [i, j] = p2.split(',').map(Number); route.push([cx(i), cx(j)]); }); L += P.d[k] * MAZE.cell; cur = k; }
+  const limit = Math.round(L / 5 * 1.35 + 12);
+  return (mazeMemo = {E, Nw, crystals, route, L, limit, cx});
+}
+QM.maze = {
+  start:[0, -15.6, 0], ceil:MAZE.ceil, view:[0, -10.5, Math.PI + 0.3, 0.75, 9],
+  light:{sky:0xffe7c4, ground:0x9a7048, i:0.95, fog:0x2a1e14, fd:0.01},
+  init(att){ const M = mazeLayout(); return {kind:'maze', state:'run', t:0, why:null, att, got:M.crystals.map(() => false), n:0, limit:M.limit}; },
+  step(S, pose, dt){
+    const ev = []; if(S.state !== 'run') return ev; const M = mazeLayout();
+    S.t += dt;
+    M.crystals.forEach((c, k) => { if(!S.got[k] && Math.hypot(pose.x - c.x, pose.z - c.z) < MAZE.take){ S.got[k] = true; S.n++; ev.push('crystal:' + k); } });
+    if(S.n === M.crystals.length){ S.state = 'won'; ev.push('won'); return ev; }
+    if(S.t > S.limit){ S.state = 'failed'; S.why = 'the time ran out with ' + (M.crystals.length - S.n) + ' crystals still in the maze'; ev.push('failed'); }
+    return ev;
+  },
+  sim(S, policy){
+    const v = {win:5, run:9.5, slow:2.5}[policy]; if(!v) return {error:'unknown policy', policies:['win', 'run', 'slow']};
+    const M = mazeLayout(), P = {x:M.route[0][0], z:M.route[0][1]}, dt = 1 / 30, log = []; let k = 1;
+    for(let i = 0; i < 30 * 400 && S.state === 'run'; i++){ if(k < M.route.length && qpWalk(P, M.route[k][0], M.route[k][1], v, dt)) k++; QM.maze.step(S, {x:P.x, z:P.z}, dt).forEach(e => log.push(e)); }
+    return log;
+  },
+  summary(S){ const M = mazeLayout(); return {crystals:S.n, of:M.crystals.length, limit:S.limit, tour:+M.L.toFixed(1)}; },
+  hud(S){ return '<b>The Glass Maze</b> Crystals ' + S.n + ' / ' + S.got.length + ' · ' + Math.max(0, S.limit - S.t).toFixed(0) + ' s left<span class="qpq">Q: leave</span>'; },
+  react(o, e, S){ if(e.indexOf('crystal:') === 0){ sfx('shard'); if(S.state === 'run') toast('Sunfire crystal ' + S.n + ' of ' + S.got.length, 1600); } },
+  build(o){
+    const A = o.A, g = o.g, M = mazeLayout(), N = MAZE.n, c = MAZE.cell, h = MAZE.h, H = MAZE.ceil, half = N * c / 2, Y = A.y, K = roomKit({cx:A.x, cz:A.z, sd:1, ry:a => a}, g);
+    const sand = surface('sand'), rock = surface('granite');
+    const Ms = {floor:std(0xe8cfa6, {map:sand.map, normalMap:sand.normal, normalScale:new V2(0.8, 0.8), roughness:0.95}), stone:std(0xe6c49a, {map:rock.map, normalMap:rock.normal, normalScale:new V2(0.6, 0.6), roughness:0.85}),
+      glass:phys(0xffc98a, {roughness:0.06, metalness:0.15, transparent:true, opacity:0.42, depthWrite:false, emissive:C(0x6a3a10), emissiveIntensity:0.25, side:THREE.DoubleSide}),
+      edge:glowM(0xffb45a, 1.6), slot:glowM(0xfff1d6, 2.2)};
+    const z0 = -half - MAZE.ante, z1 = half;
+    // the floor, the outer walls, the vault and its sun slots
+    K.box(Ms.floor, 4, -half - 0.3, half + 0.3, Y - 0.3, Y, z0 - 0.3, z1 + 0.3);
+    K.box(Ms.stone, 4, -half - 0.5, -half, Y, Y + H, z0, z1 + 0.5); K.box(Ms.stone, 4, half, half + 0.5, Y, Y + H, z0, z1 + 0.5); K.box(Ms.stone, 4, -half, half, Y, Y + H, z1, z1 + 0.5); K.box(Ms.stone, 4, -half, half, Y, Y + H, z0 - 0.5, z0);
+    K.box(Ms.stone, 4, -half - 0.5, half + 0.5, Y + H, Y + H + 0.4, z0 - 0.5, z1 + 0.5);
+    for(let z = -half + c / 2; z < half; z += c) K.box(Ms.slot, 1, -half + 0.6, half - 0.6, Y + H - 0.03, Y + H, z - 0.35, z + 0.35);
+    K.box(Ms.slot, 1, -half + 0.6, half - 0.6, Y + H - 0.03, Y + H, z0 + 1.4, z0 + 2.1);
+    // the antechamber: the maze's own south wall with the entrance gap
+    const wallZ = (x0, x1, z) => { K.box(Ms.stone, 2, x0, x1, Y, Y + 0.28, z - 0.14, z + 0.14); K.box(Ms.glass, 2, x0 + 0.08, x1 - 0.08, Y + 0.28, Y + h, z - 0.04, z + 0.04); K.box(Ms.edge, 1, x0 + 0.08, x1 - 0.08, Y + h, Y + h + 0.03, z - 0.05, z + 0.05); addBox(A.x + (x0 + x1) / 2, A.z + z, (x1 - x0) / 2, 0.1, Y - 1, Y + H + 1, {hollow:true}); };
+    const wallX = (z0w, z1w, x) => { K.box(Ms.stone, 2, x - 0.14, x + 0.14, Y, Y + 0.28, z0w, z1w); K.box(Ms.glass, 2, x - 0.04, x + 0.04, Y + 0.28, Y + h, z0w + 0.08, z1w - 0.08); K.box(Ms.edge, 1, x - 0.05, x + 0.05, Y + h, Y + h + 0.03, z0w + 0.08, z1w - 0.08); addBox(A.x + x, A.z + (z0w + z1w) / 2, 0.1, (z1w - z0w) / 2, Y - 1, Y + H + 1, {hollow:true}); };
+    for(let i = 0; i < N; i++){ const x0 = -half + i * c; if(i !== 3) wallZ(x0, x0 + c, -half); }
+    for(let i = 0; i < N; i++) for(let j = 0; j < N; j++){ const x0 = -half + i * c, zz0 = -half + j * c;
+      if(i < N - 1 && M.E[i][j]) wallX(zz0, zz0 + c, x0 + c);
+      if(j < N - 1 && M.Nw[i][j]) wallZ(x0, x0 + c, zz0 + c); }
+    // sandstone posts at every corner where panes meet
+    for(let i = 1; i < N; i++) for(let j = 0; j <= N; j++){ const x = -half + i * c, z = -half + j * c; K.box(Ms.stone, 2, x - 0.17, x + 0.17, Y, Y + h + 0.12, z - 0.17, z + 0.17); }
+    // the outer walls collide too
+    addBox(A.x - half - 0.25, A.z + (z0 + z1) / 2, 0.25, (z1 - z0) / 2 + 0.5, Y - 1, Y + H + 1, {hollow:true}); addBox(A.x + half + 0.25, A.z + (z0 + z1) / 2, 0.25, (z1 - z0) / 2 + 0.5, Y - 1, Y + H + 1, {hollow:true});
+    addBox(A.x, A.z + z1 + 0.25, half + 0.5, 0.25, Y - 1, Y + H + 1, {hollow:true}); addBox(A.x, A.z + z0 - 0.25, half + 0.5, 0.25, Y - 1, Y + H + 1, {hollow:true});
+    // the crystals: a cluster of long amber prisms on a little drift of sand
+    o.crys = [];
+    const cm = phys(0xff9a3a, {emissive:C(0xff7a20), emissiveIntensity:1.3, roughness:0.12, metalness:0.1}), mound = std(0xe2c391, {map:sand.map, normalMap:sand.normal, roughness:0.95});
+    M.crystals.forEach((cr, k) => { const gg = new THREE.Group(); gg.position.set(A.x + cr.x, Y, A.z + cr.z); g.add(gg);
+      const md = mk(new THREE.SphereGeometry(0.75, 28, 10, 0, TAU, 0, Math.PI / 2), mound, 0, -0.02, 0, gg); md.scale.y = 0.28;
+      [[0, 0, 0, 1.0], [0.22, 0.1, 0.5, 0.7], [-0.2, -0.12, -0.45, 0.6], [0.05, 0.2, 0.9, 0.5]].forEach(([dx, dz, tilt, s2]) => { const m = mk(new THREE.OctahedronGeometry(0.22, 0), cm, dx, 0.35 * s2 + 0.12, dz, gg); m.scale.set(0.7 * s2, 2.4 * s2, 0.7 * s2); m.rotation.z = tilt * 0.5; m.rotation.x = tilt * 0.3; });
+      const gl = glow(0xffa040, 2.6, 0, 0.7, 0, gg, 0.55); o.crys.push({g:gg, gl}); });
+    K.done();
+    qaExit(o, 0, z0 + 0.45, 0, {frame:Ms.stone, base:Ms.stone, tile:4});
+  },
+  reset(o){ o.crys.forEach(c => { c.g.visible = true; }); },
+  visual(o, dt, time){ const S = o.S; if(!S) return; o.crys.forEach((c, k) => { c.g.visible = !S.got[k]; c.g.rotation.y = time * 0.4 + k; c.gl.material.opacity = 0.45 + 0.15 * Math.sin(time * 3 + k); }); }
+};
+QPORTALS.dunes = {kind:'maze', name:'The Glass Maze', x:31, z:-5, face:[0, -10], credits:50, xp:100, item:'sunfire-opal', col:0xffb347,
+  tag:'Six sunfire crystals are hidden in the far corners of a maze of storm glass. Gather them all before the time runs out.'};
+
 /* ================= Goal 13: the Cyan Shard, the wind chimes on Sky Isles' highest isle =================
    The clue (HUNT_CLUES.cyan, the Ledger's third riddle, the music box in Archive room 6): seven tubes numbered from the longest, which sings lowest;
    "Low Tide" is 3-4-5-4-3-2-1. Each tube rings its own LOW_TIDE_HZ pitch. chimeStep() is the whole rule: the shard only when the last seven strikes
