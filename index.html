@@ -12178,12 +12178,13 @@ const aAn = w => (/^[aeiou]/i.test(w) ? 'an ' : 'a ') + w;
 function localGreeting(nn, opts){
   opts = opts || {}; const P = personaOf(nn), m = memOf(nn), who = pname(); localsNotice();
   let s;
-  if(!m.met) s = LP_TEMPERS[P.temper].first + ' I am ' + P.name + ', ' + aAn(P.trade) + '. ' + styled(P, P.tradeLine);
+  if(opts.again) s = (m.mood >= 2 ? 'Hello again, ' + who + '!' : m.mood <= -2 ? 'Yes, ' + who + '?' : 'Hello, ' + who + '.');
+  else if(!m.met) s = LP_TEMPERS[P.temper].first + ' I am ' + P.name + ', ' + aAn(P.trade) + '. ' + styled(P, P.tradeLine);
   else if(m.mood >= 6) s = who + '! My favourite traveller. Back already?';
   else if(m.mood >= 2) s = 'Good to see you again, ' + who + '.';
   else if(m.mood <= -2) s = 'Oh. It is you, ' + who + '.';
   else s = 'Back again, ' + who + '? ' + (opts.open ? 'What can I do for you?' : '');
-  if(!m.met && who !== 'traveller') s += ' And you are ' + who + ', aren\'t you? Word gets around.';
+  if(!m.met && !opts.again && who !== 'traveller') s += ' And you are ' + who + ', aren\'t you? Word gets around.';
   const fresh = knownDeeds(nn).find(d => m.reacted.indexOf(d.id) < 0);
   if(fresh){ s += ' ' + fresh.line; m.reacted.push(fresh.id); if(m.reacted.length > 30) m.reacted.shift(); }
   const q = lp().quests.find(x => x.state === 'active' && x.giver === P.id); if(q) s += ' Any luck with ' + q.short + '?';
@@ -12212,7 +12213,7 @@ function localOffline(nn, text){
   else if(/\b(how are you|how'?s it going|you ok|feeling)\b/.test(t)){ out.say = (m.mood >= 2 ? 'Better now you are here, ' + who + '. ' : m.mood <= -2 ? 'I have been better. ' : 'Not bad, not bad. ') + P.wantLine; out.emote = 'nod'; }
   else if(/\b(shard|comet|rally|seed|planet|chart|zero|died|hunt|gate|famous)\b/.test(t)){ const d = known[known.length - 1]; out.say = d ? d.line : 'The Hunt? Three shards, three gates on Ashfall. ' + rot(lines, 'h'); out.emote = d ? 'cheer' : 'think'; if(d && m.reacted.indexOf(d.id) < 0) m.reacted.push(d.id); }
   else if(/\b(news|gossip|rumou?r|heard|anything new|what'?s up|tell me about)\b/.test(t)){ const d = known.length ? known[(strHash(P.id) + m.said.length) % known.length] : null; out.say = d ? 'Word is a traveller called ' + who + ' ' + d.text + '. That is you, isn\'t it?' : rot(lines, 'n'); out.emote = d ? 'laugh' : 'nod'; }
-  else if(/\b(hi|hello|hey|hiya|howdy|greetings|good (morning|evening|afternoon))\b/.test(t)){ out.say = localGreeting(nn, {open:true}); out.emote = 'wave'; }
+  else if(/\b(hi|hello|hey|hiya|howdy|greetings|good (morning|evening|afternoon))\b/.test(t)){ out.say = localGreeting(nn, {open:true, again:!!nn.metNow}); if(nn.metNow && !/\?$/.test(out.say)) out.say += ' ' + (m.mood >= 2 ? styled(P, P.wantLine) : 'What can I do for you?'); out.emote = 'wave'; }
   else if(/\b(cool|nice|awesome|love|great|amazing|beautiful|kind|friend)\b/.test(t)){ out.say = 'That is kind of you, ' + who + '. ' + rot(lines, 'c'); out.mood_delta = 1; out.emote = 'laugh'; }
   else { const pool = [styled(P, P.tradeLine), P.wantLine, rot(lines, 'd'), 'Hm. ' + rot(lines, 'e')]; out.say = pool[(strHash(t) + m.said.length) % pool.length]; out.emote = 'nod'; }
   out.say = out.say.replace(/\s+/g, ' ').trim();
@@ -12240,6 +12241,7 @@ Object.defineProperties(window.__hub, {
     return {idx, id:P.id, name:nn.name, home:nn.home, x:+nn.x.toFixed(2), z:+nn.z.toFixed(2), persona:Object.assign({}, P), memory:JSON.parse(JSON.stringify(m)), mood:m.mood, feeling:moodWord(m.mood), lastSay:nn.lastSay || null, gesture:nn.gest ? nn.gest.kind : null}; })},
   localsMemory:{get:() => JSON.parse(JSON.stringify(lp()))},
   localsKey:{value:LOCALS_KEY},
+  giveShard:{value:(id, why) => giveShard(id, why)},   // the real shard reward (dunes, grid or sky), for checking how locals react
   deeds:{get:() => deedsNow().map(d => ({id:d.id, big:d.big, realm:d.realm, text:d.text}))},
   localsNotice:{value:() => localsNotice()},
   localGreeting:{value:i => living(npcs[i]) ? localGreeting(npcs[i]) : null},
@@ -12263,7 +12265,7 @@ function openTalk(nn){
   if(!COARSE) $('#talkQ').focus();
   return true;
 }
-function closeTalk(){ talkEl.classList.add('hidden'); document.body.classList.remove('talking'); setPaused(false); if(talk.nn) talk.nn.wait = Math.min(talk.nn.wait, 1.5); }
+function closeTalk(){ $('#talkQ').blur(); talkEl.classList.add('hidden'); document.body.classList.remove('talking'); setPaused(false); if(talk.nn) talk.nn.wait = Math.min(talk.nn.wait, 1.5); }
 function talkSrc(r){ $('#talkSrc').textContent = r && r.source === 'claude' ? 'Answering in character with Claude.' : (r && r.rest) ? 'Resting: answering from memory for now.' : 'Answering from memory and what they have seen.' + (dreamer.sample || dreamer.key ? '' : ' With the Dreamer key (Forge panel, local file) or the claude.ai link, locals answer in their own words.'); }
 function talkOffer(){ const box = $('#talkQuest'), o = talk.offer; box.innerHTML = '';
   if(!o){ box.style.display = 'none'; return; } box.style.display = '';
