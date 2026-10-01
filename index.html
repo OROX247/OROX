@@ -15319,7 +15319,7 @@ function warBannerMat(side){
   const m = std(0xffffff, {map:tex, alphaTest:0.5, side:THREE.DoubleSide, roughness:0.92});
   m.onBeforeCompile = sh => { sh.uniforms.time = uTime;
     sh.vertexShader = 'uniform float time;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n float bw = 1.0 - uv.y; float ph = modelMatrix[3].x * 0.37 + modelMatrix[3].z * 0.21;\n transformed.z += sin(time * 2.1 + uv.y * 5.0 + ph) * 0.12 * bw + sin(time * 3.7 + uv.x * 4.0 + ph * 2.0) * 0.04 * bw;\n transformed.x += sin(time * 1.3 + ph) * 0.05 * bw * bw;'); };
-  m.customProgramCacheKey = () => 'warBanner';
+  m.customProgramCacheKey = () => 'warBanner'; m.userData.shared = true;   // shared by every banner, in the core and in streamed cells
   m.userData.depth = new THREE.MeshDepthMaterial({depthPacking:THREE.RGBADepthPacking, map:tex, alphaTest:0.5});
   return (warBannerMats[side] = m);
 }
@@ -15340,10 +15340,10 @@ function warFence(list, mats, x0, z0, x1, z1, q){
   for(let i = 0; i <= n; i++){ const t = i / n, x = x0 + (x1 - x0) * t + (q() - 0.5) * 0.2, z = z0 + (z1 - z0) * t + (q() - 0.5) * 0.2, y = G(x, z), lean = (q() - 0.5) * 0.18;
     list.posts.push(mat4(x, y - 0.25, z, lean, q() * TAU, (q() - 0.5) * 0.18, 1, 0.9 + q() * 0.2, 1)); tops.push([x, y, z]); ylo = Math.min(ylo, y); yhi = Math.max(yhi, y); }
   [0.42, 0.8, 1.12].forEach(hh => { for(let i = 0; i < n; i++){ const a = tops[i], b = tops[i + 1], pts = []; for(let k = 0; k <= 6; k++){ const t = k / 6, sag = Math.sin(t * Math.PI) * 0.09; pts.push(new V3(a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t + hh - sag, a[2] + (b[2] - a[2]) * t)); }
-    list.wire.push(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 8, 0.011, 4, false)); } });
+    list.wire.push(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), list.lite ? 5 : 8, 0.011, list.lite ? 3 : 4, false)); } });
   // the coil: a loose helix along the foot of the run
-  const turns = Math.round(L / 0.32), pts = []; for(let k = 0; k <= turns * 10; k++){ const t = k / (turns * 10), a = t * turns * TAU, x = x0 + (x1 - x0) * t, z = z0 + (z1 - z0) * t, y = G(x, z) + 0.34 + Math.sin(a) * 0.3; pts.push(new V3(x + Math.cos(a) * 0.3 * -uz, y, z + Math.cos(a) * 0.3 * ux)); }
-  list.wire.push(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), turns * 10, 0.008, 3, false));
+  const turns = Math.round(L / 0.32), sub = list.lite ? 5 : 10, pts = []; for(let k = 0; k <= turns * sub; k++){ const t = k / (turns * sub), a = t * turns * TAU, x = x0 + (x1 - x0) * t, z = z0 + (z1 - z0) * t, y = G(x, z) + 0.34 + Math.sin(a) * 0.3; pts.push(new V3(x + Math.cos(a) * 0.3 * -uz, y, z + Math.cos(a) * 0.3 * ux)); }
+  list.wire.push(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), turns * sub, 0.008, 3, false));
   addBox((x0 + x1) / 2, (z0 + z1) / 2, L / 2 + 0.1, 0.42, ylo - 0.5, yhi + 1.2, {a:Math.atan2(uz, ux), cam:false});
 }
 // a shell-split stump: a short broken trunk with a jagged top and a stub or two (three shapes, each fixed by its own seed)
@@ -15467,6 +15467,59 @@ function warUpdate(dt, time){
   if(!war || state.world !== 'warfront') return;
   for(const f of war.flashes){ const u = (time + f.ph) % f.per, a = Math.exp(-u * 7) + (f.double ? 0.7 * Math.exp(-Math.abs(u - 0.32) * 12) * (u > 0.3 ? 1 : 0) : 0); f.s.material.opacity = Math.min(1, a * f.k); }
 }
+// no boundaries (Goal 8a rule, Goal 20): past the core the battlefield goes on for ever in the same style: shell holes (in the heights, a pure function of a
+// 36 m grid), shattered towers on the ridges, sandbag breastworks, runs of wire, split stumps, puddles and the two sides' banners (Tidewall to the north)
+ENDLESS.warfront = {
+  core:WAR.out, home:R + 12, dreamOdds:0.08, dreamR:2,
+  words:'an endless storm-lit battlefield of shell holes, sandbag lines, wire and shattered towers',
+  dream:{kinds:['ruins', 'tower', 'monoliths', 'arch'], surface:'soil', time:'sunset'},
+  kit(){
+    const X = warTex(), bk = surface('bark');
+    return { stoneM:shareMat(std(0xffffff, {map:X.stone.map, normalMap:X.stone.normal, roughnessMap:X.stone.rough, roughness:1})),
+      woodM:shareMat(std(0xffffff, {map:X.wood.map, normalMap:X.wood.normal, roughnessMap:X.wood.rough, roughness:1})),
+      barkM:shareMat(std(0x6a5e52, {map:bk.map, normalMap:bk.normal, normalScale:new V2(0.8, 0.8), roughness:0.95})),
+      bagM:shareMat(std(0xffffff, {map:X.burlap, normalMap:detailNormal, normalScale:new V2(0.6, 0.6), roughness:0.96})),
+      wireM:shareMat(std(0x5a5650, {metalness:0.75, roughness:0.45})), puddleM:shareMat(phys(0x231f1a, {roughness:0.06, metalness:0.15})),
+      bag:sandbagGeo(), post:shareGeo(new THREE.CylinderGeometry(0.045, 0.06, 1.55, 6).translate(0, 0.77, 0)), puddle:shareGeo(new THREE.CircleGeometry(1, 36).rotateX(-Math.PI / 2)),
+      stumps:[0, 1, 2].map(i => shareGeo(warStumpGeo(i))),
+      towers:[0, 1, 2].map(i => shareGeo(warTowerGeo(3, 13, {seed:2491 + i, thick:0.8, jag:2.8, breach:i * 2.1, breachW:0.7, breachD:6}))) };
+  },
+  // a shattered tower in about a quarter of the cells, fixed by the cell before anything else is placed
+  big(cx, cz, q){ const a = q(), fx = q(), fz = q(), v = q(), s = q(), h = q(); if(a > 0.24) return [];
+    const k = 0.8 + s * 0.5; return [{x:(cx + 0.2 + fx * 0.6) * CHUNK, z:(cz + 0.2 + fz * 0.6) * CHUNK, r:3 * k + 2.5, kind:'tower', v:Math.floor(v * 3), s:k, sy:0.7 + h * 0.6}]; },
+  tiers:[
+    {name:'far', r:2, build(c, k){
+      const q = c.q;
+      for(const b of bigOf(c.E, c.cx, c.cz)){ if(b.kind !== 'tower' || c.skip(b.x, b.z)) continue; const m = mk(k.towers[b.v], k.stoneM, b.x, G(b.x, b.z) - 0.2, b.z); m.scale.set(b.s, b.sy, b.s); colliders.push({x:b.x, z:b.z, r:3 * b.s + 0.2}); }
+      const L = [[], [], []];
+      for(let i = 0, n = 3 + Math.floor(q() * 6); i < n; i++){ const s = c.spot(1.6, {slope:0.7, tries:4}); if(!s) continue; const sc = 0.8 + q() * 0.6, ti = Math.floor(q() * 3);
+        L[ti].push(mat4(s[0], G(s[0], s[1]) - 0.1, s[1], (q() - 0.5) * 0.14, q() * TAU, (q() - 0.5) * 0.14, sc)); c.local.push({x:s[0], z:s[1], r:0.6}); colliders.push({x:s[0], z:s[1], r:0.28 * sc}); }
+      L.forEach((l, ti) => { if(l.length) instanced(k.stumps[ti], k.barkM, l, null, true); }); }},
+    {name:'mid', r:2, build(c, k){
+      const q = c.q, bags = [], cols = [], wire = {posts:[], wire:[]};
+      // sandbag breastworks: a line of bags three rows high, solid, facing roughly north (the Tidewall side)
+      for(let i = 0, n = Math.floor(q() * 2.6); i < n; i++){ const s = c.spot(9, {slope:0.35, margin:9}); const L = 7 + q() * 9, a = (q() - 0.5) * 1.2; if(!s) continue;
+        const ux = Math.cos(a), uz = Math.sin(a), nb = Math.floor(L / 0.55); let lo = 1e9, hi = -1e9;
+        for(let row = 0; row < 3; row++) for(let b2 = 0; b2 < nb - (row % 2); b2++){ const t = -L / 2 + 0.3 + (row % 2 ? 0.27 : 0) + b2 * 0.55, x = s[0] + ux * t, z = s[1] + uz * t, y = G(x, z); lo = Math.min(lo, y); hi = Math.max(hi, y);
+          bags.push(mat4(x, y + 0.09 + row * 0.19, z, (q() - 0.5) * 0.08, Math.atan2(-uz, ux) + (q() - 0.5) * 0.16, (q() - 0.5) * 0.08, 1, 0.9 + q() * 0.2, 1)); const cc = C(0xffffff); cc.multiplyScalar(0.78 + q() * 0.3); cols.push(cc); }
+        addBox(s[0], s[1], L / 2, 0.3, lo - 0.4, hi + 0.6, {a, cam:false}); c.local.push({x:s[0], z:s[1], r:L / 2 + 1}); }
+      if(bags.length) instanced(k.bag, k.bagM, bags, cols, true);
+      // a banner now and then: the Ember Pact's south of the line, the Tidewall Company's north of it
+      if(q() < 0.22){ const s = c.spot(2, {slope:0.3}); const yaw = q() * TAU; if(s){ warBanner(s[1] > 25 ? 'tide' : 'ember', s[0], s[1], 5 + q() * 1.5, yaw); c.local.push({x:s[0], z:s[1], r:1.5}); } }
+      // rainwater in the deeper shell holes whose middles lie in this cell
+      const x0 = c.cx * CHUNK, z0 = c.cz * CHUNK;
+      for(let j = Math.floor(z0 / 36); j <= Math.floor((z0 + CHUNK) / 36); j++) for(let i = Math.floor(x0 / 36); i <= Math.floor((x0 + CHUNK) / 36); i++){ const cr = warOuterCrater(i, j);
+        if(!cr || cr.dep < 1.3 || cr.x < x0 || cr.x >= x0 + CHUNK || cr.z < z0 || cr.z >= z0 + CHUNK || Math.hypot(cr.x, cr.z) < WAR.out + 10) continue;
+        const m = mk(k.puddle, k.puddleM, cr.x, G(cr.x, cr.z) + cr.dep * 0.16, cr.z); m.scale.set(cr.r * 0.38, 1, cr.r * 0.38); m.castShadow = false; } }},
+    // runs of wire: their own step (the tubes are the heaviest thing a cell makes)
+    {name:'wire', r:2, build(c, k){
+      const q = c.q, wire = {posts:[], wire:[], lite:true};
+      for(let i = 0, n = Math.floor(q() * 2.4); i < n; i++){ const s = c.spot(8, {slope:0.4, margin:8}); const L = 8 + q() * 8, a = q() * TAU; if(!s) continue;
+        const ux = Math.cos(a) * L / 2, uz = Math.sin(a) * L / 2; warFence(wire, null, s[0] - ux, s[1] - uz, s[0] + ux, s[1] + uz, q); c.local.push({x:s[0], z:s[1], r:L / 2 + 1}); }
+      if(wire.posts.length){ instanced(k.post, k.woodM, wire.posts, null, true); mk(merge(wire.wire), k.wireM, 0, 0, 0); } }},
+    {name:'near', r:1, build(c, k){ cellPebbles(c, 70, 'gravel', 0x8e877e); cellWeeds(c, 24, [0x6b6a3e, 0x7a6e44, 0x5e5a3a]); }}
+  ]
+};
 // portals added to a realm after its core was finished (Goal 20): no pad (the Spaceport's plaza is level there), no rng, and built with Math.random pointed
 // away from the NPCs' sequence (three.js draws it for every new object's id), so every coin, NPC, pickup, kiosk and their wander stay exactly as they were.
 // The Spaceport's Warfront portal stands at the head of the plaza between the Neon Grid and Night Grove portals, more than 15 m from every coin and pickup spot.
