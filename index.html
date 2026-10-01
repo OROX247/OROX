@@ -273,6 +273,32 @@ body.paused #strikeBtn{ display:none !important; }
 #bcast .bc-fade{ position:absolute; inset:0; background:#000; opacity:1; transition:opacity 1.2s; }
 #bcast.open .bc-fade{ opacity:0; } #bcast.open.out .bc-fade{ opacity:1; }
 body.bcast #hud, body.bcast #corner, body.bcast #roomCard, body.bcast #toast{ visibility:hidden; }
+/* Goal 17: artifacts. The reveal card, the power HUD (cooldowns and what is running), the compass dial, the slack-water tint and the bag's artifact rows */
+#artFx{ position:fixed; left:50%; top:16%; transform:translate(-50%,-8px); z-index:7; pointer-events:none; opacity:0; transition:opacity .5s, transform .5s; text-align:center; min-width:min(420px,86vw); max-width:92vw;
+  padding:12px 26px 14px; border-radius:12px; background:radial-gradient(ellipse at 50% 0%,rgba(255,190,80,.22),rgba(14,10,30,.82) 70%); border:1px solid rgba(255,200,110,.65); box-shadow:0 0 30px rgba(255,176,32,.25), inset 0 0 18px rgba(255,190,80,.12); color:#fff4dc; font-family:'Chakra Petch','Trebuchet MS',sans-serif; }
+#artFx.on{ opacity:1; transform:translate(-50%,0); }
+#artFx small{ display:block; font-size:11.5px; letter-spacing:.24em; text-transform:uppercase; color:#ffb020; font-weight:700; }
+#artFx b{ display:block; font:400 clamp(22px,3vw,32px)/1.15 Georgia,"Times New Roman",serif; font-style:italic; color:#ffe6b0; margin:4px 0 4px; text-shadow:0 0 14px rgba(255,176,32,.45); }
+#artFx p{ margin:0; font-size:13.5px; line-height:1.4; color:#f0e4c8; } #artFx p i{ font-style:normal; color:#ffd166; font-weight:700; }
+#artHud{ display:grid; gap:4px; pointer-events:none; font:600 12px 'Chakra Petch','Trebuchet MS',sans-serif; }
+#artHud[hidden]{ display:none; }
+#artHud span{ display:flex; align-items:center; gap:6px; justify-content:flex-end; padding:3px 8px; border-radius:7px; background:rgba(10,9,28,.6); border:1px solid rgba(255,190,80,.45); color:#ffe2a8; white-space:nowrap; }
+#artHud span.cd{ color:#a9a2c8; border-color:rgba(255,255,255,.14); }
+#artHud span.on{ box-shadow:0 0 10px rgba(255,176,32,.45); }
+#artHud kbd{ font:700 11px 'Chakra Petch',sans-serif; padding:0 4px; border-radius:3px; background:rgba(255,190,80,.22); color:#ffd166; }
+#artCompass{ position:fixed; left:50%; top:calc(env(safe-area-inset-top,0px) + 58px); transform:translateX(-50%); z-index:3; display:flex; align-items:center; gap:9px; pointer-events:none;
+  padding:5px 12px 5px 6px; border-radius:30px; background:rgba(10,9,28,.66); border:1px solid rgba(255,200,110,.6); color:#ffe9bf; font:600 13px 'Chakra Petch','Trebuchet MS',sans-serif; }
+#artCompass[hidden]{ display:none; }
+#artCompass .dial{ position:relative; width:34px; height:34px; border-radius:50%; background:radial-gradient(circle at 40% 35%,#fff6df,#e8d3a4 55%,#9c7a3a 100%); box-shadow:inset 0 0 0 2px #7a5a26, 0 0 8px rgba(255,190,80,.5); }
+#artCompass .dial i{ position:absolute; left:50%; top:50%; width:4px; height:26px; margin:-13px 0 0 -2px; background:linear-gradient(#c8283c 0 50%,#2a2a36 50%); clip-path:polygon(50% 0,100% 50%,50% 100%,0 50%); transition:transform .15s linear; }
+#artCompass small{ display:block; font-size:11px; color:#c9bfa0; font-weight:400; }
+#tideFx{ position:fixed; inset:0; z-index:2; pointer-events:none; opacity:0; transition:opacity .8s; background:radial-gradient(ellipse at center,rgba(60,140,200,0) 45%,rgba(40,110,180,.32) 100%); mix-blend-mode:screen; }
+#tideFx.on{ opacity:1; }
+.inv-row.art{ background:linear-gradient(90deg,rgba(255,176,32,.16),rgba(255,255,255,.05) 60%); box-shadow:inset 3px 0 0 #ffb020, inset 0 0 0 1px rgba(255,190,80,.35); }
+.inv-row .badge{ display:inline-block; margin-right:6px; padding:0 6px; border-radius:4px; background:#ffb020; color:#1a1206; font-size:10.5px; letter-spacing:.1em; text-transform:uppercase; font-weight:700; vertical-align:1px; }
+.inv-row .pw{ display:block; font-weight:600; font-size:12px; color:#ffd98a; }
+.inv-row .use[disabled]{ opacity:.45; cursor:default; }
+.ico.art{ border-radius:50%; background:radial-gradient(circle at 35% 30%,#fff 0 9%,var(--c) 42%,#3a2208 100%); box-shadow:0 0 0 2px #ffb020, 0 0 10px rgba(255,176,32,.7); }
 </style>
 </head>
 <body class="paused">
@@ -302,6 +328,7 @@ body.bcast #hud, body.bcast #corner, body.bcast #roomCard, body.bcast #toast{ vi
 <div id="corner">
   <canvas id="minimap" aria-label="Minimap"></canvas>
   <div class="btns"><button class="hbtn" id="aiBtn" title="AI reality mode (R)">AI</button><button class="hbtn" id="lookBtn" title="Realm look (L)">Look</button><button class="hbtn" id="forgeBtn" title="Worldsmith: describe a realm (F)">Forge</button><button class="hbtn" id="rideBtn" style="display:none">Ride</button><button class="hbtn" id="sndBtn" title="Sound on/off (N)">Sound</button><button class="hbtn" id="shopBtn" style="display:none">Shop</button><button class="hbtn" id="vendBtn" style="display:none">Vend</button><button class="hbtn" id="enrolBtn" style="display:none">Enrol</button><button class="hbtn" id="archBtn" style="display:none">Inspect</button><button class="hbtn" id="hollowBtn" style="display:none">Knock</button><button class="hbtn" id="chimeBtn" style="display:none">Strike</button><button class="hbtn" id="ashBtn" style="display:none">Recite</button><button class="hbtn" id="qpBtn" style="display:none" title="Quest portal (E); Q leaves">Quest</button><button class="hbtn" id="talkBtn" style="display:none" title="Talk (E)">Talk</button><button class="hbtn" id="invBtn" title="Inventory (I)">Bag</button><button class="hbtn" id="mapBtn">Warp</button><button class="hbtn" id="helpBtn" aria-label="Avatar and controls">?</button></div>
+  <div id="artHud" hidden></div>
 </div>
 
 <div id="intro" class="overlay" role="dialog" aria-labelledby="introTitle">
@@ -316,7 +343,7 @@ body.bcast #hud, body.bcast #corner, body.bcast #roomCard, body.bcast #toast{ vi
     <div class="avatar-made"><img id="avatarPortrait" alt="Your avatar's portrait" width="48" height="48" hidden><p class="lede" id="avatarState">Any species, size or style. Watch it appear on the left.</p></div>
     <div class="swatch-row"><span>Suit</span><span class="swatches" id="suitSw"></span></div>
     <div class="swatch-row"><span>Glow</span><span class="swatches" id="visorSw"></span></div>
-    <p class="controls mouse-only">WASD to move, Shift to run, Space to jump and Space again mid-air to boost. Drag to look, scroll to zoom. M warp, E ride / shop / vend (and read, ask and inspect in the Archive, south of the plaza), F Worldsmith (describe a realm and it is built; it goes on forever, with landmarks invented as you walk), X fight back (a pulse where tech works, a ward where only magic does), I inventory, J Explorer Log (every star on the Warp map is a planet), V camera, C cinematic, N sound, Esc this panel. A VR button appears when a headset is connected.</p>
+    <p class="controls mouse-only">WASD to move, Shift to run, Space to jump and Space again mid-air to boost. Drag to look, scroll to zoom. M warp, E ride / shop / vend (and read, ask and inspect in the Archive, south of the plaza), F Worldsmith (describe a realm and it is built; it goes on forever, with landmarks invented as you walk), X fight back (a pulse where tech works, a ward where only magic does), B T H K the powers of any artifacts you hold, I inventory, J Explorer Log (every star on the Warp map is a planet), V camera, C cinematic, N sound, Esc this panel. A VR button appears when a headset is connected.</p>
     <p class="controls touch-only">Left stick to move, Jump twice to boost, drag anywhere else to look. Warp is top right.</p>
     <button class="ghost" id="ledgerBtn" style="margin:0 0 10px">The Ashcombe Ledger</button>
     <button class="start" id="startBtn">Enter the Hub</button>
@@ -481,6 +508,9 @@ body.bcast #hud, body.bcast #corner, body.bcast #roomCard, body.bcast #toast{ vi
 <div id="toast" class="panel" role="status"></div>
 <div id="fade"></div>
 <div id="hurtFx"></div>
+<div id="artFx" role="status" aria-live="polite"><small id="artFxK">Artifact won</small><b id="artFxN"></b><p id="artFxP"></p></div>
+<div id="artCompass" hidden><span class="dial"><i></i></span><span><b id="artCmpT"></b><small id="artCmpD"></small></span></div>
+<div id="tideFx"></div>
 <div id="zeroFx" role="alert"><div class="panel"><b>ZEROED OUT</b><small id="zeroMsg"></small></div></div>
 <div id="loading" style="position:fixed;inset:0;display:grid;place-items:center;background:#07061a;z-index:20;font-size:18px;color:#b9b2e0">Building worlds…</div>
 <div id="joy"><div id="knob"></div></div>
@@ -2956,6 +2986,7 @@ const state = {
   enrolled: !!sv.enrolled,                               // enrolled at Campus (Goal 8): warps to and from Campus cost nothing
   archive: {ledger:!!(sv.archive && sv.archive.ledger), rooms:new Set(arr(sv.archive && sv.archive.rooms).filter(n => n >= 0 && n < 6)), found:new Set(arr(sv.archive && sv.archive.found).filter(n => n >= 0 && n < 6)), broadcast:!!(sv.archive && sv.archive.broadcast)},   // Goal 9 (+ Goal 10: the Broadcast seen): the Ledger taken, rooms visited, hidden details found
   qp: (sv.qp && typeof sv.qp === 'object' && !Array.isArray(sv.qp)) ? sv.qp : {},
+  art: (sv.art && typeof sv.art === 'object') ? sv.art : null,   // Goal 17: artifacts won, spent and resting (cleaned by artClean once ITEMS exists; kept raw until then so an early persist() cannot drop it)
   kills: (k => ({n:Math.max(0, Math.floor(num(k && k.n, 0))), by:Object.fromEntries(Object.entries(k && k.by && typeof k.by === 'object' ? k.by : {}).filter(e => /^[a-z]{2,8}$/.test(e[0])).map(e => [e[0], Math.max(0, Math.floor(num(e[1], 0)))])), first:k && k.first && typeof k.first.realm === 'string' && /^[a-z]{2,8}$/.test(k.first.realm) ? {realm:k.first.realm, t:num(k.first.t, 0)} : null}))(sv.kills),   // Goal 16: monsters seen off, in all and per realm, and where the first was   // Goal 15: quest portal wins, tries, best time per realm (cleaned by qpClean)
   hunt: {door:!!(sv.hunt && sv.hunt.door), rallyBest:num(sv.hunt && sv.hunt.rallyBest, 0), rallyPlays:num(sv.hunt && sv.hunt.rallyPlays, 0), hoard:!!(sv.hunt && sv.hunt.hoard), rose:!!(sv.hunt && sv.hunt.rose), roseTries:num(sv.hunt && sv.hunt.roseTries, 0), cyan:!!(sv.hunt && sv.hunt.cyan),
     gates:[0, 1, 2].map(i => !!(sv.hunt && Array.isArray(sv.hunt.gates) && sv.hunt.gates[i])), won:!!(sv.hunt && sv.hunt.won), starBest:num(sv.hunt && sv.hunt.starBest, 0), g1Tries:num(sv.hunt && sv.hunt.g1Tries, 0), starPlays:num(sv.hunt && sv.hunt.starPlays, 0), g3Tries:num(sv.hunt && sv.hunt.g3Tries, 0)}   // Goal 14: the three gates opened, the Seed won, the Starling high score, tries   // Goal 11: the Hollow's door opened, the Comet Rally high score and plays, the hoard chest taken (+ Goal 12: rose, roseTries; Goal 13: cyan, the chimes sung)
@@ -2963,7 +2994,7 @@ const state = {
 // state.recipe is filled in once the recipe schema below is defined (see loadRecipe)
 function persist(){
   try{ localStorage.setItem(SAVE_KEY, JSON.stringify({coins:[...state.coins], shards:[...state.shards], visited:[...state.visited],
-    name:state.name, color:state.color, visor:state.visor, xp:state.xp, credits:state.credits, won:state.won, look:state.look, lookSeed:state.lookSeed, lookPath:state.lookPath, recipe:state.recipe, owned:[...state.owned], mute:state.mute, best:state.best, inv:state.inv, picked:[...state.picked], fuel:Math.round(state.fuel * 10) / 10, enrolled:state.enrolled, archive:{ledger:state.archive.ledger, rooms:[...state.archive.rooms], found:[...state.archive.found], broadcast:state.archive.broadcast}, hunt:state.hunt, qp:state.qp, kills:state.kills})); }catch(e){}
+    name:state.name, color:state.color, visor:state.visor, xp:state.xp, credits:state.credits, won:state.won, look:state.look, lookSeed:state.lookSeed, lookPath:state.lookPath, recipe:state.recipe, owned:[...state.owned], mute:state.mute, best:state.best, inv:state.inv, picked:[...state.picked], fuel:Math.round(state.fuel * 10) / 10, enrolled:state.enrolled, archive:{ledger:state.archive.ledger, rooms:[...state.archive.rooms], found:[...state.archive.found], broadcast:state.archive.broadcast}, hunt:state.hunt, qp:state.qp, kills:state.kills, art:state.art})); }catch(e){}
 }
 function rng(seed){ return function(){ seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
 function makeNoise(seed){
@@ -7874,6 +7905,7 @@ function hpHud(){
 function hurt(n, why){
   if(!(n > 0) || zeroing || traveling || !WORLDS[state.world].rules.danger) return 0;
   if(driftSafe()) return 0;   // Goal 12: The Drift, its porch and the hallway are danger-free (every scare is a fake-out)
+  if(artShielded(why)) return 0;   // Goal 17: inside a raised Bell Jar nothing gets through (the glass flashes instead)
   n = Math.round(n); state.hp = Math.max(0, state.hp - n); hpHud(); sfx('hit');
   const el = $('#idPanel'); el.classList.remove('hurt'); void el.offsetWidth; el.classList.add('hurt');
   const fx = $('#hurtFx'); fx.classList.add('on'); clearTimeout(hurtFxT); hurtFxT = setTimeout(() => fx.classList.remove('on'), 90);
@@ -7885,7 +7917,8 @@ function hurt(n, why){
    only changes when the player changes it, so dropped gear is ownership (state.owned), not the recipe. */
 const CARRY = {
   gear:{ take(){ const a = [...state.owned].map(id => ({kind:'gear', id})); state.owned.clear(); return a; }, give(it){ state.owned.add(it.id); } },
-  items:{ take(){ const a = Object.keys(state.inv).map(id => ({kind:'items', id, n:state.inv[id]})); state.inv = {}; return a; }, give(it){ giveItem(it.id, it.n, true); } }
+  // Goal 17: artifacts never go in the bundle (bound to whoever won them); The Second Breath is consumed before this runs, in trySecondBreath
+  items:{ take(){ const a = Object.keys(state.inv).filter(id => ITEMS[id].rarity !== 'artifact').map(id => ({kind:'items', id, n:state.inv[id]})); a.forEach(it => delete state.inv[it.id]); return a; }, give(it){ giveItem(it.id, it.n, true); } }
 };
 function takeCarried(){ let items = []; for(const k in CARRY) items = items.concat(CARRY[k].take()); return items; }
 function giveBack(it){ const c = CARRY[it.kind]; if(c) c.give(it); }
@@ -7935,12 +7968,12 @@ function updateBurst(dt){
   });
   burst.m.instanceMatrix.needsUpdate = true;
 }
-// Goal 17 hook: when the player holds The Second Breath, consume it here, refill HP, say so, and return true to cancel this death
-function trySecondBreath(why){ return false; }
+// Goal 17: when the player holds The Second Breath it is consumed here, HP refills, the panel says so, and this death is cancelled (artSecondBreath)
+function trySecondBreath(why){ return artSecondBreath(why); }
 function zeroOut(why){
-  sfx('zero');
   if(zeroing) return;
   if(trySecondBreath(why)) return;
+  sfx('zero');
   zeroing = true; localsZeroed(); qpZeroed();   // a zero-out inside a quest arena counts as a try, like a quit   // Living Locals: the locals count zero-outs and gossip about them
   const where = state.world, y = pocketIn() ? pocketFloor(p.x, p.z) : groundAt(p.x, p.z, p.y);
   const b = {id:++bundleSeq, world:where, x:p.x, y, z:p.z, credits:state.credits, items:takeCarried(), why:why || ''};
@@ -7949,7 +7982,8 @@ function zeroOut(why){
   coinBurst(p.x, p.y + 1.1, p.z, clamp(12 + Math.round(b.credits / 4), 12, 48));
   me.g.visible = false; p.speed = 0; jumpBuffer = 0;
   state.credits = 0; state.xp = 0; persist(); refreshHud();   // level and XP back to 1; HP stays 0 until the respawn
-  $('#zeroMsg').textContent = empty ? 'Nothing to drop. Back to the Spaceport.' : 'Dropped ₵' + b.credits + (b.items.length ? ' and ' + itemsText(unitCount(b.items)) : '') + ' in ' + WORLDS[where].name;
+  const kept = Object.keys(state.inv).filter(id => ITEMS[id].rarity === 'artifact').length;   // Goal 17: artifacts stay with you
+  $('#zeroMsg').textContent = (empty ? 'Nothing to drop. Back to the Spaceport.' : 'Dropped ₵' + b.credits + (b.items.length ? ' and ' + itemsText(unitCount(b.items)) : '') + ' in ' + WORLDS[where].name + '.') + (kept ? ' Your ' + (kept === 1 ? 'artifact stays' : kept + ' artifacts stay') + ' with you.' : '');
   $('#zeroFx').classList.add('on');
   const respawn = () => {
     if(traveling){ setTimeout(respawn, 300); return; }
@@ -8427,6 +8461,13 @@ const ITEMS = {
   'harpy-plume':    {name:'Harpy Plume', rarity:'common', value:4, shape:'gem', col:0xf2f6ff, desc:'A long white feather, light as a breath.'},
   'gale-quill':     {name:'Gale Quill', rarity:'uncommon', value:14, shape:'gem', col:0x9fd0ff, desc:'A flight feather that hums in a crosswind.'},
   'sky-pearl':      {name:'Cloud Pearl', rarity:'rare', value:38, shape:'orb', col:0xe8f4ff, desc:'Harpies line their nests with these. Nobody knows where they find them.'},
+  // Goal 17: the five artifacts. One copy of each exists in all of Hub: won once, by one deed in one place (ART below), never bought, never sold, never dropped.
+  // value is an appraisal shown in the bag, not a price: Outfitters will not buy an artifact. use() fires the named power (ART[id]); it never uses the artifact up.
+  'second-breath':  {name:'The Second Breath', rarity:'artifact', value:1000, shape:'orb', col:0x8ff5e0, desc:'One breath, held in glass. If you zero out while you carry it, it breaks instead of you.'},
+  'bell-jar':       {name:'The Bell Jar', rarity:'artifact', value:900, shape:'orb', col:0xbfe6ff, desc:'The glass dome Lyle kept over his first Comet Rally cartridge. Brought down over you, nothing can touch you.', use(){ artUse('bell-jar'); return false; }},
+  'tide-shell':     {name:'The Slack-Water Shell', rarity:'artifact', value:700, shape:'orb', col:0xf2d6c0, desc:'A whelk from the old sea floor under Glass Dunes, painted with the tide table of Fennick Bay. Hold it to your ear and the world waits for the turn of the tide.', use(){ artUse('tide-shell'); return false; }},
+  'window-lamp':    {name:'The Window Lamp of No. 9', rarity:'artifact', value:800, shape:'orb', col:0xffc070, desc:'The lamp from the front window of No. 9 Lantern Row, that brought the night ferry home. Lit, it shows what is near and not yet found.', use(){ artUse('window-lamp'); return false; }},
+  'mara-compass':   {name:'Mara\'s Compass', rarity:'artifact', value:600, shape:'orb', col:0xe8c27a, desc:'Mara Quist drew the first maps of Hub with this in her pocket. Its needle has never once pointed north.', use(){ artUse('mara-compass'); return false; }},
   // consumables (Goal 7), sold by the vending terminal in every realm (VEND). use() returns false when it would be wasted.
   'health-kit':     {name:'Health Kit', rarity:'common', value:6, shape:'chip', col:0xff5a6e, desc:'Restores 50 HP, up to your maximum.', use(){
     const m = maxHp(); if(zeroing || state.hp <= 0) return false;
@@ -8445,10 +8486,54 @@ const LOOT = {
 };
 function cleanInv(o){ const out = {}; for(const id in o) if(ITEMS[id]){ const n = Math.floor(num(o[id], 0)); if(n > 0) out[id] = ITEMS[id].rarity === 'artifact' ? 1 : Math.min(n, 999); } return out; }
 state.inv = cleanInv(state.inv);
+/* Goal 17: artifacts, the data. ART[id] is the named power and the one deed that wins it; the rows in ITEMS above carry name, rarity, appraisal and look.
+   Each is won in one place by one deed, checked by the game's own rules (never by giveItem, which refuses artifacts unless artWin is giving one):
+   - The Second Breath: Laser Run (Neon Grid's quest portal, the hardest of the six) cleared in under ART_PAR seconds without a laser hit (qpResult).
+   - The Bell Jar: the Architect's chest in the Hoard under Glass Dunes has a false bottom sealed with amber wax; it gives only to whoever holds the Amber Shard (openChest).
+   - The Slack-Water Shell: the tenth sand wraith you see off in Glass Dunes drops it (monDie); left lying, the next wraith drops it again.
+   - The Window Lamp of No. 9: the Lantern Ring (Night Grove's quest portal) lit in the fewest touches it can be done in (qpResult).
+   - Mara's Compass: a gift from one Spaceport local, ART_KEEPER, the first time you talk with them while they like you as much as anyone can (mood 10).
+   Rules decided here: Outfitters never buys an artifact (sellItem refuses with a word why); a zero-out never puts one in the loot bundle (they are bound to
+   whoever won them); The Second Breath is the exception: it is consumed instead, cancels that zero-out, and is gone for good (state.art.spent). */
+const ART_PAR = 20, ART_SHELL_N = 10, ART_KEEPER = 'hub:Orbit';   // Orbit, an Archive copyist on the Spaceport (the second local spawned there, so phones, which spawn ten, have them too)
+const ART_ORDER = ['second-breath', 'bell-jar', 'tide-shell', 'window-lamp', 'mara-compass'];
+const ART = {
+  'second-breath':{power:'Second Breath', key:null, realm:'grid', place:'Laser Run, the quest portal in Neon Grid',
+    deed:'Clear Laser Run in under ' + ART_PAR + ' seconds without a single laser hit.', effect:'Works by itself: when you would zero out it breaks instead of you. Full HP, nothing dropped, and it is gone for good.',
+    gossip:'They say you ran the Laser Run so clean the lasers never touched you, and the lane gave you The Second Breath. There is only one, you know.'},
+  'bell-jar':{power:'Glass Calm', key:'KeyB', dur:12, cd:300, realm:'dunes', place:'the Architect\'s chest in the Hoard, under Glass Dunes',
+    deed:'Win the Amber Shard, then open the chest in the Hoard: its false bottom, sealed with amber wax, gives only to whoever holds the shard.', effect:'B: a glass dome comes down over you for 12 s. No monster, trap, laser or fall can hurt you inside it. Then it rests for 5 minutes.',
+    gossip:'You found The Bell Jar in the Hoard? The one Lyle kept his first cartridge under? Nothing gets through that glass, they say.'},
+  'tide-shell':{power:'Slack Water', key:'KeyT', dur:8, cd:180, k:0.3, realm:'dunes', place:'the open dunes of Glass Dunes',
+    deed:'See off ' + ART_SHELL_N + ' sand wraiths in Glass Dunes. The tenth drops the shell; if you leave it lying, the next one drops it again.', effect:'T: for 8 s monsters, traps and lasers move at a third of their speed while you move at yours. Then it rests for 3 minutes. Quest arenas keep their own time.',
+    gossip:'A sand wraith was carrying the Slack-Water Shell all this time, and you took it off the tenth one! Hold it to your ear and the whole world waits.'},
+  'window-lamp':{power:'Homelight', key:'KeyH', dur:45, cd:120, realm:'grove', place:'the Lantern Ring, the quest portal in Night Grove',
+    deed:'Light all seven lanterns of the Lantern Ring in the fewest touches it can be done in.', effect:'H: for 45 s relics, coins, Dreamer landmarks, quest doorways, unvisited portals, your bundle and monsters within 150 m stand in pillars of light, and the minimap reaches three times as far. Then it rests for 2 minutes.',
+    gossip:'The fireflies lit the Lantern Ring for you without a single wasted touch, and you came out with the lamp from No. 9. The Architect\'s own window lamp!'},
+  'mara-compass':{power:'Unseen North', key:'KeyK', dur:60, cd:90, realm:'hub', place:'Hub Spaceport, from ' + ART_KEEPER.split(':')[1],
+    deed:'Become the best of friends with ' + ART_KEEPER.split(':')[1] + ', a local on the Spaceport (mood 10), then talk with them. Mara left something with them for that.', effect:'K: for 60 s a needle at the top of the screen points to the nearest thing here you have not found yet: a relic, a coin, a Dreamer landmark, a quest portal you have not cleared or a portal to a realm you have not seen. Then it rests for 90 s.',
+    gossip:'Mara\'s own compass, given to you! She always said it only points at what you have not seen yet.'}
+};
+// saved: won (id -> {t, realm, how}), spent (The Second Breath once used), cd (id -> wall-clock ms when the power is ready again), uses
+function artClean(o){
+  const out = {won:{}, spent:{}, cd:{}, uses:{}}; if(!o || typeof o !== 'object') return out;
+  ART_ORDER.forEach(id => { const w = o.won && o.won[id]; if(w && typeof w === 'object') out.won[id] = {t:num(w.t, 0), realm:typeof w.realm === 'string' ? w.realm.slice(0, 40) : '', how:typeof w.how === 'string' ? w.how.slice(0, 20) : ''};
+    const c = o.cd && o.cd[id]; if(typeof c === 'number' && isFinite(c)) out.cd[id] = Math.min(c, Date.now() + (ART[id].cd || 0) * 1000);
+    const u = o.uses && o.uses[id]; if(u > 0) out.uses[id] = Math.floor(num(u, 0)); });
+  const s = o.spent && o.spent['second-breath']; if(s && out.won['second-breath']) out.spent['second-breath'] = {t:num(s.t, 0), realm:typeof s.realm === 'string' ? s.realm.slice(0, 40) : ''};
+  return out;
+}
+state.art = artClean(sv.art);
+// one copy each: an artifact in the bag must have been won, and a spent Second Breath stays spent
+for(const id in state.inv) if(ITEMS[id].rarity === 'artifact' && (!state.art.won[id] || state.art.spent[id])) delete state.inv[id];
+for(const id in state.art.won) if(!state.art.spent[id]) state.inv[id] = 1;
+let artGive = false;   // set only inside artWin: giveItem refuses artifacts otherwise
+const artRt = {clock:0, fields:[], reveal:null, tide:0, lamp:null, cmp:null, hudT:0, hold:false, last:null, lastUse:null, breathFx:null};   // runtime only (not saved)
 const itemCount = () => Object.values(state.inv).reduce((a, n) => a + n, 0);
-const itemWorth = () => Object.keys(state.inv).reduce((a, id) => a + ITEMS[id].value * state.inv[id], 0);
+const itemWorth = () => Object.keys(state.inv).reduce((a, id) => a + (ITEMS[id].rarity === 'artifact' ? 0 : ITEMS[id].value * state.inv[id]), 0);   // what Outfitters would pay: artifacts are not for sale
 function giveItem(id, n, quiet){
   const d = ITEMS[id]; if(!d) return false;
+  if(d.rarity === 'artifact' && !artGive) return false;   // Goal 17: artifacts only ever come from artWin (their one deed)
   n = Math.max(1, Math.floor(num(n, 1)));
   state.inv[id] = d.rarity === 'artifact' ? 1 : Math.min(999, (state.inv[id] || 0) + n);
   if(!quiet){ persist(); invRefresh(); }
@@ -8456,7 +8541,9 @@ function giveItem(id, n, quiet){
 }
 function takeItem(id){ if(!state.inv[id]) return false; if(--state.inv[id] <= 0) delete state.inv[id]; return true; }
 function sellItem(id){
-  const d = ITEMS[id]; if(!d || !takeItem(id)) return 0;
+  const d = ITEMS[id]; if(!d) return 0;
+  if(d.rarity === 'artifact'){ if(state.inv[id]) toast('Outfitters will not buy ' + d.name + '. There is only one in all of Hub, and it is bound to you.', 3200); return 0; }   // Goal 17: never for sale
+  if(!takeItem(id)) return 0;
   state.credits += d.value; persist(); refreshHud(); bump(); sfx('coin'); invRefresh();
   toast('Sold ' + d.name + ' for ₵' + d.value, 2200);
   return d.value;
@@ -8482,7 +8569,8 @@ function renderInventory(){
   if(state.archive.ledger){ const row = document.createElement('div'); row.className = 'inv-row'; row.style.setProperty('--r', '#e8c77a');
     row.innerHTML = '<i class="ico book" style="--c:#7a3424"></i><span class="nm"><span class="rar">Key item</span>The Ashcombe Ledger<small>The Architect\'s book of notes and riddles. ' + state.archive.found.size + ' of 6 Archive finds pinned inside.</small></span><span class="val"></span>';
     const b = document.createElement('button'); b.className = 'use'; b.textContent = 'Read'; b.addEventListener('click', () => { closeInventory(); openLedger(); }); row.querySelector('.val').appendChild(b); list.appendChild(row); }
-  byValue().forEach(id => {
+  byValue().filter(id => ITEMS[id].rarity === 'artifact').forEach(id => list.appendChild(artRow(id)));   // Goal 17: artifacts first, with their badge, power and key
+  byValue().filter(id => ITEMS[id].rarity !== 'artifact').forEach(id => {
     const d = ITEMS[id], row = itemRow(id, 'div', '<b>₵ ' + d.value + '</b>');
     if(d.use){ const b = document.createElement('button'); b.className = 'use'; b.textContent = 'Use'; b.addEventListener('click', () => useItem(id)); row.querySelector('.val').appendChild(b); }
     list.appendChild(row);
@@ -8492,7 +8580,8 @@ function renderSell(){
   const list = $('#sellList'); list.innerHTML = '';
   const ids = byValue();
   if(!ids.length){ list.innerHTML = '<div class="inv-empty">You carry nothing to sell. Items you pick up in the realms show here.</div>'; return; }
-  ids.forEach(id => { const b = itemRow(id, 'button', 'Sell <b>₵ ' + ITEMS[id].value + '</b>'); b.addEventListener('click', () => sellItem(id)); list.appendChild(b); });
+  ids.forEach(id => { if(ITEMS[id].rarity === 'artifact'){ const r = itemRow(id, 'div', 'Not for sale'); r.classList.add('art'); r.title = 'There is only one in all of Hub. Outfitters will not buy it.'; list.appendChild(r); return; }   // Goal 17
+    const b = itemRow(id, 'button', 'Sell <b>₵ ' + ITEMS[id].value + '</b>'); b.addEventListener('click', () => sellItem(id)); list.appendChild(b); });
 }
 function invRefresh(){
   if(!invEl.classList.contains('hidden')) renderInventory();
@@ -9367,7 +9456,7 @@ function hollowUpdate(dt, time){
     if(H.built && H.inside){ hollowInside(dt, time);
       if(H.lid && state.hunt.hoard) H.lid.rotation.x += (-1.9 - H.lid.rotation.x) * (1 - Math.exp(-dt * 5));
       const CB = HOLLOW.cabinet, K = HOLLOW.chest;
-      if(H.inside && !bike.riding){ if(Math.hypot(p.x - HOLLOW.x - CB.x, p.z - HOLLOW.z - CB.z + 1.2) < 1.3) near = 'cabinet'; else if(!state.hunt.hoard && Math.hypot(p.x - HOLLOW.x - K.x, p.z - HOLLOW.z - K.z) < 1.9) near = 'chest'; }
+      if(H.inside && !bike.riding){ if(Math.hypot(p.x - HOLLOW.x - CB.x, p.z - HOLLOW.z - CB.z + 1.2) < 1.3) near = 'cabinet'; else if((!state.hunt.hoard || !state.art.won['bell-jar']) && Math.hypot(p.x - HOLLOW.x - K.x, p.z - HOLLOW.z - K.z) < 1.9) near = 'chest'; }   // Goal 17: the false bottom keeps the chest open to E until the Bell Jar is won
     } else if(!H.inside){
       if(!H.open && !bike.riding && Math.hypot(p.x - 22, p.z - 16) < HOLLOW.fieldR) near = 'knock';
       // walk into the dark doorway at the back of the porch to go down
@@ -9379,7 +9468,12 @@ function hollowUpdate(dt, time){
     if(near === 'cabinet' && playing) toast('A Comet Rally cabinet, lit and waiting. E or tap Play.', 3000); else if(near === 'chest' && playing) toast('An old chest with bronze bands. E or tap Open.', 2600); }
 }
 function hollowAct(){ if(hollowNear === 'knock') return knock(); if(hollowNear === 'chest') return openChest(); if(hollowNear === 'cabinet' && typeof openRally === 'function') return openRally(); return null; }
-function openChest(){ if(state.hunt.hoard) return null; state.hunt.hoard = true; persist(); reward(20, 60); sfx('coin'); toast('The chest holds sixty credits in old Fennick Bay coin.   +20 XP', 3600); return {credits:60}; }
+function openChest(){
+  if(state.hunt.hoard) return artChest();   // Goal 17: the false bottom under the coins
+  state.hunt.hoard = true; persist(); reward(20, 60); sfx('coin'); toast('The chest holds sixty credits in old Fennick Bay coin.   +20 XP', 3600);
+  const art = state.shards.has('dunes') && !state.art.won['bell-jar'] ? artChest() : null;   // already holding the Amber Shard: the false bottom gives at once
+  return {credits:60, art};
+}
 $('#hollowBtn').addEventListener('click', hollowAct);
 
 /* ================= Comet Rally (Goal 11): the Architect's first game, on the cabinet in the Hoard =================
@@ -9597,7 +9691,8 @@ window.addEventListener('keydown', e => {
   if(e.code === 'KeyI'){ openInventory(); return; }
   if(e.code === 'KeyJ'){ e.preventDefault(); openXlog(); return; }
   if(e.code === 'KeyF'){ e.preventDefault(); openForge(); return; }
-  if(e.code === 'KeyX'){ e.preventDefault(); if(!e.repeat) monAttack(); return; }   // Goal 16: fight back (pulse, ward or strike, by the realm's rules)
+  if(e.code === 'KeyX'){ e.preventDefault(); if(!e.repeat) monAttack(); return; }
+  { const aid = ART_ORDER.find(id => ART[id].key === e.code); if(aid){ e.preventDefault(); if(!e.repeat) artUse(aid, 'key'); return; } }   // Goal 17: B Bell Jar, T Slack-Water Shell, H Window Lamp, K Mara's Compass   // Goal 16: fight back (pulse, ward or strike, by the realm's rules)
   if(e.code === 'KeyE'){ interactKey(); return; }
   if(e.code === 'KeyN'){ setMute(snd.on); return; }
   if(e.code === 'KeyV'){ cycleView(); return; }
@@ -9678,7 +9773,7 @@ function travel(to, opts){
 const mm = $('#minimap'), mx2 = mm.getContext('2d');
 function sizeMap(){ const d = Math.min(window.devicePixelRatio || 1, 2); mm.width = mm.clientWidth * d; mm.height = mm.clientHeight * d; }
 function drawMap(){
-  const w = mm.width, c = w / 2, sc = c / 40, sy = Math.sin(cam.yaw), cy = Math.cos(cam.yaw);
+  const w = mm.width, c = w / 2, sc = c / (artRt.lamp ? 120 : 40), sy = Math.sin(cam.yaw), cy = Math.cos(cam.yaw);   // Goal 17: the Window Lamp's Homelight reaches three times as far
   const T = (x, z) => { const dx = x - p.x, dz = z - p.z; return [c + (cy * dx - sy * dz) * sc, c - (-sy * dx - cy * dz) * sc]; };
   mx2.clearRect(0, 0, w, w); mx2.save(); mx2.beginPath(); mx2.arc(c, c, c - 1, 0, TAU); mx2.clip();
   mx2.fillStyle = 'rgba(14,12,40,0.78)'; mx2.fillRect(0, 0, w, w);
@@ -9703,6 +9798,7 @@ function drawMap(){
   if(endless) for(const ch of endless.chunks.values()){ const d = ch.dream; if(d && d.x != null) star(d.x, d.z, d.found ? 'rgba(177,140,255,0.45)' : '#b18cff'); }   // landmarks nearby: violet, faded once found
   const tip = T(p.x + Math.sin(p.facing) * 2.4, p.z + Math.cos(p.facing) * 2.4), ang = Math.atan2(tip[1] - c, tip[0] - c);
   monMap(T, sc);   // Goal 16: monsters (red when hunting you) and their loot
+  artMap(mx2, T, sc);   // Goal 17: the lamp's finds and the compass's mark
   mx2.translate(c, c); mx2.rotate(ang); mx2.fillStyle = '#fff'; mx2.beginPath(); mx2.moveTo(9, 0); mx2.lineTo(-6, -6); mx2.lineTo(-3, 0); mx2.lineTo(-6, 6); mx2.fill();
   mx2.restore();
   mx2.strokeStyle = 'rgba(92,225,230,0.7)'; mx2.lineWidth = 2; mx2.beginPath(); mx2.arc(c, c, c - 1.5, 0, TAU); mx2.stroke();
@@ -10898,6 +10994,7 @@ function qpResult(key, S, how){
   persist();
   const out = {realm:key, kind:d.kind, name:d.name, how, result:S.state, why:S.why || null, t:+(S.t || 0).toFixed(1), pay, wins:rec.wins, tries:rec.tries, best:rec.best};
   qpLast = out; qpList.forEach(q => { if(q.key === key) qpLabels(q); });
+  out.artifact = artQuest(key, S, how);   // Goal 17: Laser Run under par without a hit, the Lantern Ring in the fewest touches
   return out;
 }
 // the headless check: the same step function, driven by a scripted player (QM[kind].sim), scored by qpResult unless dry
@@ -11138,12 +11235,13 @@ QM.laser = {
   },
   // scripted runners: 'win' times every gate (jumps the low beams, waits for a curtain to go dark, crosses a sweep behind the beam), 'reckless' just runs
   sim(S, policy){
-    if(['win', 'reckless'].indexOf(policy) < 0) return {error:'unknown policy', policies:['win', 'reckless']};
+    if(['win', 'reckless', 'slow'].indexOf(policy) < 0) return {error:'unknown policy', policies:['win', 'reckless', 'slow']};   // 'slow' is 'win' after standing 5 s at the start (Goal 17: a clear over par)
+    const late = policy === 'slow' ? 5 : 0; if(late) policy = 'win';
     const P = {x:0, z:LASER.start, y:0, vy:0}, dt = 1 / 60, log = []; let go = -1;
     for(let i = 0; i < 60 * 120 && S.state === 'run'; i++){
       const t = S.t, gi = LASER.gates.findIndex(g => g.u + LASER.zone + 0.05 > P.z), g = LASER.gates[gi];
-      let v = 5, wantX = 0;
-      if(policy === 'win' && g){
+      let v = t < late ? 0 : 5, wantX = 0;
+      if(policy === 'win' && g && t >= late){
         const ua = g.u - 1.3;
         if(g.k === 'sweep') wantX = -2.6;
         if(go !== gi && P.z >= ua - 0.02){ v = 0;
@@ -11235,8 +11333,8 @@ QM.lantern = {
     return ev;
   },
   sim(S, policy){
-    if(['win', 'wild'].indexOf(policy) < 0) return {error:'unknown policy', policies:['win', 'wild']};
-    const log = [], plan = policy === 'win' ? S.sol.slice() : Array(20).fill(0);
+    if(['win', 'wild', 'long'].indexOf(policy) < 0) return {error:'unknown policy', policies:['win', 'wild', 'long']};   // 'long' wins with two spare touches (lantern 1 twice first): not the fewest (Goal 17)
+    const log = [], plan = policy === 'win' ? S.sol.slice() : policy === 'long' ? [0, 0].concat(S.sol) : Array(20).fill(0);
     for(let i = 0; i < plan.length && S.state === 'run'; i++){ QM.lantern.step(S, {press:plan[i]}, 1.5).forEach(e => log.push(e)); }
     return log;
   },
@@ -11897,6 +11995,7 @@ function monDie(m){
   const K = state.kills; K.n++; K.by[M.key] = monKills(M.key) + 1; if(!K.first) K.first = {realm:M.key, t:Date.now()};
   const q = rng(strHash(m.id + ':' + K.n)), credits = D.credits[0] + Math.floor(q() * (D.credits[1] - D.credits[0] + 1)), u = q();
   let item = null, acc = 0; for(const row of D.loot){ acc += row[1]; if(u < acc){ item = row[0]; break; } }
+  if(M.key === 'dunes' && monKills('dunes') >= ART_SHELL_N && !state.art.won['tide-shell'] && !M.drops.some(d => d.item === 'tide-shell')) item = 'tide-shell';   // Goal 17: the tenth wraith (and any after it, until the shell is picked up)
   reward(D.xp, 0);
   let gy = groundAt(m.x, m.z, m.y + 0.5), dx = m.x, dz = m.z;
   if(!(gy > p.y - 30) || pocketIn()){ const a = Math.atan2(m.x - p.x, m.z - p.z); dx = p.x + Math.sin(a) * 1.8; dz = p.z + Math.cos(a) * 1.8; gy = groundAt(dx, dz, p.y + 0.5); }   // over the void (a harpy above the clouds): the loot flutters down next to you
@@ -11917,8 +12016,9 @@ function monDropAdd0(x, y, z, credits, item, fromY){
   if(credits > 0) [[0.16, 0, 0.05, 0.2], [-0.12, -0.05, -0.08, -0.4], [0.02, 0.06, -0.14, 0.9]].forEach(c => { const k = new THREE.Mesh(M.dropG.coin, M.goldM); k.position.set(c[0], c[1] - 0.25, c[2]); k.rotation.set(c[3], c[3] * 2, 0); k.castShadow = true; spin.add(k); });
   if(item){ const d = ITEMS[item], k = new THREE.Mesh(M.dropG[d.shape], phys(d.col, {roughness:0.18, metalness:0.3, emissive:C(d.col), emissiveIntensity:0.6})); k.scale.setScalar(1.25); k.position.y = 0.12; k.castShadow = true; spin.add(k); }
   const ring = new THREE.Mesh(new THREE.RingGeometry(0.36, 0.46, 48), new THREE.MeshBasicMaterial({color:C(rh), transparent:true, opacity:0.6, depthWrite:false, side:THREE.DoubleSide, toneMapped:false})); ring.rotation.x = -Math.PI / 2; ring.position.y = 0.03; g.add(ring);
-  const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 2.6, 8, 1, true), new THREE.MeshBasicMaterial({color:C(rh), transparent:true, opacity:0.35, depthWrite:false, blending:THREE.AdditiveBlending, toneMapped:false})); beam.position.y = 1.4; g.add(beam);
-  glow(rh, 1.2, 0, 0.6, 0, g, 0.55);
+  const tall = item && ITEMS[item].rarity === 'artifact' ? 9 : 1;   // Goal 17: an artifact's drop stands in a tall beam you can see from across the dunes
+  const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.035 * (tall > 1 ? 2.5 : 1), 0.035 * (tall > 1 ? 2.5 : 1), 2.6 * tall, 8, 1, true), new THREE.MeshBasicMaterial({color:C(rh), transparent:true, opacity:0.35, depthWrite:false, blending:THREE.AdditiveBlending, toneMapped:false})); beam.position.y = 1.4 * tall; g.add(beam);
+  glow(rh, 1.2 * (tall > 1 ? 2 : 1), 0, 0.6, 0, g, 0.55);
   g.traverse(o => o.layers.set(1));
   const dr = {id:'d' + (++monDropSeq), x, y, z, credits, item, g, spin, t:simTime, pop:0, fromY:fromY == null ? y + 1 : fromY};
   M.drops.push(dr); return dr;
@@ -11926,7 +12026,9 @@ function monDropAdd0(x, y, z, credits, item, fromY){
 function monDropTake(dr){
   const M = mon, i = M.drops.indexOf(dr); if(i < 0) return null; M.drops.splice(i, 1);
   M.root.remove(dr.g); dr.g.traverse(o => { if(o.geometry && !Object.values(M.dropG).includes(o.geometry)) o.geometry.dispose(); if(o.material && o.material !== M.goldM){ o.material.dispose(); } });
-  state.credits += dr.credits; if(dr.item) giveItem(dr.item, 1, true); persist(); refreshHud(); bump(); invRefresh(); sfx('coin');
+  const isArt = !!(dr.item && ITEMS[dr.item].rarity === 'artifact');
+  state.credits += dr.credits; if(dr.item && !isArt) giveItem(dr.item, 1, true); persist(); refreshHud(); bump(); invRefresh(); sfx('coin');
+  if(isArt){ M.lastPick = {id:dr.id, credits:dr.credits, item:dr.item, artifact:artWin(dr.item, 'drop')}; return M.lastPick; }   // Goal 17: the shell's own reveal
   const d = dr.item && ITEMS[dr.item];
   toast('Loot: ₵' + dr.credits + (d ? ' + ' + d.name + ' · ' + RARITY[d.rarity].name + ' · sells for ₵' + d.value : '') + (d ? '   (I to view)' : ''), 3000);
   M.lastPick = {id:dr.id, credits:dr.credits, item:dr.item}; return M.lastPick;
@@ -12374,7 +12476,8 @@ function update(dt, time){
   }
   if(playing && p.grounded && p.speed > 0.6){ snd.stepT -= dt; if(snd.stepT <= 0){ sfx('step'); snd.stepT = p.speed > 7 ? 0.27 : 0.42; } } else snd.stepT = 0.1;
   shopProximity(); bikeProximity(); vendProximity(); deskProximity(); archiveUpdate(dt); hollowUpdate(dt, time); chimeUpdate(dt, time); ashUpdate(dt, time); starTick(dt, time); driftUpdate(dt, time); hallUpdate(dt, time); rallyTick(dt, time); trialUpdate(dt, time); qpTick(dt, time);
-  updatePickups(dt, time); monUpdate(dt, time); hurtCool -= dt; simTime += dt; updateHazards(simTime); updateBurst(dt); checkBundles();
+  const wdt = dt * artTideK();   // Goal 17: Slack Water slows monsters, traps and lasers (simTime), never the player
+  updatePickups(dt, time); monUpdate(wdt, time); hurtCool -= dt; simTime += wdt; updateHazards(simTime); updateBurst(dt); checkBundles(); artUpdate(dt, time);
   if(!WORLDS[state.world].rules.danger && !zeroing && state.hp < maxHp()){ state.hp = Math.min(maxHp(), state.hp + 12 * dt); hpHud(); }
   portalCool -= dt;
   if(playing && portalCool <= 0 && !traveling && !zeroing && !pocketIn()) for(const q of portals){ if(Math.hypot(p.x - q.x, p.z - q.z) < 1.6 && p.y - G(p.x, p.z) < 2){ travel(q.to); break; } }
@@ -13588,6 +13691,8 @@ function deedsNow(){
   const KN = state.kills.n, KF = state.kills.first && MON[state.kills.first.realm] ? state.kills.first.realm : null;   // Goal 16: the first monster seen off, and a big tally
   if(KN >= 1 && KF) out.push({id:'hunt:1', big:false, realm:KF, text:'saw off their first ' + MON[KF].name.toLowerCase() + ' in ' + WORLDS[KF].name + (KN > 1 ? ' (' + KN + ' monsters so far)' : ''), line:MON[KF].gossip});
   if(KN >= 25) out.push({id:'hunt:25', big:true, realm:'hub', text:'has seen off ' + KN + ' monsters across Hub', line:KN + ' monsters seen off! The wraiths and the drones must tell stories about you.'});
+  ART_ORDER.forEach(id => { if(state.art.won[id]) out.push({id:'artifact:' + id, big:true, realm:ART[id].realm, text:'won ' + ITEMS[id].name + ', the only one in Hub', line:ART[id].gossip}); });   // Goal 17: every artifact is big news
+  if(state.art.spent['second-breath']) out.push({id:'artifact:breath-spent', big:true, realm:state.art.spent['second-breath'].realm || 'hub', text:'zeroed out and came straight back, because The Second Breath broke instead', line:'You zeroed out and The Second Breath broke instead of you? Then there are none left anywhere. Use your new life well.'});
   if(done >= 1){ const last = P.quests.filter(q => q.state === 'done').slice(-1)[0]; out.push({id:'helper', big:false, realm:last.realm, text:'has helped ' + done + (done === 1 ? ' local' : ' locals') + ' with a favour', line:'People say you help folks out. That is rarer than shards.'}); }
   return out;
 }
@@ -13621,6 +13726,7 @@ function localGreeting(nn, opts){
   const fresh = knownDeeds(nn).find(d => m.reacted.indexOf(d.id) < 0);
   if(fresh){ s += ' ' + fresh.line; m.reacted.push(fresh.id); if(m.reacted.length > 30) m.reacted.shift(); }
   const q = lp().quests.find(x => x.state === 'active' && x.giver === P.id); if(q) s += ' Any luck with ' + q.short + '?';
+  if(P.id === ART_KEEPER && !state.art.won['mara-compass'] && m.mood >= 6 && m.mood < 10) s += ' Mara Quist left something with me, for whoever becomes my very best friend in Hub. Not yet, though.';   // Goal 17: the keeper's hint
   if(!nn.metNow){ nn.metNow = true; m.met++; m.last = Date.now(); if(m.met <= 3) m.mood = clamp(m.mood + 1, -10, 10); }
   saveLocals(); return s.replace(/\s+/g, ' ').trim();
 }
@@ -13667,7 +13773,8 @@ function applyLocalReply(nn, rep, text, source){
   if(!nn.metNow){ nn.metNow = true; m.met++; }
   m.last = Date.now(); saveLocals();
   nn.lastSay = rep.say; nn.sayT = 9; if(rep.emote && rep.emote !== 'none') localEmote(nn, rep.emote);
-  return {name:P.name, say:rep.say, mood_delta:clamp(Math.round(num(rep.mood_delta, 0)), -3, 3), emote:rep.emote || 'none', remember:rep.remember || '', quest:rep.quest || null, source, mood:m.mood, feeling:moodWord(m.mood)};
+  const gift = artLocalCheck(nn);   // Goal 17: Mara's Compass, from its keeper at mood 10
+  return {gift, name:P.name, say:rep.say, mood_delta:clamp(Math.round(num(rep.mood_delta, 0)), -3, 3), emote:rep.emote || 'none', remember:rep.remember || '', quest:rep.quest || null, source, mood:m.mood, feeling:moodWord(m.mood)};
 }
 function localEmote(nn, kind){ if(NPC_EMOTES.indexOf(kind) < 0 || kind === 'none') return; nn.gest = {kind, t:0, dur:kind === 'wave' || kind === 'cheer' ? 2.2 : 1.8}; }
 const npcAI = {why:'', path:'', busy:false};
@@ -13697,7 +13804,7 @@ function openTalk(nn){
   if(talk.nn !== nn){ talk.nn = nn; talk.turns = []; talk.offer = null; $('#talkLog').innerHTML = ''; }
   talkEl.classList.remove('hidden'); setPaused(true); document.body.classList.add('talking');
   if(!$('#talkLog').children.length){ const g = localGreeting(nn, {open:true}); talkLine(nn.name, g, 'reg'); nn.lastSay = g; nn.sayT = 9; localEmote(nn, 'wave'); talk.turns.push({role:'assistant', content:g}); }
-  talkHead(); talkOffer(); talkSrc(); completeQuestCheck();
+  talkHead(); talkOffer(); talkSrc(); completeQuestCheck(); artLocalCheck(nn);   // Goal 17: the compass's keeper gives it when you come to talk at mood 10
   if(!COARSE) $('#talkQ').focus();
   return true;
 }
@@ -14039,7 +14146,7 @@ function completeQuestCheck(){
       chart:() => 'A new planet in sector ' + q.param + ', charted!', coin:() => 'You found ' + q.short + '!', portal:() => 'You cleared ' + q.short + '!', hunt:() => 'You saw off ' + q.short + '!'}[q.type];
     const line = (did ? did() : 'You did it!') + ' Thank you, ' + pname() + '. I will not forget it.';
     toast(q.giverName + ': ' + line + '   +₵' + q.reward.credits + ' +' + q.reward.xp + ' XP', 5200);
-    if(nn){ nn.lastSay = line; nn.sayT = 9; localEmote(nn, 'cheer'); if(talk.nn === nn && !talkEl.classList.contains('hidden')) talkLine(nn.name, line, 'reg'); }
+    if(nn){ nn.lastSay = line; nn.sayT = 9; localEmote(nn, 'cheer'); if(talk.nn === nn && !talkEl.classList.contains('hidden')) talkLine(nn.name, line, 'reg'); artLocalCheck(nn); }
     out.push({id:q.id, giver:q.giverName, type:q.type, param:q.param, reward:Object.assign({}, q.reward)});
   }
   if(out.length){ saveLocals(); localsNotice(); questHud(); }
@@ -14163,6 +14270,426 @@ Object.defineProperties(window.__hub, {
 cleanLocalsStore();
 Object.defineProperties(window.__hub, { cleanLocalsStore:{value:() => cleanLocalsStore()} });
 questHud();
+
+/* ================= Artifacts (Goal 17; blueprint 2, 5 and 8): the rules, the powers, the reveal =================
+   ART (with the data, after ITEMS) says what each artifact is, where it is won and what it does. This section owns everything else:
+   artWin(id, how) is the only way one enters the bag (one copy each, ever); artUse(id) fires a power (B, T, H, K or Use in the bag) with its duration
+   and its cooldown (wall-clock, saved, so a reload does not reset it); artSecondBreath(why) is the zero-out hook.
+   Drawing: the reveal (a stone plinth that rises in front of you with the artifact turning above it in a shaft of light, about 7 s), the Bell Jar's glass dome,
+   the Window Lamp's pillars of light and the lamp at your shoulder are added to the scene (never to the realm), built through noRandom() so three.js's uuid
+   draws never touch Math.random (NPC wander), and torn down by artUpdate; coreSum never sees them. No lights: emissive, additive shells and glow sprites only.
+   Goal 18 hook: raiseField({x, z, y, r, h, dur, owner, shields, follow, col}) puts a Bell Jar dome of any size anywhere (the Citadel-wide one is
+   raiseField({x, z, r:60, h:90, owner:'meridian', shields:'meridian', dur:Infinity})); fieldAt(x, y, z) finds the dome round a point; dropField(f, why) breaks one.
+   Only a field with shields:'player' stops hurt(); what a Meridian field blocks is Goal 18's to decide. */
+const artName = id => ITEMS[id] ? ITEMS[id].name : id;
+const artHas = id => !!state.inv[id] && ITEMS[id] && ITEMS[id].rarity === 'artifact';
+const artCdLeft = id => Math.max(0, ((state.art.cd[id] || 0) - Date.now()) / 1000);
+const artClockFmt = s => s >= 60 ? Math.floor(s / 60) + ':' + String(Math.floor(s % 60)).padStart(2, '0') : Math.ceil(s) + ' s';
+const artKeyName = id => ART[id].key ? ART[id].key.replace('Key', '') : '';
+function artCard(kicker, name, text, ms){
+  const el = $('#artFx'); $('#artFxK').textContent = kicker; $('#artFxN').textContent = name; $('#artFxP').innerHTML = text;
+  el.classList.add('on'); clearTimeout(artCard.t); artCard.t = setTimeout(() => el.classList.remove('on'), ms || 6500);
+}
+function artFanfare(){ if(!snd.ctx || !snd.on) return; try{ const t0 = snd.ctx.currentTime; [2, 3, 4, 3, 2].forEach((k, i) => { const f = LOW_TIDE_HZ[k]; tone('triangle', f, f, 0.9, 0.05, t0 + i * 0.2); tone('sine', f * 2, f * 2, 0.6, 0.015, t0 + i * 0.2); }); }catch(e){} }
+
+// ---- winning ----
+function artWin(id, how){
+  const A = ART[id]; if(!A || state.art.won[id]) return null;   // one copy in all of Hub: won once, ever
+  state.art.won[id] = {t:Date.now(), realm:state.world, how:String(how || 'played').slice(0, 20)};
+  artGive = true; try{ giveItem(id, 1, true); } finally{ artGive = false; }
+  persist(); invRefresh(); artHudDraw(); if(typeof localsNotice === 'function') localsNotice();
+  sfx('win'); artFanfare(); artReveal(id);
+  artCard('Artifact won · one of one', artName(id), '<i>' + A.power + '</i> · ' + A.effect + (A.key ? '' : '') + '<br><small style="color:#c9bfa0">' + (A.key ? 'Press ' + artKeyName(id) + ' or use it from your bag (I).' : 'Keep it in your bag; it needs nothing from you.') + '</small>', 8000);
+  return (artRt.last = {id, name:artName(id), how:state.art.won[id].how, realm:state.world});
+}
+function artQuest(key, S, how){
+  if(!S || S.state !== 'won' || how === 'test') return null;
+  if(key === 'grid' && S.kind === 'laser' && S.hits === 0 && S.t < ART_PAR) return artWin('second-breath', how);
+  if(key === 'grove' && S.kind === 'lantern' && Array.isArray(S.sol) && S.moves === S.sol.length) return artWin('window-lamp', how);
+  return null;
+}
+function artChest(){
+  if(state.art.won['bell-jar']) return null;
+  if(!state.shards.has('dunes')){ sfx('thud'); toast('Under the coins the chest has a false bottom, sealed with amber wax. It will not give for you yet.', 3800); return {sealed:true}; }
+  const r = artWin('bell-jar', 'chest'); return r ? {artifact:'bell-jar'} : null;
+}
+function artLocalCheck(nn){
+  if(!nn || state.art.won['mara-compass'] || !living(nn) || personaOf(nn).id !== ART_KEEPER || memOf(nn).mood < 10) return null;
+  const line = 'Mara Quist left this with me years ago, for whoever became my very best friend in Hub. That is you, ' + pname() + '. Mind where it points.';
+  nn.lastSay = line; nn.sayT = 9; localEmote(nn, 'cheer'); if(talk.nn === nn && !talkEl.classList.contains('hidden')) talkLine(nn.name, line, 'reg');
+  return artWin('mara-compass', 'gift');
+}
+
+// ---- The Second Breath ----
+function artSecondBreath(why){
+  if(!artHas('second-breath')) return false;
+  delete state.inv['second-breath']; state.art.spent['second-breath'] = {t:Date.now(), realm:state.world, why:String(why || '').slice(0, 40)};
+  state.hp = maxHp(); hpHud(); hurtCool = 3; p.vy = Math.max(p.vy, 0);   // three seconds' grace to step out of whatever did it
+  persist(); invRefresh(); artHudDraw(); if(typeof localsNotice === 'function') localsNotice();
+  sfx('level'); artFanfare(); artBreathFx();
+  artCard('The Second Breath', 'You breathe again', 'It broke instead of you' + (why && why !== 'test' ? ' (' + esc(why) + ')' : '') + '. Full HP, nothing dropped. There are none left anywhere in Hub now.', 6000);
+  artRt.lastUse = {id:'second-breath', why:why || '', hp:state.hp, t:artRt.clock};
+  return true;
+}
+// a ring of glass light bursts out from you and fades (1.2 s)
+function artBreathFx(){ noRandom(() => {
+  const g = new THREE.Group(); g.position.set(p.x, p.y + 1.1, p.z); g.name = 'art:breath'; scene.add(g);
+  const m = new THREE.Mesh(new THREE.SphereGeometry(1, 48, 24), artShell(0x8ff5e0, 1.6)); g.add(m);
+  const r = new THREE.Mesh(new THREE.TorusGeometry(1, 0.03, 8, 96), new THREE.MeshBasicMaterial({color:C(0xc8fff4), transparent:true, opacity:0.8, blending:THREE.AdditiveBlending, depthWrite:false, toneMapped:false})); r.rotation.x = Math.PI / 2; g.add(r);
+  if(artRt.breathFx) artDispose(artRt.breathFx.g); artRt.breathFx = {g, m, r, t:0};
+}); }
+
+// ---- the shells: one fresnel-and-ripple shader for the Bell Jar dome and the breath, additive, no depth write, no fog ----
+const ART_SHELL = {
+  vertexShader:'varying vec3 vN; varying vec3 vV; varying float vY; void main(){ vec4 mv = modelViewMatrix * vec4(position, 1.0); vN = normalize(normalMatrix * normal); vV = -mv.xyz; vY = uv.y; gl_Position = projectionMatrix * mv; }',
+  fragmentShader:'uniform vec3 col; uniform float t, op, flash, ripple; varying vec3 vN; varying vec3 vV; varying float vY;\n' +
+    'void main(){ float f = 1.0 - abs(dot(normalize(vN), normalize(vV))); f = f * f * (3.0 - 2.0 * f); f = pow(f, 1.6);\n' +
+    '  float rings = smoothstep(0.9, 1.0, sin(vY * ripple - t * 2.4) * 0.5 + 0.5);\n' +
+    '  float rim = smoothstep(0.035, 0.0, vY) * 1.5;\n' +
+    '  float a = (0.035 + f * 0.75 + rings * (0.12 + 0.5 * f) + rim) * op + flash * (0.18 + 0.9 * f);\n' +
+    '  gl_FragColor = vec4(col * a, 1.0); }'
+};
+function artShell(col, ripple){ return new THREE.ShaderMaterial({uniforms:{col:{value:C(col)}, t:{value:0}, op:{value:1}, flash:{value:0}, ripple:{value:ripple == null ? 60 : ripple}}, vertexShader:ART_SHELL.vertexShader, fragmentShader:ART_SHELL.fragmentShader,
+  transparent:true, depthWrite:false, side:THREE.DoubleSide, blending:THREE.AdditiveBlending, fog:false}); }
+// a bell jar's outline, radius 1: straight walls, then a rounded shoulder up to the knob (lathed; uv.y runs from the rim to the top)
+function artJarGeo(seg){ const pts = [new V2(1, 0), new V2(1, 0.62)]; for(let k = 1; k <= 14; k++){ const a = k / 14 * Math.PI / 2; pts.push(new V2(Math.max(0.001, Math.cos(a)), 0.62 + Math.sin(a) * 0.58)); } return new THREE.LatheGeometry(pts, seg || 72); }
+function artDispose(o){ if(!o) return; if(o.parent) o.parent.remove(o); o.traverse(x => { if(x.geometry) x.geometry.dispose(); if(x.material){ (Array.isArray(x.material) ? x.material : [x.material]).forEach(m => { if(m.map && !SHARED_TEX.has(m.map)) m.map.dispose(); if(m.emissiveMap && m.emissiveMap !== m.map && !SHARED_TEX.has(m.emissiveMap)) m.emissiveMap.dispose(); m.dispose(); }); } }); }
+
+// ---- force fields (the Bell Jar; Goal 18 raises the Citadel's with the same call) ----
+let artFieldSeq = 0;
+function raiseField(o){
+  o = o || {}; const r = o.r || 1.5, h = o.h || r * 1.25;
+  return noRandom(() => {
+    const g = new THREE.Group(); g.name = 'art:field'; scene.add(g);
+    const shell = artShell(o.col || 0xbfe6ff, o.ripple || Math.max(18, 60 * 1.5 / Math.max(1, r) * 3)), jar = new THREE.Mesh(artJarGeo(r > 6 ? 128 : 72), shell); jar.scale.set(r, h / 1.2, r); jar.renderOrder = 3; g.add(jar);
+    const knob = new THREE.Mesh(new THREE.SphereGeometry(r * 0.06, 24, 12), shell); knob.position.y = h + r * 0.04; g.add(knob);
+    const ring = new THREE.Mesh(new THREE.RingGeometry(r * 0.97, r * 1.04, 96), new THREE.MeshBasicMaterial({color:C(o.col || 0xbfe6ff), transparent:true, opacity:0.55, blending:THREE.AdditiveBlending, depthWrite:false, side:THREE.DoubleSide, toneMapped:false, fog:false}));
+    ring.rotation.x = -Math.PI / 2; ring.position.y = 0.03; g.add(ring);
+    g.traverse(x => { x.castShadow = false; x.receiveShadow = false; x.userData.noAO = true; });
+    const f = {id:++artFieldSeq, owner:o.owner || 'player', shields:o.shields || o.owner || 'player', follow:!!o.follow, x:o.x != null ? o.x : p.x, z:o.z != null ? o.z : p.z, y:o.y != null ? o.y : p.y, r, h,
+      t0:artRt.clock, until:artRt.clock + (o.dur == null ? 12 : o.dur), g, jar, shell, ring, drop:0, flash:0, blocked:0, broken:false, why:null};
+    g.position.set(f.x, f.y, f.z); artRt.fields.push(f); return f;
+  });
+}
+function dropField(f, why){ if(!f || f.broken) return false; f.broken = true; f.why = why || 'ended'; f.until = Math.min(f.until, artRt.clock); return true; }
+// a following field is wherever its owner is now (a teleport or a lunge between two frames must not leave you outside your own jar)
+function fieldAt(x, y, z, shields){ return artRt.fields.find(f => { if(f.broken) return false; if(shields && f.shields !== shields) return false; const cx = f.follow ? p.x : f.x, cy = f.follow ? p.y : f.y, cz = f.follow ? p.z : f.z;
+  return Math.hypot(x - cx, z - cz) < f.r && y > cy - 0.6 && y < cy + f.h + 0.3; }) || null; }
+function artShielded(why){
+  const f = fieldAt(p.x, p.y + 0.9, p.z, 'player'); if(!f) return false;
+  f.flash = 1; f.blocked++; f.lastBlock = why || ''; if(snd.ctx && snd.on) try{ tone('sine', 1760, 2200, 0.25, 0.03); tone('triangle', 880, 990, 0.3, 0.02); }catch(e){}
+  return true;
+}
+
+// ---- the powers ----
+const ART_POWER = {
+  'bell-jar'(){
+    if(qa && qa.inside) return {ok:false, msg:'A quest arena keeps its own rules. The Bell Jar stays in your bag.'};
+    if(!WORLDS[state.world].rules.danger) return {ok:false, msg:'Nothing in ' + WORLDS[state.world].name + ' can hurt you. The Bell Jar stays in your bag.'};
+    artRt.fields.filter(f => f.owner === 'player').forEach(f => dropField(f, 'replaced'));
+    const f = raiseField({owner:'player', shields:'player', follow:true, r:1.5, h:2.6, dur:ART['bell-jar'].dur}); f.drop = 1;
+    sfx('boost'); if(snd.ctx && snd.on) try{ tone('sine', 1320, 660, 0.9, 0.04); }catch(e){}
+    return {ok:true, msg:'The Bell Jar comes down over you. Nothing can touch you for ' + ART['bell-jar'].dur + ' s.', field:f.id};
+  },
+  'tide-shell'(){
+    if(qa && qa.inside) return {ok:false, msg:'A quest arena keeps its own time. The shell stays quiet in here.'};
+    artRt.tide = artRt.clock + ART['tide-shell'].dur; $('#tideFx').classList.add('on');
+    if(snd.ctx && snd.on) try{ noiseHit(900, 0.6, 1.6, 0.05, undefined, 300); tone('sine', 220, 110, 1.6, 0.04); }catch(e){}
+    return {ok:true, msg:'Slack water: the tide stands still. Everything but you moves at a third of its speed for ' + ART['tide-shell'].dur + ' s.'};
+  },
+  'window-lamp'(){
+    artRt.lamp = {until:artRt.clock + ART['window-lamp'].dur, t:0, beams:[], held:null, list:[], next:0};
+    if(snd.ctx && snd.on) try{ tone('triangle', 523.25, 523.25, 0.7, 0.04); tone('sine', 784, 784, 1.0, 0.02, snd.ctx.currentTime + 0.12); }catch(e){}
+    artLampScan(); const n = artRt.lamp.list.length;
+    return {ok:true, msg:'Homelight: the Window Lamp shows ' + (n ? n + ' unfound ' + (n === 1 ? 'thing' : 'things') + ' within 150 m' : 'nothing unfound within 150 m') + '. The minimap reaches three times as far.', found:n};
+  },
+  'mara-compass'(){
+    artRt.cmp = {until:artRt.clock + ART['mara-compass'].dur, target:null, next:0};
+    artCompassStep(true); sfx('ui');
+    const T = artRt.cmp.target;
+    return {ok:true, msg:T ? 'The needle swings round: ' + T.name + ', ' + Math.round(T.d) + ' m.' : 'The needle wanders. Nothing here you have not found yet.', target:T ? {kind:T.kind, name:T.name, d:Math.round(T.d)} : null};
+  }
+};
+function artUse(id, src){
+  const A = ART[id], d = ITEMS[id]; if(!A) return {ok:false, why:'unknown'};
+  if(!A.key){ toast(d.name + ' needs nothing from you. It works by itself.', 2600); return {ok:false, why:'passive'}; }
+  if(!artHas(id)){ toast('You do not hold ' + d.name + '.', 2400); return {ok:false, why:'not held'}; }
+  if(zeroing || traveling) return {ok:false, why:'busy'};
+  const left = artCdLeft(id); if(left > 0){ toast(d.name + ' is resting. Ready in ' + artClockFmt(left) + '.', 2400); return {ok:false, why:'resting', left:Math.ceil(left)}; }
+  const r = ART_POWER[id](); toast(r.msg, 3600);
+  if(!r.ok) return Object.assign({why:'refused'}, r);
+  state.art.cd[id] = Date.now() + A.cd * 1000; state.art.uses[id] = (state.art.uses[id] || 0) + 1; persist(); invRefresh(); artHudDraw();
+  artRt.lastUse = Object.assign({id, src:src || 'hook', t:artRt.clock}, r); return r;
+}
+const artTideK = () => artRt.tide > artRt.clock && !(qa && qa.inside) ? ART['tide-shell'].k : 1;
+
+// ---- what is near and not yet found (the lamp shows it all; the compass points at the nearest) ----
+function artUnfound(o){
+  o = o || {}; const out = []; if(pocketIn() && !(qa && qa.inside)) return out;   // underground, the surface's things are not "near"
+  if(qa && qa.inside) return out;
+  const add = (kind, x, z, name, col, y) => { const d = Math.hypot(x - p.x, z - p.z); if(o.range && d > o.range) return; out.push({kind, x, z, y, name, col, d}); };
+  pickups.forEach(q => add('relic', q.x, q.z, ITEMS[q.id].name, RARITY[ITEMS[q.id].rarity].col, q.y - 0.85));
+  coins.forEach(k => add('coin', k.g.position.x, k.g.position.z, 'a coin', '#ffd166', k.g.position.y - 1));
+  if(endless) for(const ch of endless.chunks.values()){ const d = ch.dream; if(d && !d.found && d.x != null) add('landmark', d.x, d.z, d.name || 'a Dreamer landmark', '#b18cff'); }
+  qpList.forEach(q => { if(!(state.qp[q.key] && state.qp[q.key].wins > 0)) add('quest', q.x, q.z, q.d.name + ' (quest portal)', '#ffc04d', q.y); });
+  portals.forEach(q => { if(WORLDS[q.to] && !state.visited.has(q.to)) add('portal', q.x, q.z, 'the way to ' + WORLDS[q.to].name, '#5ce1e6'); });
+  bundles.forEach(b => { if(b.world === state.world) add('bundle', b.x, b.z, 'your bundle', '#ff9f1c', b.y); });
+  if(o.monsters && mon){ monAlive().forEach(m => add('monster', m.x, m.z, mon.def.name, '#ff5a6e', m.y)); mon.drops.forEach(d => add('loot', d.x, d.z, d.item ? artName(d.item) : 'loot', '#ffd166', d.y)); }
+  return out.sort((a, b) => a.d - b.d);
+}
+// the lamp: up to 16 pillars of light (one shared geometry, a material per colour), re-aimed twice a second
+const ART_BEAM = {
+  vertexShader:'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+  fragmentShader:'uniform vec3 col; uniform float op, t; varying vec2 vUv; void main(){ float y = vUv.y; float a = pow(1.0 - y, 1.7) * smoothstep(0.0, 0.03, y); float s = 0.8 + 0.2 * sin(vUv.x * 37.7 + t * 1.3) * sin(vUv.x * 18.85 - t * 0.7); gl_FragColor = vec4(col * a * s * op, 1.0); }'
+};
+const artBeamMat = (col, op) => new THREE.ShaderMaterial({uniforms:{col:{value:C(col)}, op:{value:op == null ? 1 : op}, t:{value:0}}, vertexShader:ART_BEAM.vertexShader, fragmentShader:ART_BEAM.fragmentShader, transparent:true, depthWrite:false, side:THREE.DoubleSide, blending:THREE.AdditiveBlending, fog:false});
+function artLampScan(){
+  const L = artRt.lamp; if(!L) return;
+  L.list = artUnfound({range:150, monsters:true});
+  noRandom(() => {
+    if(!L.g){ L.g = new THREE.Group(); L.g.name = 'art:lamp'; scene.add(L.g); L.geo = new THREE.CylinderGeometry(0.22, 0.32, 1, 16, 1, true).translate(0, 0.5, 0); L.mats = {}; }
+    if(!L.held){ const h = artModel('window-lamp'); h.scale.setScalar(1.1); h.name = 'art:lampHeld'; scene.add(h); L.held = h; L.heldGlow = glow(0xffc070, 1.6, 0, 0.02, 0, h, 0.7); }
+    const want = L.list.slice(0, 16);
+    while(L.beams.length > want.length){ const b = L.beams.pop(); L.g.remove(b); }
+    want.forEach((it, i) => { let b = L.beams[i]; const c = parseInt(String(it.col).slice(1, 7), 16) || 0xffd166;
+      if(!L.mats[c]) L.mats[c] = artBeamMat(c, 0.55);
+      if(!b){ b = new THREE.Mesh(L.geo, L.mats[c]); b.castShadow = false; b.userData.noAO = true; b.renderOrder = 2; L.g.add(b); L.beams.push(b); }
+      b.material = L.mats[c]; let y = it.y; if(!(y > -1e4)){ y = G(it.x, it.z); if(!(y > -1e4)) y = p.y; }
+      b.position.set(it.x, y, it.z); b.scale.set(it.kind === 'monster' ? 0.7 : 1, it.kind === 'coin' ? 14 : 34, it.kind === 'monster' ? 0.7 : 1); });
+  });
+}
+function artLampEnd(){ const L = artRt.lamp; if(!L) return; if(L.g){ L.beams.forEach(b => L.g.remove(b)); scene.remove(L.g); L.geo.dispose(); Object.values(L.mats).forEach(m => m.dispose()); } if(L.held) artDispose(L.held); artRt.lamp = null; }
+function artCompassStep(force){
+  const K = artRt.cmp; if(!K) return; K.next -= 1; if(K.next > 0 && !force) return; K.next = 10;
+  const list = artUnfound({}); K.target = list[0] || null; K.count = list.length;
+}
+function artCompassDraw(){
+  const K = artRt.cmp, el = $('#artCompass'); if(!K){ if(!el.hidden) el.hidden = true; return; }
+  el.hidden = false; const T = K.target;
+  if(!T){ $('#artCmpT').textContent = 'Nothing unfound here'; $('#artCmpD').textContent = 'Mara\'s Compass · ' + Math.ceil(K.until - artRt.clock) + ' s'; el.querySelector('.dial i').style.transform = 'rotate(' + (Math.sin(artRt.clock * 2.3) * 40).toFixed(1) + 'deg)'; return; }
+  const dx = T.x - p.x, dz = T.z - p.z, sy = Math.sin(cam.yaw), cy = Math.cos(cam.yaw), sx = cy * dx - sy * dz, up = -sy * dx - cy * dz;   // same frame as the minimap: up is where the camera looks
+  K.angle = Math.atan2(sx, up); el.querySelector('.dial i').style.transform = 'rotate(' + (K.angle * 180 / Math.PI).toFixed(1) + 'deg)';
+  const t = T.name.charAt(0).toUpperCase() + T.name.slice(1); if($('#artCmpT').textContent !== t) $('#artCmpT').textContent = t;
+  $('#artCmpD').textContent = Math.round(Math.hypot(dx, dz)) + ' m · Mara\'s Compass · ' + Math.ceil(K.until - artRt.clock) + ' s';
+}
+// the minimap: the lamp's finds as rings, the compass's mark as a gold diamond
+function artMap(ctx, T, sc){
+  const L = artRt.lamp; if(L) L.list.forEach(it => { if(it.kind === 'monster' || it.kind === 'coin' && L.list.length > 40) return; const o = T(it.x, it.z), k = 0.5 + 0.5 * Math.sin(artRt.clock * 4 + it.x);
+    ctx.strokeStyle = it.col; ctx.globalAlpha = 0.55 + 0.45 * k; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(o[0], o[1], 4 + 2 * k, 0, TAU); ctx.stroke(); ctx.globalAlpha = 1; });
+  const K = artRt.cmp; if(K && K.target){ const o = T(K.target.x, K.target.z); ctx.fillStyle = '#ffd166'; ctx.strokeStyle = '#3a2208'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(o[0], o[1] - 8); ctx.lineTo(o[0] + 6, o[1]); ctx.lineTo(o[0], o[1] + 8); ctx.lineTo(o[0] - 6, o[1]); ctx.closePath(); ctx.fill(); ctx.stroke(); }
+}
+// the corner list: each held artifact with its key, running time or rest
+function artHudDraw(){
+  const el = $('#artHud'); if(!el) return; const ids = ART_ORDER.filter(id => artHas(id));
+  if(!ids.length){ if(!el.hidden){ el.hidden = true; el.innerHTML = ''; } return; }
+  const html = ids.map(id => { const A = ART[id], left = artCdLeft(id), run = id === 'bell-jar' ? artRt.fields.some(f => f.owner === 'player' && !f.broken) : id === 'tide-shell' ? artRt.tide > artRt.clock : id === 'window-lamp' ? !!artRt.lamp : id === 'mara-compass' ? !!artRt.cmp : false;
+    const nm = artName(id).replace(/^The /, '').replace(' of No. 9', '');
+    if(!A.key) return '<span title="' + esc(A.effect) + '">' + esc(nm) + ' · ready</span>';
+    return '<span class="' + (run ? 'on' : left > 0 ? 'cd' : '') + '"><kbd>' + artKeyName(id) + '</kbd>' + esc(nm) + ' · ' + (run ? 'on' : left > 0 ? artClockFmt(left) : 'ready') + '</span>'; }).join('');
+  el.hidden = false; if(el.innerHTML !== html) el.innerHTML = html;
+}
+// the bag's row: the Artifact badge, the power and its key, rest left, and Use (or "Works by itself")
+function artRow(id){
+  const d = ITEMS[id], A = ART[id], row = itemRow(id, 'div', ''); row.classList.add('art'); row.querySelector('.ico').className = 'ico art';
+  const nm = row.querySelector('.nm'), rar = nm.querySelector('.rar'); rar.outerHTML = '<span class="badge">Artifact</span>';
+  const pw = document.createElement('span'); pw.className = 'pw'; const left = artCdLeft(id);
+  pw.textContent = 'Power: ' + A.power + (A.key ? ' (' + artKeyName(id) + ')' : '') + ' · ' + A.effect.replace(/^[A-Z]: /, ''); nm.insertBefore(pw, nm.querySelector('small'));
+  const v = row.querySelector('.val'); v.innerHTML = '<small style="display:block;color:#b9b2e0;font-size:11px">appraised ₵' + d.value + ' · not for sale</small>';
+  if(A.key){ const b = document.createElement('button'); b.className = 'use'; b.textContent = left > 0 ? 'Rests ' + artClockFmt(left) : 'Use'; b.disabled = left > 0; b.addEventListener('click', () => { closeInventory(); artUse(id, 'bag'); }); v.appendChild(b); }
+  else { const s = document.createElement('b'); s.textContent = 'Works by itself'; s.style.cssText = 'font-size:12px;color:#8ff5e0'; v.appendChild(s); }
+  return row;
+}
+
+// ---- the models (built for the reveal and the lamp at your shoulder; about 0.4 m tall, centred on their middle) ----
+function artModel(id){
+  const g = new THREE.Group(); g.name = 'art:model:' + id;
+  const brass = std(0xc9a25a, {metalness:0.7, roughness:0.32, emissive:C(0x3a2606), emissiveIntensity:0.5});
+  const glass = (c, op) => new THREE.MeshStandardMaterial({color:C(c || 0xdff4ff), roughness:0.05, metalness:0.1, transparent:true, opacity:op || 0.26, depthWrite:false, side:THREE.DoubleSide, envMapIntensity:1.6});
+  const add = (geo, mat, x, y, z) => { const m = new THREE.Mesh(geo, mat); m.position.set(x || 0, y || 0, z || 0); m.castShadow = !mat.transparent; m.receiveShadow = true; g.add(m); return m; };
+  if(id === 'second-breath'){
+    add(new THREE.SphereGeometry(0.2, 48, 32), glass(0xcffcf4, 0.3)).renderOrder = 2;
+    g.userData.spin = add(new THREE.TorusKnotGeometry(0.085, 0.011, 180, 10, 2, 3), std(0x7ff8e0, {emissive:C(0x5ff0d0), emissiveIntensity:1.9, roughness:0.3}));
+    add(new THREE.SphereGeometry(0.03, 16, 12), std(0xffffff, {emissive:C(0xe8fffa), emissiveIntensity:2.5}));
+    add(new THREE.TorusGeometry(0.17, 0.012, 10, 64), brass, 0, -0.13, 0).rotation.x = Math.PI / 2;
+    [0, 1, 2].forEach(k => { const a = k / 3 * TAU; add(new THREE.CylinderGeometry(0.009, 0.009, 0.12, 8), brass, Math.sin(a) * 0.19, -0.08, Math.cos(a) * 0.19); });
+    add(new THREE.CylinderGeometry(0.03, 0.05, 0.06, 24), brass, 0, -0.17, 0); add(new THREE.CylinderGeometry(0.09, 0.1, 0.025, 32), brass, 0, -0.2, 0);
+    g.userData.glow = 0x8ff5e0;
+  } else if(id === 'bell-jar'){
+    add(new THREE.CylinderGeometry(0.2, 0.22, 0.05, 48), std(0x4a2c18, {roughness:0.45}), 0, -0.19, 0);
+    add(new THREE.TorusGeometry(0.19, 0.008, 8, 64), brass, 0, -0.163, 0).rotation.x = Math.PI / 2;
+    const dome = add(artJarGeo(64), glass(0xe4f2ff, 0.22), 0, -0.165, 0); dome.scale.set(0.17, 0.3, 0.17); dome.renderOrder = 2;
+    add(new THREE.SphereGeometry(0.022, 16, 12), brass, 0, 0.2, 0);
+    const lab = canvasTex(128, 96, (x, w, h) => { x.fillStyle = '#1b1e2c'; x.fillRect(0, 0, w, h); x.fillStyle = '#ff9a3c'; x.fillRect(8, 8, w - 16, h * 0.52); x.fillStyle = '#5ce1e6'; x.beginPath(); x.arc(w * 0.7, h * 0.32, 10, 0, TAU); x.fill();
+      x.fillStyle = '#1b1e2c'; x.font = 'bold 15px sans-serif'; x.fillText('COMET', 14, 30); x.fillText('RALLY', 14, 48); x.fillStyle = '#f4e6c8'; x.font = '11px sans-serif'; x.fillText('L.A. · No. 1', 14, 80); });
+    add(new THREE.BoxGeometry(0.1, 0.075, 0.018), [std(0x22252f), std(0x22252f), std(0x22252f), std(0x22252f), std(0xffffff, {map:lab, emissive:C(0xffffff), emissiveMap:lab, emissiveIntensity:0.35, roughness:0.5}), std(0x22252f)], 0, -0.125, 0);
+    g.userData.glow = 0xbfe6ff;
+  } else if(id === 'tide-shell'){
+    const pts = []; for(let i = 0; i <= 48; i++){ const t = i / 48, a = t * 3.1 * TAU, r = 0.012 + 0.11 * t; pts.push([Math.cos(a) * r, 0.16 - 0.27 * Math.pow(t, 0.8), Math.sin(a) * r]); }
+    const stripes = canvasTex(512, 64, (x, w, h) => { x.fillStyle = '#f4dcc6'; x.fillRect(0, 0, w, h); for(let i = 0; i < 64; i++){ const u = i / 64 * w; x.fillStyle = i % 4 === 0 ? 'rgba(120,70,50,.55)' : 'rgba(190,130,100,.25)'; x.fillRect(u, 0, i % 4 === 0 ? 3 : 1.5, h); }
+      x.fillStyle = 'rgba(40,70,110,.6)'; for(let i = 0; i < 6; i++) x.fillRect(w * 0.3 + i * 40, h * 0.4, 18, 3); });
+    add(taperTube(pts, 0.006, 0.07, 160, 24), std(0xffffff, {map:stripes, roughness:0.3, emissive:C(0x3a2418), emissiveIntensity:0.35}));
+    add(new THREE.SphereGeometry(0.055, 24, 16), std(0xffd0b8, {roughness:0.2, emissive:C(0x6a3828), emissiveIntensity:0.6}), pts[48][0], pts[48][1], pts[48][2]).scale.set(1, 0.7, 1);
+    g.rotation.z = 0.35; g.userData.glow = 0xa8e4ff;
+  } else if(id === 'window-lamp'){
+    const iron = std(0x24262c, {metalness:0.55, roughness:0.45});
+    add(new THREE.CylinderGeometry(0.11, 0.125, 0.03, 32), iron, 0, -0.17, 0);
+    [[1, 1], [1, -1], [-1, 1], [-1, -1]].forEach(c => add(new THREE.BoxGeometry(0.014, 0.25, 0.014), iron, c[0] * 0.075, -0.03, c[1] * 0.075));
+    add(new THREE.BoxGeometry(0.15, 0.23, 0.15), std(0xffe2b0, {transparent:true, opacity:0.3, roughness:0.08, emissive:C(0xff9a3c), emissiveIntensity:0.35, depthWrite:false, side:THREE.DoubleSide}), 0, -0.035, 0).renderOrder = 2;
+    add(new THREE.SphereGeometry(0.035, 16, 12), std(0xffd890, {emissive:C(0xffb060), emissiveIntensity:3.2}), 0, -0.05, 0).scale.set(1, 1.6, 1);
+    add(new THREE.CylinderGeometry(0.012, 0.012, 0.05, 8), std(0xf2e8d8), 0, -0.11, 0);
+    const roof = add(new THREE.ConeGeometry(0.125, 0.09, 4), iron, 0, 0.13, 0); roof.rotation.y = Math.PI / 4;
+    add(new THREE.TorusGeometry(0.035, 0.007, 8, 24), iron, 0, 0.2, 0);
+    g.userData.glow = 0xffc070;
+  } else {
+    const face = canvasTex(256, 256, (x, w) => { const c = w / 2; x.fillStyle = '#f2e6c8'; x.fillRect(0, 0, w, w); x.strokeStyle = '#6a4a1c'; x.lineWidth = 3; x.beginPath(); x.arc(c, c, c - 6, 0, TAU); x.stroke();
+      for(let i = 0; i < 32; i++){ const a = i / 32 * TAU, r0 = c - (i % 4 ? 18 : 30); x.lineWidth = i % 4 ? 1.5 : 3; x.beginPath(); x.moveTo(c + Math.sin(a) * r0, c - Math.cos(a) * r0); x.lineTo(c + Math.sin(a) * (c - 8), c - Math.cos(a) * (c - 8)); x.stroke(); }
+      x.fillStyle = '#b8862c'; x.beginPath(); for(let i = 0; i < 8; i++){ const a = i / 8 * TAU, r = i % 2 ? 22 : 78; x.lineTo(c + Math.sin(a) * r, c - Math.cos(a) * r); } x.closePath(); x.fill();
+      x.fillStyle = '#6a4a1c'; x.font = 'italic bold 22px Georgia,serif'; x.textAlign = 'center'; x.fillText('M. Q.', c, c + 62); x.font = 'bold 15px Georgia,serif'; x.fillText('UNSEEN', c, 44); });
+    add(new THREE.CylinderGeometry(0.15, 0.15, 0.035, 64), brass);
+    const fc = add(new THREE.CircleGeometry(0.13, 64), std(0xffffff, {map:face, roughness:0.6, emissive:C(0xffffff), emissiveMap:face, emissiveIntensity:0.18}), 0, 0.0185, 0); fc.rotation.x = -Math.PI / 2;
+    const nd = new THREE.Group(); nd.position.y = 0.024; g.add(nd); g.userData.needle = nd;
+    const n1 = new THREE.Mesh(new THREE.ConeGeometry(0.012, 0.1, 4), std(0xc8283c, {emissive:C(0x5a0a14), emissiveIntensity:0.6})); n1.rotation.z = -Math.PI / 2; n1.position.x = 0.05; nd.add(n1);
+    const n2 = new THREE.Mesh(new THREE.ConeGeometry(0.012, 0.1, 4), std(0x2a2a36)); n2.rotation.z = Math.PI / 2; n2.position.x = -0.05; nd.add(n2);
+    add(new THREE.CylinderGeometry(0.008, 0.008, 0.012, 12), brass, 0, 0.026, 0);
+    add(new THREE.CircleGeometry(0.135, 64), glass(0xffffff, 0.12), 0, 0.03, 0).rotation.x = -Math.PI / 2;
+    const lp0 = new THREE.Group(); lp0.position.set(0, 0.018, -0.15); lp0.rotation.x = -1.95; g.add(lp0);
+    const lid = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 0.012, 64), brass); lid.position.z = 0.15; lid.castShadow = true; lp0.add(lid);
+    add(new THREE.TorusGeometry(0.028, 0.008, 8, 24), brass, 0, 0, 0.175);
+    g.rotation.x = 0.75; g.userData.glow = 0xffd98a;
+  }
+  return g;
+}
+
+// ---- the reveal: a plinth rises in front of you, the artifact turns above it in a shaft of light, then flies to you (about 7 s) ----
+const ART_REVEAL = {rise:0.9, hold:6.2, fly:7.1, end:7.4};
+function artReveal(id){ return noRandom(() => artReveal0(id)); }
+function artReveal0(id){
+  artRevealEnd();
+  const sy = Math.sin(cam.yaw), cy = Math.cos(cam.yaw), fx = -sy, fz = -cy, rx = cy, rz = -sy;   // forward is where the camera looks; right is screen right
+  const x = p.x + fx * 2.6 + rx * 1.25, z = p.z + fz * 2.6 + rz * 1.25;
+  let fy = pocketIn() ? pocketFloor(x, z) : groundAt(x, z, p.y + 0.5); if(!(fy > p.y - 2.5) || fy > p.y + 1.5) fy = p.y;
+  const g = new THREE.Group(); g.name = 'art:reveal'; g.position.set(x, fy, z); scene.add(g);
+  const q = rng(strHash('artifact:' + id)), col = ITEMS[id].col, gran = surface('granite');
+  const plinth = new THREE.Group(); g.add(plinth);
+  const prof = [[0, 0], [0.62, 0], [0.62, 0.1], [0.55, 0.13], [0.5, 0.2], [0.38, 0.25], [0.32, 0.31], [0.3, 0.4], [0.275, 0.62], [0.27, 0.85], [0.3, 0.91], [0.4, 0.97], [0.45, 1.03], [0.45, 1.1], [0.001, 1.1]].map(a => new V2(a[0], a[1]));
+  const stone = new THREE.Mesh(scaleUV(new THREE.LatheGeometry(prof, 72), 2), std(0xd9d2c4, {map:gran.map, normalMap:gran.normal, normalScale:new V2(0.6, 0.6), roughness:0.72})); stone.castShadow = stone.receiveShadow = true; plinth.add(stone);
+  const inlay = new THREE.Mesh(new THREE.TorusGeometry(0.36, 0.016, 12, 96), std(0xffc04d, {emissive:C(0xffb020), emissiveIntensity:1.8, metalness:0.5, roughness:0.3})); inlay.rotation.x = Math.PI / 2; inlay.position.y = 1.103; plinth.add(inlay);
+  const band = new THREE.Mesh(new THREE.TorusGeometry(0.278, 0.012, 8, 72), std(0xc9a25a, {metalness:0.7, roughness:0.32, emissive:C(0x3a2606), emissiveIntensity:0.5})); band.rotation.x = Math.PI / 2; band.position.y = 0.6; plinth.add(band);
+  plinth.position.y = -1.2;
+  // the floor glow and the shaft of light (additive, no depth write)
+  const disc = new THREE.Mesh(new THREE.CircleGeometry(1.5, 96), new THREE.ShaderMaterial({uniforms:{col:{value:C(0xffc04d)}, op:{value:0}, t:{value:0}}, transparent:true, depthWrite:false, blending:THREE.AdditiveBlending, fog:false,
+    vertexShader:'varying vec2 vP; void main(){ vP = position.xy; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+    fragmentShader:'uniform vec3 col; uniform float op, t; varying vec2 vP; void main(){ float d = length(vP) / 1.5; float ring = smoothstep(0.08, 0.0, abs(d - 0.62 - 0.04 * sin(t * 2.0))); float a = (pow(1.0 - d, 2.2) * 0.45 + ring * 0.6) * smoothstep(1.0, 0.9, d); gl_FragColor = vec4(col * a * op, 1.0); }'}));
+  disc.rotation.x = -Math.PI / 2; disc.position.y = 0.02; disc.renderOrder = 2; g.add(disc);
+  const shaftM = artBeamMat(0xffd27a, 0), shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.62, 9, 48, 1, true).translate(0, 4.5, 0), shaftM); shaft.position.y = 1.1; shaft.renderOrder = 2; g.add(shaft);
+  // motes rising through the shaft (one Points draw)
+  const N = 70, pos = new Float32Array(N * 3), base = []; for(let i = 0; i < N; i++){ const a = q() * TAU, r = Math.sqrt(q()) * 0.5; base.push([Math.sin(a) * r, q() * 3.2, Math.cos(a) * r, 0.25 + q() * 0.5]); }
+  const mg = new THREE.BufferGeometry(); mg.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  const motes = new THREE.Points(mg, new THREE.PointsMaterial({map:glowTex, color:C(0xffe2a0), size:0.07, transparent:true, opacity:0, blending:THREE.AdditiveBlending, depthWrite:false, fog:false})); motes.frustumCulled = false; motes.position.y = 1.1; g.add(motes);
+  // the artifact itself, with its own glow
+  const art = artModel(id); art.position.y = 1.62; art.scale.setScalar(0.001); g.add(art);
+  const halo = glow(art.userData.glow || col, 1.6, 0, 1.62, 0, g, 0);
+  g.traverse(o => { if(o.isPoints || o.isSprite || o.material && o.material.isShaderMaterial) o.userData.noAO = true; });
+  artRt.reveal = {id, g, plinth, disc, shaft, motes, base, art, halo, t:0, world:state.world, x, z, fy};
+  return artRt.reveal;
+}
+function artRevealEnd(){ const R = artRt.reveal; if(!R) return; artDispose(R.g); artRt.reveal = null; }
+function artRevealStep(dt){
+  const R = artRt.reveal; if(!R) return;
+  if(R.world !== state.world){ artRevealEnd(); return; }
+  if(!artRt.hold) R.t += dt; const t = R.t, E = ART_REVEAL, e = smooth(0, E.rise, t), out = smooth(E.hold, E.fly, t), gone = smooth(E.fly - 0.3, E.end, t);
+  R.plinth.position.y = -1.2 * (1 - e) - 1.2 * gone;
+  R.disc.material.uniforms.op.value = e * (1 - gone); R.disc.material.uniforms.t.value = artRt.clock;
+  R.shaft.material.uniforms.op.value = 0.55 * smooth(0.3, 1.4, t) * (1 - out); R.shaft.material.uniforms.t.value = artRt.clock;
+  R.motes.material.opacity = 0.85 * smooth(0.4, 1.4, t) * (1 - out);
+  const pa = R.motes.geometry.attributes.position; R.base.forEach((b, i) => { const y = (b[1] + artRt.clock * b[3]) % 3.2; pa.setXYZ(i, b[0] * (1 + y * 0.1), y, b[2] * (1 + y * 0.1)); }); pa.needsUpdate = true;
+  const s = 1.55 * smooth(0.5, 1.5, t) * (1 - 0.85 * out), A = R.art; A.scale.setScalar(Math.max(0.001, s)); A.rotation.y = artRt.clock * 0.9;
+  if(A.userData.spin) A.userData.spin.rotation.set(artRt.clock * 1.7, artRt.clock * 1.1, 0);
+  if(A.userData.needle) A.userData.needle.rotation.y = Math.sin(artRt.clock * 1.3) * 2.2;
+  const hy = 1.62 + Math.sin(artRt.clock * 1.6) * 0.05;
+  // flying home: from above the plinth to your chest
+  const wx = lerp(0, p.x - R.x, out), wy = lerp(hy, p.y + 1.2 - R.fy, out), wz = lerp(0, p.z - R.z, out); A.position.set(wx, wy, wz);
+  R.halo.position.copy(A.position); R.halo.material.opacity = 0.55 * smooth(0.6, 1.6, t) * (1 - out * 0.7); R.halo.scale.setScalar(1.5 + 0.2 * Math.sin(artRt.clock * 3));
+  if(t >= E.end) artRevealEnd();
+}
+
+// ---- every frame ----
+function artUpdate(dt, time){
+  if(playing && !traveling) artRt.clock += dt;
+  artRevealStep(dt);
+  // fields: the Bell Jar comes down from above, follows you, flashes when it stops something, lifts off at the end
+  for(let i = artRt.fields.length - 1; i >= 0; i--){ const f = artRt.fields[i], left = f.until - artRt.clock;
+    if(f.follow){ f.x = p.x; f.y = p.y; f.z = p.z; }
+    const k = smooth(0, 0.45, artRt.clock - f.t0), lift = left < 0.6 ? smooth(0.6, 0, left) : 0;
+    f.g.position.set(f.x, f.y + (f.drop ? (1 - k) * 3 + lift * 2.5 : 0), f.z);
+    f.flash = Math.max(0, f.flash - dt * 2.5); f.shell.uniforms.flash.value = f.flash; f.shell.uniforms.t.value = artRt.clock;
+    f.shell.uniforms.op.value = k * (1 - lift) * (left < 3 && left > 0.6 ? 0.65 + 0.35 * Math.cos(artRt.clock * 12) : 1); f.ring.material.opacity = 0.55 * k * (1 - lift);
+    if(left <= 0 && (!f.drop || lift >= 1 || left < -0.7)){ if(!f.broken){ f.broken = true; f.why = 'ended'; } artDispose(f.g); artRt.fields.splice(i, 1); } }
+  // slack water
+  if(artRt.tide && artRt.tide <= artRt.clock){ artRt.tide = 0; $('#tideFx').classList.remove('on'); }
+  else if(artRt.tide && qa && qa.inside) $('#tideFx').classList.remove('on');
+  // the lamp and the compass
+  const L = artRt.lamp;
+  if(L){ if(L.until <= artRt.clock || zeroing) artLampEnd();
+    else { L.next -= dt; if(L.next <= 0){ L.next = 0.5; artLampScan(); }
+      Object.values(L.mats).forEach(m => { m.uniforms.t.value = artRt.clock; m.uniforms.op.value = 0.55 * Math.min(1, (L.until - artRt.clock) / 1.5) * smooth(0, 0.8, ART['window-lamp'].dur - (L.until - artRt.clock)); });
+      if(L.held){ const sy = Math.sin(p.facing), cy = Math.cos(p.facing); L.held.position.set(p.x + cy * 0.55 + sy * 0.2, p.y + 1.25 + Math.sin(artRt.clock * 2) * 0.03, p.z - sy * 0.55 + cy * 0.2); L.held.rotation.y = p.facing; L.held.visible = me.g.visible && cam.view !== 2; } } }
+  if(artRt.cmp){ if(artRt.cmp.until <= artRt.clock || zeroing) artRt.cmp = null; else artCompassStep(); }
+  artCompassDraw();
+  // the breath's burst
+  const B = artRt.breathFx; if(B){ B.t += dt; const k = B.t / 1.2; B.g.position.set(p.x, p.y + 1.1, p.z); B.m.scale.setScalar(0.4 + k * 3.2); B.m.material.uniforms.op.value = Math.max(0, 1 - k); B.m.material.uniforms.t.value = artRt.clock;
+    B.r.scale.setScalar(0.4 + k * 4.5); B.r.material.opacity = 0.8 * Math.max(0, 1 - k); if(k >= 1){ artDispose(B.g); artRt.breathFx = null; } }
+  artRt.hudT -= dt; if(artRt.hudT <= 0){ artRt.hudT = 0.25; artHudDraw(); }
+}
+
+// Goal 17 test hooks: list the artifacts and their deeds, run each deed headless through its real rule, use each power, look at the reveal
+function artDeedHook(id, o){
+  o = o || {};
+  if(id === 'second-breath') return qpSimulate('grid', o.policy || 'win');   // Laser Run, scored by qpResult like a played run
+  if(id === 'window-lamp') return qpSimulate('grove', o.policy || 'win');    // the Lantern Ring, 'win' = the fewest touches, 'long' = two spare touches
+  if(id === 'bell-jar') return openChest();                                  // the chest's own action (E or Open in the Hoard); needs the Amber Shard for the false bottom
+  if(id === 'tide-shell'){                                                   // see off sand wraiths through the real kill (monDie) until the shell drops; time skips only to respawn them
+    if(state.world !== 'dunes' || !mon) return {error:'stand in Glass Dunes'};
+    const log = []; let guard = 0;
+    while(monKills('dunes') < (o.upTo || ART_SHELL_N) && guard++ < 40){ monRefresh(); let m = monAlive()[0];
+      if(!m){ monUpdate(1.5, 0); simTime += MON_RESPAWN + 1; monRefresh(); m = monAlive()[0]; }
+      if(!m){ log.push('none in reach'); break; }
+      monDamage(m, m.hp + 999, 'test'); log.push(monKills('dunes') + ':' + (mon.last && mon.last.item || '-')); }
+    monUpdate(1.5, 0);
+    return {kills:monKills('dunes'), log, shellDrop:mon.drops.findIndex(d => d.item === 'tide-shell')};
+  }
+  if(id === 'mara-compass'){                                                 // talk with the keeper; o.mood sets the starting mood, o.say sends a line through the offline brain
+    const nn = npcs.find(n => living(n) && personaOf(n).id === ART_KEEPER); if(!nn) return {error:'the keeper ' + ART_KEEPER + ' is not here (stand on the Spaceport)'};
+    const m = memOf(nn); if(o.mood != null){ m.mood = clamp(o.mood, -10, 10); saveLocals(); }
+    const rep = o.say != null ? applyLocalReply(nn, localOffline(nn, o.say), o.say, 'offline') : null;
+    return {keeper:nn.name, mood:memOf(nn).mood, reply:rep && rep.say, gift:rep ? rep.gift : artLocalCheck(nn), won:!!state.art.won['mara-compass']};
+  }
+  return {error:'unknown artifact', ids:ART_ORDER};
+}
+Object.defineProperties(window.__hub, {
+  ART:{value:ART}, ART_ORDER:{value:ART_ORDER}, ART_KEEPER:{value:ART_KEEPER}, ART_PAR:{value:ART_PAR},
+  artList:{value:() => ART_ORDER.map(id => { const d = ITEMS[id], A = ART[id]; return {id, name:d.name, rarity:d.rarity, value:d.value, power:A.power, key:A.key ? artKeyName(id) : null, dur:A.dur || null, cd:A.cd || null,
+    realm:A.realm, place:A.place, deed:A.deed, effect:A.effect, desc:d.desc, won:!!state.art.won[id], held:artHas(id), count:state.inv[id] || 0, spent:!!state.art.spent[id], rest:Math.ceil(artCdLeft(id))}; })},
+  art:{get:() => ({held:ART_ORDER.filter(artHas), won:JSON.parse(JSON.stringify(state.art.won)), spent:JSON.parse(JSON.stringify(state.art.spent)), rest:Object.fromEntries(ART_ORDER.map(id => [id, Math.ceil(artCdLeft(id))])), uses:Object.assign({}, state.art.uses),
+    clock:+artRt.clock.toFixed(2), tideK:artTideK(), tideLeft:Math.max(0, +(artRt.tide - artRt.clock).toFixed(2)),
+    fields:artRt.fields.map(f => ({id:f.id, owner:f.owner, shields:f.shields, follow:f.follow, x:+f.x.toFixed(2), y:+f.y.toFixed(2), z:+f.z.toFixed(2), r:f.r, h:f.h, left:+(f.until - artRt.clock).toFixed(2), blocked:f.blocked, broken:f.broken})),
+    lamp:artRt.lamp ? {left:+(artRt.lamp.until - artRt.clock).toFixed(2), found:artRt.lamp.list.length, beams:artRt.lamp.beams.length, kinds:artRt.lamp.list.reduce((a, it) => (a[it.kind] = (a[it.kind] || 0) + 1, a), {}), mapRange:120} : null,
+    compass:artRt.cmp ? {left:+(artRt.cmp.until - artRt.clock).toFixed(2), target:artRt.cmp.target && {kind:artRt.cmp.target.kind, name:artRt.cmp.target.name, x:+artRt.cmp.target.x.toFixed(1), z:+artRt.cmp.target.z.toFixed(1), d:Math.round(Math.hypot(artRt.cmp.target.x - p.x, artRt.cmp.target.z - p.z))}, angleDeg:artRt.cmp.angle != null ? Math.round(artRt.cmp.angle * 180 / Math.PI) : null, hud:!$('#artCompass').hidden} : null,
+    reveal:artRt.reveal ? {id:artRt.reveal.id, t:+artRt.reveal.t.toFixed(2), x:+artRt.reveal.x.toFixed(2), z:+artRt.reveal.z.toFixed(2)} : null, card:$('#artFx').classList.contains('on') ? $('#artFxN').textContent : null, hud:$('#artHud').textContent,
+    last:artRt.last, lastUse:artRt.lastUse && JSON.parse(JSON.stringify(artRt.lastUse))})},
+  artDeed:{value:(id, o) => artDeedHook(id, o)},
+  artUse:{value:id => artUse(id, 'hook')},
+  artRest:{value:(id, s) => { (id ? [id] : ART_ORDER).forEach(k => { state.art.cd[k] = s ? Date.now() + s * 1000 : 0; }); persist(); artHudDraw(); return Object.fromEntries(ART_ORDER.map(k => [k, Math.ceil(artCdLeft(k))])); }},   // test only: end (or set) a power's rest
+  artTick:{value:(n, dt) => { for(let i = 0; i < (n || 1); i++) update(dt || 0.05, simTime); return {clock:+artRt.clock.toFixed(2), fields:artRt.fields.length, tideK:artTideK(), lamp:!!artRt.lamp, compass:!!artRt.cmp, reveal:artRt.reveal ? +artRt.reveal.t.toFixed(2) : null}; }},
+  artUnfound:{value:o => artUnfound(o || {}).map(it => ({kind:it.kind, name:it.name, x:+it.x.toFixed(1), z:+it.z.toFixed(1), d:Math.round(it.d)}))},
+  raiseField:{value:o => { const f = raiseField(o); return f.id; }}, dropField:{value:id => dropField(artRt.fields.find(f => f.id === id), 'test')}, fieldAt:{value:(x, y, z, s) => { const f = fieldAt(x, y, z, s); return f ? f.id : null; }},
+  // frame the reveal for a screenshot: hold it at time t (default 3 s, artifact up, shaft lit), camera behind and to the left of you so the plinth stands clear
+  artView:{value:(t, id) => { if(id && (!artRt.reveal || artRt.reveal.id !== id)) artReveal(id); const R = artRt.reveal; if(!R) return null; R.t = t == null ? 3 : t; artRt.hold = true; artRevealStep(0);
+    const a = Math.atan2(p.x - R.x, p.z - R.z); cam.yaw = a - 0.35; cam.pitch = 0.12; cam.dist = 5.2; p.facing = Math.atan2(R.x - p.x, R.z - p.z); me.g.rotation.y = p.facing; snapCamera(); clipCamera(); return {id:R.id, t:R.t}; }},
+  artViewEnd:{value:() => { artRt.hold = false; return true; }},
+  artGo:{value:what => { if(what === 'chest'){ if(!hollow || !hollow.inside) return {error:'enter the Hollow first (__hub.enterHollow())'}; const K = HOLLOW.chest; p.x = HOLLOW.x + K.x + 1.2; p.z = HOLLOW.z + K.z - 0.6; p.y = pocketFloor(p.x, p.z); p.vy = 0; hollowUpdate(0, 0); return {near:hollowNear}; } return null; }}
+});
+artHudDraw();
 })();
 </script>
 </body>
