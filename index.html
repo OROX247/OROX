@@ -9581,12 +9581,42 @@ function hollowCeil(x, z){
 }
 function hollowRoomAt(x, z){ const lx = x - HOLLOW.x, lz = z - HOLLOW.z; return HOLLOW.rooms.findIndex(R => lx > R.x0 && lx < R.x1 && lz > R.z0 && lz < R.z1); }
 let poolTex = null;
+/* cut stone for the Hollow's walls and ceiling: one tile (2.6 m, the walls' UV scale) holds five courses of dressed sandstone blocks, two or
+   three to a course with staggered joints, each block its own tint and grain, chamfered edges and recessed mortar (colour, normal, roughness).
+   The sandstone's strata read as stripes across a whole wall; blocks read as a built room. Made once, through avQuiet (uuids). */
+let ashlarTexC = null;
+function ashlarTextures(){
+  if(ashlarTexC) return ashlarTexC;
+  return (ashlarTexC = avQuiet(() => {
+    const S = 1024, NC = 5, ch = S / NC, q = rng(9091), pal = [0xc98a5c, 0xd49c6c, 0xbf7f52, 0xd8a77a, 0xc68d60, 0xcf9a6c].map(hexArr);
+    // each course: block boundaries (pixels, wrapping round the tile), a starting offset so the joints stagger
+    const courses = []; for(let c = 0; c < NC; c++){ const n = 2 + (q() < 0.45 ? 1 : 0), cuts = []; let acc = 0; const w = []; for(let k = 0; k < n; k++){ w.push(0.75 + q() * 0.5); acc += w[k]; }
+      let x = (c % 2 ? 0.5 : 0) * S / n + q() * 40; for(let k = 0; k < n; k++){ cuts.push(x); x += w[k] / acc * S; } courses.push({cuts, n}); }
+    const blockAt = (px, c) => { const C = courses[c]; let best = C.n - 1; for(let k = 0; k < C.n; k++){ const d = ((px - C.cuts[k]) % S + S) % S; if(d < ((px - C.cuts[best]) % S + S) % S) best = k; } return best; };
+    const tints = []; for(let c = 0; c < NC; c++){ tints.push([]); for(let k = 0; k < 3; k++) tints[c].push({t:pal[Math.floor(q() * pal.length)], k:0.9 + q() * 0.16, ox:q() * 256, oy:q() * 256}); }
+    const f = new Float32Array(S * S), cpx = new Uint8ClampedArray(S * S * 4), rpx = new Uint8ClampedArray(S * S * 4), J = 5, CH = 14;
+    for(let y = 0; y < S; y++){ const c = Math.floor(y / ch), yi = y - c * ch, ey = Math.min(yi, ch - 1 - yi);
+      for(let x = 0; x < S; x++){
+        const C = courses[c], b = blockAt(x, c), x0 = C.cuts[b], x1 = C.cuts[(b + 1) % C.n] + (b + 1 === C.n ? S : 0), ex = Math.min(((x - x0) % S + S) % S, ((x1 - x) % S + S) % S), e = Math.min(ex, ey);
+        const T = tints[c][b], i = y * S + x, big = detailAt(x / 4 + T.ox, y / 4 + T.oy), mid = detailAt(x / 2 + T.oy, y / 2 + T.ox), g = q();
+        const joint = e < J, cham = joint ? 0 : clamp((e - J) / CH, 0, 1);
+        f[i] = joint ? -1.1 : -0.6 * (1 - Math.sqrt(cham)) + big * 0.35 + mid * 0.18 + (g - 0.5) * 0.04;
+        let k, col;
+        if(joint){ col = [0.62, 0.53, 0.44]; k = 0.7 + mid * 0.1; }
+        else { col = T.t; k = T.k * (0.86 + big * 0.12 + mid * 0.06 + (g - 0.5) * 0.06) * (0.92 + 0.08 * cham); if(g < 0.01) col = [0.5, 0.38, 0.3]; }
+        const o = i * 4; cpx[o] = col[0] * k * 255; cpx[o + 1] = col[1] * k * 255; cpx[o + 2] = col[2] * k * 255; cpx[o + 3] = 255;
+        const r = (joint ? 1 : clamp(0.82 + (g - 0.5) * 0.1 - big * 0.08 + (1 - cham) * 0.08, 0.6, 1)) * 255; rpx[o] = rpx[o + 1] = rpx[o + 2] = r; rpx[o + 3] = 255; } }
+    const put = a => x => { const img = x.createImageData(S, S); img.data.set(a); x.putImageData(img, 0, 0); };
+    const map = canvasTex(S, S, put(cpx)), rough = canvasTex(S, S, put(rpx), false), normal = normalTex(f, S, 4);
+    [map, rough, normal].forEach(t => SHARED_TEX.add(t)); return {map, normal, rough}; }));
+}
 function buildHollow(){
   const H = HOLLOW, Y = H.y, X = H.x, Z = H.z, prev = buildParent; buildParent = null;
   const g = new THREE.Group(); g.name = 'hollow'; world.add(g); hollow.g = g; buildParent = g;   // instanced props land in the Hollow's group too, so it hides as one
   const st = sandstoneTextures(), sandS = surfCache.dunesand || surface('dunesand');
   const stoneM = (hex, n) => withDetailNormal(std(hex, {map:st.map, normalMap:st.normal, normalScale:new V2(n || 1, n || 1), roughnessMap:st.rough, roughness:1, envMapIntensity:0.25}), detailNormal, 5, 0.35);
-  const M = {wall:stoneM(0xcdb8a0, 0.9), floor:stoneM(0x9c8a78, 0.8), ceil:stoneM(0x7c6c5e), col:stoneM(0xe2cfb8),
+  const ash = ashlarTextures(), blockM = (hex, n) => withDetailNormal(std(hex, {map:ash.map, normalMap:ash.normal, normalScale:new V2(n, n), roughnessMap:ash.rough, roughness:1, envMapIntensity:0.25}), detailNormal, 5, 0.3);
+  const M = {wall:blockM(0xd8c4ac, 1), floor:stoneM(0x9c8a78, 0.8), ceil:blockM(0x9a8a7c, 0.8), col:stoneM(0xe2cfb8),   // walls and ceiling of cut blocks (ashlarTextures), floor and columns keep the sandstone
     sand:std(0xd6ae78, {map:sandS.map, normalMap:sandS.normal, roughness:1, envMapIntensity:0.2}), bronze:std(0x8a5a2a, {metalness:0.85, roughness:0.38, map:detailTex, envMapIntensity:0.5}),
     amber:glowM(0xffa62e, 0.9), flame:glowM(0xff9a40, 2.8), gold:std(0xe0a83a, {metalness:0.55, roughness:0.42, map:detailTex, emissive:C(0x4a2c00), emissiveIntensity:0.55, envMapIntensity:0.35}), wood:std(0x4a3020, {map:detailTex, roughness:0.85})};
   const lists = {wall:[], floor:[], ceil:[], col:[], sand:[], amber:[]}, T = 0.6;
