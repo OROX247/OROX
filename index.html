@@ -258,7 +258,7 @@ body.paused #strikeBtn{ display:none !important; }
 #monBar[hidden]{ display:none; }
 #monBar .mb{ height:6px; margin-top:4px; border-radius:3px; background:rgba(255,255,255,.12); overflow:hidden; }
 #monBar .mb i{ display:block; height:100%; width:100%; background:linear-gradient(90deg,#ff3b4e,#ff9a5c); transition:width .12s; }
-@media (prefers-reduced-motion: reduce){ #toast,#fade,.xpbar i,.hpbar i,#hurtFx,#zeroFx{ transition:none; } #statPanel.bump,#idPanel.hurt{ animation:none; } }
+@media (prefers-reduced-motion: reduce){ #toast,#fade,.xpbar i,.hpbar i,#hurtFx,#zeroFx,#blackFx{ transition:none; } #statPanel.bump,#idPanel.hurt{ animation:none; } }
 #bcast{ position:fixed; inset:0; z-index:9; pointer-events:none; }
 #bcast[hidden]{ display:none; }
 #bcast .bc-bar{ position:absolute; left:0; right:0; height:9vh; background:#000; }
@@ -294,6 +294,11 @@ body.bcast #hud, body.bcast #corner, body.bcast #roomCard, body.bcast #toast{ vi
 #artCompass small{ display:block; font-size:11px; color:#c9bfa0; font-weight:400; }
 #tideFx{ position:fixed; inset:0; z-index:2; pointer-events:none; opacity:0; transition:opacity .8s; background:radial-gradient(ellipse at center,rgba(60,140,200,0) 45%,rgba(40,110,180,.32) 100%); mix-blend-mode:screen; }
 #tideFx.on{ opacity:1; }
+#blackFx{ position:fixed; inset:0; z-index:6; pointer-events:none; opacity:0; transition:opacity .6s; background:#000; display:grid; place-items:center; }
+#blackFx.on{ opacity:1; }
+#blackFx div{ text-align:center; max-width:min(560px,86vw); }
+#blackFx b{ display:block; font-size:30px; letter-spacing:.32em; color:#d9d4ff; font-weight:600; }
+#blackFx small{ display:block; margin-top:10px; color:#9a94bf; font-size:14px; line-height:1.45; }
 .inv-row.art{ background:linear-gradient(90deg,rgba(255,176,32,.16),rgba(255,255,255,.05) 60%); box-shadow:inset 3px 0 0 #ffb020, inset 0 0 0 1px rgba(255,190,80,.35); }
 .inv-row .badge{ display:inline-block; margin-right:6px; padding:0 6px; border-radius:4px; background:#ffb020; color:#1a1206; font-size:10.5px; letter-spacing:.1em; text-transform:uppercase; font-weight:700; vertical-align:1px; }
 .inv-row .pw{ display:block; font-weight:600; font-size:12px; color:#ffd98a; }
@@ -511,6 +516,7 @@ body.bcast #hud, body.bcast #corner, body.bcast #roomCard, body.bcast #toast{ vi
 <div id="artFx" role="status" aria-live="polite"><small id="artFxK">Artifact won</small><b id="artFxN"></b><p id="artFxP"></p></div>
 <div id="artCompass" hidden><span class="dial"><i></i></span><span><b id="artCmpT"></b><small id="artCmpD"></small></span></div>
 <div id="tideFx"></div>
+<div id="blackFx" role="alert"><div><b>BLACKOUT</b><small id="blackMsg"></small></div></div>
 <div id="zeroFx" role="alert"><div class="panel"><b>ZEROED OUT</b><small id="zeroMsg"></small></div></div>
 <div id="loading" style="position:fixed;inset:0;display:grid;place-items:center;background:#07061a;z-index:20;font-size:18px;color:#b9b2e0">Building worlds…</div>
 <div id="joy"><div id="knob"></div></div>
@@ -2987,9 +2993,10 @@ const state = {
   archive: {ledger:!!(sv.archive && sv.archive.ledger), rooms:new Set(arr(sv.archive && sv.archive.rooms).filter(n => n >= 0 && n < 6)), found:new Set(arr(sv.archive && sv.archive.found).filter(n => n >= 0 && n < 6)), broadcast:!!(sv.archive && sv.archive.broadcast)},   // Goal 9 (+ Goal 10: the Broadcast seen): the Ledger taken, rooms visited, hidden details found
   qp: (sv.qp && typeof sv.qp === 'object' && !Array.isArray(sv.qp)) ? sv.qp : {},
   art: (sv.art && typeof sv.art === 'object') ? sv.art : null,   // Goal 17: artifacts won, spent and resting (cleaned by artClean once ITEMS exists; kept raw until then so an early persist() cannot drop it)
-  kills: (k => ({n:Math.max(0, Math.floor(num(k && k.n, 0))), by:Object.fromEntries(Object.entries(k && k.by && typeof k.by === 'object' ? k.by : {}).filter(e => /^[a-z]{2,8}$/.test(e[0])).map(e => [e[0], Math.max(0, Math.floor(num(e[1], 0)))])), first:k && k.first && typeof k.first.realm === 'string' && /^[a-z]{2,8}$/.test(k.first.realm) ? {realm:k.first.realm, t:num(k.first.t, 0)} : null}))(sv.kills),   // Goal 16: monsters seen off, in all and per realm, and where the first was   // Goal 15: quest portal wins, tries, best time per realm (cleaned by qpClean)
+  kills: (k => ({n:Math.max(0, Math.floor(num(k && k.n, 0))), by:Object.fromEntries(Object.entries(k && k.by && typeof k.by === 'object' ? k.by : {}).filter(e => /^[a-z]{2,8}$/.test(e[0])).map(e => [e[0], Math.max(0, Math.floor(num(e[1], 0)))])), first:k && k.first && typeof k.first.realm === 'string' && /^[a-z]{2,8}$/.test(k.first.realm) ? {realm:k.first.realm, t:num(k.first.t, 0)} : null, units:Math.max(0, Math.floor(num(k && k.units, 0)))}))(sv.kills),   // Goal 16: monsters seen off, in all and per realm, and where the first was   // Goal 15: quest portal wins, tries, best time per realm (cleaned by qpClean)
   hunt: {door:!!(sv.hunt && sv.hunt.door), rallyBest:num(sv.hunt && sv.hunt.rallyBest, 0), rallyPlays:num(sv.hunt && sv.hunt.rallyPlays, 0), hoard:!!(sv.hunt && sv.hunt.hoard), rose:!!(sv.hunt && sv.hunt.rose), roseTries:num(sv.hunt && sv.hunt.roseTries, 0), cyan:!!(sv.hunt && sv.hunt.cyan),
-    gates:[0, 1, 2].map(i => !!(sv.hunt && Array.isArray(sv.hunt.gates) && sv.hunt.gates[i])), won:!!(sv.hunt && sv.hunt.won), starBest:num(sv.hunt && sv.hunt.starBest, 0), g1Tries:num(sv.hunt && sv.hunt.g1Tries, 0), starPlays:num(sv.hunt && sv.hunt.starPlays, 0), g3Tries:num(sv.hunt && sv.hunt.g3Tries, 0)}   // Goal 14: the three gates opened, the Seed won, the Starling high score, tries   // Goal 11: the Hollow's door opened, the Comet Rally high score and plays, the hoard chest taken (+ Goal 12: rose, roseTries; Goal 13: cyan, the chimes sung)
+    gates:[0, 1, 2].map(i => !!(sv.hunt && Array.isArray(sv.hunt.gates) && sv.hunt.gates[i])), won:!!(sv.hunt && sv.hunt.won), starBest:num(sv.hunt && sv.hunt.starBest, 0), g1Tries:num(sv.hunt && sv.hunt.g1Tries, 0), starPlays:num(sv.hunt && sv.hunt.starPlays, 0), g3Tries:num(sv.hunt && sv.hunt.g3Tries, 0),
+    pylons:[0, 1, 2].map(i => !!(sv.hunt && Array.isArray(sv.hunt.pylons) && sv.hunt.pylons[i])), field:!!(sv.hunt && sv.hunt.field), blackout:(b => b && typeof b === 'object' ? {t:num(b.t, 0), breath:!!b.breath} : null)(sv.hunt && sv.hunt.blackout)}   // Goal 18: Meridian's pylons overloaded, the field over the Citadel broken, the Blackout lived through (and whether The Second Breath did it)   // Goal 14: the three gates opened, the Seed won, the Starling high score, tries   // Goal 11: the Hollow's door opened, the Comet Rally high score and plays, the hoard chest taken (+ Goal 12: rose, roseTries; Goal 13: cyan, the chimes sung)
 };
 // state.recipe is filled in once the recipe schema below is defined (see loadRecipe)
 function persist(){
@@ -5438,6 +5445,7 @@ const LEDGER = [
   {kind:'note', title:'The gates', body:'Each shard opens a gate on Ashfall, and each gate asks one thing.\n\nThe first asks whether you listened to what I said.\nThe second asks how well you fly.\nThe third asks what you will leave behind.\n\nThe Seed is behind the third, and it is smaller than you think.'},
   {kind:'herring', title:'The Worldsmith', body:'Ask the Worldsmith for "a realm with the Seed in it" and it will build one and put you there.\n\nIt will be a very nice realm.'},
   {kind:'note', title:'Two games', body:'Comet Rally: the first thing I ever finished. A little rocket-car, a looping track, and comets falling in behind you. Three laps. I was fourteen.\n\nStarling: Mara\'s favourite. One screen, one ship, and the birds come down in waves of eleven. I made it for her birthday and she has beaten me at it ever since.'},
+  {kind:'note', title:'Glass', body:'I kept my first Comet Rally cartridge under a bell jar on the workbench, so the dust could not get at it. The jar is in the Hoard now, under the amber wax.\n\nGlass gives way only to glass. If anyone ever puts my house under a jar of their own, carry mine to whatever holds theirs up. Two jars cannot stand in one place.'},
   {kind:'note', title:'Last page', body:'If you have read this far, go outside for a while and look at a real sky. Hub will still be here when you get back; I made sure of that.\n\nL. A.'}
 ];
 // canvas helpers: word-wrapped paragraphs, and textures cached for the session (shared, never disposed with the realm)
@@ -7217,6 +7225,7 @@ function coreSum(detail){
   if(shardObj) [shardObj.m, shardObj.beam, shardObj.l, shardObj.gl].forEach(o => { if(o) skip.add(o); });
   if(chimes){ skip.add(chimes.g); if(chimes.shard){ skip.add(chimes.shard.m); skip.add(chimes.shard.gl); } }   // the chimes sway in the wind
   qpList.forEach(q => skip.add(q.g)); if(qa) skip.add(qa.g);   // Goal 15: the quest portal and its arena are added after the core
+  if(mer && mer.g) skip.add(mer.g);   // Goal 18: Meridian's pylons come and go with the Hunt
   if(mon && mon.root) skip.add(mon.root);   // Goal 16: monsters move (and their loot comes and goes)
   if(trial.pad) skip.add(trial.pad); trial.rings.forEach(rg => { if(rg.g) skip.add(rg.g); if(rg.m) skip.add(rg.m); });
   if(detail){ const list = []; sumObject(world, skip, list); return list; }
@@ -7863,6 +7872,7 @@ function buildWorld(key){
   if(key === 'sky') buildChimes();   // Goal 13: the wind chimes on the highest isle go up after everything is placed; they draw no rng
   if(key === 'hub') buildArchive();   // Goal 9: the Archive goes up after every coin, NPC, pickup and the vendor are placed, so none of them moves
   addQuestPortal(key);   // Goal 15: the realm's quest portal goes up last, at a fixed spot clear of everything above; it draws no rng
+  merBuild(key);   // Goal 18: Meridian's dome and pylons on Ashfall (no colliders, no rng; before monBuild so the Units keep clear of the glass)
   monBuild(key);   // Goal 16: the realm's monsters come last of all: their own rng, no colliders, nothing above moves
   bundles.forEach(b => { b.g = null; if(b.world === key) addBundleMesh(b); });
   if(ENDLESS[key] && !W.custom) startBuiltin(key);   // no boundaries (Goal 8a): the land goes on past the hand-made core
@@ -8640,7 +8650,8 @@ function huntState(){ const el = $('#huntState'); if(!el) return; const on = sta
     : held.length ? 'You are on the Hunt already. Three shards open three gates on Ashfall; the Architect\'s broadcast and the Ledger wait in the Archive, south of the plaza.'
     : 'The Hunt has not begun for you yet. Walk into the Archive, south of the plaza.')
     + (held.length ? ' You hold ' + held.length + ' of 3: ' + held.join(', ') + (how => how.length ? ' (' + how.join('; ') + ').' : '.')([state.shards.has('dunes') && 'Comet Rally, the last lap driven the wrong way round', state.shards.has('grid') && state.hunt.rose && 'the hallway behind The Drift, walked without turning round', state.shards.has('sky') && state.hunt.cyan && 'the wind chimes on the highest isle, rung to Low Tide'].filter(Boolean)) : '')
-    + (held.length === 3 ? (gOpen ? ' Gates open on Ashfall: ' + gOpen + ' of 3.' + (gOpen === 3 ? ' The vault waits at the end of Lantern Row.' : '') : ' Next: the three gates on Ashfall.') : ''); }
+    + (held.length === 3 ? (!state.hunt.field ? ' Meridian has thrown a dome of glass over the Citadel; its pylons stand in a yard to the east (' + state.hunt.pylons.filter(Boolean).length + ' of 3 down).' : '')
+      + (gOpen ? ' Gates open on Ashfall: ' + gOpen + ' of 3.' + (gOpen === 3 ? (state.hunt.blackout ? ' The vault waits at the end of Lantern Row.' : ' Lantern Row is behind the Third Gate.') : '') : ' Next: the three gates on Ashfall.') : ''); }   // Goal 18: the field
 const boardRng = rng(99);
 const BOARD = NPC_NAMES.slice(0, 11).map(nm => ({name:nm, shards:Math.floor(boardRng() * 2.6), xp:Math.floor(150 + boardRng() * 2300)}));
 function openWarp(){
@@ -8982,6 +8993,7 @@ const REG_TOPICS = [
   {id:'coins', k:/\bcoins?\b|vault/, a:'The Ledger does say: "Gather all of them, stand in the middle of the vault on the Spaceport and say my name out loud." Then it says: "It is worth a try." I have watched a great many people try.'},
   {id:'cheat', k:/cheat|ninety-?nine|press fire|eleven times|extra ships|99/, a:'Page eleven: "Press fire eleven times on the Starling title screen before the first wave comes in." And under it: "Mara never needed it." Draw your own conclusions.'},
   {id:'worldsmith', k:/worldsmith|forge/, a:'He wrote that if you ask the Worldsmith for "a realm with the Seed in it", it "will build one and put you there." Then: "It will be a very nice realm." A nice realm is not the Seed.'},
+  {id:'glass', k:/bell ?jar|glass dome|\bdome\b|force ?field|\bfield\b|meridian|pylons?|\bunits?\b|blackout/, a:'There is a page called Glass. "Glass gives way only to glass." And: "If anyone ever puts my house under a jar of their own, carry mine to whatever holds theirs up." He says where his own jar is, too: "in the Hoard now, under the amber wax."'},
   {id:'comet', k:/comet|rally|racer|race|lap/, a:'From the page called Two games: "Comet Rally: the first thing I ever finished." The Amber riddle ends with it too: "Below, a comet will race you. It always wins going forwards." The Workbench, room two, is where he wrote it.'},
   {id:'starling', k:/starling|shooter|high score|score/, a:'"Starling: Mara\'s favourite. One screen, one ship, and the birds come down in waves of eleven." He adds: "I made it for her birthday and she has beaten me at it ever since." Room four remembers the night of the launch.'},
   {id:'amber', k:/amber|dune|desert|pillar|stones?\b|glass sea|sandstone/, a:'The first riddle begins: "Seven stones climb out of a sea of glass." It says to "Count from the lowest and stop in the middle", and it names the hour: "twenty minutes short of six". Room three, Above the Laundrette, may help you read it.'},
@@ -9797,6 +9809,7 @@ function drawMap(){
   bundles.forEach(bb => { if(bb.world === state.world) star(bb.x, bb.z, '#ff9f1c'); });
   if(endless) for(const ch of endless.chunks.values()){ const d = ch.dream; if(d && d.x != null) star(d.x, d.z, d.found ? 'rgba(177,140,255,0.45)' : '#b18cff'); }   // landmarks nearby: violet, faded once found
   const tip = T(p.x + Math.sin(p.facing) * 2.4, p.z + Math.cos(p.facing) * 2.4), ang = Math.atan2(tip[1] - c, tip[0] - c);
+  merMap(T, sc);   // Goal 18: Meridian's dome and pylons
   monMap(T, sc);   // Goal 16: monsters (red when hunting you) and their loot
   artMap(mx2, T, sc);   // Goal 17: the lamp's finds and the compass's mark
   mx2.translate(c, c); mx2.rotate(ang); mx2.fillStyle = '#fff'; mx2.beginPath(); mx2.moveTo(9, 0); mx2.lineTo(-6, -6); mx2.lineTo(-3, 0); mx2.lineTo(-6, 6); mx2.fill();
@@ -11858,50 +11871,56 @@ function monCellSpawns(cx, cz){
 function monBuild(key){ return noRandom(() => monBuild0(key)); }
 function monBuild0(key){
   atk.bolts = []; mon = null; document.body.classList.remove('mon-on'); monBarHide();
-  const D = MON[key], W = WORLDS[key]; if(!D || !W || W.custom || W.planet) return;
+  const D = MON[key] || null, W = WORLDS[key]; if(!W || W.custom || W.planet) return;
+  if(!D && !(UNIT_SITES[key] && unitsOn(key))) return;   // Goal 18: a realm with no monsters gets the framework only while Meridian Units stand there
   const root = new THREE.Group(); root.name = 'monsters'; world.add(root);
-  mon = {key, def:D, hostile:monHostile(key), root, kit:null, safe:[], core:[], cells:new Map(), live:[], dead:new Map(), drops:[], refreshT:0, focus:null, focusT:0, told:false, freeze:false, slots:0};
-  mon.safe = monSafeList(key); mon.core = monCoreSpawns(key, D);
+  mon = {key, def:D, hostile:monHostile(key), root, kit:null, ukit:null, safe:[], core:[], ucore:[], cells:new Map(), live:[], dead:new Map(), drops:[], refreshT:0, focus:null, focusT:0, told:false, utold:false, freeze:false, slots:0};
+  mon.safe = monSafeList(key); mon.core = D ? monCoreSpawns(key, D) : []; mon.ucore = unitPosts(key);
   mon.fx = monFxMake(); mon.dust = monFxMake(true); mon.beam = monBeamMake();
   mon.dropG = {coin:new THREE.CylinderGeometry(0.16, 0.16, 0.04, 24), gem:new THREE.OctahedronGeometry(0.2, 0), orb:new THREE.IcosahedronGeometry(0.15, 3), chip:new THREE.BoxGeometry(0.3, 0.06, 0.22), coil:new THREE.TorusGeometry(0.14, 0.05, 12, 32)};
   mon.dropG.coin.rotateX(Math.PI / 2); mon.dropG.gem.scale(0.8, 1.4, 0.8); mon.goldM = std(0xffc94d, {metalness:1, roughness:0.22, emissive:C(0x8a5a00), emissiveIntensity:0.6});
   mon.ring = new THREE.Mesh(new THREE.RingGeometry(0.82, 1, 72), new THREE.MeshBasicMaterial({color:C(0xcfe4ff), transparent:true, opacity:0, depthWrite:false, blending:THREE.AdditiveBlending, toneMapped:false, side:THREE.DoubleSide}));
   mon.ring.rotation.x = -Math.PI / 2; mon.ring.visible = false; mon.ring.layers.set(1); mon.ring.renderOrder = 6; root.add(mon.ring); mon.ringT = -1;
-  mon.kit = MON_KITS[D.kind]();
-  document.body.classList.add('mon-on'); $('#strikeBtn').textContent = ATK[atkMode()].label;
+  mon.kit = D ? MON_KITS[D.kind]() : null;   // the Units' kit is built the first time one is needed (unitKitMake)
+  if(D || (mon.ucore.length && W.rules.danger)){ document.body.classList.add('mon-on'); $('#strikeBtn').textContent = ATK[atkMode()].label; }
 }
 
 // ---- spawning and the live set ----
 function monSpawn(s){
-  const D = mon.def, r = rng(strHash(s.id));
-  const m = {id:s.id, sp:s, x:s.x, z:s.z, y:0, yaw:r() * TAU, hp:D.hp, max:D.hp, mode:'patrol', tx:s.x, tz:s.z, wait:r() * 2, cool:0, t:r() * 10, flash:0, sc:0, die:0, ph:r() * TAU, r,
+  const D = s.D || mon.def, r = rng(strHash(s.id));
+  const m = {id:s.id, D, hostile:D.unit ? !!WORLDS[mon.key].rules.danger : mon.hostile, sp:s, x:s.x, z:s.z, y:0, yaw:r() * TAU, hp:D.hp, max:D.hp, mode:'patrol', tx:s.x, tz:s.z, wait:r() * 2, cool:0, t:r() * 10, flash:0, sc:0, die:0, ph:r() * TAU, r,
     speed:0, gait:0, wind:0, lunge:0, lx:0, lz:0, rt:0, swell:0, lean:0, roll:0, orb:r() * TAU, vy:0, flee:0, ax:0, ay:0, az:0, zap:0, hit:0};
+  if(D.unit){ m.tagName = unitTagName(s.id); m.amp = 0; m.ph2 = r() * TAU; }
   const q = monBlock(m, m.x, m.z); m.x = q[0]; m.z = q[1]; m.y = monFloor(m, true);
   mon.live.push(m); return m;
 }
 function monRefresh(){
   const M = mon, cand = M.core.slice();
-  if(endless && endless.builtin === M.key){ const pcx = Math.floor(p.x / CHUNK), pcz = Math.floor(p.z / CHUNK); for(let dz = -2; dz <= 2; dz++) for(let dx = -2; dx <= 2; dx++) for(const s of monCellSpawns(pcx + dx, pcz + dz)) cand.push(s); }
-  const want = cand.filter(s => !(M.dead.get(s.id) > simTime) && Math.hypot(s.x - p.x, s.z - p.z) < MON_ACT).sort((a, b) => Math.hypot(a.x - p.x, a.z - p.z) - Math.hypot(b.x - p.x, b.z - p.z)).slice(0, MON_CAP), ids = new Set(want.map(s => s.id));
-  M.live = M.live.filter(m => m.mode === 'dying' || ids.has(m.id) || ((m.mode === 'chase' || m.mode === 'wind') && Math.hypot(m.x - p.x, m.z - p.z) < MON_ACT));
-  const have = new Set(M.live.map(m => m.id));
-  for(const s of want){ if(M.live.length >= MON_CAP) break; if(!have.has(s.id)) monSpawn(s); }
+  if(M.def && endless && endless.builtin === M.key){ const pcx = Math.floor(p.x / CHUNK), pcz = Math.floor(p.z / CHUNK); for(let dz = -2; dz <= 2; dz++) for(let dx = -2; dx <= 2; dx++) for(const s of monCellSpawns(pcx + dx, pcz + dz)) cand.push(s); }
+  const pick = (L, cap) => L.filter(s => !(M.dead.get(s.id) > simTime) && Math.hypot(s.x - p.x, s.z - p.z) < MON_ACT).sort((a, b) => Math.hypot(a.x - p.x, a.z - p.z) - Math.hypot(b.x - p.x, b.z - p.z)).slice(0, cap);
+  const uon = unitsOn(M.key), want = pick(cand, MON_CAP), uwant = uon ? pick(M.ucore, UNIT_CAP) : [], ids = new Set(want.concat(uwant).map(s => s.id));   // Goal 18: Meridian Units have their own cap
+  M.live = M.live.filter(m => m.mode === 'dying' || ids.has(m.id) || ((m.mode === 'chase' || m.mode === 'wind') && Math.hypot(m.x - p.x, m.z - p.z) < MON_ACT && (!m.D.unit || uon)));
+  const have = new Set(M.live.map(m => m.id)), nU = () => M.live.filter(m => m.D.unit).length;
+  for(const s of want){ if(M.live.length - nU() >= MON_CAP) break; if(!have.has(s.id)) monSpawn(s); }
+  if(uwant.some(s => !have.has(s.id)) && !M.ukit) M.ukit = noRandom(unitKitMake);
+  for(const s of uwant){ if(nU() >= UNIT_CAP) break; if(!have.has(s.id)) monSpawn(s); }
 }
 
 // ---- moving ----
 function monBlock(m, nx, nz){
-  const D = mon.def, rr = D.rad, y0 = m.y - (D.fly ? 1 : 0), y1 = m.y + (D.fly ? 1 : 1.8);
+  const D = m.D, rr = D.rad, y0 = m.y - (D.fly ? 1 : 0), y1 = m.y + (D.fly ? 1 : 1.8);
   for(const c of colliders){ if(c.hollow) continue; const lim = c.r + rr, dx = nx - c.x, dz = nz - c.z; if(dx > lim || dx < -lim || dz > lim || dz < -lim) continue; if(D.fly && m.y - G(c.x, c.z) > 6) continue;
     const d = Math.hypot(dx, dz); if(d < lim && d > 1e-4){ nx = c.x + dx / d * lim; nz = c.z + dz / d * lim; } }
   for(const s of platforms){ if(s.bottom > y1 || s.top < y0) continue; const lim = (s.rAt ? s.rAt(clamp(m.y + 0.4 - s.bottom, 0, s.top - s.bottom)) : s.r) + rr, dx = nx - s.x, dz = nz - s.z; if(dx > lim || dx < -lim || dz > lim || dz < -lim) continue;
     const d = Math.hypot(dx, dz); if(d < lim && d > 1e-4){ nx = s.x + dx / d * lim; nz = s.z + dz / d * lim; } }
   for(const b of boxes){ if(b.hollow || !(b.full || (b.y0 < y1 && b.y1 > y0))) continue; const q = boxOut(nx, nz, b, rr); if(q){ nx = q[0]; nz = q[1]; } }
   for(const s of mon.safe){ const dx = nx - s.x, dz = nz - s.z, d = Math.hypot(dx, dz); if(d < s.r && d > 1e-4){ nx = s.x + dx / d * s.r; nz = s.z + dz / d * s.r; } }
+  if(mer) for(const w of merWalls()){ const lim = w.r + rr, dx = nx - w.x, dz = nz - w.z, d = Math.hypot(dx, dz); if(d < lim && d > 1e-4){ nx = w.x + dx / d * lim; nz = w.z + dz / d * lim; } }   // Goal 18: the Citadel's glass and the pylons' shields
   return [nx, nz];
 }
 // the height a monster rests at: walkers on the ground, drones hover, harpies fly above whatever is under them
 function monFloor(m, snap){
-  const D = mon.def, g = G(m.x, m.z);
+  const D = m.D, g = G(m.x, m.z);
   if(D.kind === 'drone') return Math.max(g, 0) + 1.9;
   if(!D.fly) return g;
   let lo = g > -1000 ? g + 2.5 : -60; for(const s of platforms) if(Math.hypot(m.x - s.x, m.z - s.z) < s.r + 1.5) lo = Math.max(lo, s.top + 2.5);
@@ -11916,15 +11935,16 @@ function monMove(m, tx, tz, sp, dt, face){
   if(moved < st * 0.25 && m.mode === 'patrol') m.wait = 0.2 + m.r(), m.tx = m.x, m.tz = m.z;   // stuck against something: pick another way
   return d;
 }
-const monCenterY = m => m.y + ({wraith:1.05 * mon.def.size, drone:0, stalker:0.85, harpy:0})[mon.def.kind];
+const monCenterY = m => m.y + ({wraith:1.05 * m.D.size, drone:0, stalker:0.85, harpy:0, unit:1.05})[m.D.kind];
 // the player's centre (chest height)
 const pCenter = () => p.y + 1.05;
 
 // ---- thinking ----
 function monThink(m, dt, canHunt){
-  const M = mon, D = M.def; m.t += dt; m.flash = Math.max(0, m.flash - dt * 4); m.cool -= dt; m.zap = Math.max(0, m.zap - dt); m.hit = Math.max(0, m.hit - dt);
+  const M = mon, D = m.D; m.t += dt; m.flash = Math.max(0, m.flash - dt * 4); m.cool -= dt; m.zap = Math.max(0, m.zap - dt); m.hit = Math.max(0, m.hit - dt);
   if(m.mode === 'dying'){ m.die += dt; m.sc = 1 - smooth(0, 0.55, m.die); if(D.fly) m.y += dt * 2; return; }
   m.sc = Math.min(1, m.sc + dt * 1.6);
+  if(D.unit && !m.hostile){ if(!M.freeze) unitWatch(m, dt); m.y = monFloor(m); return; }   // Goal 18: in a safe realm a Unit only shadows you and watches
   const dx = p.x - m.x, dz = p.z - m.z, dP = Math.hypot(dx, dz), dH = Math.hypot(m.x - m.sp.x, m.z - m.sp.z), d3 = Math.hypot(dP, pCenter() - monCenterY(m));
   let ty = null;
   if(m.lunge > 0){ const k = Math.min(m.lunge, dt); m.lunge -= dt; const q = monBlock(m, m.x + m.lx * k, m.z + m.lz * k); m.x = q[0]; m.z = q[1]; }
@@ -11960,7 +11980,7 @@ function monThink(m, dt, canHunt){
 }
 // the blow: a lunge (wraith, stalker, harpy) or a zap at the locked spot (drone). Damage only through hurt(), only where the realm says danger.
 function monStrike(m, canHunt){
-  const D = mon.def; let hit = false;
+  const D = m.D; let hit = false;
   if(D.kind === 'drone'){ m.zap = 0.22; sfx('zap');
     const ok = Math.hypot(p.x - m.ax, p.z - m.az) < 1.25 && Math.abs(pCenter() - m.ay) < 1.6 && Math.hypot(p.x - m.x, p.z - m.z) < D.reach + 1.5;
     hit = ok; }
@@ -11972,20 +11992,21 @@ function monStrike(m, canHunt){
 }
 
 // ---- the player hits back ----
-function monTargets(){ return mon && !pocketIn() ? mon.live.filter(m => m.mode !== 'dying' && m.sc > 0.3) : []; }
+function monTargets(){ return mon && !pocketIn() ? mon.live.filter(m => m.mode !== 'dying' && m.sc > 0.3 && (!m.D.unit || m.hostile)) : []; }   // a watching Unit in a safe realm cannot be fought
 function monDamage(m, n, why){
   if(!mon || !m || m.mode === 'dying') return 0;
-  const D = mon.def; n = Math.max(1, Math.round(n)); m.hp = Math.max(0, m.hp - n); m.flash = 1; m.hit = 0.25; sfx('mhit');
+  const D = m.D; n = Math.max(1, Math.round(n)); m.hp = Math.max(0, m.hp - n); m.flash = 1; m.hit = 0.25; sfx('mhit');
   const dx = m.x - p.x, dz = m.z - p.z, d = Math.hypot(dx, dz) || 1, kb = why === 'ward' ? 1.6 : 0.6, q = monBlock(m, m.x + dx / d * kb, m.z + dz / d * kb); m.x = q[0]; m.z = q[1];
   fxBurst(m.x, monCenterY(m), m.z, 14, why === 'ward' ? 0xcfe4ff : 0x9ff4ff, {speed:4, size:0.09, life:0.35, grav:2});
   fxBurst(m.x, monCenterY(m), m.z, 8, D.col, {speed:2.5, size:0.14, life:0.5});
   mon.focus = m; mon.focusT = 4;
   if(m.hp <= 0){ monDie(m); return n; }
-  if(!mon.hostile){ m.mode = 'flee'; m.flee = 4.5; }
+  if(!m.hostile){ m.mode = 'flee'; m.flee = 4.5; }
   else if(m.mode !== 'wind' && m.mode !== 'recover'){ m.mode = 'chase'; m.cool = Math.max(m.cool, 0.4); }
   return n;
 }
 function monDie(m){
+  if(m.D.unit) return unitDie(m);   // Goal 18: a Meridian Unit zeroes out (credits only; not a monster kill)
   const M = mon, D = M.def; m.mode = 'dying'; m.die = 0; M.dead.set(m.id, simTime + (m.sp.core ? MON_RESPAWN : MON_CELL_RESPAWN));
   sfx('mdie'); const cy = monCenterY(m);
   const burst = {wraith:[[0xb08850, 70, {speed:4, size:0.1, life:1.2, grav:5, drag:1, dust:true}], [0xe0c494, 14, {speed:1.5, size:0.7, life:1.4, grav:-0.3, op:0.3, dust:true}], [0xffb347, 18, {speed:2, size:0.2, life:0.7, grav:0}]], drone:[[0xff4fa3, 30, {speed:6, size:0.12, life:0.6, grav:6}], [0x5ce1e6, 16, {speed:4, size:0.16, life:0.5}], [0xffe6f4, 10, {speed:2, size:0.35, life:0.25, grav:0}]],
@@ -12059,12 +12080,12 @@ function monAttack(){
     atk.bolts.push({x:sx, y:sy, z:sz, m:best, tx, ty, tz, life:A.range / 40 + 0.2, dmg, trail:[]}); if(mon) fxBurst(sx, sy, sz, 6, 0x9ff4ff, {speed:2, size:0.1, life:0.2, grav:0});
     sfx('pulse'); if(best) hits.push(best.id);
   } else if(mode === 'ward'){
-    for(const m of T){ if(Math.hypot(m.x - p.x, m.z - p.z, monCenterY(m) - pCenter()) < A.range + mon.def.rad){ monDamage(m, dmg, 'ward'); hits.push(m.id); } }
+    for(const m of T){ if(Math.hypot(m.x - p.x, m.z - p.z, monCenterY(m) - pCenter()) < A.range + m.D.rad){ monDamage(m, dmg, 'ward'); hits.push(m.id); } }
     if(mon){ mon.ringT = 0; mon.ring.position.set(p.x, p.y + 0.12, p.z); for(let i = 0; i < 28; i++){ const a = i / 28 * TAU; fxBurst(p.x + Math.cos(a) * 0.8, p.y + 0.4, p.z + Math.sin(a) * 0.8, 1, 0xcfe4ff, {speed:5, size:0.14, life:0.5, grav:-1, flat:true}); } }
     sfx('ward');
   } else {
     const hx = Math.sin(p.facing), hz = Math.cos(p.facing);
-    for(const m of T){ const dx = m.x - p.x, dz = m.z - p.z, d = Math.hypot(dx, dz); if(d < A.range + mon.def.rad && (dx * hx + dz * hz) / Math.max(d, 1e-3) > 0.3 && Math.abs(monCenterY(m) - pCenter()) < 2){ monDamage(m, dmg, 'strike'); hits.push(m.id); } }
+    for(const m of T){ const dx = m.x - p.x, dz = m.z - p.z, d = Math.hypot(dx, dz); if(d < A.range + m.D.rad && (dx * hx + dz * hz) / Math.max(d, 1e-3) > 0.3 && Math.abs(monCenterY(m) - pCenter()) < 2){ monDamage(m, dmg, 'strike'); hits.push(m.id); } }
     if(mon) fxBurst(p.x + hx * 1.2, pCenter(), p.z + hz * 1.2, 12, 0xffffff, {speed:3, size:0.08, life:0.25, grav:0});
     sfx('swing');
   }
@@ -12097,21 +12118,23 @@ function monUpdate(dt, time){
   const M = mon; if(!M){ atk.bolts.length = 0; return; }
   const t0 = performance.now(), pin = pocketIn(); M.root.visible = !pin;
   M.refreshT -= dt; if(M.refreshT <= 0){ M.refreshT = 0.4; monRefresh(); }
-  const live = playing && !zeroing && !traveling, canHunt = M.hostile && live && !pin && !monInSafe(p.x, p.z, 0) && !driftSafe();
-  for(const m of M.live) monThink(m, dt, canHunt);
+  const live = playing && !zeroing && !traveling, canHunt = live && !pin && !monInSafe(p.x, p.z, 0) && !driftSafe();
+  for(const m of M.live) monThink(m, dt, canHunt && m.hostile);
   M.live = M.live.filter(m => !(m.mode === 'dying' && m.die > 0.6));
   // monsters are solid to walk into (never inside a pocket)
-  if(!pin && live) for(const m of M.live){ if(m.mode === 'dying' || M.def.fly) continue; const dx = p.x - m.x, dz = p.z - m.z, d = Math.hypot(dx, dz), lim = M.def.rad + 0.35;
+  if(!pin && live) for(const m of M.live){ if(m.mode === 'dying' || m.D.fly) continue; const dx = p.x - m.x, dz = p.z - m.z, d = Math.hypot(dx, dz), lim = m.D.rad + 0.35;
     if(d < lim && d > 1e-4 && Math.abs(p.y - m.y) < 1.8){ p.x = m.x + dx / d * lim; p.z = m.z + dz / d * lim; } }
-  if(!M.told && live && M.live.some(m => Math.hypot(m.x - p.x, m.z - p.z) < 30)){ M.told = true; toast((M.hostile ? M.def.plural[0].toUpperCase() + M.def.plural.slice(1) + ' roam ' + WORLDS[M.key].name + '. ' : 'Wild ' + M.def.plural + ' wheel round the isles; they will not hurt you. ') + 'X (or the round button) to ' + ATK[atkMode()].label.toLowerCase() + '.', 4200); }
+  if(!M.utold && live && M.live.some(m => m.D.unit && Math.hypot(m.x - p.x, m.z - p.z) < 30)){ M.utold = true; unitTold(); }
+  if(M.def && !M.told && live && M.live.some(m => !m.D.unit && Math.hypot(m.x - p.x, m.z - p.z) < 30)){ M.told = true; toast((M.hostile ? M.def.plural[0].toUpperCase() + M.def.plural.slice(1) + ' roam ' + WORLDS[M.key].name + '. ' : 'Wild ' + M.def.plural + ' wheel round the isles; they will not hurt you. ') + 'X (or the round button) to ' + ATK[atkMode()].label.toLowerCase() + '.', 4200); }
   monBolts(dt);
   if(M.ringT >= 0){ M.ringT += dt; const t = M.ringT / 0.4; M.ring.visible = t < 1; M.ring.scale.setScalar(0.6 + t * ATK.ward.range); M.ring.material.opacity = 0.85 * (1 - t); if(t >= 1) M.ringT = -1; }
   monDropsUpdate(dt, time);
   // draw
-  const K = M.kit; for(const k in K.parts) K.parts[k].slot = 0;
-  M.beam.n = 0; let slot = 0;
-  for(const m of M.live){ if(m.sc <= 0.001) continue; for(const k in K.parts) K.parts[k].slot = slot; K.pose(m, time); slot++; }
-  for(const k in K.parts){ const P = K.parts[k]; P.m.count = slot * P.n; P.m.instanceMatrix.needsUpdate = true; if(P.m.instanceColor) P.m.instanceColor.needsUpdate = true; }
+  const K = M.kit; M.beam.n = 0;
+  if(K){ for(const k in K.parts) K.parts[k].slot = 0; let slot = 0;
+    for(const m of M.live){ if(m.sc <= 0.001 || m.D.unit) continue; for(const k in K.parts) K.parts[k].slot = slot; K.pose(m, time); slot++; }
+    for(const k in K.parts){ const P = K.parts[k]; P.m.count = slot * P.n; P.m.instanceMatrix.needsUpdate = true; if(P.m.instanceColor) P.m.instanceColor.needsUpdate = true; } }
+  if(M.ukit) unitDraw(M.ukit, dt, time);   // Goal 18: the Units, one instanced copy of the same grey avatar
   M.beam.core.count = M.beam.sheath.count = M.beam.n; [M.beam.core, M.beam.sheath].forEach(b => { b.instanceMatrix.needsUpdate = true; b.instanceColor.needsUpdate = true; });
   fxFlush(dt);
   monBarUpdate(dt);
@@ -12122,12 +12145,12 @@ function monBarHide(){ const el = $('#monBar'); if(el) el.hidden = true; }
 function monBarUpdate(dt){
   const M = mon, el = $('#monBar'); M.focusT -= dt; const f = M.focus;
   if(!f || M.focusT <= 0 || (M.live.indexOf(f) < 0 && f.mode !== 'dying')){ if(!el.hidden) el.hidden = true; return; }
-  el.hidden = false; const t = M.def.name + (M.hostile ? '' : ' · wild'); if(el.dataset.t !== t){ el.dataset.t = t; $('#monName').textContent = t; }
+  el.hidden = false; const t = (f.D.unit ? f.tagName : f.D.name) + (f.hostile ? '' : ' · wild'); if(el.dataset.t !== t){ el.dataset.t = t; $('#monName').textContent = t; }
   $('#monFill').style.width = (f.hp / f.max * 100).toFixed(1) + '%';
 }
 function monMap(T, sc){
   if(!mon || pocketIn()) return;
-  for(const m of mon.live){ if(m.mode === 'dying') continue; const o = T(m.x, m.z); mx2.fillStyle = mon.hostile ? (m.mode === 'chase' || m.mode === 'wind' ? '#ff3b4e' : '#ff8a5c') : '#cfe8ff'; mx2.beginPath(); mx2.arc(o[0], o[1], Math.max(2.5, 0.7 * sc), 0, TAU); mx2.fill(); }
+  for(const m of mon.live){ if(m.mode === 'dying') continue; const o = T(m.x, m.z); mx2.fillStyle = m.D.unit && !m.hostile ? '#b9b4d6' : m.hostile ? (m.mode === 'chase' || m.mode === 'wind' ? '#ff3b4e' : m.D.unit ? '#c9a6ff' : '#ff8a5c') : '#cfe8ff'; mx2.beginPath(); mx2.arc(o[0], o[1], Math.max(2.5, 0.7 * sc), 0, TAU); mx2.fill(); }
   for(const dr of mon.drops){ const o = T(dr.x, dr.z); mx2.fillStyle = '#ffd166'; mx2.fillRect(o[0] - 2, o[1] - 2, 4, 4); }
 }
 
@@ -12368,6 +12391,7 @@ function update(dt, time){
   for(const s of platforms) if(!HI && p.y < s.top - 0.35 && p.y + 1.85 > s.bottom) push(s.x, s.z, (s.rAt ? s.rAt(p.y + 0.4 - s.bottom) : s.r) + 0.35);
   for(const nn of npcs) push(nn.x, nn.z, nn.av.rad);
   for(const b of boxes) if((!HI || b.hollow) && (b.full || (p.y < b.y1 && p.y + 1.85 > b.y0))){ const q = boxOut(nx, nz, b, 0.35); if(q){ nx = q[0]; nz = q[1]; } }
+  if(mer){ const q = merBlock(nx, nz); if(q){ nx = q[0]; nz = q[1]; } }   // Goal 18: Meridian's glass on Ashfall
   if(!endless){ const dr = Math.hypot(nx, nz), lim = R - 1.5; if(dr > lim){ nx *= lim / dr; nz *= lim / dr; } }
   if(p.zeroG){ const ddx = nx - ix, ddz = nz - iz, dl = Math.hypot(ddx, ddz); if(dl > 1e-5){ const ux = ddx / dl, uz = ddz / dl, vn = p.vx * ux + p.vz * uz; if(vn < 0){ p.vx -= 1.6 * vn * ux; p.vz -= 1.6 * vn * uz; } } }
   p.x = nx; p.z = nz;
@@ -12475,7 +12499,7 @@ function update(dt, time){
     state.won = true; reward(500, 200); sfx('win'); setHalo(); toast('You opened the vault. First to crack the Hub.   +500 XP', 5000);
   }
   if(playing && p.grounded && p.speed > 0.6){ snd.stepT -= dt; if(snd.stepT <= 0){ sfx('step'); snd.stepT = p.speed > 7 ? 0.27 : 0.42; } } else snd.stepT = 0.1;
-  shopProximity(); bikeProximity(); vendProximity(); deskProximity(); archiveUpdate(dt); hollowUpdate(dt, time); chimeUpdate(dt, time); ashUpdate(dt, time); starTick(dt, time); driftUpdate(dt, time); hallUpdate(dt, time); rallyTick(dt, time); trialUpdate(dt, time); qpTick(dt, time);
+  shopProximity(); bikeProximity(); vendProximity(); deskProximity(); archiveUpdate(dt); hollowUpdate(dt, time); chimeUpdate(dt, time); ashUpdate(dt, time); merUpdate(dt, time); starTick(dt, time); driftUpdate(dt, time); hallUpdate(dt, time); rallyTick(dt, time); trialUpdate(dt, time); qpTick(dt, time);
   const wdt = dt * artTideK();   // Goal 17: Slack Water slows monsters, traps and lasers (simTime), never the player
   updatePickups(dt, time); monUpdate(wdt, time); hurtCool -= dt; simTime += wdt; updateHazards(simTime); updateBurst(dt); checkBundles(); artUpdate(dt, time);
   if(!WORLDS[state.world].rules.danger && !zeroing && state.hp < maxHp()){ state.hp = Math.min(maxHp(), state.hp + 12 * dt); hpHud(); }
@@ -12571,6 +12595,7 @@ const CITADEL = {z:20, t:2.4, h:11, x0:-26, x1:26, back:68, gw:2.1, gh:6.2, spri
 // the Citadel stands on level ground; beyond it the plain rolls and far out it rises into dark ridges
 function ashFlat(x, z){ const C0 = CITADEL, dx = Math.max(C0.x0 - 6 - x, 0, x - C0.x1 - 6), dz = Math.max(C0.z - 8 - z, 0, z - C0.back - 6); return smooth(0, 12, Math.hypot(dx, dz)); }
 let ash = null, ashNear = null;
+let mer = null;   // Goal 18: Meridian on Ashfall (the dome, the pylons' yard, the Blackout); built by merBuild
 // inside the Citadel (Lantern Row, the vault): your own name tag is hidden, as indoors
 const ashIndoors = () => !!ash && state.world === 'ashfall' && Math.abs(p.x - CITADEL.row.x) < CITADEL.vault.hw && p.z > CITADEL.z + 0.5 && p.z < CITADEL.back;
 function ashInCitadel(x, z, m){ m = m || 0; return x > CITADEL.x0 - 4 - m && x < CITADEL.x1 + 4 + m && z > CITADEL.z - 6 - m && z < CITADEL.back + 4 + m; }
@@ -12794,9 +12819,10 @@ function ashUpdate(dt, time){
       // Lantern Row: the walk is stepped here, every frame you are in the street
       if(Math.abs(p.x - Rw.x) < Rw.hw + 0.2 && p.z > C0.z + C0.t - 0.2 && p.z < Rw.z1 + 1 && typeof g3Tick === 'function') near = g3Tick(near) || near;
       if(V && gateOpen(2) && !state.hunt.won && Math.abs(p.x - C0.vault.x) < 3.4 && p.z > C0.vault.door - 5 && p.z < C0.vault.door) near = 'vault';
+      near = merNear(near);   // Goal 18: a pylon you stand at (only inside its shield, so only under your own Bell Jar)
     }
   }
-  if(near !== ashNear){ ashNear = near; const b = $('#ashBtn'); b.style.display = near ? '' : 'none'; b.textContent = near === 'g0' ? 'Recite' : near === 'g1' ? 'Play Starling' : near === 'pile' ? 'Take the credits' : near === 'vault' ? 'Set the shards' : '';
+  if(near !== ashNear){ ashNear = near; const b = $('#ashBtn'); b.style.display = near ? '' : 'none'; b.textContent = near === 'g0' ? 'Recite' : near === 'g1' ? 'Play Starling' : near === 'pile' ? 'Take the credits' : near === 'vault' ? 'Set the shards' : /^p\d$/.test(near || '') ? 'Overload' : '';
     if(near === 'g0' && !ash.told0){ ash.told0 = true; toast('The First Gate. A voice from the stones: "Say it back to me, line by line." Press E.', 4200); }
     if(near === 'g1' && !ash.told1){ ash.told1 = true; toast(gateOpen(0) ? 'The Second Gate. A screen hangs on its portcullis: STARLING, 1ST MQ 31,550. Beat it. Press E.' : 'The Second Gate. It will not wake until the First is open.', 4200); } }
 }
@@ -12805,6 +12831,7 @@ function ashAct(){
   if(ashNear === 'g1'){ if(!gateOpen(0)){ toast('The Second Gate will not wake until the First is open.', 3200); return null; } return typeof openStarling === 'function' ? openStarling() : null; }
   if(ashNear === 'pile') return typeof g3Take === 'function' ? g3Take('played') : null;
   if(ashNear === 'vault') return typeof openVault === 'function' ? openVault('played') : null;
+  if(/^p\d$/.test(ashNear)) return pylonHit(+ashNear[1], 'played');
   return null;
 }
 // a gate opens: saved, rewarded, the portcullis lifts; the Third Gate's portcullis follows the first two
@@ -12869,6 +12896,7 @@ const seedEl = $('#seedCard');
 function openVault(how){
   if(state.hunt.won){ showSeedCard(); return {already:true, won:true}; }
   const missing = [0, 1, 2].filter(i => !gateOpen(i)); if(missing.length) return {won:false, missing:missing.map(i => CITADEL.gates[i].name)};
+  if(!state.hunt.blackout) return {won:false, blackout:'pending'};   // Goal 18: the Seed comes after the Blackout (it fires as you walk in past the Third Gate)
   state.hunt.won = true; state.won = true; persist(); reward(1000, 500); sfx('win'); if(typeof setHalo === 'function') setHalo(); ashSync(false); huntState();
   toast('Amber, rose and cyan: the three shards go into the door, and the vault rolls open.   +1000 XP', 5200);
   if(how !== 'hook') setTimeout(showSeedCard, 2600); else showSeedCard();
@@ -13679,6 +13707,11 @@ function deedsNow(){
   if(state.shards.has('dunes')) out.push({id:'shard:dunes', big:true, realm:'dunes', text:'drove the comets backwards in Comet Rally and won the Amber Shard', line:'You are the one who drove the comets backwards! Everyone has heard about the Amber Shard.'});
   if(state.shards.has('grid')) out.push({id:'shard:grid', big:true, realm:'grid', text:'walked the hallway behind The Drift without looking back and won the Rose Shard', line:'You walked the hallway behind The Drift and never looked back. That is the Rose Shard, isn\'t it?'});
   if(state.shards.has('sky')) out.push({id:'shard:sky', big:true, realm:'sky', text:'rang Low Tide on the wind chimes and won the Cyan Shard', line:'They say the chimes on the highest isle played Low Tide for you. The Cyan Shard!'});
+  if(state.shards.size >= 1 && !H.won) out.push({id:'meridian:units', big:true, realm:'hub', text:'has grey Meridian Units standing about wherever the Hunt takes them', line:'Careful. Since you found that shard, Meridian Logistics has grey Units standing about wherever the Hunt goes. All the same face, numbers starting with nine. They want the Seed for themselves.'});   // Goal 18
+  if(H.field) out.push({id:'meridian:field', big:true, realm:'ashfall', text:'broke Meridian\'s glass dome over the Citadel on Ashfall with the Architect\'s own Bell Jar', line:'They say you broke Meridian\'s dome over the Citadel with Lyle\'s own Bell Jar. Glass gives way only to glass!'});
+  if(H.blackout) out.push({id:'meridian:blackout', big:true, realm:'ashfall', text:H.blackout.breath ? 'lived through Meridian\'s Blackout on Ashfall: The Second Breath broke and they breathed again' : 'was zeroed out by Meridian\'s Blackout on Ashfall with every Unit there, and walked back in',
+    line:H.blackout.breath ? 'Meridian set off the Blackout and every avatar on Ashfall went dark, and you just breathed again? Their whole army is gone and you are still standing!' : 'The Blackout zeroed out everyone on Ashfall, you and Meridian\'s whole army too. Only you came back. Go and finish it.'});
+  if(num(state.kills.units, 0) >= 1) out.push({id:'meridian:zeroed', big:false, realm:'hub', text:'has zeroed out ' + state.kills.units + (state.kills.units === 1 ? ' Meridian Unit' : ' Meridian Units'), line:'You zeroed out one of those grey Meridian Units? Good. They kept standing in front of my stall and staring.'});
   if(H.won) out.push({id:'seed', big:true, realm:'ashfall', text:'reached the Seed behind the Third Gate on Ashfall', line:'You held the Seed. So you look after Hub now? Be kind to it.'});
   if(P.zeros >= 1) out.push({id:'zero:1', big:false, realm:P.zeroWhere || 'hub', text:'has zeroed out ' + P.zeros + (P.zeros === 1 ? ' time' : ' times'), line:P.zeros >= 3 ? 'Zeroed out ' + P.zeros + ' times and still walking about. I admire that.' : 'I heard you zeroed out. Happens to the best of us.'});
   if(P.zeros >= 3) out.push({id:'zero:3', big:false, realm:P.zeroWhere || 'hub', text:'has zeroed out ' + P.zeros + ' times', line:'Zeroed out ' + P.zeros + ' times and still walking about. I admire that.'});
@@ -14212,29 +14245,29 @@ Object.defineProperties(window.__hub, {
     p.x = pick[0]; p.z = pick[1]; p.y = G(p.x, p.z); cam.yaw = pick[2]; p.facing = cam.yaw + Math.PI; cam.pitch = 0.24; cam.dist = cd; me.g.position.set(p.x, p.y, p.z); me.g.rotation.y = p.facing; snapCamera(); clipCamera(); return {x:p.x, z:p.z, portal:[q.x, q.z]}; }}
 });
 // Goal 16 test hooks: list, find, hit, kill, loot and frame the realm's monsters headless
-const monCanHunt = () => !!(mon && mon.hostile && playing && !zeroing && !traveling && !pocketIn() && !monInSafe(p.x, p.z, 0) && !driftSafe());
+const monCanHunt = m => !!(mon && (m ? m.hostile : mon.hostile) && playing && !zeroing && !traveling && !pocketIn() && !monInSafe(p.x, p.z, 0) && !driftSafe());
 function monSummary(m){ return {id:m.id, x:+m.x.toFixed(2), y:+m.y.toFixed(2), z:+m.z.toFixed(2), hp:m.hp, max:m.max, mode:m.mode, home:[+m.sp.x.toFixed(2), +m.sp.z.toFixed(2)], core:!!m.sp.core, dHome:+Math.hypot(m.x - m.sp.x, m.z - m.sp.z).toFixed(2), dPlayer:+Math.hypot(m.x - p.x, m.z - p.z).toFixed(2), safeClear:+Math.min(...mon.safe.map(s => Math.hypot(m.x - s.x, m.z - s.z) - s.r)).toFixed(2)}; }
-const monAlive = () => mon ? mon.live.filter(m => m.mode !== 'dying') : [];
+const monAlive = () => mon ? mon.live.filter(m => m.mode !== 'dying' && !m.D.unit) : [];   // monsters only (Goal 18's Units: unitAlive)
 const monFind = i => !mon ? null : (!mon.live.length && monRefresh(), typeof i === 'string') ? mon.live.find(m => m.id === i) || null : monAlive()[i == null ? 0 : i] || null;
 // stand d metres from core spawn i, on the side away from the nearest safe circle, so it can see you
 function monNearHook(i, d){
   if(!mon) return null; const s = mon.core[i == null ? 0 : i]; if(!s) return null; d = d == null ? 9 : d;
   let best = null, bd = 1e9; for(const q of mon.safe){ const e = Math.hypot(s.x - q.x, s.z - q.z) - q.r; if(e < bd){ bd = e; best = q; } }
   const a = best ? Math.atan2(s.x - best.x, s.z - best.z) : Math.atan2(s.x, s.z); p.x = s.x + Math.sin(a) * d; p.z = s.z + Math.cos(a) * d; p.y = G(p.x, p.z); p.vy = 0; p.speed = 0;
-  if(mon.def.fly){ const g = G(p.x, p.z); if(!(g > -1000)){ const L = ENDLESS.sky.landAt ? ENDLESS.sky.landAt(p.x, p.z) : [p.x, p.z]; p.x = L[0]; p.z = L[1]; } p.y = groundAt(p.x, p.z, 1e3); }
+  if(mon.def && mon.def.fly){ const g = G(p.x, p.z); if(!(g > -1000)){ const L = ENDLESS.sky.landAt ? ENDLESS.sky.landAt(p.x, p.z) : [p.x, p.z]; p.x = L[0]; p.z = L[1]; } p.y = groundAt(p.x, p.z, 1e3); }
   cam.yaw = Math.atan2(p.x - s.x, p.z - s.z) + 0.3; p.facing = cam.yaw + Math.PI; me.g.position.set(p.x, p.y, p.z); snapCamera();
   monRefresh(); const m = mon.live.find(x => x.sp === s); if(m) m.sc = 1; return m ? monSummary(m) : null;   // full size at once (it grows in over 0.6 s in play)
 }
 // put live monster i right next to you (facing you) and let it strike once now, through the real strike code; reports what hurt() did
 function monStrikeHook(i){
   const m = monFind(i); if(!m) return null; const a = Math.atan2(m.x - p.x, m.z - p.z);
-  m.x = p.x + Math.sin(a) * 1.2; m.z = p.z + Math.cos(a) * 1.2; if(!mon.def.fly) m.y = monFloor(m); else m.y = p.y + 1.4; m.ax = p.x; m.az = p.z; m.ay = pCenter();
-  const hp0 = state.hp, can = monCanHunt(); hurtCool = 0; const hit = monStrike(m, can); m.mode = 'recover'; m.rt = 0.5; m.cool = mon.def.cool;
-  return {realm:mon.key, danger:WORLDS[mon.key].rules.danger, hostile:mon.hostile, canHunt:can, inRange:hit, hp0, hp1:state.hp, dealt:hp0 - state.hp};
+  m.x = p.x + Math.sin(a) * 1.2; m.z = p.z + Math.cos(a) * 1.2; if(!m.D.fly) m.y = monFloor(m); else m.y = p.y + 1.4; m.ax = p.x; m.az = p.z; m.ay = pCenter();
+  const hp0 = state.hp, can = monCanHunt(m); hurtCool = 0; const hit = monStrike(m, can); m.mode = 'recover'; m.rt = 0.5; m.cool = m.D.cool;
+  return {realm:mon.key, id:m.id, danger:WORLDS[mon.key].rules.danger, hostile:m.hostile, canHunt:can, inRange:hit, hp0, hp1:state.hp, dealt:hp0 - state.hp};
 }
 function monViewHook(i, o){
   o = o || {}; const m = monFind(i); if(!m) return null; if(o.freeze !== false) mon.freeze = true; m.sc = 1;
-  const D = mon.def, d = o.d || (D.fly ? 5 : D.kind === 'drone' ? 4.5 : 4.6), a = m.yaw + (o.side == null ? 0.6 : o.side);
+  const D = m.D, d = o.d || (D.fly ? 5 : D.kind === 'drone' ? 4.5 : 4.6), a = m.yaw + (o.side == null ? 0.6 : o.side);
   p.x = m.x + Math.sin(a) * d; p.z = m.z + Math.cos(a) * d; p.y = D.fly ? groundAt(p.x, p.z, 1e3) : G(p.x, p.z); if(!(p.y > -1000)) p.y = m.y - 2.5; p.vy = 0; p.speed = 0;
   if(D.fly && mon.freeze){ m.y = p.y + 2.6; m.vy = 0; }   // a frozen flyer is brought down to eye level for the picture
   if(o.third){   // third person: you and the monster, the camera behind your shoulder
@@ -14249,10 +14282,10 @@ function monSafeCheck(R){
   if(endless && endless.builtin === mon.key){ const pcx = Math.floor(p.x / CHUNK), pcz = Math.floor(p.z / CHUNK); for(let dz = -R; dz <= R; dz++) for(let dx = -R; dx <= R; dx++){ cells++; monCellSpawns(pcx + dx, pcz + dz).forEach(s => all.push(s)); } }
   const clear = s => Math.min(...mon.safe.map(q => Math.hypot(s.x - q.x, s.z - q.z) - q.r));
   const live = mon.live.map(m => clear(m));
-  return {spawns:all.length, cells, minSpawnClear:+Math.min(...all.map(clear)).toFixed(2), patrol:mon.def.patrol, liveMinClear:live.length ? +Math.min(...live).toFixed(2) : null, safe:mon.safe.map(s => ({x:+s.x.toFixed(1), z:+s.z.toFixed(1), r:s.r, why:s.why}))};
+  return {spawns:all.length, cells, minSpawnClear:+Math.min(...all.map(clear)).toFixed(2), patrol:(mon.def || UNIT).patrol, liveMinClear:live.length ? +Math.min(...live).toFixed(2) : null, safe:mon.safe.map(s => ({x:+s.x.toFixed(1), z:+s.z.toFixed(1), r:s.r, why:s.why}))};
 }
 Object.defineProperties(window.__hub, {
-  mon:{get:() => mon ? {realm:mon.key, kind:mon.def.kind, name:mon.def.name, hostile:mon.hostile, danger:WORLDS[mon.key].rules.danger, mode:atkMode(), live:monAlive().map(monSummary), core:mon.core.map(s => ({id:s.id, x:+s.x.toFixed(2), z:+s.z.toFixed(2)})), drops:mon.drops.map(d => ({id:d.id, x:+d.x.toFixed(2), y:+d.y.toFixed(2), z:+d.z.toFixed(2), credits:d.credits, item:d.item})), dead:[...mon.dead.keys()], last:mon.last || null, lastPick:mon.lastPick || null, freeze:mon.freeze, ms:+(mon.ms || 0).toFixed(3), maxMs:+(mon.maxMs || 0).toFixed(3), kills:JSON.parse(JSON.stringify(state.kills)), draws:mon.root.children.filter(o => o.isInstancedMesh && o.count > 0).length} : {realm:state.world, none:true, kills:JSON.parse(JSON.stringify(state.kills))}},
+  mon:{get:() => mon ? {realm:mon.key, kind:mon.def ? mon.def.kind : null, name:mon.def ? mon.def.name : null, hostile:mon.hostile, danger:WORLDS[mon.key].rules.danger, mode:atkMode(), live:monAlive().map(monSummary), core:mon.core.map(s => ({id:s.id, x:+s.x.toFixed(2), z:+s.z.toFixed(2)})), drops:mon.drops.map(d => ({id:d.id, x:+d.x.toFixed(2), y:+d.y.toFixed(2), z:+d.z.toFixed(2), credits:d.credits, item:d.item})), dead:[...mon.dead.keys()], last:mon.last || null, lastPick:mon.lastPick || null, freeze:mon.freeze, ms:+(mon.ms || 0).toFixed(3), maxMs:+(mon.maxMs || 0).toFixed(3), kills:JSON.parse(JSON.stringify(state.kills)), draws:mon.root.children.filter(o => o.isInstancedMesh && o.count > 0).length} : {realm:state.world, none:true, kills:JSON.parse(JSON.stringify(state.kills))}},
   monTable:{value:() => WORLD_ORDER.concat(HUNT_WORLDS).map(k => ({realm:k, kind:MON[k] ? MON[k].kind : null, name:MON[k] ? MON[k].name : null, danger:WORLDS[k].rules.danger, hostile:monHostile(k)}))},
   monNear:{value:(i, d) => monNearHook(i, d)},
   monHit:{value:(i, n) => { const m = monFind(i); return m ? {dealt:monDamage(m, n == null ? 10 : n, 'test'), after:monSummary(m)} : null; }},
@@ -14434,7 +14467,7 @@ function artUnfound(o){
   qpList.forEach(q => { if(!(state.qp[q.key] && state.qp[q.key].wins > 0)) add('quest', q.x, q.z, q.d.name + ' (quest portal)', '#ffc04d', q.y); });
   portals.forEach(q => { if(WORLDS[q.to] && !state.visited.has(q.to)) add('portal', q.x, q.z, 'the way to ' + WORLDS[q.to].name, '#5ce1e6'); });
   bundles.forEach(b => { if(b.world === state.world) add('bundle', b.x, b.z, 'your bundle', '#ff9f1c', b.y); });
-  if(o.monsters && mon){ monAlive().forEach(m => add('monster', m.x, m.z, mon.def.name, '#ff5a6e', m.y)); mon.drops.forEach(d => add('loot', d.x, d.z, d.item ? artName(d.item) : 'loot', '#ffd166', d.y)); }
+  if(o.monsters && mon){ monAlive().forEach(m => add('monster', m.x, m.z, m.D.name, '#ff5a6e', m.y)); mon.drops.forEach(d => add('loot', d.x, d.z, d.item ? artName(d.item) : 'loot', '#ffd166', d.y)); }
   return out.sort((a, b) => a.d - b.d);
 }
 // the lamp: up to 16 pillars of light (one shared geometry, a material per colour), re-aimed twice a second
@@ -14695,6 +14728,340 @@ Object.defineProperties(window.__hub, {
   artGo:{value:what => { if(what === 'chest'){ if(!hollow || !hollow.inside) return {error:'enter the Hollow first (__hub.enterHollow())'}; const K = HOLLOW.chest; p.x = HOLLOW.x + K.x + 1.2; p.z = HOLLOW.z + K.z - 0.6; p.y = pocketFloor(p.x, p.z); p.vy = 0; hollowUpdate(0, 0); return {near:hollowNear}; } return null; }}
 });
 artHudDraw();
+
+/* ================= Meridian (Goal 18, blueprint 8 and 9): the Units, the Bell Jar field over the Citadel, the Blackout =================
+   Meridian Logistics wants the Seed. It hunts with Units: identical grey avatars (one fixed recipe through makeAvatar) whose tags read "Meridian 9-xxxxx".
+   - The Units stand at the Hunt's key sites once you hold a shard (UNIT_SITES): across the walk from the Archive's door, round the Hollow's door, round The Drift,
+     at the foot of the stones up to the chimes, and in numbers on Ashfall before the Citadel. They run in the monster framework (Goal 16) with their own cap (UNIT_CAP): in a
+     danger realm they are hostile (a baton strike, damage only through hurt()), can be zeroed for credits and come back after MON_RESPAWN; in a safe realm they only
+     shadow you and watch, and cannot be fought. Their posts are a pure function of fixed things (no rng, nothing placed before them moves) and keep clear of every
+     safe circle; pockets are below the surface, where they never go. They are drawn as one InstancedMesh per (bone, material) of the shared avatar: ~20 draws for all.
+   - The Bell Jar field: while you hold all three shards (and the Seed is not won), Meridian's dome (raiseField, r 42) covers the Citadel and nothing passes it.
+     Three field pylons stand in a yard east of it, each in its own small shield that throws you back. Glass gives way only to glass: with your own Bell Jar down
+     over you (B) you walk through a shield, and E at the pylon overloads it. Downed pylons stay down (saved, state.hunt.pylons); the third brings the dome down
+     (state.hunt.field). Clued by the Ledger page "Glass", the Registrar, the locals, and the dome itself, which names the Hoard if you have not won the jar yet
+     (the jar is always winnable: the Hoard chest gives it to whoever holds the Amber Shard, and Ashfall needs all three).
+   - The Blackout: with the Third Gate open, the first time you stand inside the Citadel Meridian sets it off (once ever, state.hunt.blackout). A pulse, every Unit on
+     Ashfall and you zero out, the screen goes dark. With The Second Breath you breathe again on the spot. Without it you wake on the Spaceport with nothing lost: it is
+     a scripted event, not a death (no bundle, no level reset), and Ashfall is silent when you come back, because the bomb took Meridian's own Units too. Either way
+     the walk to the vault is open; the vault opens only after the Blackout.
+   - Old saves: state.hunt.won means Meridian never comes back (no Units anywhere, no field, no Blackout). A save mid-Hunt meets the field on its next visit to Ashfall. */
+const UNIT = {kind:'unit', unit:true, name:'Meridian Unit', plural:'Meridian Units', verb:'zero out', hp:50, dmg:9, walk:1.5, run:4.6, aggro:15, leash:22, patrol:5, reach:1.9, wind:0.55, cool:1.9, xp:10, credits:[8, 16], rad:0.42, size:1, col:0xb9b4d6, loot:[]};
+const UNIT_CAP = 10;
+const UNIT_RECIPE = {body:'humanoid', height:1.86, build:'normal', head:'visor', features:[], material:'plate', pattern:'none', colours:{main:'#7c7f88', second:'#5b5e67', trim:'#c3c6d4', glow:'#d4d8ff'}, eyes:{style:'visor', glow:'#e2e5ff'}, ear_shape:'round', voice_line:'Unit on station.'};
+const MERIDIAN = {company:'Meridian Logistics', dome:{x:0, z:44, r:42, h:56}, yardD:50, yardStep:12, shieldR:3, bodyR:1.3, reach:2.7, col:0xc4bcff};
+const UNIT_SITES = {hub:'the Archive steps', dunes:'the Hollow\'s door', grid:'The Drift', sky:'the foot of the stones up to the chimes', ashfall:'the Citadel'};
+const unitsOn = key => !!UNIT_SITES[key] && state.shards.size >= 1 && !state.hunt.won && !(key === 'ashfall' && state.hunt.blackout);
+const unitTagName = id => 'Meridian 9-' + String(strHash('meridian:' + id) % 100000).padStart(5, '0');
+const fieldUp = () => state.shards.size >= 3 && !state.hunt.won && !state.hunt.field;
+const jarUp = () => artRt.fields.some(f => f.owner === 'player' && !f.broken && f.until > artRt.clock);
+const merWalls = () => mer ? mer.walls : [];
+const unitAlive = () => mon ? mon.live.filter(m => m.D.unit && m.mode !== 'dying') : [];
+
+// ---- where the Units stand: fixed spots round each site, clear of safe circles, solids and the field (no rng) ----
+function unitClear(x, z, pad){
+  if(monInSafe(x, z, pad) || !(G(x, z) > -1000)) return false;
+  if(colliders.some(c => !c.hollow && Math.hypot(c.x - x, c.z - z) < c.r + 1.2)) return false;
+  if(platforms.some(s => s.bottom < 2 && Math.hypot(s.x - x, s.z - z) < s.r + 1.2)) return false;
+  if(boxes.some(b => !b.hollow && b.y0 < 2 && boxOut(x, z, b, 1.2))) return false;
+  return !merWalls().some(w => Math.hypot(w.x - x, w.z - z) < w.r + UNIT.patrol + 1.5);
+}
+// try spots round (cx, cz) at radius r0 (then wider), alternating either side of the direction a0, until n are found at least 8 m apart
+function unitRing(cx, cz, r0, n, a0, pad, out){
+  out = out || [];
+  for(let k = 0, got = 0; k < 160 && got < n; k++){
+    const a = a0 + (k % 2 ? 1 : -1) * Math.ceil(k / 2) * 0.32, r = r0 + Math.floor(k / 14) * 2.5, x = cx + Math.sin(a) * r, z = cz + Math.cos(a) * r;
+    if(out.some(o => Math.hypot(o.x - x, o.z - z) < 8) || !unitClear(x, z, pad)) continue;
+    out.push({x, z}); got++;
+  }
+  return out;
+}
+function unitPosts(key){
+  if(!UNIT_SITES[key] || !WORLDS[key]) return [];
+  const pad = WORLDS[key].rules.danger ? UNIT.patrol + 4 : 2;
+  let pts = [];
+  if(key === 'hub') pts = unitRing(0, ARCHIVE.z0, 24, 3, Math.PI, pad);   // across the walk from the Archive's door, facing the plaza
+  else if(key === 'dunes' && hollow && hollow.door) pts = unitRing(hollow.door.x, hollow.door.z, 21, 2, Math.atan2(-hollow.door.x, -hollow.door.z), pad);
+  else if(key === 'grid' && drift) pts = unitRing(drift.x, drift.z, drift.r + DRIFT.porch + 6 + pad + 1, 3, Math.PI, pad);
+  else if(key === 'sky' && chimes) pts = unitRing(chimes.x, chimes.z, 13, 2, Math.atan2(-chimes.x, -chimes.z), pad);   // on the main isle at the foot of the stepping stones up to the chimes
+  else if(key === 'ashfall' && mer){   // in numbers: four before the dome either side of the way in, five round the pylons' yard
+    unitRing(0, -2, 17, 2, Math.PI / 2, pad, pts); unitRing(0, -2, 17, 2, -Math.PI / 2, pad, pts); const Y = mer.pylons[1]; if(Y) unitRing(Y.x, Y.z, 11, 5, mer.yardA, pad, pts); }
+  return pts.map((q, i) => ({id:'unit:' + key + ':' + i, x:q.x, z:q.z, y0:0, core:true, D:UNIT, site:UNIT_SITES[key]}));
+}
+
+// ---- how a Unit behaves where it cannot hurt you: it steps between its post and you, about 8 m off, and turns to watch ----
+function unitWatch(m, dt){
+  const D = m.D, see = playing && !zeroing && !traveling && !pocketIn(), dx = p.x - m.x, dz = p.z - m.z, dP = Math.hypot(dx, dz);
+  if(see && dP < 34 && Math.abs(p.y - m.y) < 12){
+    const hx = p.x - m.sp.x, hz = p.z - m.sp.z, hd = Math.hypot(hx, hz) || 1, k = clamp(hd - 8, 0, D.patrol);
+    m.mode = 'watch'; m.tx = m.sp.x + hx / hd * k; m.tz = m.sp.z + hz / hd * k;
+    if(monMove(m, m.tx, m.tz, D.walk, dt, false) < 0.2) m.speed *= Math.exp(-dt * 6);
+    m.yaw = lerpAngle(m.yaw, Math.atan2(dx, dz), 1 - Math.exp(-dt * 4)); return;
+  }
+  if(m.mode === 'watch'){ m.mode = 'patrol'; m.wait = 1 + m.r() * 2; m.tx = m.x; m.tz = m.z; }
+  if(m.wait > 0){ m.wait -= dt; m.speed *= Math.exp(-dt * 6); }
+  else if(monMove(m, m.tx, m.tz, D.walk, dt) < 0.4){ const a = m.r() * TAU, d = Math.sqrt(m.r()) * D.patrol; m.tx = m.sp.x + Math.cos(a) * d; m.tz = m.sp.z + Math.sin(a) * d; m.wait = 2 + m.r() * 4; }
+}
+function unitTold(){
+  const k = mon.key, s = UNIT_SITES[k], hostile = WORLDS[k].rules.danger;
+  toast((hostile ? 'Meridian Units stand guard at ' + s + ': grey, identical, numbered from nine. They work for ' + MERIDIAN.company + ' and they will stop you. X (or the round button) to ' + ATK[atkMode()].label.toLowerCase() + '.'
+    : 'Meridian Units at ' + s + ': grey, identical, numbered from nine. ' + MERIDIAN.company + ' wants the Seed. ' + WORLDS[k].name + ' is safe, so here they can only watch you.'), 5200);
+}
+// zeroed by you: credits on the ground (no items), a little XP; counted apart from monsters (state.kills.units), so hunt favours and the shell's ten wraiths are untouched
+function unitDie(m){
+  const M = mon; m.mode = 'dying'; m.die = 0; M.dead.set(m.id, simTime + MON_RESPAWN); sfx('mdie');
+  const cy = monCenterY(m); fxBurst(m.x, cy, m.z, 46, 0x8a8d96, {speed:3.5, size:0.1, life:1.1, grav:4, drag:1.2, dust:true}); fxBurst(m.x, cy, m.z, 22, MERIDIAN.col, {speed:2.5, size:0.16, life:0.6, grav:0});
+  state.kills.units = num(state.kills.units, 0) + 1;
+  const q = rng(strHash(m.id + ':u' + state.kills.units)), credits = UNIT.credits[0] + Math.floor(q() * (UNIT.credits[1] - UNIT.credits[0] + 1));
+  reward(UNIT.xp, 0); monDropAdd(m.x, groundAt(m.x, m.z, m.y + 0.5), m.z, credits, null, cy);
+  M.last = {id:m.id, unit:true, tag:m.tagName, credits, units:state.kills.units};
+  if(typeof localsNotice === 'function') localsNotice(); persist();
+  toast(m.tagName + ' zeroed out   +' + UNIT.xp + ' XP · ₵' + credits + ' dropped', 2400);
+  return M.last;
+}
+// the Blackout's end of a Unit: no reward, no respawn (Meridian is gone from Ashfall after it)
+function unitZero(m){ if(m.mode === 'dying') return; m.mode = 'dying'; m.die = 0; const cy = monCenterY(m);
+  fxBurst(m.x, cy, m.z, 30, 0x8a8d96, {speed:3, size:0.1, life:1, grav:3, dust:true}); fxBurst(m.x, cy, m.z, 16, 0xffffff, {speed:2, size:0.2, life:0.5, grav:0}); }
+
+// ---- the shared grey avatar, drawn instanced ----
+// One avatar is made from UNIT_RECIPE and never added to the scene; its meshes are merged per (parent bone, material) into one InstancedMesh each.
+// Every frame each Unit poses that avatar (animateAvatar with the Unit's own walk phase) and the bones' world matrices go into its slot.
+function unitKitMake(){
+  const a = makeAvatar({recipe:UNIT_RECIPE}); a.g.updateMatrixWorld(true);
+  const groups = new Map(), shown = o => { for(let q = o; q; q = q.parent) if(!q.visible) return false; return true; };
+  a.g.traverse(o => { if(!o.isMesh || !shown(o)) return; const k = o.parent.id + ':' + o.material.id; let P = groups.get(k);
+    if(!P) groups.set(k, P = {node:o.parent, mat:o.material, geos:[], cast:false}); P.geos.push(o.geometry.clone().applyMatrix4(o.matrix)); if(o.castShadow) P.cast = true; });
+  a.g.traverse(o => { if(o.isMesh) o.geometry.dispose(); });
+  const K = {av:a, list:[], sx:a.g.scale.x, sy:a.g.scale.y, sz:a.g.scale.z, tags:new Map(), n:0};
+  groups.forEach(P => { const m = new THREE.InstancedMesh(merge(P.geos), P.mat, UNIT_CAP);
+    m.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(UNIT_CAP * 3).fill(1), 3); m.count = 0; m.frustumCulled = false; m.castShadow = P.cast; m.receiveShadow = true; m.layers.set(1); m.name = 'unit:part';
+    mon.root.add(m); K.list.push({m, node:P.node}); });
+  return K;
+}
+function unitDraw(K, dt, time){
+  const A = K.av, seen = new Set(); let slot = 0;
+  for(const m of mon.live){ if(!m.D.unit || m.sc <= 0.001 || slot >= UNIT_CAP) continue;
+    A.amp = m.amp; A.phase = m.ph2; A.air = 0; animateAvatar(A, dt, m.speed, true, time); m.amp = A.amp; m.ph2 = A.phase;
+    if(m.mode === 'wind' || m.mode === 'recover'){ const w = m.mode === 'wind' ? smooth(0, m.D.wind, m.wind) : clamp(m.rt / 0.5, 0, 1), AR = A.armR; AR.sh.rotation.x = lerp(AR.sh.rotation.x, -2.4 + (m.mode === 'recover' ? 2.6 * (1 - w) : 0), w); AR.el.rotation.x = lerp(AR.el.rotation.x, -0.4, w); }
+    else if(m.mode === 'watch'){ A.armL.sh.rotation.z -= 0.12; A.armR.sh.rotation.z += 0.12; A.head.rotation.x = -0.08; }   // hands back, chin up: watching
+    A.g.position.set(m.x, m.y, m.z); A.g.rotation.set(m.mode === 'dying' ? -m.die * 0.5 : 0, m.yaw, 0); A.g.scale.set(K.sx * m.sc, K.sy * m.sc, K.sz * m.sc);
+    A.g.updateMatrixWorld(true);
+    const b = 1 + m.flash * 2.2 + (m.mode === 'dying' ? 2 * (1 - m.sc) : 0); _mCol.setRGB(b, b, b);
+    for(const P of K.list){ P.m.setMatrixAt(slot, P.node.matrixWorld); P.m.setColorAt(slot, _mCol); }
+    let tg = K.tags.get(m.id); if(!tg){ tg = noRandom(() => label(m.tagName, {small:true, edge:'#b9b4d6', fg:'#dcd9f0'})); tg.layers.set(1); mon.root.add(tg); K.tags.set(m.id, tg); }
+    tg.position.set(m.x, m.y + 2.25, m.z); tg.visible = m.mode !== 'dying' && Math.hypot(m.x - camWorld.x, m.z - camWorld.z) < 45; seen.add(m.id);
+    slot++; }
+  for(const P of K.list){ P.m.count = slot; P.m.instanceMatrix.needsUpdate = true; P.m.instanceColor.needsUpdate = true; }
+  K.tags.forEach((tg, id) => { if(!seen.has(id)){ mon.root.remove(tg); tg.material.map.dispose(); tg.material.dispose(); K.tags.delete(id); } });
+  K.n = slot;
+}
+
+// ---- Ashfall: the dome, the pylons' yard, the Blackout ----
+let merFieldsOut = [];   // Meridian's fields in the scene (the dome and the shields); they live on the scene, so they go when you leave Ashfall
+function merDropFields(){ merFieldsOut.forEach(f => { f.broken = true; artDispose(f.g); const i = artRt.fields.indexOf(f); if(i >= 0) artRt.fields.splice(i, 1); }); merFieldsOut = []; }
+function merField(o){ const f = raiseField(Object.assign({owner:'meridian', dur:Infinity, col:MERIDIAN.col}, o)); merFieldsOut.push(f); return f; }
+// the yard: due east of the dome, or the first angle either side of east where all three shields stand clear of the dead trees, coals and rocks
+function merYard(){
+  const D = MERIDIAN.dome, at = a => [-1, 0, 1].map(j => { const b = a + j * MERIDIAN.yardStep / MERIDIAN.yardD; return {x:D.x + Math.sin(b) * MERIDIAN.yardD, z:D.z + Math.cos(b) * MERIDIAN.yardD}; });
+  for(let k = 0; k < 41; k++){ const a = Math.PI / 2 + (k % 2 ? 1 : -1) * Math.ceil(k / 2) * 0.04, ps = at(a);
+    if(ps.every(q => G(q.x, q.z) > -1000 && !colliders.some(c => Math.hypot(c.x - q.x, c.z - q.z) < c.r + MERIDIAN.shieldR + 1))) return {a, ps}; }
+  return {a:Math.PI / 2, ps:at(Math.PI / 2)};
+}
+function merBuild(key){
+  merDropFields(); mer = null;
+  if(key !== 'ashfall' || !ash) return;
+  if(state.hunt.won && !state.hunt.field) return;   // the Seed was won before Meridian came (an old save): nothing of theirs here
+  noRandom(merBuild0);
+}
+function merBuild0(){
+  const D = MERIDIAN.dome, g = new THREE.Group(); g.name = 'meridian'; world.add(g);
+  mer = {g, dome:null, pylons:[], walls:[], yardA:0, told:{}, shatter:-1, bo:null, card:false, armT:0, zapT:0, last:null};
+  const Y = merYard(); mer.yardA = Y.a;
+  // the pylons: a dark steel shaft on a hexagonal plinth, three violet bands, a crystal on top and a beam up to the dome's shoulder (emissive and additive, no lights)
+  const steel = std(0x3b3e47, {metalness:0.75, roughness:0.38, map:detailTex, normalMap:detailNormal}), dark = std(0x23252b, {metalness:0.6, roughness:0.55, map:detailTex}),
+    band = glowM(MERIDIAN.col, 2.4), core = phys(0xe8e4ff, {emissive:C(MERIDIAN.col), emissiveIntensity:2.6, roughness:0.15, metalness:0.1}), deadBand = std(0x2c2a34, {roughness:0.55}), deadCore = std(0x34323e, {roughness:0.35, metalness:0.4});
+  const baseGeo = merge([new THREE.CylinderGeometry(1.25, 1.45, 0.5, 6).translate(0, 0.25, 0), new THREE.CylinderGeometry(0.9, 1.1, 0.5, 6).translate(0, 0.75, 0)]);
+  const shaftGeo = merge([new THREE.CylinderGeometry(0.32, 0.5, 6.2, 6).translate(0, 4.1, 0), new THREE.TorusGeometry(0.62, 0.08, 8, 24).rotateX(Math.PI / 2).translate(0, 7.3, 0)]
+    .concat([0, 1, 2].map(k => new THREE.BoxGeometry(0.07, 4.6, 0.62).translate(0.5, 3.6, 0).rotateY(k * TAU / 3))));
+  const bandGeo = merge([2.2, 3.9, 5.6].map(y => new THREE.TorusGeometry(0.5 - (y - 1) / 6.2 * 0.18 + 0.035, 0.05, 8, 24).rotateX(Math.PI / 2).translate(0, y, 0)));
+  const crystGeo = new THREE.OctahedronGeometry(0.5, 0).scale(1, 1.7, 1), beamGeo = new THREE.CylinderGeometry(0.06, 0.06, 1, 8, 1, true);
+  const beamM = new THREE.MeshBasicMaterial({color:C(MERIDIAN.col), transparent:true, opacity:0.45, depthWrite:false, blending:THREE.AdditiveBlending, toneMapped:false, fog:false});
+  const domeY = (() => { let lo = 1e9; for(let k = 0; k < 32; k++){ const a = k / 32 * TAU; lo = Math.min(lo, G(D.x + Math.sin(a) * D.r, D.z + Math.cos(a) * D.r)); } return lo - 0.6; })();
+  mer.domeY = domeY;
+  Y.ps.forEach((q, i) => { const gy = G(q.x, q.z);
+    mk(baseGeo, dark, q.x, gy - 0.05, q.z, g); mk(shaftGeo, steel, q.x, gy, q.z, g); const bd = mk(bandGeo, band, q.x, gy, q.z, g); bd.castShadow = false;
+    const cr = mk(crystGeo, core, q.x, gy + 8.2, q.z, g); cr.castShadow = false; const gl = glow(MERIDIAN.col, 2.6, q.x, gy + 8.2, q.z, g, 0.6);
+    const ax = D.x + (q.x - D.x) / MERIDIAN.yardD * D.r, az = D.z + (q.z - D.z) / MERIDIAN.yardD * D.r, ay = domeY + D.h * 0.5, A = new V3(q.x, gy + 8.6, q.z), B = new V3(ax, ay, az), L = A.distanceTo(B);
+    const bm = new THREE.Mesh(beamGeo, beamM); bm.position.copy(A).add(B).multiplyScalar(0.5); bm.scale.set(1, L, 1); bm.quaternion.setFromUnitVectors(new V3(0, 1, 0), B.clone().sub(A).normalize()); bm.renderOrder = 4; g.add(bm);
+    const hit = glow(MERIDIAN.col, 3.2, ax, ay, az, g, 0.5);
+    const lb = label('Meridian Field Pylon', {small:true, edge:'#c4bcff', fg:'#e6e2ff'}); lb.position.set(q.x, gy + 9.8, q.z); g.add(lb);
+    mer.pylons.push({i, x:q.x, z:q.z, y:gy, band:bd, core:cr, glow:gl, beam:bm, hit, label:lb, shield:null, mats:{band, core, deadBand, deadCore}}); });
+  merSync();
+}
+// the saved state drives what stands: the dome and the shields go up or come down, the pylons go dark, the walls follow
+function merSync(){
+  if(!mer) return; const up = fieldUp(), D = MERIDIAN.dome;
+  if(up && !mer.dome) mer.dome = merField({x:D.x, z:D.z, y:mer.domeY, r:D.r, h:D.h, shields:'meridian', ripple:26, col:0xc8c2ff});
+  if(!up && mer.dome && mer.shatter < 0){ dropField(mer.dome, 'broken'); mer.dome = null; }
+  mer.pylons.forEach((P, i) => { const down = !!state.hunt.pylons[i] || !!state.hunt.field;
+    P.band.material = down ? P.mats.deadBand : P.mats.band; P.core.material = down ? P.mats.deadCore : P.mats.core; P.glow.visible = P.hit.visible = !down; P.beam.visible = !down && up;
+    if(up && !down && !P.shield) P.shield = merField({x:P.x, z:P.z, y:P.y - 0.3, r:MERIDIAN.shieldR, h:8.8, shields:'pylon', ripple:30});
+    if((!up || down) && P.shield){ dropField(P.shield, 'down'); P.shield = null; } });
+  mer.walls = [];
+  if(up && mer.dome) mer.walls.push({kind:'dome', x:D.x, z:D.z, r:D.r, top:mer.domeY + D.h});
+  mer.pylons.forEach((P, i) => { mer.walls.push({kind:'body', i, x:P.x, z:P.z, r:MERIDIAN.bodyR, top:P.y + 9});
+    if(P.shield) mer.walls.push({kind:'shield', i, x:P.x, z:P.z, r:MERIDIAN.shieldR, top:P.y + 8.8}); });
+}
+// the player against the glass (from update's walking step): the dome always holds; a shield holds unless your own Bell Jar is down over you
+function merBlock(nx, nz){
+  if(!mer || pocketIn() || !mer.walls.length) return null;
+  let hit = null; const jar = jarUp();
+  for(const w of mer.walls){ if(w.kind === 'shield' && jar) continue; if(p.y > w.top) continue; const lim = w.r + 0.35, dx = nx - w.x, dz = nz - w.z, d = Math.hypot(dx, dz);
+    if(d < lim){ const e = d > 1e-4 ? 1 / d : 0; nx = w.x + (e ? dx * e : 1) * lim; nz = w.z + (e ? dz * e : 0) * lim; hit = w; } }
+  if(hit && playing && !zeroing) merTouch(hit);
+  return hit ? [nx, nz] : null;
+}
+function merTouch(w){
+  const now = artRt.clock, T = mer.told;
+  if(w.kind === 'dome'){ if(mer.dome) mer.dome.flash = Math.max(mer.dome.flash, 0.35); if(!(T.dome > now)){ T.dome = now + 14;
+    toast('Meridian\'s glass. Nothing this size gives way. Three pylons in a yard to the east hold it up, each in its own shield.' + (state.art.won['bell-jar'] ? ' Glass gives way only to glass.' : ' Glass gives way only to glass, and the only jar in Hub waits in the Hoard under Glass Dunes, under the chest\'s amber wax.'), 6000); } return; }
+  if(w.kind !== 'shield') return;
+  const P = mer.pylons[w.i]; if(P && P.shield) P.shield.flash = 1;
+  if(!(mer.zapT > now)){ mer.zapT = now + 1.1; sfx('zap'); hurt(6, 'a Meridian shield'); }
+  if(!(T.shield > now)){ T.shield = now + 8; const rest = artCdLeft('bell-jar');
+    toast('The shield throws you back. Glass gives way only to glass: ' + (artHas('bell-jar') ? (rest > 0 ? 'your Bell Jar is resting (' + artClockFmt(rest) + '), then bring it down over you (B) and walk through.' : 'bring your Bell Jar down over you (B) and walk through.') : 'you have no jar of your own yet. The Bell Jar waits in the Hoard under Glass Dunes, under the chest\'s false bottom.'), 5200); }
+}
+// E at a pylon (ashUpdate's near list): you must be standing inside its shield, which only your own jar lets you do
+function merNear(near){ if(!mer || !fieldUp()) return near; for(const P of mer.pylons) if(!state.hunt.pylons[P.i] && Math.hypot(p.x - P.x, p.z - P.z) < MERIDIAN.reach) return 'p' + P.i; return near; }
+function pylonHit(i, how){
+  if(!mer) return {ok:false, why:'not on Ashfall'}; if(!fieldUp()) return {ok:false, why:'no field'};
+  const P = mer.pylons[i]; if(!P) return {ok:false, why:'no such pylon'}; if(state.hunt.pylons[i]) return {ok:false, why:'already down'};
+  const d = Math.hypot(p.x - P.x, p.z - P.z); if(d > MERIDIAN.reach + 0.2) return {ok:false, why:'too far', d:+d.toFixed(2)};
+  if(!jarUp()){ merTouch({kind:'shield', i}); return {ok:false, why:'no jar'}; }   // (only a hook can stand you here without one)
+  state.hunt.pylons[i] = true; persist(); reward(40, 0); sfx('zap'); sfx('rumble');
+  if(mon) fxBurst(P.x, P.y + 8.2, P.z, 40, MERIDIAN.col, {speed:6, size:0.16, life:0.9, grav:5});
+  merSync(); const left = state.hunt.pylons.filter(v => !v).length;
+  mer.last = {i, how:how || 'played', left};
+  if(!left) merFieldBreak(how); else toast('Your glass against theirs: the pylon\'s crystal cracks and goes dark. ' + left + (left === 1 ? ' pylon still holds' : ' pylons still hold') + ' the dome.   +40 XP', 4200);
+  return {ok:true, i, left, broken:!!state.hunt.field};
+}
+function merFieldBreak(how){
+  state.hunt.field = true; persist(); reward(150, 100); huntState();
+  if(mer && mer.dome){ mer.dome.flash = 1; mer.shatter = 0.6; }   // it flashes, then falls in (merUpdate)
+  if(snd.ctx && snd.on) try{ const t0 = snd.ctx.currentTime; noiseHit(4200, 0.8, 2.2, 0.08, t0, 900); [1760, 2093, 2637, 1568].forEach((f, k) => tone('sine', f, f * 0.94, 1.6, 0.02, t0 + k * 0.09)); }catch(e){}
+  sfx('rumble'); if(typeof localsNotice === 'function') localsNotice();
+  artCard('Glass gives way to glass', 'The field is broken', 'Meridian\'s dome over the Citadel falls in on itself. The gates are open to you.   <i>+150 XP · ₵100</i>', 6500);
+  return true;
+}
+// the Blackout: started once, inside the Citadel, with the Third Gate open
+const BLACK = {speed:46, dark:2.4, wake:2.2};
+function merBlackout(how){
+  if(!mer || mer.bo || state.hunt.blackout || state.hunt.won || state.world !== 'ashfall') return null;
+  const D = MERIDIAN.dome, c = new V3(D.x, mer.domeY + D.h + 6, D.z);
+  mer.bo = {t:0, how:how || 'played', stage:0, breath:artHas('second-breath'), c, hitT:c.distanceTo(new V3(p.x, p.y + 1, p.z)) / BLACK.speed};
+  zeroing = true; p.speed = 0; jumpBuffer = 0; for(const k in keys) keys[k] = false;
+  noRandom(() => { const s = new THREE.Mesh(new THREE.SphereGeometry(1, 64, 32), artShell(0xe8e4ff, 9)); s.position.copy(c); s.renderOrder = 6; s.scale.setScalar(0.1); mer.g.add(s); mer.bo.pulse = s; });
+  sfx('rumble'); if(snd.ctx && snd.on) try{ tone('sawtooth', 55, 30, 3.5, 0.06); tone('sine', 110, 40, 3, 0.05); }catch(e){}
+  toast('A light opens in the dusk over the Citadel. Meridian has set off the Blackout.', 4000);
+  return {started:true, breath:mer.bo.breath, hitT:+mer.bo.hitT.toFixed(2)};
+}
+function merBlackoutStep(dt){
+  const B = mer.bo; B.t += dt;
+  const r = B.t * BLACK.speed; if(B.pulse){ B.pulse.scale.setScalar(Math.max(0.1, r)); const u = B.pulse.material.uniforms; u.t.value = artRt.clock; u.op.value = 1.6 * (1 - smooth(B.hitT + 0.6, B.hitT + 2.2, B.t)); u.flash.value = 0.25; }
+  if(mon) for(const m of mon.live) if(m.D.unit && m.mode !== 'dying' && B.c.distanceTo(_bA.set(m.x, m.y + 1, m.z)) < r) unitZero(m);
+  if(B.stage === 0 && B.t >= B.hitT){ B.stage = 1; sfx('zero'); me.g.visible = false; fxBurst(p.x, p.y + 1, p.z, 40, 0xffffff, {speed:3, size:0.12, life:0.9, grav:0}); $('#blackMsg').textContent = 'Every avatar on Ashfall zeroed out.'; $('#blackFx').classList.add('on'); }
+  if(B.stage === 1 && B.t >= B.hitT + BLACK.dark){ B.stage = 2;
+    if(B.breath && artSecondBreath('the Blackout')){
+      state.hunt.blackout = {t:Date.now(), breath:true}; persist(); huntState(); if(typeof localsNotice === 'function') localsNotice();
+      me.g.visible = true; zeroing = false; $('#blackFx').classList.remove('on'); if(B.pulse){ mer.g.remove(B.pulse); B.pulse.geometry.dispose(); B.pulse.material.dispose(); B.pulse = null; }
+      mer.bo.done = 'breath'; setTimeout(() => { if(state.world === 'ashfall') toast('Every Meridian Unit on Ashfall is gone. Lantern Row is quiet; the vault waits at its end.', 5200); }, 6200);
+    } else {
+      state.hunt.blackout = {t:Date.now(), breath:false}; persist(); huntState(); if(typeof localsNotice === 'function') localsNotice();
+      $('#blackMsg').textContent = 'Every avatar on Ashfall zeroed out, you too. Without The Second Breath there is no coming back on the spot.'; mer.bo.done = 'spaceport';
+      const go = () => { if(traveling){ setTimeout(go, 300); return; }
+        travel('hub', {spawn:true, arrive(){ state.hp = maxHp(); hpHud(); me.g.visible = true; zeroing = false;
+          $('#blackMsg').textContent = 'You wake on the Spaceport. The Blackout was Meridian\'s, not a fall: nothing dropped, level kept. It took their own Units too, so Ashfall is silent now. The vault is waiting.';
+          setTimeout(() => $('#blackFx').classList.remove('on'), 5200); }}); };
+      setTimeout(go, 1200);
+    }
+  }
+}
+function merUpdate(dt, time){
+  if(!mer || state.world !== 'ashfall') return;
+  for(const P of mer.pylons){ if(!P.glow.visible) continue; P.core.rotation.y += dt * 0.9; P.core.position.y = P.y + 8.2 + Math.sin(time * 1.7 + P.i) * 0.08; P.glow.material.opacity = 0.5 + 0.15 * Math.sin(time * 3 + P.i * 2); }
+  if(mer.shatter >= 0){ mer.shatter -= dt;
+    if(mer.shatter < 0 && mer.dome){ const D = MERIDIAN.dome; if(mon) for(let k = 0; k < 36; k++){ const a = k / 36 * TAU * 3.7, y = mer.domeY + (k % 9) / 9 * D.h * 0.55; fxBurst(D.x + Math.sin(a) * D.r, y, D.z + Math.cos(a) * D.r, 8, k % 2 ? 0xe8e4ff : MERIDIAN.col, {speed:4, size:0.35, life:2.4, grav:7, drag:0.6}); }
+      dropField(mer.dome, 'broken'); mer.dome = null; merSync(); } }
+  if(fieldUp() && !mer.card && playing && !traveling && state.started){ mer.card = true;
+    artCard(MERIDIAN.company, 'A field over the Citadel', 'Meridian has thrown a dome of glass over the Citadel. Three pylons in a yard to the east hold it up, each in a shield of its own.<br><small style="color:#c9bfa0">Glass gives way only to glass.</small>', 7500); }
+  // the Blackout: once, the first time you are inside the Citadel with the Third Gate open
+  if(mer.bo){ if(!mer.bo.done) merBlackoutStep(dt); }
+  else if(gateOpen(2) && !state.hunt.won && !state.hunt.blackout && playing && !traveling && !zeroing && ashIndoors()){ mer.armT += dt; if(mer.armT > 1.2) merBlackout('played'); }
+  else mer.armT = 0;
+}
+function merMap(T, sc){
+  if(!mer || pocketIn()) return;
+  if(mer.dome){ const o = T(MERIDIAN.dome.x, MERIDIAN.dome.z); mx2.strokeStyle = 'rgba(196,188,255,0.75)'; mx2.lineWidth = 2; mx2.beginPath(); mx2.arc(o[0], o[1], MERIDIAN.dome.r * sc, 0, TAU); mx2.stroke(); }
+  mer.pylons.forEach(P => { const o = T(P.x, P.z), on = !state.hunt.pylons[P.i] && fieldUp(); mx2.fillStyle = on ? '#c4bcff' : 'rgba(150,150,170,0.6)'; mx2.fillRect(o[0] - 3, o[1] - 3, 6, 6);
+    if(P.shield){ mx2.strokeStyle = 'rgba(196,188,255,0.6)'; mx2.lineWidth = 1.2; mx2.beginPath(); mx2.arc(o[0], o[1], Math.max(3, MERIDIAN.shieldR * sc), 0, TAU); mx2.stroke(); } });
+}
+
+// Goal 18 test hooks: the Units per realm, the field and its pylons through their real rule, the Blackout, and a framed view for the one screenshot
+function unitFindPost(i){ return mon && mon.ucore[i == null ? 0 : i] || null; }
+function unitLive(i){ const s = unitFindPost(i); if(!s) return null; if(mon) monRefresh(); const m = mon.live.find(x => x.sp === s); if(m) m.sc = 1; return m || null; }
+function unitStandBy(s, d){
+  const a = Math.atan2(p.x - s.x, p.z - s.z) || 0; let x = s.x + Math.sin(a) * d, z = s.z + Math.cos(a) * d;
+  p.y = G(x, z);
+  p.x = x; p.z = z; p.vy = 0; p.speed = 0; cam.yaw = Math.atan2(p.x - s.x, p.z - s.z) + 0.3; p.facing = Math.atan2(s.x - p.x, s.z - p.z); me.g.position.set(p.x, p.y, p.z); snapCamera();
+}
+function merTestState(o){   // test only: set the Hunt's state in one go (shards, gates, pylons, field, blackout, won), saved like play
+  o = o || {}; if(o.shards != null){ state.shards.clear(); ['dunes', 'grid', 'sky'].slice(0, o.shards).forEach(k => state.shards.add(k)); }
+  const H = state.hunt; if(o.gates) H.gates = [0, 1, 2].map(i => !!o.gates[i]); if(o.pylons) H.pylons = [0, 1, 2].map(i => !!o.pylons[i]);
+  if(o.field != null) H.field = !!o.field; if(o.blackout !== undefined) H.blackout = o.blackout ? {t:Date.now(), breath:!!o.blackout.breath} : null; if(o.won != null){ H.won = !!o.won; if(o.won) state.won = true; }
+  persist(); refreshHud(); huntState(); if(typeof ashSync === 'function') ashSync(true); merSync();
+  return {shards:[...state.shards], hunt:{gates:H.gates.slice(), pylons:H.pylons.slice(), field:H.field, blackout:H.blackout, won:H.won}};
+}
+Object.defineProperties(window.__hub, {
+  UNIT:{value:UNIT}, MERIDIAN:{value:MERIDIAN}, UNIT_SITES:{value:UNIT_SITES},
+  unitTable:{value:() => Object.keys(UNIT_SITES).map(k => ({realm:k, site:UNIT_SITES[k], on:unitsOn(k), danger:!!WORLDS[k].rules.danger, here:state.world === k, posts:state.world === k && mon ? mon.ucore.length : null, live:state.world === k ? unitAlive().length : null}))},
+  units:{get:() => ({realm:state.world, on:unitsOn(state.world), shards:state.shards.size, framework:!!mon, kills:num(state.kills.units, 0),
+    posts:mon ? mon.ucore.map(s => ({id:s.id, tag:unitTagName(s.id), x:+s.x.toFixed(2), z:+s.z.toFixed(2), safeClear:mon.safe.length ? +Math.min(...mon.safe.map(q => Math.hypot(s.x - q.x, s.z - q.z) - q.r)).toFixed(2) : null})) : [],
+    live:unitAlive().map(m => Object.assign(monSummary(m), {tag:m.tagName, hostile:m.hostile})), parts:mon && mon.ukit ? mon.ukit.list.length : 0, drawn:mon && mon.ukit ? mon.ukit.n : 0, tags:mon && mon.ukit ? mon.ukit.tags.size : 0,
+    targets:monTargets().filter(m => m.D.unit).length, monsters:monAlive().length})},
+  unitNear:{value:(i, d) => { const s = unitFindPost(i); if(!s) return null; unitStandBy(s, d == null ? 9 : d); const m = unitLive(i); return m ? Object.assign(monSummary(m), {tag:m.tagName, hostile:m.hostile}) : null; }},
+  unitStrike:{value:i => { const s = unitFindPost(i); if(!s) return null; unitLive(i); return monStrikeHook(s.id); }},
+  // stand 1.6 m from Unit i, face it and fight back with the real attack (X) until it zeroes or n tries run out (each try ends the attack's cooldown)
+  unitFight:{value:(i, n) => { const s = unitFindPost(i); if(!s) return null; const m = unitLive(i); if(!m) return {error:'no live unit at post ' + i};
+    const out = []; for(let k = 0; k < (n || 12) && m.mode !== 'dying'; k++){ unitStandBy({x:m.x, z:m.z}, 1.6); m.mode = 'patrol'; m.cool = 9; atk.cool = 0; const r = monAttack(); for(let j = 0; j < 8; j++) monBolts(0.05); out.push(r ? r.hits.length : null); }
+    return {hits:out, dead:m.mode === 'dying', last:mon.last && mon.last.unit ? mon.last : null, hp:m.hp}; }},
+  merTestState:{value:o => merTestState(o)},
+  field:{get:() => ({up:fieldUp(), broken:!!state.hunt.field, pylons:state.hunt.pylons.slice(), here:!!mer, jar:jarUp(), near:ashNear, last:mer && mer.last,
+    dome:mer && mer.dome ? {id:mer.dome.id, x:mer.dome.x, z:mer.dome.z, y:+mer.dome.y.toFixed(2), r:mer.dome.r, h:mer.dome.h} : null,
+    yard:mer ? mer.pylons.map(P => ({i:P.i, x:+P.x.toFixed(2), z:+P.z.toFixed(2), shield:!!P.shield, d:+Math.hypot(p.x - P.x, p.z - P.z).toFixed(2)})) : null,
+    walls:mer ? mer.walls.map(w => w.kind + (w.i != null ? w.i : '')) : null})},
+  // stand d m out from pylon i (default just outside its shield), facing it
+  pylonGo:{value:(i, d) => { if(!mer || !mer.pylons[i]) return null; const P = mer.pylons[i], D = MERIDIAN.dome, a = Math.atan2(P.x - D.x, P.z - D.z), dd = d == null ? MERIDIAN.shieldR + 1.5 : d;
+    p.x = P.x + Math.sin(a) * dd; p.z = P.z + Math.cos(a) * dd; p.y = G(p.x, p.z); p.vy = 0; p.speed = 0; cam.yaw = Math.atan2(p.x - P.x, p.z - P.z); p.facing = cam.yaw + Math.PI; me.g.position.set(p.x, p.y, p.z); snapCamera(); ashUpdate(0, 0);
+    return {x:+p.x.toFixed(2), z:+p.z.toFixed(2), d:+Math.hypot(p.x - P.x, p.z - P.z).toFixed(2), near:ashNear}; }},
+  // walk at pylon i through the real update (W held, camera behind you) for n steps of 0.05 s; reports the closest you got and what E would do there
+  pylonWalk:{value:(i, n) => { if(!mer || !mer.pylons[i]) return null; const P = mer.pylons[i]; let minD = 1e9, hp0 = state.hp;
+    for(let k = 0; k < (n || 40); k++){ cam.yaw = Math.atan2(p.x - P.x, p.z - P.z); keys.KeyW = true; update(0.05, simTime); minD = Math.min(minD, Math.hypot(p.x - P.x, p.z - P.z)); }
+    keys.KeyW = false; return {minD:+minD.toFixed(2), d:+Math.hypot(p.x - P.x, p.z - P.z).toFixed(2), jar:jarUp(), near:ashNear, hp0, hp1:state.hp}; }},
+  pylonHit:{value:i => pylonHit(i, 'hook')},
+  // the dome against you: walk straight at it from (x, z) for n steps
+  domeWalk:{value:(x, z, n) => { if(!mer) return null; const D = MERIDIAN.dome; p.x = x; p.z = z; p.y = G(x, z); p.vy = 0; let minD = 1e9;
+    for(let k = 0; k < (n || 40); k++){ cam.yaw = Math.atan2(p.x - D.x, p.z - D.z); keys.KeyW = true; update(0.05, simTime); minD = Math.min(minD, Math.hypot(p.x - D.x, p.z - D.z)); }
+    keys.KeyW = false; return {minD:+minD.toFixed(2), r:D.r, up:fieldUp()}; }},
+  blackout:{value:{start:() => merBlackout('hook'), step:(n, dt) => { for(let k = 0; k < (n || 1); k++) update(dt || 0.05, simTime); return window.__hub.blackout.state; },
+    get state(){ const B = mer && mer.bo; return {saved:state.hunt.blackout, running:!!(B && !B.done), t:B ? +B.t.toFixed(2) : null, stage:B ? B.stage : null, breath:B ? B.breath : null, done:B ? B.done || null : null,
+      dark:$('#blackFx').classList.contains('on'), msg:$('#blackMsg').textContent, zeroing, world:state.world, units:unitAlive().length, hp:state.hp, avatar:me.g.visible, held:ART_ORDER.filter(artHas)}; }}},
+  // frame the one screenshot: 'dome' (the glass over the Citadel from the plain, Units in front) or 'yard' (the pylons and their guards)
+  merView:{value:what => { if(!mer) return null; const D = MERIDIAN.dome; let tx, tz;
+    if(what === 'yard'){ const P = mer.pylons[1]; tx = P.x; tz = P.z; const a = mer.yardA; p.x = P.x + Math.sin(a + 0.5) * 17; p.z = P.z + Math.cos(a + 0.5) * 17; }
+    else { tx = D.x; tz = D.z - 6; p.x = 15; p.z = -24; }
+    p.y = G(p.x, p.z); p.vy = 0; p.speed = 0; cam.yaw = Math.atan2(p.x - tx, p.z - tz) + 0.18; cam.pitch = what === 'yard' ? 0.12 : -0.02; cam.dist = 7; cam.view = 0; p.facing = cam.yaw + Math.PI;
+    me.g.position.set(p.x, p.y, p.z); me.g.rotation.y = p.facing; if(mon){ monRefresh(); mon.live.forEach(m => { m.sc = 1; }); } snapCamera(); clipCamera(); return {x:+p.x.toFixed(1), z:+p.z.toFixed(1), units:unitAlive().length}; }}
+});
 })();
 </script>
 </body>
