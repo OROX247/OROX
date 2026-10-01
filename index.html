@@ -10972,7 +10972,7 @@ const QPORTALS = {
   hub:{kind:'relay', name:'Beacon Relay', x:-20, z:-1, face:[0, 6], credits:40, xp:80, item:'beacon-lens', col:0xffc04d,
     tag:'Watch the landing beacons light up, then run to them in the same order. Three rounds; one slip is forgiven.'}
 };
-const QP_ORDER = ['hub', 'campus', 'dunes', 'grid', 'grove', 'sky', 'warfront', 'lampblack', 'saltlark'];   // Goal 20: Warfront's Signal Run joins last, then Lampblack's case, then Saltlark's ring swim
+const QP_ORDER = ['hub', 'campus', 'dunes', 'grid', 'grove', 'sky', 'warfront', 'lampblack', 'saltlark', 'fennick'];   // Goal 20: Warfront's Signal Run joins last, then Lampblack's case, then Saltlark's ring swim
 const qpReplay = d => ({credits:Math.max(5, Math.round(d.credits / 4)), xp:Math.max(5, Math.round(d.xp / 4))});
 const QM = {};
 let qpLast = null, qpBtnShown = false;
@@ -10991,6 +10991,7 @@ function qpLook(key){
   if(key === 'grid') return {frame:phys(0x0b0914, {roughness:0.2, metalness:0.6, normalMap:detailNormal, normalScale:new V2(0.12, 0.12)}), base:phys(0x14101f, {roughness:0.3, metalness:0.5}), tile:4};
   if(key === 'grove') return {frame:tex('pinebark', 0x9a8a7a), base:tex('darkrock', 0x8a8a8a), tile:3};
   if(key === 'warfront'){ const X = warTex(); return {frame:std(0xffffff, {map:X.stone.map, normalMap:X.stone.normal, roughnessMap:X.stone.rough, roughness:1}), base:std(0xffffff, {map:X.wood.map, normalMap:X.wood.normal, roughnessMap:X.wood.rough, roughness:1}), tile:4}; }
+  if(key === 'fennick'){ const K = fbKit(); return {frame:K.block, base:K.flag, tile:4}; }   // Fennick Bay: the harbour's granite on a flagged step
   if(key === 'saltlark'){ const T = slTex(); return {frame:tex('rock', 0xf0e6d4), base:std(0xffffff, {map:T.deck.map, normalMap:T.deck.normal, roughnessMap:T.deck.rough, roughness:1}), tile:4}; }   // pale coral stone on a plank base
   return {frame:tex('granite', 0xffffff), base:tex('granite', 0xe8e4dc), tile:5};
 }
@@ -17674,25 +17675,25 @@ function fbKit(){
 }
 // bins: everything of one material is merged into one mesh when the bins are flushed (the core once, each streamed cell once)
 const fbBins = () => ({brick:[], render:{}, block:[], trim:[], dark:[], iron:[], pot:[], wood:[], flag:[], roofs:[], gab:[], gabR:{}, lit:[], glass:[], door:[], sign:[], flame:[], cob:[], flagG:[], blockG:[], ironG:[], vents:[], glows:[]});
-function fbFlush(B, K){
-  const box = (L, m, t, cast) => { if(L.length){ const o = mk(boxGeo(L, t), m, 0, 0, 0); o.castShadow = cast !== false; } };
-  const geo = (L, m, cast) => { if(L.length){ const o = mk(merge(L), m, 0, 0, 0); o.castShadow = !!cast; } };
+function fbFlush(B, K, parent){
+  const box = (L, m, t, cast) => { if(L.length){ const o = mk(boxGeo(L, t), m, 0, 0, 0, parent); o.castShadow = cast !== false; } };
+  const geo = (L, m, cast) => { if(L.length){ const o = mk(merge(L), m, 0, 0, 0, parent); o.castShadow = !!cast; } };
   box(B.brick, K.brick, 3); for(const h in B.render) box(B.render[h], K.renderM(+h), 4); box(B.block, K.block, 4); box(B.trim, K.trim, 2); box(B.dark, K.dark, 2); box(B.iron, K.iron, 2, false); box(B.pot, K.pot, 1); box(B.wood, K.wood, 2); box(B.flag, K.flag, 3);
   geo(B.roofs, K.slate, true); geo(B.gab, K.gabBrick, true); for(const h in B.gabR){ const m = K.renderM(+h); if(!m.userData.gab){ m.userData.gab = shareMat(m.clone()); m.userData.gab.side = THREE.DoubleSide; } geo(B.gabR[h], m.userData.gab, true); }
   geo(B.lit, K.lit); geo(B.glass, K.glass); geo(B.door, K.doorM); geo(B.sign, K.sign); geo(B.flame, K.flame); geo(B.cob, K.cobble); geo(B.flagG, K.flag); geo(B.blockG, K.block, true); geo(B.ironG, K.iron, true);
-  if(B.glows.length) glowCloud(B.glows, 0.5);
+  if(B.glows.length){ const gc = glowCloud(B.glows, 0.5); if(parent && gc) parent.add(gc); }
 }
 /* a house in a terrace. F = {face '+x' | '-x' | '+z', X (the facade line), a0..a1 (along the facade), D (depth), floor, st (storeys), mat ('brick' or a
    render colour), lit (chance a window is lit), door (atlas cell), doorAt ('a0' | 'a1'), shop (sign row), shopCell, noFront (No. 9 builds its own window)} */
 function fbHouse(B, F, q){
-  const s = F.face === '-x' ? -1 : 1, alongZ = F.face !== '+z', ry = F.face === '+x' ? Math.PI / 2 : F.face === '-x' ? -Math.PI / 2 : 0;
-  const W = (a, o) => alongZ ? [F.X + s * o, a] : [a, F.X + o];
+  const s = F.face === '-x' || F.face === '-z' ? -1 : 1, alongZ = F.face === '+x' || F.face === '-x', ry = F.face === '+x' ? Math.PI / 2 : F.face === '-x' ? -Math.PI / 2 : F.face === '-z' ? Math.PI : 0;
+  const W = (a, o) => alongZ ? [F.X + s * o, a] : [a, F.X + s * o];
   const box = (a0, a1, o0, o1, y0, y1) => { const p0 = W(a0, o0), p1 = W(a1, o1); return [Math.min(p0[0], p1[0]), Math.max(p0[0], p1[0]), y0, y1, Math.min(p0[1], p1[1]), Math.max(p0[1], p1[1])]; };
   const quad = (L, w, h, a, o, y, cell, rowUV) => { const g = new THREE.PlaneGeometry(w, h); if(rowUV != null) fbRowUV(g, rowUV); else fbCellUV(g, cell); g.rotateY(ry); const [x, z] = W(a, o); g.translate(x, y, z); L.push(g); return g; };
   const fl = F.floor, st = F.st || 2, D = F.D || 7, a0 = F.a0, a1 = F.a1, wd = a1 - a0, eave = fl + 0.25 + st * 2.75, base = F.base != null ? F.base : fl - 1.4, rh = Math.min(3.2, D * 0.42);
   const wall = F.mat === 'brick' ? B.brick : (B.render[F.mat] || (B.render[F.mat] = []));
   wall.push(box(a0, a1, -D, 0, base, eave));
-  { const b = box(a0, a1, -D, 0, base, eave); addBox((b[0] + b[1]) / 2, (b[4] + b[5]) / 2, (b[1] - b[0]) / 2, (b[5] - b[4]) / 2, -20, eave + rh); }   // from far below: freeSpot and the locals' wander only see boxes that start under 2 m
+  { const b = box(a0, a1, -D, 0, base, eave); addBox((b[0] + b[1]) / 2, (b[4] + b[5]) / 2, (b[1] - b[0]) / 2, (b[5] - b[4]) / 2, F.y0 != null ? F.y0 : -20, eave + rh, F.boxO); }   // from far below: freeSpot and the locals' wander only see boxes that start under 2 m
   // the roof: two slate slopes with eaves front and back; gables at both ends in the wall's own material (they show where the terrace steps)
   { const oF = 0.3, oB = -D - 0.3, oM = -D / 2, y0 = eave - 0.12, y1 = eave + rh, e0 = a0 - 0.04, e1 = a1 + 0.04;
     const P = (a, o, y) => { const [x, z] = W(a, o); return new V3(x, y, z); };
@@ -18132,6 +18133,85 @@ function fbCabTick(dt, time){
   fb.cabT = (fb.cabT || 0) - dt; if(fb.cabT > 0) return; fb.cabT = 1 / 8;
   fb.cabs.forEach(c => { if(!c.cv) return; (c.game === 'rally' ? drawRally : drawStarling)(c.cv, null, time); c.tex.needsUpdate = true; });
 }
+/* ---- Fennick Bay: the Lamplighter's Round (quest portal, Goal 20 part 4). A memory of Lantern Row at nightfall, before the lamps are lit: light
+   all eight lanterns on their brackets (stand by one and press E, in any order), then the lamp in the front window of No. 9 at the top of the
+   street, before the tide turns. The window lamp waits until the street is lit. Nothing hurts, nothing is lost for a wrong press, and the clock
+   is generous (75 s for a round the scripted lamplighter walks in about 20). It has nothing to do with the Hunt: no credits on the step, no
+   shard, no gate. One pure step, so the played round and the scripted ones below are the same rule. ---- */
+const LAMPS = {limit:75, reach:1.9, win:2.4, speed:5, len:40, n:8, window:{x:1.4, z:38.6}};
+const lampPos = k => ({x:(k % 2 ? 1 : -1) * (FB.hw - 0.42), z:4 + k * 4.4});
+QM.lamps = {
+  start:[0, 1.2, 0], view:[1.2, 13, Math.PI + 0.3, 0.28, 6],
+  light:{sky:0x6a6a9a, ground:0x241c20, i:0.62, fog:0x1a1626, fd:0.016},
+  floor:(x, z) => Math.abs(x) > FB.road && Math.abs(x) < FB.hw ? 0.12 : 0,
+  init(att){ return {kind:'lamps', state:'run', t:0, why:null, att, lit:Array(LAMPS.n).fill(false), presses:0, window:false}; },
+  // pose: {x, z, e (E pressed this step)} in the street's frame. Events: lit:k, notyet, won, failed
+  step(S, pose, dt){
+    const ev = []; if(S.state !== 'run') return ev;
+    S.t += dt;
+    if(pose.e){ S.presses++; let k = -1, bd = LAMPS.reach;
+      for(let j = 0; j < LAMPS.n; j++){ if(S.lit[j]) continue; const L = lampPos(j), d = Math.hypot(pose.x - L.x, pose.z - L.z); if(d < bd){ bd = d; k = j; } }
+      if(k >= 0){ S.lit[k] = true; ev.push('lit:' + k); }
+      else if(Math.hypot(pose.x - LAMPS.window.x, pose.z - LAMPS.window.z) < LAMPS.win){ if(S.lit.every(Boolean)){ S.window = true; S.state = 'won'; ev.push('won'); return ev; } ev.push('notyet'); } }
+    if(S.t > LAMPS.limit){ S.state = 'failed'; const left = S.lit.filter(v => !v).length; S.why = 'the tide turned with ' + (left ? left + (left === 1 ? ' lantern' : ' lanterns') + ' still dark' : 'the window lamp still dark'); ev.push('failed'); }
+    return ev;
+  },
+  // scripted lamplighters: 'win' lights the lanterns down the street, then the window; 'slow' does the same at a tenth of walking speed;
+  // 'nine-first' goes straight to No. 9's window, presses E there and waits; 'idle' never moves
+  sim(S, policy){
+    if(['win', 'slow', 'nine-first', 'idle'].indexOf(policy) < 0) return {error:'unknown policy', policies:['win', 'slow', 'nine-first', 'idle']};
+    const P = {x:0, z:1.2}, dt = 1 / 30, log = [], v = policy === 'slow' ? LAMPS.speed / 10 : LAMPS.speed, pts = [];
+    if(policy === 'win' || policy === 'slow') for(let k = 0; k < LAMPS.n; k++){ const L = lampPos(k); pts.push([L.x - Math.sign(L.x) * 1.1, L.z, true]); }
+    if(policy !== 'idle') pts.push([LAMPS.window.x, LAMPS.window.z - 1.2, true]);
+    let w = 0, press = false;
+    for(let i = 0; i < 30 * 100 && S.state === 'run'; i++){
+      if(w < pts.length && qpWalk(P, pts[w][0], pts[w][1], v, dt)){ press = pts[w][2]; w++; }
+      QM.lamps.step(S, {x:P.x, z:P.z, e:press}, dt).forEach(e => log.push(e + '@' + S.t.toFixed(1))); press = false;
+    }
+    return log;
+  },
+  summary(S){ return {lit:S.lit.filter(Boolean).length, of:LAMPS.n, window:S.window, presses:S.presses}; },
+  hud(S){ const n = S.lit.filter(Boolean).length; return '<b>The Lamplighter\'s Round</b> Lanterns ' + n + ' / ' + LAMPS.n + (n < LAMPS.n ? ' · E by a dark one' : S.state === 'won' ? ' · No. 9 is lit!' : ' · now No. 9\'s window') + ' · tide ' + Math.max(0, LAMPS.limit - S.t).toFixed(0) + ' s'; },
+  react(o, e, S){
+    if(e.indexOf('lit:') === 0){ const k = +e.split(':')[1]; if(snd.ctx && snd.on) try{ const f = LOW_TIDE_HZ[k % LOW_TIDE_HZ.length]; tone('sine', f, f, 1.0, 0.05); tone('triangle', f * 2, f * 2, 0.4, 0.01); }catch(err){}
+      const n = S.lit.filter(Boolean).length; if(S.state === 'run') toast(n < LAMPS.n ? 'Lantern lit. ' + (LAMPS.n - n) + ' to go.' : 'The street is lit. Now the lamp in the window of No. 9.', 1800); }
+    else if(e === 'notyet'){ const n = LAMPS.n - S.lit.filter(Boolean).length; toast('Light the street first: ' + n + (n === 1 ? ' lantern' : ' lanterns') + ' still dark.', 2000); }
+    else if(e === 'won') playLowTide();
+  },
+  build(o){
+    const A = o.A, g = o.g, Y = A.y, K = fbKit(), B = fbBins(), q = rng(9701), L = LAMPS.len, box = {hollow:true};
+    // the street: setts between flagged pavements, eight houses a side, No. 9 across the top
+    B.cob.push(fbSheet(A.x - FB.road, A.x + FB.road, A.z - 4, A.z + L, 4, 8, () => Y + 0.005, 2.4));
+    [-1, 1].forEach(sd => { B.flagG.push(fbSheet(A.x + (sd < 0 ? -FB.hw : FB.road), A.x + (sd < 0 ? -FB.road : FB.hw), A.z - 4, A.z + L, 1, 8, () => Y + 0.125, 3)); fbKerb(B.blockG, A.x + sd * FB.road, A.z - 4, A.x + sd * FB.road, A.z + L, 8, () => Y, 0.125); });
+    for(let i = 0; i < 9; i++) [-1, 1].forEach(sd => fbHouse(B, {face:sd < 0 ? '+x' : '-x', X:A.x + sd * FB.hw, a0:A.z - 4 + i * 4.9 + 0.02, a1:A.z - 4 + (i + 1) * 4.9 - 0.02, D:7, floor:Y + 0.3, base:Y - 0.4, st:2, mat:'brick', lit:0.5, doorAt:'a1', smoke:0, y0:Y - 3, boxO:box}, q));
+    fbHouse(B, {face:'-z', X:A.z + L, a0:A.x - FB.hw - 0.02, a1:A.x + FB.hw + 0.02, D:7, floor:Y + 0.3, base:Y - 0.4, st:2, mat:'brick', lit:0, door:5, doorAt:'a0', noFront:true, upper:[2, 3], smoke:0, y0:Y - 3, boxO:box}, q);
+    aabb(A.x - 6, A.x + 6, Y - 3, Y + 12, A.z - 5, A.z - 4.6, box);   // behind the way out
+    fbFlush(B, K, g);
+    // the lanterns on their brackets, dark until lit (each its own glass, so it can light)
+    o.lamps = []; for(let k = 0; k < LAMPS.n; k++){ const P = lampPos(k), x = A.x + P.x, z = A.z + P.z, y = Y + 3.15, sd = Math.sign(P.x);
+      mk(new THREE.BoxGeometry(0.48, 0.04, 0.04), K.iron, x + sd * 0.22, y + 0.4, z, g).castShadow = false; mk(new THREE.BoxGeometry(0.24, 0.05, 0.24), K.iron, x, y + 0.16, z, g); mk(new THREE.ConeGeometry(0.14, 0.14, 4).rotateY(Math.PI / 4), K.iron, x, y + 0.25, z, g);
+      const m = std(0x3a3a40, {emissive:C(0xffc070), emissiveIntensity:0, roughness:0.2}), gl = mk(new THREE.BoxGeometry(0.17, 0.26, 0.17), m, x, y, z, g); gl.castShadow = false;
+      const sp = glow(0xffc078, 2.4, x, y, z, g, 0), sp2 = glow(0xffa050, 5, x, y - 0.5, z, g, 0); o.lamps.push({m, sp, sp2, lvl:0}); }
+    // the window of No. 9: dark, then the curtain glows and the lantern stands lit on the sill
+    { const W = LAMPS.window, wx = A.x + W.x, wz = A.z + L - 0.03, wy = Y + 1.75; const tex = fbTex().atlas, wm = std(0xffffff, {map:tex, emissive:C(0xffe0b8), emissiveMap:tex, emissiveIntensity:0.03, roughness:0.4});
+      const wg = new THREE.PlaneGeometry(1.6, 1.4); fbCellUV(wg, 0); wg.rotateY(Math.PI); mk(wg, wm, wx, wy, wz, g).castShadow = false; o.winM = wm;
+      mk(new THREE.BoxGeometry(1.8, 0.08, 0.2), K.trim, wx, wy - 0.74, wz - 0.06, g); mk(new THREE.BoxGeometry(1.7, 0.1, 0.06), K.trim, wx, wy + 0.76, wz - 0.02, g);
+      const lm = std(0x3a3a40, {emissive:C(0xffc070), emissiveIntensity:0, roughness:0.2}); mk(new THREE.CylinderGeometry(0.05, 0.058, 0.18, 16), lm, wx + 0.3, wy - 0.58, wz - 0.12, g).castShadow = false; o.winL = lm;
+      o.winG = glow(0xffc070, 2.6, wx + 0.3, wy - 0.55, wz - 0.25, g, 0);
+      const l = label('No. 9', {small:true, edge:'#ffc070', fg:'#fff1d6'}); l.position.set(A.x - 1.5, Y + 3.0, A.z + L - 0.4); l.scale.multiplyScalar(0.6); g.add(l); }
+    // the sky over the street: a dome painted with the dusk going to night, the first stars
+    { const sky = canvasTex(1024, 512, (x, w, h) => { const q2 = rng(9711); paintSky(x, w, h, [[0, '#0a0c22'], [0.55, '#2a2a58'], [0.86, '#8a5a72'], [1, '#d88a6a']]); paintStars(x, w, h, 140, q2, 0.55); });
+      const d = mk(new THREE.SphereGeometry(46, 48, 16, 0, TAU, 0, Math.PI / 2), new THREE.MeshBasicMaterial({map:sky, side:THREE.BackSide, fog:false}), A.x, Y - 2, A.z + L / 2, g); d.castShadow = d.receiveShadow = false; d.userData.noAO = true; }
+    qaExit(o, 0, -3.2, 0, {frame:K.block, base:K.flag, tile:4});
+  },
+  reset(o){ o.lamps.forEach(l => { l.lvl = 0; }); },
+  visual(o, dt, time){ const S = o.S; if(!S) return;
+    o.lamps.forEach((l, k) => { const want = S.lit[k] ? 1 : 0; l.lvl += (want - l.lvl) * (1 - Math.exp(-dt * 4)); const f = 0.92 + 0.08 * Math.sin(time * 9 + k * 2.1); l.m.emissiveIntensity = 1.8 * l.lvl * f; l.sp.material.opacity = 0.6 * l.lvl * f; l.sp2.material.opacity = 0.14 * l.lvl; });
+    const w = S.window ? 1 : 0; o.winM.emissiveIntensity = 0.03 + 0.9 * w; o.winL.emissiveIntensity = 1.8 * w; o.winG.material.opacity = 0.7 * w; }
+};
+// on Harbour Street, west of the Row's foot, facing the harbour
+QPORTALS.fennick = {kind:'lamps', name:'The Lamplighter\'s Round', x:-24, z:26.4, face:[-24, 40], credits:45, xp:90, item:'lamplighter-key', col:0xffc070,
+  tag:'Light the eight lanterns on Lantern Row, then the lamp in the window of No. 9, before the tide turns. Stand by a lantern and press E.'};
 })();
 </script>
 </body>
