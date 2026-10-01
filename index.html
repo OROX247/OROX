@@ -14204,7 +14204,7 @@ function questBuild(P, q, o){
     else return {ok:false, why:'not a landmark or another realm: ' + raw}; }
   else if(type === 'rally'){ const n = Math.round(parseFloat(raw.replace(/[, ]/g, '')) / 500) * 500; if(!(n >= 2000 && n <= 60000)) return {ok:false, why:'score out of range: ' + raw}; param = String(n); text = 'score at least ' + n + ' in Comet Rally (the cabinet in the Hollow)'; short = 'that Comet Rally score'; credits = Math.round(n / 1500) + 10; }
   else if(type === 'chart'){ const n = parseInt(raw.replace(/^sector\s*/i, ''), 10); if(chartSectors().indexOf(n) < 0) return {ok:false, why:'not a sector with stars: ' + raw}; param = String(n); text = 'chart a new planet in sector ' + n + ' (land on one of its stars)'; short = 'the planet in sector ' + n; credits = 50; }
-  else if(type === 'portal'){ const k = QPORTALS[low] ? low : QP_ORDER.find(r => QPORTALS[r] && QPORTALS[r].name.toLowerCase() === low); if(!k) return {ok:false, why:'not a realm with a quest portal: ' + raw};
+  else if(type === 'portal'){ const k = QPORTALS[low] ? low : QP_ORDER.find(r => QPORTALS[r] && (QPORTALS[r].name.toLowerCase() === low || (WORLDS[r] && WORLDS[r].name.toLowerCase() === low))); if(!k) return {ok:false, why:'not a realm with a quest portal: ' + raw};
     param = k; const nm = QPORTALS[k].name.replace(/^The /, ''); text = 'clear the ' + nm + ' quest portal in ' + WORLDS[k].name; short = 'the ' + nm; credits = 30; }   // Goal 15: the game sets the reward, as for every template
   else if(type === 'hunt'){   // Goal 16: see off N (1-5) of a realm's monsters; param 'realm:N' (also takes a monster's name, and a bare realm means 3)
     const k = Object.keys(MON).find(r => low.indexOf(r) >= 0 || low.indexOf(MON[r].kind) >= 0 || low.indexOf(MON[r].name.toLowerCase()) >= 0 || low.indexOf(MON[r].plural) >= 0 || low.indexOf(WORLDS[r].name.toLowerCase()) >= 0);
@@ -15422,7 +15422,13 @@ function warFence(list, mats, x0, z0, x1, z1, q){
   // the coil: a loose helix along the foot of the run
   const turns = Math.round(L / 0.32), sub = list.lite ? 5 : 10, pts = []; for(let k = 0; k <= turns * sub; k++){ const t = k / (turns * sub), a = t * turns * TAU, x = x0 + (x1 - x0) * t, z = z0 + (z1 - z0) * t, y = G(x, z) + 0.34 + Math.sin(a) * 0.3; pts.push(new V3(x + Math.cos(a) * 0.3 * -uz, y, z + Math.cos(a) * 0.3 * ux)); }
   list.wire.push(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), turns * sub, 0.008, 3, false));
-  addBox((x0 + x1) / 2, (z0 + z1) / 2, L / 2 + 0.1, 0.42, ylo - 0.5, yhi + 0.95, {a:Math.atan2(uz, ux), cam:false});   // a good jump (1.5 m) clears it
+  // solid along its whole run: one box per gap between posts, each topped 0.95 m above that gap's own highest ground, so a good jump (1.5 m) clears it on a slope too
+  const seg = L / n, a = Math.atan2(uz, ux);
+  for(let i = 0; i < n; i++){ const s0 = i * seg - (i === 0 ? 0.1 : 0), s1 = (i + 1) * seg + (i === n - 1 ? 0.1 : 0), sm = (s0 + s1) / 2; let lo = 1e9, hi = -1e9;
+    let sA = 1e9, sB = 1e9, sHi = -1e9;   // the ground 0.8 m out on each side: on a bank the top is kept within a jump of the low side, and above the high side so it still stops walking
+    for(let k = 0; k <= 4; k++){ const s = s0 + (s1 - s0) * k / 4, px = x0 + ux * s, pz = z0 + uz * s, y = G(px, pz), ya = G(px - uz * 0.8, pz + ux * 0.8), yb = G(px + uz * 0.8, pz - ux * 0.8);
+      lo = Math.min(lo, y); hi = Math.max(hi, y); sA = Math.min(sA, ya); sB = Math.min(sB, yb); sHi = Math.max(sHi, ya, yb); }
+    addBox(x0 + ux * sm, z0 + uz * sm, (s1 - s0) / 2 + 0.02, 0.42, Math.min(lo, ylo) - 0.5, Math.max(sHi + 0.35, Math.min(hi + 0.95, Math.min(sA, sB) + 1.25)), {a, cam:false}); }
 }
 // a shell-split stump: a short broken trunk with a jagged top and a stub or two (three shapes, each fixed by its own seed)
 function warStumpGeo(k){
