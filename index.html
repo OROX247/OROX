@@ -10743,13 +10743,13 @@ function qpDoor(g, look, col, o){
   mk(fg, look.frame, 0, 0, 0, g);
   if(!o.noBase){ const bg = new THREE.BoxGeometry(Wo + 1.1, 1.6, D + 1.5); scaleUV(bg, 1.2 / look.tile); mk(bg, look.base, 0, -0.75, 0, g); }
   const bs = archShape(Wi + 0.02, Hi + 0.01); bs.holes.push(archShape(Wi - 0.12, Hi - 0.06));
-  const band = mk(new THREE.ExtrudeGeometry(bs, {depth:D + 0.06, bevelEnabled:false, curveSegments:48}).translate(0, 0.05, -(D + 0.06) / 2), glowM(col, 2.4), 0, 0, 0, g); band.castShadow = false;
+  const bandM = glowM(col, 2.4), band = mk(new THREE.ExtrudeGeometry(bs, {depth:D + 0.06, bevelEnabled:false, curveSegments:48}).translate(0, 0.05, -(D + 0.06) / 2), bandM, 0, 0, 0, g); band.castShadow = false;
   const mem = new THREE.Mesh(new THREE.ShapeGeometry(archShape(Wi - 0.12, Hi - 0.06), 48), new THREE.ShaderMaterial({uniforms:{time:uTime, fade:{value:1}, color:{value:C(col)}, size:{value:new V2(Wi - 0.12, Hi - 0.06)}},
     vertexShader:QP_MEMBRANE.vertexShader, fragmentShader:QP_MEMBRANE.fragmentShader, transparent:true, depthWrite:false, side:THREE.DoubleSide}));
   mem.position.y = 0.05; mem.renderOrder = 2; g.add(mem);
   const emY = Ho + 0.6, em = mk(new THREE.OctahedronGeometry(0.3, 0), phys(col, {emissive:C(col), emissiveIntensity:1.6, roughness:0.15, metalness:0.3}), 0, emY, 0, g); em.scale.set(0.8, 1.3, 0.8);
   const eg = glow(col, 2.2, 0, emY, 0, g, 0.45), dg = glow(col, 6, 0, Hi * 0.5, 0, g, 0.28);
-  return {mem, em, eg, dg, emY, top:Ho, Wi};
+  return {mem, em, eg, dg, emY, top:Ho, Wi, bandM};
 }
 function addQuestPortal(key){
   const d = QPORTALS[key], W = WORLDS[key]; if(!d || !W || W.custom || !QM[d.kind]) return;
@@ -10761,12 +10761,14 @@ function addQuestPortal(key){
   const q = Object.assign({key, d, g, x:d.x, z:d.z, y:y0, yaw, c, s, armed:true, title:null, sub:null}, door);
   qpList.push(q); qpLabels(q); return q;
 }
+// a doorway's light fades when the camera is right at it (arrival, the way-out door behind you), or its glow floods the screen
+function qpFade(q){ const dc = Math.hypot(camera.position.x - q.x, camera.position.y - (q.y + 1.9), camera.position.z - q.z); q.mem.material.uniforms.fade.value = smooth(1.0, 3.2, dc); q.dg.material.opacity = 0.28 * smooth(2.5, 7, dc); q.bandM.emissiveIntensity = 2.4 * smooth(1.2, 4, dc); }
 // the player in a doorway's own frame (local z is the side the label faces)
 const qpLocal = (q, x, z) => { const dx = x - q.x, dz = z - q.z; return [dx * q.c - dz * q.s, dx * q.s + dz * q.c]; };
 function qpTick(dt, time){
   qpCool -= dt;
   for(const q of qpList){ q.em.rotation.y = time * 1.2; q.em.position.y = q.emY + Math.sin(time * 1.6) * 0.12; q.eg.position.y = q.em.position.y;
-    const dc = Math.hypot(camera.position.x - q.x, camera.position.y - (q.y + 1.9), camera.position.z - q.z); q.mem.material.uniforms.fade.value = smooth(1.0, 3.2, dc); q.dg.material.opacity = 0.28 * smooth(2.5, 7, dc); }
+    qpFade(q); }
   if(qa && qa.inside){ qaUpdate(dt, time); qpShowBtn(null); return; }
   let near = null;
   if(playing && !traveling && !zeroing && !pocketIn() && !bike.riding) for(const q of qpList){
@@ -10791,7 +10793,7 @@ function qpEnter(q){
     qa.inside = true; qa.g.visible = true; qa.portal = q; qa.endT = 0; qa.eDown = false; qa.res = null; qa.inT = 0;
     qa.S = M.init(qpRec(q.key).tries); p.zeroG = false; p.vx = p.vy = p.vz = 0; p.speed = 0;
     if(M.light){ const L = M.light; sunLight.intensity = 0; hemi.color.setHex(L.sky); hemi.groundColor.setHex(L.ground); hemi.intensity = L.i; if(scene.fog){ scene.fog.color.setHex(L.fog); scene.fog.density = L.fd; } }
-    const st = M.start; p.x = qa.A.x + st[0]; p.z = qa.A.z + st[1]; p.y = pocketFloor(p.x, p.z); p.facing = st[2]; cam.yaw = st[2] + Math.PI; cam.pitch = Math.min(Math.max(cam.pitch, 0.12), 0.3);
+    const st = M.start; p.x = qa.A.x + st[0]; p.z = qa.A.z + st[1]; p.y = pocketFloor(p.x, p.z); p.facing = st[2]; cam.yaw = st[2] + Math.PI + 0.45; cam.pitch = Math.min(Math.max(cam.pitch, 0.12), 0.3);
     if(M.reset) M.reset(qa);
     snapCamera(); clipCamera(); if(camHid){ cam.yaw += 0.6; snapCamera(); clipCamera(); }
     $('#qpPanel').style.display = ''; qpHud();
@@ -10828,7 +10830,7 @@ function qaExit(o, lx, lz, yaw, look){
 function qaUpdate(dt, time){
   const o = qa, M = o.M, S = o.S, A = o.A;
   if(M.ceil){ const top = A.y + M.ceil - 1.9; if(p.y > top){ p.y = top; if(p.vy > 0) p.vy = 0; } }
-  for(const e of o.exits){ const dc = Math.hypot(camera.position.x - e.x, camera.position.y - (e.y + 1.9), camera.position.z - e.z); e.mem.material.uniforms.fade.value = smooth(1.0, 3.2, dc); e.dg.material.opacity = 0.28 * smooth(2.5, 7, dc); }
+  for(const e of o.exits) qpFade(e);
   if(S && S.state === 'run' && playing && !traveling && !zeroing){
     const pose = {x:p.x - A.x, z:p.z - A.z, y:p.y - (A.y + (M.floor ? M.floor(p.x - A.x, p.z - A.z) : 0)), h:p.y - A.y, e:o.eDown, grounded:p.grounded};
     o.eDown = false;
@@ -11163,6 +11165,96 @@ QM.laser = {
 };
 QPORTALS.grid = {kind:'laser', name:'Laser Run', x:31, z:-7, face:[0, -10], credits:50, xp:100, item:'pulse-core', col:0xff5fb0,
   tag:'Run the lane to the finish: jump the low beams, wait for the curtains to go dark, slip behind the sweepers. Three hits and you are out.'};
+
+/* ---- Night Grove: Lantern Ring. Seven firefly lanterns stand in a ring in a dark glade. Touching one (E) flips it and its two neighbours;
+   light all seven. With seven in a ring every pattern has exactly one answer, so the fireflies allow that many touches plus three. ---- */
+const LANT = {n:7, ring:5.5, reach:1.9, r:12, dome:9, slack:3, limit:240};
+const lantFlip = (lit, k) => { const n = LANT.n, a = lit.slice(); [k - 1, k, k + 1].forEach(j => { const i = (j + n) % n; a[i] = !a[i]; }); return a; };
+function lantSolve(lit){ const n = LANT.n; let best = null;
+  for(let m = 0; m < 1 << n; m++){ let a = lit.slice(); const ks = []; for(let k = 0; k < n; k++) if(m >> k & 1){ a = lantFlip(a, k); ks.push(k); } if(a.every(Boolean) && (!best || ks.length < best.length)) best = ks; }
+  return best; }
+const lantPos = k => { const a = k / LANT.n * TAU; return {x:Math.sin(a) * LANT.ring, z:Math.cos(a) * LANT.ring}; };
+QM.lantern = {
+  start:[0, -8.6, 0], ceil:LANT.dome, view:[0, 2, 0.25, 0.5, 7.5],
+  light:{sky:0x5a6fb0, ground:0x0a0c10, i:0.42, fog:0x03060e, fd:0.018},
+  init(att){ const q = rng(3700 + att * 13); let lit, sol;
+    do { lit = []; for(let k = 0; k < LANT.n; k++) lit.push(q() < 0.5); sol = lantSolve(lit); } while(!sol || sol.length < 3 || sol.length > 5);
+    return {kind:'lantern', state:'run', t:0, why:null, att, lit, start:lit.slice(), sol, moves:0, max:sol.length + LANT.slack, last:-1}; },
+  // pose: {x, z, e (E pressed this step)} or {press:k} from a sim. Events: press:k, won, failed
+  step(S, pose, dt){
+    const ev = []; if(S.state !== 'run') return ev;
+    S.t += dt;
+    let k = pose.press != null ? pose.press : -1;
+    if(k < 0 && pose.e){ let bd = LANT.reach; for(let j = 0; j < LANT.n; j++){ const L = lantPos(j), d = Math.hypot(pose.x - L.x, pose.z - L.z); if(d < bd){ bd = d; k = j; } } }
+    if(k >= 0){ S.lit = lantFlip(S.lit, k); S.moves++; S.last = k; ev.push('press:' + k);
+      if(S.lit.every(Boolean)){ S.state = 'won'; ev.push('won'); return ev; }
+      if(S.moves >= S.max){ S.state = 'failed'; S.why = 'the fireflies grew tired after ' + S.moves + ' touches'; ev.push('failed'); return ev; } }
+    if(S.t > LANT.limit){ S.state = 'failed'; S.why = 'the fireflies went to sleep'; ev.push('failed'); }
+    return ev;
+  },
+  sim(S, policy){
+    if(['win', 'wild'].indexOf(policy) < 0) return {error:'unknown policy', policies:['win', 'wild']};
+    const log = [], plan = policy === 'win' ? S.sol.slice() : Array(20).fill(0);
+    for(let i = 0; i < plan.length && S.state === 'run'; i++){ QM.lantern.step(S, {press:plan[i]}, 1.5).forEach(e => log.push(e)); }
+    return log;
+  },
+  summary(S){ return {moves:S.moves, max:S.max, answer:S.sol.length, start:S.start.map(b => b ? 1 : 0).join(''), lit:S.lit.map(b => b ? 1 : 0).join('')}; },
+  hud(S){ return '<b>Lantern Ring</b> Lit ' + S.lit.filter(Boolean).length + ' / ' + LANT.n + ' · touches left ' + Math.max(0, S.max - S.moves) + ' · E: touch a lantern (it flips its neighbours too)<span class="qpq">Q: leave</span>'; },
+  react(o, e, S){ if(e.indexOf('press:') === 0){ const k = +e.split(':')[1]; if(snd.ctx && snd.on) try{ const f = 330 * Math.pow(2, k / 7); tone('sine', f, f, 0.8, 0.05); tone('triangle', f * 1.5, f * 1.5, 0.5, 0.012); }catch(err){} } },
+  build(o){
+    const A = o.A, g = o.g, Y = A.y, R = LANT.r, q = rng(3737);
+    const moss = surface('moss'), bark = surface('pinebark'), rock = surface('darkrock');
+    const Ms = {floor:std(0x5a6a50, {map:moss.map, normalMap:moss.normal, normalScale:new V2(0.8, 0.8), roughness:0.95}), bark:std(0x6a5a4c, {map:bark.map, normalMap:bark.normal, roughness:0.9}),
+      stone:std(0x8a8c92, {map:rock.map, normalMap:rock.normal, roughness:0.85}), iron:std(0x2a2c31, {metalness:0.6, roughness:0.5})};
+    const fl = mk(scaleUV(new THREE.CircleGeometry(R + 0.5, 96), 1 / 3), Ms.floor, A.x, Y, A.z, g); fl.rotation.x = -Math.PI / 2;
+    // the sky: a dome of stars over the glade, and a ring of far trees painted on the dark beyond the trunks
+    const stars = canvasTex(2048, 1024, (x, w, h) => { const gr = x.createLinearGradient(0, 0, 0, h); gr.addColorStop(0, '#02040c'); gr.addColorStop(0.7, '#08122a'); gr.addColorStop(1, '#1c2c4c'); x.fillStyle = gr; x.fillRect(0, 0, w, h);
+      for(let i = 0; i < 1400; i++){ const a = 0.25 + q() * 0.75, s = q() < 0.05 ? 2.6 : 1.3; x.fillStyle = 'rgba(225,235,255,' + a.toFixed(2) + ')'; x.fillRect(q() * w, q() * h * 0.85, s, s); }
+      const mg = x.createRadialGradient(w * 0.3, h * 0.28, 0, w * 0.3, h * 0.28, 60); mg.addColorStop(0, 'rgba(235,240,255,1)'); mg.addColorStop(0.35, 'rgba(220,230,255,0.9)'); mg.addColorStop(0.5, 'rgba(160,180,255,0.15)'); mg.addColorStop(1, 'rgba(0,0,0,0)'); x.fillStyle = mg; x.fillRect(w * 0.3 - 60, h * 0.28 - 60, 120, 120); });
+    const dome = mk(new THREE.SphereGeometry(R + 1.5, 64, 24, 0, TAU, 0, Math.PI / 2), std(0x000000, {emissive:C(0xffffff), emissiveMap:stars, emissiveIntensity:0.8, side:THREE.BackSide, roughness:1}), A.x, Y + 0.5, A.z, g); dome.scale.y = (LANT.dome + 0.5) / (R + 1.5); dome.castShadow = dome.receiveShadow = false;
+    const far = canvasTex(2048, 512, (x, w, h) => { x.clearRect(0, 0, w, h); x.fillStyle = '#04070d';
+      for(let i = 0; i < 90; i++){ const cx = q() * w, ht = h * (0.45 + q() * 0.5), wd = 18 + q() * 40; x.beginPath(); x.moveTo(cx - wd, h); x.lineTo(cx - wd * 0.25, h - ht); x.lineTo(cx + wd * 0.25, h - ht); x.lineTo(cx + wd, h); x.closePath(); x.fill(); x.fillRect(cx - wd * 1.6, h - ht * 0.55, wd * 3.2, ht * 0.4); }
+      x.fillRect(0, h * 0.82, w, h * 0.18); });
+    mk(new THREE.CylinderGeometry(R + 1.2, R + 1.2, 6, 96, 1, true), std(0x000000, {map:far, transparent:true, side:THREE.BackSide, roughness:1}), A.x, Y + 3, A.z, g).castShadow = false;
+    // trunks round the glade (solid), with glowcap mushrooms at their feet
+    const trunks = [], caps = [], capM = std(0x9affd0, {emissive:C(0x5affb0), emissiveIntensity:1.6, roughness:0.5}), stemM = std(0xd8e8d0, {roughness:0.8}), capList = [];
+    for(let k = 0; k < 26; k++){ const a = (k + q() * 0.6) / 26 * TAU, rr = R - 0.6 - q() * 1.2, x = Math.sin(a) * rr, z = Math.cos(a) * rr, rad = 0.32 + q() * 0.3; if(Math.abs(x) < 2.2 && z < 0) continue;
+      const tg = new THREE.CylinderGeometry(rad * 0.75, rad * 1.15, LANT.dome + 1, 14, 6); const pa = tg.attributes.position; for(let i = 0; i < pa.count; i++){ const yy = pa.getY(i); pa.setX(i, pa.getX(i) + Math.sin(yy * 0.6 + k) * 0.12); pa.setZ(i, pa.getZ(i) + Math.cos(yy * 0.5 + k * 2) * 0.12); } tg.computeVertexNormals(); scaleUV(tg, 1);
+      tg.translate(x, (LANT.dome + 1) / 2 - 0.3, z); trunks.push(tg); colliders.push({x:A.x + x, z:A.z + z, r:rad + 0.1, hollow:true});
+      if(q() < 0.7) for(let m = 0; m < 3; m++){ const ma = a + (q() - 0.5) * 0.5, mr = rr - rad - 0.2 - q() * 0.5, s = 0.08 + q() * 0.1; capList.push([Math.sin(ma) * mr, Math.cos(ma) * mr, s, q()]); } }
+    mk(merge(trunks), Ms.bark, A.x, Y, A.z, g);
+    capList.forEach(([x, z, s, r0]) => { caps.push(new THREE.SphereGeometry(s * 1.4, 14, 6, 0, TAU, 0, Math.PI / 2).scale(1, 0.6, 1).translate(x, s * 2.2, z)); });
+    const stems = capList.map(([x, z, s]) => new THREE.CylinderGeometry(s * 0.35, s * 0.45, s * 2.2, 8).translate(x, s * 1.1, z));
+    if(caps.length){ mk(merge(caps), capM, A.x, Y, A.z, g).castShadow = false; mk(merge(stems), stemM, A.x, Y, A.z, g).castShadow = false; }
+    capList.forEach(([x, z, s], i) => { if(i % 3 === 0) glow(0x6affc0, 1.2, A.x + x, Y + s * 2.4, A.z + z, g, 0.35); });
+    // the lanterns: a mossy stone post, an iron cage, a firefly light inside
+    o.lanterns = [];
+    for(let k = 0; k < LANT.n; k++){ const L = lantPos(k), x = A.x + L.x, z = A.z + L.z;
+      mk(new THREE.CylinderGeometry(0.17, 0.24, 1.1, 14), Ms.stone, x, Y + 0.55, z, g);
+      mk(new THREE.CylinderGeometry(0.2, 0.2, 0.05, 16), Ms.iron, x, Y + 1.12, z, g);
+      mk(merge([0, 1, 2, 3, 4, 5].map(i => new THREE.CylinderGeometry(0.012, 0.012, 0.34, 5).translate(Math.cos(i / 6 * TAU) * 0.15, 1.31, Math.sin(i / 6 * TAU) * 0.15)).concat([new THREE.ConeGeometry(0.2, 0.16, 16).translate(0, 1.56, 0), new THREE.TorusGeometry(0.06, 0.012, 6, 16).translate(0, 1.67, 0)])), Ms.iron, x, Y, z, g).castShadow = false;
+      const cm = std(0xffd890, {emissive:C(0xffc070), emissiveIntensity:2.4, roughness:0.4}), core = mk(new THREE.SphereGeometry(0.1, 16, 10), cm, x, Y + 1.31, z, g); core.castShadow = false;
+      const gl = glow(0xffc070, 2.4, x, Y + 1.31, z, g, 0.6), pool = glow(0xffb060, 3.5, x, Y + 0.1, z, g, 0.2);
+      colliders.push({x, z, r:0.3, hollow:true});
+      const lb = label(String(k + 1), {small:true, edge:'#ffc070', fg:'#ffe2b0'}); lb.scale.multiplyScalar(0.5); lb.position.set(x, Y + 2.0, z); g.add(lb);
+      o.lanterns.push({cm, gl, pool, lvl:1}); }
+    // fireflies drifting over the glade (one Points draw)
+    { const n = 140, pos = new Float32Array(n * 3), base = []; for(let i = 0; i < n; i++){ const a = q() * TAU, r0 = 1 + q() * (R - 2); base.push([Math.sin(a) * r0, 0.4 + q() * 3.5, Math.cos(a) * r0, q() * 10]); }
+      const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+      const pts = new THREE.Points(geo, new THREE.PointsMaterial({map:glowTex, color:C(0xd8ff8a), size:0.22, transparent:true, opacity:0.85, blending:THREE.AdditiveBlending, depthWrite:false, fog:false}));
+      pts.position.set(A.x, Y, A.z); pts.frustumCulled = false; g.add(pts); o.flies = {geo, base}; }
+    const N = 28; for(let k = 0; k < N; k++){ const th = (k + 0.5) / N * TAU; addBox(A.x + Math.sin(th) * (R + 0.2), A.z + Math.cos(th) * (R + 0.2), (R + 0.2) * Math.PI / N + 0.1, 0.2, Y - 1, Y + LANT.dome + 1, {a:-th, hollow:true}); }
+    qaExit(o, 0, -R + 1.0, 0, qpLook('grove'));
+  },
+  visual(o, dt, time){ const S = o.S; if(!S) return;
+    o.lanterns.forEach((L, k) => { const want = S.lit[k] ? 1 : 0; L.lvl += (want - L.lvl) * (1 - Math.exp(-dt * 6)); const f = 0.9 + 0.1 * Math.sin(time * 9 + k * 2), v = L.lvl * f;
+      L.cm.emissive.setRGB(lerp(0.05, 1.0, v), lerp(0.09, 0.55, v), lerp(0.25, 0.18, v)); L.cm.emissiveIntensity = 0.6 + 2.0 * v; L.gl.material.opacity = 0.12 + 0.55 * v; L.pool.material.opacity = 0.03 + 0.2 * v; });
+    const F = o.flies, pa = F.geo.attributes.position; F.base.forEach((b, i) => { let x = b[0] + Math.sin(time * 0.5 + b[3]) * 0.8, y = b[1] + Math.sin(time * 1.1 + b[3] * 2) * 0.3, z = b[2] + Math.cos(time * 0.4 + b[3]) * 0.8;
+      if(S.state === 'won'){ const L = lantPos(i % LANT.n), k2 = smooth(0, 3, o.endT ? 3 - o.endT : 0); x = lerp(x, L.x, k2 * 0.8); z = lerp(z, L.z, k2 * 0.8); y = lerp(y, 1.4, k2 * 0.8); }
+      pa.setXYZ(i, x, y, z); }); pa.needsUpdate = true; }
+};
+QPORTALS.grove = {kind:'lantern', name:'Lantern Ring', x:-31, z:-10, face:[0, -14], credits:45, xp:90, item:'moonwood-charm', col:0xffd27a,
+  tag:'Light all seven firefly lanterns. Touching one (E) flips it and both its neighbours, and the fireflies only allow a few spare touches.'};
 
 /* ================= Goal 13: the Cyan Shard, the wind chimes on Sky Isles' highest isle =================
    The clue (HUNT_CLUES.cyan, the Ledger's third riddle, the music box in Archive room 6): seven tubes numbered from the longest, which sings lowest;
