@@ -8542,14 +8542,21 @@ const ITEMS = {
   'matchbook':      {name:'Low Hour Matchbook', rarity:'common', value:6, shape:'chip', col:0xb8323a, desc:'A matchbook from The Low Hour. Inside the cover someone has pencilled four bars of a tune.'},
   'late-edition':   {name:'Late Edition', rarity:'uncommon', value:16, shape:'chip', col:0xe8e0c8, desc:'Tomorrow\'s Evening Wire, somehow. The headline is smudged by the rain.'},
   'neon-tube':      {name:'Neon Glass Tube', rarity:'uncommon', value:18, shape:'coil', col:0xff4a3a, desc:'A bent glass tube from an old sign. It still glows faintly whenever it rains, which is always.'},
-  'agent-card':     {name:'Inquiry Agent\'s Card', rarity:'uncommon', value:22, shape:'chip', col:0xe8c070, desc:'E. Vanterpool\'s card, signed on the back: "for the one who solved The Low Hour Case".'}
+  'agent-card':     {name:'Inquiry Agent\'s Card', rarity:'uncommon', value:22, shape:'chip', col:0xe8c070, desc:'E. Vanterpool\'s card, signed on the back: "for the one who solved The Low Hour Case".'},
+  // Goal 20 part 3: Saltlark Isle. Beach pickups and the Glowwater Ring Swim's first-clear prize; added last so every earlier id keeps its place
+  'wishing-shell':  {name:'Wishing Shell', rarity:'common', value:5, shape:'orb', col:0xf6d6cc, desc:'A pink spiral shell. Hold it to your ear and it hums the tune they play at the Tidebell.'},
+  'sea-glass':      {name:'Sea Glass', rarity:'common', value:6, shape:'gem', col:0x8fd8c8, desc:'A pebble of green glass, rubbed soft by the sea. Nobody on Saltlark remembers the bottle.'},
+  'tidebell-token': {name:'Tidebell Token', rarity:'common', value:5, shape:'coil', col:0xf2c45a, desc:'A brass token from the Tidebell beach bar. Good for one pineapple fizz.'},
+  'lighthouse-lens':{name:'Lighthouse Lens Chip', rarity:'uncommon', value:17, shape:'chip', col:0xfff0c8, desc:'A chip of the lighthouse\'s old lens. It still throws a little rainbow at the gold hour, which is always.'},
+  'snorkel-badge':  {name:'Glowwater Swim Badge', rarity:'uncommon', value:20, shape:'gem', col:0x5fd8e8, desc:'Pinned on by the lifeguard after the Glowwater Ring Swim: "swam every ring, in order, in time".'}
 };
 // fixed, seeded pickups per realm (placed by addPickups with their own rng, so nothing else moves)
 const LOOT = {
   hub:['dock-token', 'beacon-lens'], dunes:['glass-bead', 'glass-bead', 'sunfire-opal'], grid:['grid-chip', 'grid-chip', 'pulse-core'],
   grove:['glowcap', 'glowcap', 'moonwood-charm'], sky:['sky-feather', 'sky-feather', 'stormglass-idol'],
   warfront:['match-token', 'banner-scrap', 'signal-lens'],
-  lampblack:['tram-token', 'matchbook', 'late-edition', 'neon-tube']
+  lampblack:['tram-token', 'matchbook', 'late-edition', 'neon-tube'],
+  saltlark:['wishing-shell', 'sea-glass', 'tidebell-token', 'lighthouse-lens']
 };
 function cleanInv(o){ const out = {}; for(const id in o) if(ITEMS[id]){ const n = Math.floor(num(o[id], 0)); if(n > 0) out[id] = ITEMS[id].rarity === 'artifact' ? 1 : Math.min(n, 999); } return out; }
 state.inv = cleanInv(state.inv);
@@ -8872,7 +8879,9 @@ const VENDOR_LOOK = {
   // Warfront: a field supply locker, dark iron with riveted brass bands and an ember lamp on top
   warfront:{body:() => std(0x3e3a34, {map:detailTex, normalMap:detailNormal, normalScale:new V2(0.4, 0.4), metalness:0.55, roughness:0.6}), trim:() => std(0xb08a4a, {metalness:1, roughness:0.35}), acc:0xe8a04a, bg:'#1a120c', shape:'box', top:'dome'},
   // Lampblack: a cast-iron street box, bottle green with brass trim and a warm lamp on top
-  lampblack:{body:() => std(0x1f2a24, {map:detailTex, normalMap:detailNormal, normalScale:new V2(0.4, 0.4), metalness:0.5, roughness:0.42}), trim:() => std(0xb89a5a, {metalness:1, roughness:0.3}), acc:0xffc98a, bg:'#0e0c0a', shape:'box', top:'dome'}
+  lampblack:{body:() => std(0x1f2a24, {map:detailTex, normalMap:detailNormal, normalScale:new V2(0.4, 0.4), metalness:0.5, roughness:0.42}), trim:() => std(0xb89a5a, {metalness:1, roughness:0.3}), acc:0xffc98a, bg:'#0e0c0a', shape:'box', top:'dome'},
+  // Saltlark Isle: a beach kiosk, painted mint boards with white trim under a striped awning
+  saltlark:{body:() => std(0x9fd8c4, {map:slTex().boards, roughness:0.8}), trim:() => std(0xf4f1ea, {roughness:0.5}), acc:0x5fd8e8, bg:'#0a2a33', shape:'box', top:'awning'}
 };
 const vendorsSeen = {};
 function vendorSpot(key){
@@ -8921,6 +8930,7 @@ function addVendor(key){
   else if(L.top === 'dome'){ mk(new THREE.SphereGeometry(0.4, 32, 12, 0, TAU, 0, Math.PI / 2), trim, 0, 2.18, 0, g); const b = mk(new THREE.SphereGeometry(0.1, 16, 12), glowM(L.acc, 2.5), 0, 2.62, 0, g); b.castShadow = false; glow(L.acc, 1.6, 0, 2.62, 0, g, 0.5); }
   else if(L.top === 'edges'){ const eg = new THREE.BoxGeometry(1.1, 2.4, 0.8); const e = new THREE.LineSegments(new THREE.EdgesGeometry(eg), new THREE.LineBasicMaterial({color:C(0xff4fa3), toneMapped:false})); eg.dispose(); e.position.y = 0.9; g.add(e); glow(0xff4fa3, 2.4, 0, 2.3, 0, g, 0.45); }
   else if(L.top === 'cap'){ const c = mk(new THREE.SphereGeometry(0.9, 28, 12, 0, TAU, 0, Math.PI / 2), phys(L.acc, {emissive:C(L.acc), emissiveIntensity:1.2, roughness:0.35}), 0, 2.1, 0, g); c.scale.y = 0.5; glow(L.acc, 3, 0, 2.4, 0, g, 0.35); }
+  else if(L.top === 'awning'){ const aw = mk(new THREE.BoxGeometry(1.7, 0.06, 1.25), std(0xf28f7a, {map:slTex().stripe, roughness:0.85}), 0, 2.62, 0.25, g); aw.rotation.x = 0.22; [-0.8, 0.8].forEach(px => mk(new THREE.CylinderGeometry(0.03, 0.03, 2.75, 6), trim, px, 1.25, 0.82, g)); }   // Saltlark's kiosk
   else if(L.top === 'crystal'){ const c = mk(new THREE.OctahedronGeometry(0.26, 0), phys(L.acc, {emissive:C(L.acc), emissiveIntensity:1.6, roughness:0.1}), 0, 2.7, 0, g); c.scale.set(0.8, 1.5, 0.8); c.castShadow = false; spinners.push({o:c, bob:2.7}); glow(L.acc, 2.2, 0, 2.7, 0, g, 0.45); }
   const l = label('Vending · E', {small:true, edge:hexStr(L.acc), fg:hexStr(L.acc)}); l.position.y = 3.35; g.add(l);
   colliders.push({x, z, r:0.9});
@@ -9887,6 +9897,7 @@ const AI_PROMPTS = {
   campus:'Photorealistic real-life video. A sunny university campus in bright late morning: a white marble hall with tall fluted columns and a pediment, pale granite walkways across a mown green lawn, a round gymnasium with a glass dome, a dense green broadleaf wood to one side, clear blue sky with small white clouds. True to life.',
   sky:'Photorealistic real-life drone video. A lush green floating island high above a sea of white clouds on a bright morning: soft grass with wildflowers, round leafy trees, grey rocks, small floating islands with rocky undersides, clear blue sky. True to life.',
   warfront:'Photorealistic real-life video. A vast muddy battlefield under a dramatic stormy sky at dusk: zigzag trenches lined with timber planks and sandbags, shell craters with rain puddles, loose wire on wooden posts, a ruined round stone keep with a broken crown inside crumbling walls, shattered stone towers on the horizon, rust-red and teal banners on poles, low golden sunlight breaking under heavy slate clouds, soft flashes of light inside the clouds. True to life. No people, no weapons.',
+  saltlark:'Photorealistic real-life video. A tropical holiday island in warm late-afternoon golden light: fine white sand, a wide shelf of clear turquoise shallows over sand with rippling caustics, leaning coconut palms, a weathered wooden boardwalk with a row of pastel beach huts, a thatched beach bar, striped umbrellas, a long wooden pier on piles out to a white lighthouse with red bands, a waterfall into a rocky cove pool, white sailing boats offshore, gulls, gentle surf foam on the shore. True to life. No people, no logos, no readable brand names.',
   lampblack:'Photorealistic real-life video. A rain-soaked city street at night, nearly black and white with a few colours: wet asphalt mirroring street lamps and neon signs, puddles with rain rings, old brick and pale limestone buildings with a few lit windows and iron fire escapes, an elevated railway on riveted steel columns crossing the street, steam rising from a grate, a red neon sign over a jazz club marquee of bulbs, a tall teal vertical hotel sign, heavy rain, low clouds glowing with city light. True to life. No logos, no readable brand names.'
 };
 const AI_KEY = 'hub-decart-key', aiVid = $('#aiVideo');
@@ -10017,7 +10028,8 @@ const PHOTO_SLOTS = {
   grove: { ground:[0x2e4232, 'dark forest floor with pine needles, moss and short grass'], rock:[0x5a5f6b, 'dark grey granite with lichen and moss'] },
   sky:   { ground:[0x6aa444, 'bright green meadow grass with tiny white and yellow wildflowers'], rock:[0x7a6f66, 'brown weathered cliff rock with cracks'] },
   campus:{ ground:[0x5a8a36, 'freshly mown green lawn grass'], plaza:[0xcfc7b8, 'light warm grey granite paving slabs in a running bond, a clean campus walkway'] },
-  warfront:{ ground:[0x4a3a2c, 'churned dark brown mud with small stones and dried puddle marks'], rock:[0x6f6a64, 'dark grey weathered rock with cracks'] }
+  warfront:{ ground:[0x4a3a2c, 'churned dark brown mud with small stones and dried puddle marks'], rock:[0x6f6a64, 'dark grey weathered rock with cracks'] },
+  saltlark:{ ground:[0xeee3cc, 'fine pale white beach sand, dry, smooth with tiny shell fragments'], rock:[0x9a8e80, 'light grey-brown weathered coastal rock'] }
 };
 const TEX_SUFFIX = '. Photographed straight down from above as a flat surface filling the whole frame, soft even daylight, no shadows, no horizon, no objects, photorealistic seamless texture, sharp natural detail.';
 const idb = (() => {
@@ -10115,7 +10127,9 @@ const PH_WANT = {
   'campus:ground':{want:['grass','lawn','turf','meadow'], avoid:['dry','dead','path','road','snow','leaves','rock','mud','sand','flowers']},
   'campus:plaza':{want:['paving','pavement','slabs','stone floor','tiles'], avoid:['brick','wood','roof','wall','mossy','broken','old','dirty','mud','cobble']},
   'warfront:ground':{want:['mud','muddy','dirt','soil','ground'], avoid:['grass','snow','sand','tiles','brick','leaves','moss','flowers','road','asphalt']},
-  'warfront:rock':{want:['rock','stone','boulder','cliff'], avoid:['wall','brick','moss','sand','floor','tiles','snow']}
+  'warfront:rock':{want:['rock','stone','boulder','cliff'], avoid:['wall','brick','moss','sand','floor','tiles','snow']},
+  'saltlark:ground':{want:['sand','beach','white sand'], avoid:['rock','wet','stones','grass','pebbles','gravel','desert','dune','red','mud']},
+  'saltlark:rock':{want:['rock','cliff','boulder','coast'], avoid:['wall','brick','moss','sand','floor','tiles','snow','lava']}
 };
 let phIndex = null;
 async function phAssets(){
@@ -10419,7 +10433,8 @@ function ambience(key){
   else if(key === 'ashfall'){ wind(220, 0.32, 0.09, 0.5); hum([41.2, 61.7], 140, 0.02, 0.3); }
   else if(key === 'campus'){ wind(240, 0.16, 0.07, 0.4); chirps(); }
   else if(key === 'warfront'){ wind(340, 0.34, 0.12, 0.6); wind(120, 0.18, 0.05, 0.4); booms(); }
-  else if(key === 'lampblack'){ lbRainSound(); wind(140, 0.14, 0.03, 0.5); lbTraffic(); }   // the jazz from The Low Hour is its own bus (lbJazz), louder by the club
+  else if(key === 'lampblack'){ lbRainSound(); wind(140, 0.14, 0.03, 0.5); lbTraffic(); }
+  else if(key === 'saltlark'){ slSurfSound(); wind(700, 0.1, 0.09, 0.6); slGulls(); }   // the Tidebell's steel drums are their own bus (slDrums), louder by the bar   // the jazz from The Low Hour is its own bus (lbJazz), louder by the club
   else wind(300, 0.3, 0.1, 0.5);
 }
 function tone(type, f0, f1, dur, gain, t0, dest){
@@ -10460,7 +10475,9 @@ function sfx(name){
       case 'mdie': tone('triangle', 660, 110, 0.5, 0.09); noiseHit(700, 0.6, 0.5, 0.11, t, 120); break;
       case 'mwind': if(w === 'grid') tone('sine', 300, 1700, 0.7, 0.045); else if(w === 'grove') tone('sawtooth', 70, 110, 0.5, 0.05); else if(w === 'warfront'){ [0, 0.11, 0.22, 0.33].forEach(d => tone('square', 1900, 1750, 0.03, 0.03, t + d)); tone('sine', 260, 880, 0.8, 0.03); } else noiseHit(500, 0.7, 0.55, 0.06, t, 1600); break;
       case 'zap': tone('sawtooth', 1900, 180, 0.22, 0.06); noiseHit(4200, 1, 0.16, 0.07); break;
-      case 'step': { if(w === 'lampblack'){ noiseHit(1300, 1.1, 0.07, 0.05); noiseHit(3600, 2.2, 0.035, 0.022, t + 0.012); break; }   // a wet step
+      case 'step': { if(w === 'saltlark' && slDepth() > 0.08){ noiseHit(900, 0.7, 0.16, 0.06, t, 2600); noiseHit(3400, 1.5, 0.09, 0.025, t + 0.03); break; }   // a splash
+        if(w === 'saltlark'){ noiseHit(520, 0.6, 0.09, 0.05); break; }   // soft sand
+        if(w === 'lampblack'){ noiseHit(1300, 1.1, 0.07, 0.05); noiseHit(3600, 2.2, 0.035, 0.022, t + 0.012); break; }   // a wet step
         const soft = w === 'dunes' || w === 'sky' || w === 'grove' || w === 'campus' || w === 'warfront'; noiseHit(soft ? 340 : w === 'grid' ? 2100 : 800, soft ? 0.7 : 2.5, soft ? 0.07 : 0.045, soft ? 0.045 : 0.035); break; }
     }
   }catch(e){}
@@ -13770,6 +13787,9 @@ const LP_TRADES = {
   warfront:[['trench warden', 'I sweep the duckboards in the Ember line. Every morning the mud puts itself back.'], ['scorekeeper', 'I chalk the Long Match score on the board by the portal. It has been three points in it for nine years.'],
     ['banner mender', 'I sew the Ember Pact banners back together. The wind here has opinions.'], ['sentry winder', 'I used to wind the clockwork sentries. Then they learned to wind each other.'],
     ['signal runner', 'I carry messages between the lines. Both sides tip well.'], ['wire stringer', 'I string the wire so it looks fierce and catches nobody. That is the whole job.']],
+  saltlark:[['lifeguard', 'I watch the shallows from the tall white chair. Mostly I watch people float. Floating is very relaxing to watch.'], ['ice-cream seller', 'I sell coconut-and-lime ice from the cart on the boardwalk. It melts at exactly the speed you can eat it.'],
+    ['boat hire keeper', 'I hire out the little sailing boats. They always come back on their own, around the lighthouse and home.'], ['shell collector', 'I collect wishing shells. Hold one to your ear and it hums. I sell the ones that hum in tune.'],
+    ['hotel manager', 'I run Hotel Saltlark up on the rise. Every room has a sea view and a sunset that never quite finishes.'], ['lighthouse keeper', 'I keep the lamp at the end of the pier lit. There are no rocks out there. I just like the light.']],
   lampblack:[['newspaper seller', 'I sell the Evening Wire from the kiosk on Vesper Square. The late edition is always the wetter one.'], ['jazz pianist', 'I play the late set at The Low Hour. One key sticks, so I play round it. Nobody has noticed in nine years.'],
     ['night cab driver', 'I drive a cab all night. The fares are short and the stories are long.'], ['tailor', 'I press suits at Abernathy\'s. Rain is good for business: everybody needs a hem taken up.'],
     ['detective\'s secretary', 'I type the reports for E. Vanterpool, upstairs over the square. Most cases are lost gloves. Some are not.'], ['lamplighter', 'I wipe the rain off the lamp glass, one street at a time. The city is very long.']]
@@ -13812,6 +13832,7 @@ const LP_REALM_FACTS = {
   grove:'Night Grove: a dark forest of glowing mushrooms, fireflies and lantern-lit paths; grove stalkers hunt between the pines.',
   sky:'Sky Isles: floating islands joined by jumps and boosts; seven wind chimes hang on the highest isle; wild sky harpies wheel round the isles.',
   warfront:'Warfront: a battlefield planet where the war is a game, the Long Match between the Ember Pact (rust banners, a white flame) and the Tidewall Company (teal banners, three waves); trenches, wire and shell holes, the Old Bastion (a ruined keep you climb by the stair round its outside), clockwork sentries that still patrol, the Signal Run quest portal, and nobody is hurt for real: you zero out and walk back in.',
+  saltlark:'Saltlark Isle: a holiday island held for ever at the golden hour, where nothing can hurt you; white beaches and a wide shelf of turquoise shallows you can wade (past the shelf you float and swim), a pastel boardwalk with eight beach huts, the Tidebell beach bar (a steel-drum band loop, the pineapple fizz), striped umbrellas, a pier out to the white-and-red lighthouse, a lagoon you can wade in the west, a waterfall into a rocky cove pool on the eastern headland, Hotel Saltlark on the rise, hammocks between palms, crabs, gulls and fish in the shallows, sailing boats offshore; the Glowwater Ring Swim is the quest portal by the boardwalk.',
   lampblack:'Lampblack: a rain-soaked city held at night for ever, where nothing can hurt you; the El and its night tram over Vesper Street station, the Hotel Vesperine, The Low Hour jazz club (the Late Lamps Trio play "Rain on Vesper"), the Kettle & Crow diner, Abernathy the tailor, the Evening Wire kiosk and E. Vanterpool\'s inquiry office over Vesper Square; pigeons on the ledges, cats in the alleys, steam from the grates; The Low Hour Case is the quest portal by the club door.'
 };
 function strHash(t){ let h = 2166136261; t = String(t); for(let i = 0; i < t.length; i++) h = Math.imul(h ^ t.charCodeAt(i), 16777619); return h >>> 0; }
@@ -14214,6 +14235,7 @@ const QUEST_LANDMARKS = {
   drift:{realm:'grid', name:'The Drift in Neon Grid', at:() => ({x:DRIFT.x, z:DRIFT.z, r:DRIFT.r + 3})},
   chimes:{realm:'sky', name:'the wind chimes on the highest isle of Sky Isles', at:() => chimes ? {x:chimes.x, z:chimes.z, r:5} : null},
   bastion:{realm:'warfront', name:'the top of the Old Bastion on Warfront', at:() => ({x:WAR.keep.x, z:WAR.keep.z, r:WAR.keep.r - 0.3})},   // inside the keep's footprint is only reachable on top of it
+  lighthouse:{realm:'saltlark', name:'the lighthouse at the end of the pier on Saltlark Isle', at:() => ({x:SLK.head.x, z:SLK.head.z, r:SLK.head.r})},
   vesperine:{realm:'lampblack', name:'the front steps of the Hotel Vesperine in Lampblack', at:() => ({x:(LB.steps.x0 + LB.steps.x1) / 2, z:(LB.steps.z0 + LB.steps.z1) / 2, r:3})}
 };
 const QUEST_MAX = 3, QUEST_CREDITS = [10, 60];
@@ -17131,7 +17153,9 @@ function slShells(q, area){
 HEIGHTS.saltlark = (n, pf) => slHeights(n);   // no portal pad: the arrival ground is level beach anyway, and pf would sink it to the sea
 function slLife(){}
 function slUpdate(dt, time){
-  if(!sl || state.world !== 'saltlark') return;
+  if(!sl || state.world !== 'saltlark'){ if(slD.bus) slDrums(false); return; }
+  { const d = Math.hypot(p.x - SLK.bar.x, p.z - SLK.bar.z), near = d < 120 && !(qa && qa.inside);   // the Tidebell's band: louder and brighter by the bar, muffled down the beach
+    if(near) slDrums(true, 0.3 * (1 - smooth(5, 120, d)) + 0.02, 500 + 3000 * (1 - smooth(3, 30, d))); else if(slD.bus) slDrums(false); }
   if(sl.sea){ sl.sea.position.x = Math.round(p.x / 48) * 48; sl.sea.position.z = Math.round(p.z / 48) * 48; }
   if(sl.flash){ const f = sl.flash, b = f.userData.base, ca = Math.atan2(camera.position.x - b.x, camera.position.z - b.z), k = Math.pow(Math.max(0, Math.cos(2 * (time * 0.33 - ca))), 40); f.material.opacity = 0.35 + 0.6 * k; f.scale.setScalar(6 + 30 * k); }   // two beams, opposite
   if(sl.foam) sl.foam.material.opacity = 0.55 + 0.2 * Math.sin(time * 3.1);
@@ -17187,6 +17211,50 @@ function slHutAt(x, z, yaw, k, hi){
   const posts = []; [[-hw, -hd], [hw, -hd], [-hw, hd + 1.2], [hw, hd + 1.2]].forEach(([u, v]) => { const c = Math.cos(yaw), s = Math.sin(yaw), wx = x + u * c + v * s, wz = z - u * s + v * c, gy = hf(wx, wz) - 0.3; posts.push(new THREE.BoxGeometry(0.16, y - gy, 0.16).translate(u, (y + gy) / 2, v)); });
   mk(merge(posts), k.deckM, 0, 0, 0, g);
   colliders.push({x, z, r:2.1});
+}
+/* ---- Saltlark's sound: surf (a slow swell of filtered noise, a wave breaking now and then), gulls far off, wind in the palms (the realm's wind), and
+   from the Tidebell an original loop for its steel-drum band, "Gold Hour Fizz": four bars (C, F, G7, C) in a 3+3+2 lilt, a steel-pan melody with pan
+   chords on the off-beats, a low pan bass and a shaker, synthesised on its own bus like Lampblack's jazz. Every chance comes from its own rng. ---- */
+const slSndR = rng(8501);
+function slSurfSound(){
+  const c = snd.ctx, src = c.createBufferSource(); src.buffer = bufs().brownBuf; src.loop = true;
+  const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 900; const g = c.createGain(); g.gain.value = 0.16;
+  const lfo = c.createOscillator(), lg = c.createGain(); lfo.frequency.value = 0.11; lg.gain.value = 0.1; lfo.connect(lg); lg.connect(g.gain);
+  const lfo2 = c.createOscillator(), lg2 = c.createGain(); lfo2.frequency.value = 0.11; lg2.gain.value = 500; lfo2.connect(lg2); lg2.connect(lp.frequency);
+  src.connect(lp); lp.connect(g); g.connect(snd.amb); src.start(); lfo.start(); lfo2.start(); snd.nodes.push(src, lfo, lfo2, g);
+  const wave = () => { if(state.world !== 'saltlark' || !snd.ctx) return; const t = c.currentTime;   // a wave breaking on the shelf: a rush that rises and hisses out
+    try{ noiseHit(700 + slSndR() * 500, 0.5, 2.8, 0.05 + slSndR() * 0.03, t, 2400, snd.amb); noiseHit(5200, 0.8, 1.6, 0.012, t + 0.5, 2600, snd.amb); }catch(e){}
+    snd.timers.push(setTimeout(wave, 5000 + slSndR() * 5000)); };
+  snd.timers.push(setTimeout(wave, 1200));
+}
+function slGulls(){
+  const one = () => { if(state.world !== 'saltlark' || !snd.ctx) return; const t = snd.ctx.currentTime, n = 1 + Math.floor(slSndR() * 3), f = 1500 + slSndR() * 500, g = 0.008 + slSndR() * 0.01;
+    try{ for(let i = 0; i < n; i++){ const t0 = t + i * (0.28 + slSndR() * 0.1); tone('sawtooth', f * 1.15, f * 0.72, 0.32, g, t0, snd.amb); tone('sine', f * 2.3, f * 1.5, 0.28, g * 0.6, t0, snd.amb); } }catch(e){}
+    snd.timers.push(setTimeout(one, 4000 + slSndR() * 9000)); };
+  snd.timers.push(setTimeout(one, 2500));
+}
+const slD = {bus:null, nextT:0, step:0};
+const SL_PAN = {bpm:108, roots:[130.81, 174.61, 196.0, 130.81], chords:[[0, 4, 7], [0, 4, 9], [0, 4, 7, 10], [0, 4, 7]],
+  tune:[[0, 7], [3, 9], [6, 7], [8, 9], [10, 12], [11, 9], [14, 5], [16, 7], [19, 5], [21, 2], [22, -1], [24, 0], [27, 4], [29, 7], [30, 12]],   // eighth-note step, semitones over C5
+  tune2:[[0, 4], [3, 5], [6, 4], [8, 5], [11, 9], [14, 12], [16, 11], [19, 7], [22, 5], [24, 4], [27, 2], [30, 0]]};   // the second time round: an answer, lower
+function slPan(f, t, g, dur, bus){ tone('sine', f, f, dur, g, t, bus); tone('sine', f * 2.01, f * 2.01, dur * 0.6, g * 0.45, t, bus); tone('sine', f * 3.03, f * 3.03, dur * 0.3, g * 0.22, t, bus); tone('triangle', f * 4.1, f * 4.1, 0.05, g * 0.3, t, bus); }
+function slDrums(on, vol, cut){
+  if(!snd.ctx) return; const c = snd.ctx, now = c.currentTime;
+  if(!on || !snd.on){ if(slD.bus){ const b = slD.bus; b.gain.setTargetAtTime(0, now, 0.2); setTimeout(() => { try{ b.disconnect(); }catch(e){} }, 900); slD.bus = null; } return; }
+  if(!slD.bus){ const b = c.createGain(), lp = c.createBiquadFilter(); b.gain.value = 0; lp.type = 'lowpass'; lp.frequency.value = cut; lp.Q.value = 0.5; b.connect(lp); lp.connect(snd.master); b.lp = lp; slD.bus = b; slD.nextT = now + 0.08; }
+  const b = slD.bus; b.gain.setTargetAtTime(vol, now, 0.3); b.lp.frequency.setTargetAtTime(cut, now, 0.3);
+  if(slD.nextT < now - 0.3) slD.nextT = now + 0.05;
+  const step = 60 / SL_PAN.bpm / 2;
+  while(slD.nextT < now + 0.25){ slDrumNote(slD.step, slD.nextT, b); slD.nextT += step; slD.step++; }
+}
+function slDrumNote(i, t, bus){
+  const P = SL_PAN, s = i % 8, bar = Math.floor(i / 8) % 4, st = i % 32, half = Math.floor(i / 32) % 2, root = P.roots[bar];
+  try{
+    if(s === 0 || s === 3 || s === 6) slPan(root / 2, t, s === 0 ? 0.06 : 0.04, 0.6, bus);   // the bass pans on the 3+3+2
+    if(s === 2 || s === 5 || s === 7) P.chords[bar].forEach((k, n) => slPan(root * 2 * Math.pow(2, k / 12), t + n * 0.012, 0.011, 0.35, bus));   // chords on the off-beats, a little rolled
+    noiseHit(7000, 2, 0.05, s === 0 || s === 3 || s === 6 ? 0.016 : 0.009, t, null, bus);   // the shaker
+    (half ? P.tune2 : P.tune).forEach(([at, semi]) => { if(at === st) slPan(523.25 * Math.pow(2, semi / 12), t, 0.035, 0.7, bus); });
+  }catch(e){}
 }
 })();
 </script>
