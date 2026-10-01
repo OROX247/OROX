@@ -16132,31 +16132,31 @@ function lbBuilding(B, r, P, K, o){
   const gb = y0 > 0 ? y0 : LB.gf;
   faces.forEach(([ax, az, bx, bz, s], fi) => {
     const len = Math.hypot(bx - ax, bz - az), st = onStreet(s), al = onAlley(s), nx = s === 'E' ? 1 : s === 'W' ? -1 : 0, nz = s === 'N' ? 1 : s === 'S' ? -1 : 0;
-    lbFace(B.wall[r.v], ax, az, bx, bz, gb, r.h, r.uo + fi * 3, r.vo, 12, 28.8, lbWallCol);
+    if(!o.detail) lbFace(B.wall[r.v], ax, az, bx, bz, gb, r.h, r.uo + fi * 3, r.vo, 12, 28.8, lbWallCol);
     if(y0 > 0) return;
     const ox = nx * 0.04, oz = nz * 0.04;
-    if(st && r.shop >= 0 && !o.noShop){ lbFace(B.shop[r.shop], ax + ox, az + oz, bx + ox, bz + oz, LB.kerb, LB.gf, r.uo, 0, 12, 4.25, lbBandCol);
-      if(r.awn){ const ac = LB_AWN[r.awc], d = 1.4; for(let u = 0.5; u < len - 1.5; u += 4){ const w = Math.min(3.3, len - u - 0.6), x0 = ax + (bx - ax) / len * u, z0 = az + (bz - az) / len * u, x1 = ax + (bx - ax) / len * (u + w), z1 = az + (bz - az) / len * (u + w);
+    if(st && r.shop >= 0 && !o.noShop){ if(!o.detail) lbFace(B.shop[r.shop], ax + ox, az + oz, bx + ox, bz + oz, LB.kerb, LB.gf, r.uo, 0, 12, 4.25, lbBandCol);
+      if(r.awn && !o.lite){ const ac = LB_AWN[r.awc], d = 1.4; for(let u = 0.5; u < len - 1.5; u += 4){ const w = Math.min(3.3, len - u - 0.6), x0 = ax + (bx - ax) / len * u, z0 = az + (bz - az) / len * u, x1 = ax + (bx - ax) / len * (u + w), z1 = az + (bz - az) / len * (u + w);
           // a canvas awning sloping out over the sidewalk, striped, with a valance
           const cA = hexArr(ac[0]).map(v => Math.pow(v, 2.2)), cB = hexArr(ac[1]).map(v => Math.pow(v, 2.2)), n = 6;
           for(let k = 0; k < n; k++){ const t0 = k / n, t1 = (k + 1) / n, c = k % 2 ? cB : cA, px0 = x0 + (x1 - x0) * t0, pz0 = z0 + (z1 - z0) * t0, px1 = x0 + (x1 - x0) * t1, pz1 = z0 + (z1 - z0) * t1;
             lbQ(B.awn, [px1 + nx * 0.05, 3.9, pz1 + nz * 0.05, px0 + nx * 0.05, 3.9, pz0 + nz * 0.05, px0 + nx * d, 3.25, pz0 + nz * d, px1 + nx * d, 3.25, pz1 + nz * d], [nx * 0.42, 0.9, nz * 0.42], [0, 0, 1, 0, 1, 1, 0, 1], c);
             lbQ(B.awn, [px1 + nx * d, 3.25, pz1 + nz * d, px0 + nx * d, 3.25, pz0 + nz * d, px0 + nx * d, 3.0, pz0 + nz * d, px1 + nx * d, 3.0, pz1 + nz * d], [nx, 0, nz], [0, 0, 1, 0, 1, 1, 0, 1], c); } } }
-    } else lbFace(B.plinth, ax + ox, az + oz, bx + ox, bz + oz, LB.kerb, LB.gf, r.uo + fi * 3, 0, 12, 4.25, lbBandCol);
-    if(r.fire && (al || (st && fi % 2 === 0)) && r.f >= 3 && len > 7) lbFireEscape(B, ax, az, bx, bz, nx, nz, len, r.f);
+    } else if(!o.detail) lbFace(B.plinth, ax + ox, az + oz, bx + ox, bz + oz, LB.kerb, LB.gf, r.uo + fi * 3, 0, 12, 4.25, lbBandCol);
+    if(!o.lite && r.fire && (al || (st && fi % 2 === 0)) && r.f >= 3 && len > 7) lbFireEscape(B, ax, az, bx, bz, nx, nz, len, r.f);
   });
-  lbQ(B.roof, [r.x0, r.h - 0.9, r.z1, r.x1, r.h - 0.9, r.z1, r.x1, r.h - 0.9, r.z0, r.x0, r.h - 0.9, r.z0], [0, 1, 0], [r.x0 / 4, r.z1 / 4, r.x1 / 4, r.z1 / 4, r.x1 / 4, r.z0 / 4, r.x0 / 4, r.z0 / 4], LB_ONE);
+  if(!o.detail){ lbQ(B.roof, [r.x0, r.h - 0.9, r.z1, r.x1, r.h - 0.9, r.z1, r.x1, r.h - 0.9, r.z0, r.x0, r.h - 0.9, r.z0], [0, 1, 0], [r.x0 / 4, r.z1 / 4, r.x1 / 4, r.z1 / 4, r.x1 / 4, r.z0 / 4, r.x0 / 4, r.z0 / 4], LB_ONE);
   // cornice and parapet coping round the top, a stone band over the ground floor
   const cc = [0.75, 0.76, 0.8], e = 0.28; lbBox(B.trim, r.x0 - e, r.x1 + e, r.h - 0.55, r.h - 0.25, r.z0 - e, r.z1 + e, 2, cc);
   lbBox(B.trim, r.x0 - 0.1, r.x1 + 0.1, r.h - 0.25, r.h, r.z0 - 0.1, r.z1 + 0.1, 2, cc);
   if(!y0) lbBox(B.trim, r.x0 - 0.12, r.x1 + 0.12, LB.gf - 0.05, LB.gf + 0.3, r.z0 - 0.12, r.z1 + 0.12, 2, [1.1, 1.0, 0.9]);
   // the roof's inside face of the parapet (seen from the El and the tall buildings)
-  lbBox(B.roof, r.x0 + 0.05, r.x1 - 0.05, r.h - 0.9, r.h - 0.88, r.z0 + 0.05, r.z1 - 0.05, 4);
-  if(r.tank){ const tx = r.x0 + (r.x1 - r.x0) * 0.68, tz = r.z0 + (r.z1 - r.z0) * 0.35, ty = r.h - 0.9;
+  lbBox(B.roof, r.x0 + 0.05, r.x1 - 0.05, r.h - 0.9, r.h - 0.88, r.z0 + 0.05, r.z1 - 0.05, 4); }
+  if(r.tank && !o.lite){ const tx = r.x0 + (r.x1 - r.x0) * 0.68, tz = r.z0 + (r.z1 - r.z0) * 0.35, ty = r.h - 0.9;
     [[-0.8, -0.8], [0.8, -0.8], [-0.8, 0.8], [0.8, 0.8]].forEach(([dx, dz]) => lbBox(B.iron, tx + dx - 0.06, tx + dx + 0.06, ty, ty + 2.2, tz + dz - 0.06, tz + dz + 0.06));
     B.ironGeo.push(new THREE.CylinderGeometry(1.25, 1.25, 0.12, 20).translate(tx, ty + 2.2, tz));
     const tg = new THREE.CylinderGeometry(1.2, 1.25, 2.6, 22, 1, true).translate(tx, ty + 3.6, tz), roof = new THREE.ConeGeometry(1.32, 0.9, 22).translate(tx, ty + 5.35, tz); B.ironGeo.push(merge([tg, roof])); }
-  if(!o.noBox) addBox((r.x0 + r.x1) / 2, (r.z0 + r.z1) / 2, (r.x1 - r.x0) / 2, (r.z1 - r.z0) / 2, -1, r.h, {});
+  if(!o.noBox && !o.detail) addBox((r.x0 + r.x1) / 2, (r.z0 + r.z1) / 2, (r.x1 - r.x0) / 2, (r.z1 - r.z0) / 2, -1, r.h, {});
 }
 // a fire escape on a face: a landing at every floor, railings, a stair between landings, the drop ladder held up above the street
 function lbFireEscape(B, ax, az, bx, bz, nx, nz, len, floors){
@@ -16338,6 +16338,27 @@ BUILD.lampblack = (r, n) => {
   addWeather('rain');
 };
 HEIGHTS.lampblack = () => lbG;
+/* ---- no boundaries (Goal 8a rule): past the core the city goes on for ever, one block to a cell. A block's plan (buildings, an alley, its sign, its
+   cars, a steaming grate) is fixed by the cell before anything is built (big()), so every tier of it agrees and a block rebuilt later is the same block.
+   Tiers: 'far' the buildings (walls, shopfronts, roofs, cornices), the neon sign and, on the z = 0 street, the El; 'mid' the street round the block
+   (sidewalk, kerbs, lamps, parked cars, paint, steam); 'iron' the buildings' fire escapes, awnings and water tanks. No Dreamer landmarks: every spot of a
+   block is built on. ---- */
+ENDLESS.lampblack = {
+  core:LB.core, home:R + 12, noRecenter:true, dreamOdds:1e-9, dreamR:1,
+  words:'an endless rain-soaked city at night: brick and limestone blocks, lit windows, neon signs, fire escapes, wet streets that mirror the lamps',
+  dream:{kinds:['tower'], surface:'rock', time:'night'},
+  kit(){ return lbKit(); },
+  big(cx, cz, q){ return [{kind:'block', x:cx * LB.S + 24, z:cz * LB.S + 24, r:0, plan:lbPlan(q, cx, cz)}]; },
+  // a teleport into a block lands on its sidewalk instead
+  landAt(x, z){ const u = lbMod(x, LB.S), v = lbMod(z, LB.S), bx = x - u, bz = z - v; if(u < 9 || u > 39 || v < 9 || v > 39) return [x, z];
+    const d = [[u - 7.6, bx + 7.6, z], [40.4 - u, bx + 40.4, z], [v - 7.6, x, bz + 7.6], [40.4 - v, x, bz + 40.4]].sort((a, b) => a[0] - b[0])[0]; return [d[1], d[2]]; },
+  tiers:[
+    {name:'far', r:3, build(c, k){ const P = bigOf(c.E, c.cx, c.cz)[0].plan, B = lbBins(); lbBlock(B, P, c.cx, c.cz, k, {noStreet:true, lite:true});
+      if(c.cz === 0) lbEl(B, c.cx * LB.S, c.cx * LB.S + LB.S); lbFlush(B, k); }},
+    {name:'mid', r:2, build(c, k){ const P = bigOf(c.E, c.cx, c.cz)[0].plan, B = lbBins(); lbBlock(B, P, c.cx, c.cz, k, {noBldg:true}); lbFlush(B, k); lbSteam(B.vents); }},
+    {name:'iron', r:2, build(c, k){ const P = bigOf(c.E, c.cx, c.cz)[0].plan, B = lbBins(); lbBlock(B, P, c.cx, c.cz, k, {detail:true, noSign:true, noStreet:true}); lbFlush(B, k); }}
+  ]
+};
 function lbUpdate(dt, time){
   if(!lb || state.world !== 'lampblack') return;
   if(lb.mirror){ lb.mirror.position.x = Math.round(p.x / LB.S) * LB.S; lb.mirror.position.z = Math.round(p.z / LB.S) * LB.S; }
