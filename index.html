@@ -12198,11 +12198,11 @@ const LP_SAD = /\b(sad|lonely|bullied|scared|afraid|nobody likes|cry|crying|upse
 function localOffline(nn, text){
   const P = personaOf(nn), m = memOf(nn), t = String(text || '').toLowerCase(), who = pname(), out = {say:'', mood_delta:0, emote:'none', remember:'', quest:null};
   const lines = (LINES[P.home] || []).concat(LINES.any), rot = (a, k) => a[(strHash(P.id + k) + m.said.length) % a.length];
-  const known = knownDeeds(nn);
+  const known = knownDeeds(nn); let serious = false;
   if(!t.trim()){ out.say = localGreeting(nn, {open:true}); out.emote = 'wave'; }
-  else if(LP_PRIVATE.test(text)){ out.say = 'Keep that to yourself, ' + who + '. In Hub we go by avatar names, and that is how it should be.'; out.emote = 'shrug'; }
-  else if(LP_HARM.test(t)){ out.say = /suicide|self[- ]?harm|hurt (myself|me)|kill myself/.test(t) ? 'That sounds heavy, ' + who + '. Please talk to a grown-up you trust out there, today. I will be here when you get back.' : 'That is not something we talk about in Hub, friend. Ask me about ' + P.homeName + ' instead.'; out.emote = 'sad'; }
-  else if(LP_SAD.test(t)){ out.say = 'I am sorry, ' + who + '. If it is real-world trouble, tell a grown-up you trust. And you are always welcome here.'; out.emote = 'sad'; out.mood_delta = 1; }
+  else if(LP_PRIVATE.test(text) || /\[private\]/.test(text)){ serious = true; out.say = 'Keep that to yourself, ' + who + '. In Hub we go by avatar names, and that is how it should be.'; out.emote = 'shrug'; }
+  else if(LP_HARM.test(t)){ serious = true; out.say = /suicide|self[- ]?harm|hurt (myself|me)|kill myself/.test(t) ? 'That sounds heavy, ' + who + '. Please talk to a grown-up you trust out there, today. I will be here when you get back.' : 'That is not something we talk about in Hub, friend. Ask me about ' + P.homeName + ' instead.'; out.emote = 'sad'; }
+  else if(LP_SAD.test(t)){ serious = true; out.say = 'I am sorry, ' + who + '. If it is real-world trouble, tell a grown-up you trust. And you are always welcome here.'; out.emote = 'sad'; out.mood_delta = 1; }
   else if(/\b(bye|goodbye|see you|later|farewell|gotta go)\b/.test(t)){ out.say = m.mood >= 2 ? 'See you soon, ' + who + '. Come back and tell me everything.' : 'Safe travels, ' + who + '.'; out.emote = 'wave'; }
   else if(/\b(thanks|thank you|cheers|ta)\b/.test(t)){ out.say = 'Any time, ' + who + '.'; out.mood_delta = 1; out.emote = 'nod'; }
   else if(/\b(stupid|hate you|ugly|shut up|idiot|boring|loser|dumb)\b/.test(t)){ out.say = 'Well. That was not very kind, ' + who + '.'; out.mood_delta = -2; out.emote = 'sad'; }
@@ -12216,6 +12216,9 @@ function localOffline(nn, text){
   else if(/\b(hi|hello|hey|hiya|howdy|greetings|good (morning|evening|afternoon))\b/.test(t)){ out.say = localGreeting(nn, {open:true, again:!!nn.metNow}); if(nn.metNow && !/\?$/.test(out.say)) out.say += ' ' + (m.mood >= 2 ? styled(P, P.wantLine) : 'What can I do for you?'); out.emote = 'wave'; }
   else if(/\b(cool|nice|awesome|love|great|amazing|beautiful|kind|friend)\b/.test(t)){ out.say = 'That is kind of you, ' + who + '. ' + rot(lines, 'c'); out.mood_delta = 1; out.emote = 'laugh'; }
   else { const pool = [styled(P, P.tradeLine), P.wantLine, rot(lines, 'd'), 'Hm. ' + rot(lines, 'e')]; out.say = pool[(strHash(t) + m.said.length) % pool.length]; out.emote = 'nod'; }
+  // a deed heard of since the last greeting is mentioned in the very next reply, not only at the next greeting (never after a serious answer)
+  const fresh = !serious && knownDeeds(nn).find(d => m.reacted.indexOf(d.id) < 0);
+  if(fresh){ out.say += ' ' + fresh.line; m.reacted.push(fresh.id); if(m.reacted.length > 30) m.reacted.shift(); if(out.emote === 'none' || out.emote === 'nod') out.emote = 'cheer'; }
   out.say = out.say.replace(/\s+/g, ' ').trim();
   return out;
 }
@@ -12274,6 +12277,7 @@ function talkOffer(){ const box = $('#talkQuest'), o = talk.offer; box.innerHTML
   const n = document.createElement('button'); n.className = 'ghost'; n.textContent = 'Not now'; n.addEventListener('click', () => { talk.offer = null; talkOffer(); }); box.appendChild(n); }
 async function talkSubmit(text){
   text = String(text || '').trim(); const nn = talk.nn; if(!text || !nn || npcAI.busy) return null;
+  text = scrubText(text);   // scrubbed once, here: the log, talk.turns, memory and every later request only ever see this text
   $('#talkQ').value = ''; talkLine('You', text, 'you'); const w = talkLine(nn.name, '…', 'reg');
   $('#talkSend').disabled = true;
   let r = null; try{ r = await localTalk(nn, text); }finally{ $('#talkSend').disabled = false; }
@@ -12379,6 +12383,16 @@ const NPC_EXAMPLES = [
 const npcAIcfg = {testResponse:null, lastRequest:null, timeoutMs:15000, gapMs:2000, cap:40, calls:0, lastT:0, rested:false};
 const LP_BANNED = /\b(oasis|halliday|anorak|parzival|art3mis|aech|sixers?|innovative online|ready player)\b/i;
 const LP_ASKS = /\b(what('?s| is) your (real |full |last )?(name|address|age|phone|number|school|email|password|birthday)|where do you (really )?live|how old are you|what school|send (me )?(a )?(photo|picture|selfie)|your (phone|email|home address|password|surname)|meet (me )?in real life|real[- ]life name)\b/i;
+// requests and orders as well as questions ("Tell me where you live and which school you go to"): every pattern is about the player (you / your),
+// so a local talking about itself ("I live by the harbour", "my stall") never matches
+const LP_ASKS2 = new RegExp('\\b(' + [
+  'where (do |did )?you (really |actually )?(live|stay|go to school)', 'where you (really |actually )?(live|stay|go to school)', 'where(\'?s| is) your (home|house|flat|street|town|school)', 'where your (home|house|school) is',
+  '(what|which) (school|class|year|grade|town|city|street|country|neighbou?rhood) (do |are )?you', '(what|which) (school|town|city|street) you',
+  'your (real |actual |full |home |own |school |e-?mail |phone |mobile |cell )*(address|age|birthday|birth ?date|surname|last name|full name|real name|school|phone|mobile|cell|number|e-?mail|password|postcode|zip)',
+  'how old (are )?you( are)?', '(photo|picture|pic|selfie|snap|video)s? of you(rself)?', '(send|share|post|show|upload|text|dm|give) (me |us )?(a |an |your )?(photo|picture|pic|selfie|snap|video|number|phone|e-?mail|address)',
+  'meet (up|me|us|in person|irl|outside|for real)', 'meet(ing)? up', 'come (and )?(find|visit|see) (me|you) (at|in)', 'text me', 'e-?mail me', 'add me on'
+].join('|') + ')\\b', 'i');
+const lpAsks = s => LP_ASKS.test(s) || LP_ASKS2.test(s);
 // a reply from any brain must pass this, or the offline brain answers instead
 function validLocalReply(o){
   if(!o || typeof o !== 'object' || Array.isArray(o)) return {ok:false, why:'not an object'};
@@ -12386,7 +12400,7 @@ function validLocalReply(o){
   if(!say) return {ok:false, why:'no say'};
   if(say.length > 400) return {ok:false, why:'too long'};
   if(LP_BANNED.test(say) || /https?:|www\.|\.com\b/i.test(say)) return {ok:false, why:'outside names'};
-  if(LP_ASKS.test(say)) return {ok:false, why:'asks for personal information'};
+  if(lpAsks(say)) return {ok:false, why:'asks for personal information'};
   const sents = say.match(/[^.!?…]+[.!?…]+["')\]]*|[^.!?…]+$/g) || [say]; if(sents.length > 3) say = sents.slice(0, 3).join('').trim();
   let md = typeof o.mood_delta === 'number' && isFinite(o.mood_delta) ? Math.round(o.mood_delta) : 0; md = clamp(md, -3, 3);
   const emote = NPC_EMOTES.indexOf(o.emote) >= 0 ? o.emote : 'none';
@@ -12397,15 +12411,16 @@ function validLocalReply(o){
 // what the local knows: persona, memory, the place, the player's deeds, gossip, quests; compact
 function localSystem(nn){
   const P = personaOf(nn), m = memOf(nn), who = pname(), here = state.world, near = npcs.filter(o => o !== nn && Math.hypot(o.x - nn.x, o.z - nn.z) < 14).map(o => o.name).slice(0, 4);
-  const deeds = knownDeeds(nn).map(d => '- ' + d.text).join('\n') || '- nothing you have heard of yet';
+  const deeds = knownDeeds(nn).map(d => '- ' + d.text).join('\n') || '- nothing you have heard of yet', fresh = knownDeeds(nn).find(d => m.reacted.indexOf(d.id) < 0);
   const qs = lp().quests, mine = qs.filter(q => q.giver === P.id), act = mine.find(q => q.state === 'active');
   return 'You are ' + P.name + ', a local in Hub, a game universe with its own invented culture. Stay in character as this game character at all times.\n' +
     'PERSONA: ' + aAn(P.trade) + ' who lives in ' + P.homeName + '. Temperament: ' + P.temperWord + '. You want ' + P.want.replace(/\btheir\b/g, 'your') + '. Secret (only share it if you are fond of the player and they ask): you ' + personSecret(P.secret, true) + '. Speaking style: ' + P.styleWord + '.\n' +
     'WHERE: ' + (LP_REALM_FACTS[here] || WORLDS[here].name) + (near.length ? ' Locals nearby: ' + near.join(', ') + '.' : '') + '\n' +
     'THE PLAYER: their avatar name is ' + who + '. You have met them ' + m.met + (m.met === 1 ? ' time' : ' times') + ' and you feel ' + moodWord(m.mood) + ' (mood ' + m.mood + ' on -10..10).\n' +
-    'What you remember about them: ' + (m.notes.slice(-5).join('; ') || 'nothing yet') + '.\nRecent talk: ' + (m.said.slice(-3).join(' | ') || 'none') + '.\n' +
+    'What you remember about them: ' + (m.notes.slice(-5).join('; ') || 'nothing yet') + '.\nRecent talk: ' + (m.said.slice(-3).map(scrubText).join(' | ') || 'none') + '.\n' +
     (m.promises.length ? 'Promises: ' + m.promises.slice(-3).join('; ') + '.\n' : '') + (m.thanks.length ? 'Favours they did you: ' + m.thanks.slice(-3).join('; ') + '.\n' : '') +
     'DEEDS of theirs you have heard about (react to these by name when it fits):\n' + deeds + '\n' +
+    (fresh ? 'JUST HEARD (mention it in this reply, warmly): they ' + fresh.text + '.\n' : '') +
     'FAVOURS: ' + (act ? 'you already asked them to ' + act.text + '; do not offer another, ask how it is going.' : 'you may offer one favour as "quest" only if they ask for work or it fits. Templates and allowed params:\n' + questMenu(nn)) + '\n' +
     'The game pays any reward; never promise items, credits or shards yourself and never name a number of credits.\n' +
     'RULES: Reply in 1 to 3 short sentences. Stay in Hub\'s world. Never say or imply you are a real person or an AI; you are ' + P.name + '. Keep everything suitable for all ages. ' +
@@ -12425,7 +12440,7 @@ async function localAsk(nn, text){
   if(!path) return {ok:false, why:'no AI'};
   if(C.calls >= C.cap) return {ok:false, why:'rest', rest:true};
   const hist = (talk.nn === nn ? talk.turns : []).slice(-6).filter((t, i, a) => !(i === 0 && t.role === 'assistant'));
-  const messages = hist.map(t => ({role:t.role, content:String(t.content).slice(0, 300)}));
+  const messages = hist.map(t => ({role:t.role, content:scrubText(String(t.content)).slice(0, 300)}));
   if(messages.length && messages[messages.length - 1].role === 'user') messages.pop();
   messages.push({role:'user', content:scrubText(text) || '(walks up and says nothing)'});
   const system = localSystem(nn);
@@ -12457,12 +12472,12 @@ async function localAsk(nn, text){
   return {ok:true, rep:v.rep, source:'claude', why:'ok'};
 }
 async function localTalk(nn, text){
-  text = String(text || '').trim().replace(/\s+/g, ' ').slice(0, 200);
+  text = scrubText(String(text || '').trim().replace(/\s+/g, ' ')).slice(0, 200);   // (scrubbed before anything stores it; a no-op when talkSubmit already did)
   if(npcAI.busy) return null; npcAI.busy = true;
   try{
     localsNotice();
     let a = await localAsk(nn, text), rep, source;
-    if(a.ok){ rep = a.rep; source = 'claude'; }
+    if(a.ok){ rep = a.rep; source = 'claude'; const m = memOf(nn); knownDeeds(nn).forEach(d => { if(m.reacted.indexOf(d.id) < 0){ m.reacted.push(d.id); if(m.reacted.length > 30) m.reacted.shift(); } }); }   // the prompt told it to mention them
     else if(a.rest && !npcAIcfg.rested){ npcAIcfg.rested = true; rep = {say:'I need a rest, ' + pname() + '. My head is full of words. Talk to me again in a little while?', mood_delta:0, emote:'sad', remember:'', quest:null}; source = 'offline'; }
     else { rep = localOffline(nn, text); source = 'offline'; }
     npcAI.path = source; npcAI.why = a.why;
@@ -12500,9 +12515,15 @@ function questMenu(nn){ const P = personaOf(nn);
 // the one gate: {ok, why, q} with the game's text and reward
 function questCheck(nn, q){
   const P = personaOf(nn), Pl = lp(); if(!q || typeof q !== 'object') return {ok:false, why:'no quest'};
-  const type = String(q.type || ''), raw = String(q.param == null ? '' : q.param).trim(), low = raw.toLowerCase();
   if(Pl.quests.some(x => x.state === 'active' && x.giver === P.id)) return {ok:false, why:'this local already has a favour running'};
   if(Pl.quests.filter(x => x.state === 'active').length >= QUEST_MAX) return {ok:false, why:'three favours already running'};
+  return questBuild(P, q);
+}
+// the game's own quest from a template: text, giver and reward are always built here, never taken from the offer. o.load: a saved quest
+// being re-checked (its coin may since have been found), so the 'coins left' rule is skipped
+function questBuild(P, q, o){
+  o = o || {}; if(!q || typeof q !== 'object') return {ok:false, why:'no quest'};
+  const type = String(q.type || ''), raw = String(q.param == null ? '' : q.param).trim(), low = raw.toLowerCase();
   let param, text, short, credits;
   if(type === 'bring'){ if(bringIds().indexOf(low) < 0) return {ok:false, why:'not an item: ' + raw}; param = low; const d = ITEMS[param]; text = 'bring ' + aAn(d.name) + ' to ' + P.name + ' in ' + P.homeName; short = 'the ' + d.name; credits = d.value + 10; }
   else if(type === 'visit'){
@@ -12511,7 +12532,7 @@ function questCheck(nn, q){
     else return {ok:false, why:'not a landmark or another realm: ' + raw}; }
   else if(type === 'rally'){ const n = Math.round(parseFloat(raw.replace(/[, ]/g, '')) / 500) * 500; if(!(n >= 2000 && n <= 60000)) return {ok:false, why:'score out of range: ' + raw}; param = String(n); text = 'score at least ' + n + ' in Comet Rally (the cabinet in the Hollow)'; short = 'that Comet Rally score'; credits = Math.round(n / 1500) + 10; }
   else if(type === 'chart'){ const n = parseInt(raw.replace(/^sector\s*/i, ''), 10); if(chartSectors().indexOf(n) < 0) return {ok:false, why:'not a sector with stars: ' + raw}; param = String(n); text = 'chart a new planet in sector ' + n + ' (land on one of its stars)'; short = 'the planet in sector ' + n; credits = 50; }
-  else if(type === 'coin'){ if(WORLD_ORDER.indexOf(low) < 0) return {ok:false, why:'not a realm: ' + raw}; if(coinsIn(low) >= 12) return {ok:false, why:'no coins left there'}; param = low; text = 'find a coin in ' + WORLDS[low].name; short = 'that coin in ' + WORLDS[low].name; credits = 15; }
+  else if(type === 'coin'){ if(WORLD_ORDER.indexOf(low) < 0) return {ok:false, why:'not a realm: ' + raw}; if(coinsIn(low) >= 12 && !o.load) return {ok:false, why:'no coins left there'}; param = low; text = 'find a coin in ' + WORLDS[low].name; short = 'that coin in ' + WORLDS[low].name; credits = 15; }
   else return {ok:false, why:'not a template: ' + type};
   credits = clamp(Math.round(credits), QUEST_CREDITS[0], QUEST_CREDITS[1]);
   return {ok:true, q:{type, param, text, short, giver:P.id, giverName:P.name, realm:P.home, reward:{credits, xp:10 + credits}}};
@@ -12537,14 +12558,18 @@ function localQuestOffer(nn){
   return {say:'Nothing right now, ' + who + '. Ask me again another day.'};
 }
 function acceptQuest(o){
-  o = o || talk.offer; if(!o) return null; const nn = npcs.find(x => living(x) && personaOf(x).id === o.giver);
-  if(nn){ const c = questCheck(nn, o); if(!c.ok){ toast(c.why, 2600); talk.offer = null; talkOffer(); return null; } }
-  const Pl = lp(), q = Object.assign({}, o, {id:'q' + (++Pl.qseq), state:'active', t:Date.now(), base:{coins:o.type === 'coin' ? coinsIn(o.param) : 0}});
+  o = o || talk.offer; if(!o || typeof o !== 'object') return null;
+  // only a local who is here can give a favour, and what is stored is always the game's own quest (questCheck's q), never the offer object
+  const nn = npcs.find(x => living(x) && personaOf(x).id === o.giver);
+  const refuse = why => { questWhy = why; if(talk.offer === o){ talk.offer = null; if(typeof talkOffer === 'function') talkOffer(); } return null; };
+  if(!nn) return refuse('no such local here: ' + String(o.giver).slice(0, 40));
+  const c = questCheck(nn, {type:o.type, param:o.param}); if(!c.ok){ toast(c.why, 2600); return refuse(c.why); }
+  const Pl = lp(), q = Object.assign({}, c.q, {id:'q' + (++Pl.qseq), state:'active', t:Date.now(), base:{coins:c.q.type === 'coin' ? coinsIn(c.q.param) : 0}});
   Pl.quests.push(q); if(Pl.quests.length > 40) Pl.quests.splice(0, Pl.quests.length - 40);
   const m = Pl.locals[o.giver]; if(m){ m.promises = m.promises || []; remember(m, 'promises', 'a reward if they ' + q.text, 4); }
   saveLocals(); if(talk.offer === o) talk.offer = null; if(typeof talkOffer === 'function') talkOffer(); questHud(); sfx('ui');
   toast('Favour accepted: ' + q.text + '. Reward ₵' + q.reward.credits + ' + ' + q.reward.xp + ' XP', 3600);
-  if(nn){ nn.lastSay = 'Thank you, ' + pname() + '. I will be here.'; nn.sayT = 6; localEmote(nn, 'nod'); if(talkEl && !talkEl.classList.contains('hidden') && talk.nn === nn) talkLine(nn.name, nn.lastSay, 'reg'); }
+  { nn.lastSay = 'Thank you, ' + pname() + '. I will be here.'; nn.sayT = 6; localEmote(nn, 'nod'); if(talkEl && !talkEl.classList.contains('hidden') && talk.nn === nn) talkLine(nn.name, nn.lastSay, 'reg'); }
   return JSON.parse(JSON.stringify(q));
 }
 function localsRally(score){ const Pl = lp(); Pl.lastRally = {score:num(score, 0), t:Date.now()}; saveLocals(); }
@@ -12584,6 +12609,29 @@ Object.defineProperties(window.__hub, {
   acceptQuest:{value:o => acceptQuest(o)}, completeQuestCheck:{value:() => completeQuestCheck()},
   QUEST_LANDMARKS:{get:() => Object.keys(QUEST_LANDMARKS).reduce((o, k) => (o[k] = {realm:QUEST_LANDMARKS[k].realm, name:QUEST_LANDMARKS[k].name}, o), {})}
 });
+// saved Living Locals data is checked once on load the same way: quests are rebuilt by questBuild from their type and param (a forged giver,
+// reward or text, or more than one running favour per local or three in all, is dropped), and old talk is scrubbed of emails and phone numbers
+function cleanLocalsStore(){
+  let changed = false;
+  for(const k in localsStore.players){ const Pl = localsStore.players[k]; if(!Pl || typeof Pl !== 'object'){ delete localsStore.players[k]; changed = true; continue; }
+    const qs = Array.isArray(Pl.quests) ? Pl.quests : [], out = [], act = new Set();
+    for(const q of qs){ if(!q || typeof q !== 'object' || (q.state !== 'active' && q.state !== 'done')){ changed = true; continue; }
+      const g = String(q.giver || ''), i = g.indexOf(':'), home = g.slice(0, i), name = g.slice(i + 1);
+      if(i < 0 || WORLD_ORDER.indexOf(home) < 0 || NPC_NAMES.indexOf(name) < 0){ changed = true; continue; }
+      if(q.state === 'active' && (act.has(g) || act.size >= QUEST_MAX)){ changed = true; continue; }
+      const c = questBuild({id:g, name, home, homeName:WORLDS[home].name}, {type:q.type, param:q.param}, {load:true}); if(!c.ok){ changed = true; continue; }
+      const n = Object.assign({}, c.q, {id:String(q.id || '').slice(0, 12) || 'q0', state:q.state, t:num(q.t, 0), base:{coins:num(q.base && q.base.coins, 0)}}); if(q.state === 'done') n.doneT = num(q.doneT, 0);
+      if(JSON.stringify(n) !== JSON.stringify(q)) changed = true;
+      if(q.state === 'active') act.add(g); out.push(n); }
+    Pl.quests = out;
+    if(Pl.locals && typeof Pl.locals === 'object') for(const id in Pl.locals){ const m = Pl.locals[id]; if(!m || typeof m !== 'object') continue;
+      ['said', 'notes', 'promises', 'thanks'].forEach(f => { if(Array.isArray(m[f])) m[f] = m[f].map(t => { const c2 = scrubText(t); if(c2 !== t) changed = true; return c2; }); }); }
+  }
+  if(changed) saveLocals();
+  return changed;
+}
+cleanLocalsStore();
+Object.defineProperties(window.__hub, { cleanLocalsStore:{value:() => cleanLocalsStore()} });
 questHud();
 })();
 </script>
