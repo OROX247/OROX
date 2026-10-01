@@ -10423,7 +10423,7 @@ function sfx(name){
       case 'swing': noiseHit(900, 0.8, 0.16, 0.09, t, 260); break;
       case 'mhit': tone('square', 230, 110, 0.09, 0.05); noiseHit(1800, 1.2, 0.07, 0.07); break;
       case 'mdie': tone('triangle', 660, 110, 0.5, 0.09); noiseHit(700, 0.6, 0.5, 0.11, t, 120); break;
-      case 'mwind': if(w === 'grid') tone('sine', 300, 1700, 0.7, 0.045); else if(w === 'grove') tone('sawtooth', 70, 110, 0.5, 0.05); else noiseHit(500, 0.7, 0.55, 0.06, t, 1600); break;
+      case 'mwind': if(w === 'grid') tone('sine', 300, 1700, 0.7, 0.045); else if(w === 'grove') tone('sawtooth', 70, 110, 0.5, 0.05); else if(w === 'warfront'){ [0, 0.11, 0.22, 0.33].forEach(d => tone('square', 1900, 1750, 0.03, 0.03, t + d)); tone('sine', 260, 880, 0.8, 0.03); } else noiseHit(500, 0.7, 0.55, 0.06, t, 1600); break;
       case 'zap': tone('sawtooth', 1900, 180, 0.22, 0.06); noiseHit(4200, 1, 0.16, 0.07); break;
       case 'step': { const soft = w === 'dunes' || w === 'sky' || w === 'grove' || w === 'campus' || w === 'warfront'; noiseHit(soft ? 340 : w === 'grid' ? 2100 : 800, soft ? 0.7 : 2.5, soft ? 0.07 : 0.045, soft ? 0.045 : 0.035); break; }
     }
@@ -11787,8 +11787,15 @@ const MON = {
   grove:{kind:'stalker', name:'Grove Stalker', plural:'grove stalkers', verb:'drive off', hp:55, dmg:14, walk:2.0, run:6.0, aggro:14, leash:24, patrol:7, reach:2.3, wind:0.55, cool:1.9, xp:15, credits:[5, 11], rad:0.6, size:1, col:0x9dffb0,
     loot:[['stalker-thorn', 0.5], ['shade-pelt', 0.17], ['moonfang', 0.04]], gossip:'A grove stalker, and you drove it off with nothing but moonlight? The whole grove is whispering.'},
   sky:{kind:'harpy', name:'Sky Harpy', plural:'sky harpies', verb:'chase off', hp:35, dmg:9, walk:4.2, run:7.5, aggro:16, leash:34, patrol:15, reach:2.4, wind:0.6, cool:2.2, xp:8, credits:[3, 7], rad:0.8, size:1.4, col:0xbff4ff, fly:true,
-    loot:[['harpy-plume', 0.55], ['gale-quill', 0.17], ['sky-pearl', 0.04]], gossip:'They say you shooed a harpy off the isles. They only ever wanted the shiny things, you know.'}
+    loot:[['harpy-plume', 0.55], ['gale-quill', 0.17], ['sky-pearl', 0.04]], gossip:'They say you shooed a harpy off the isles. They only ever wanted the shiny things, you know.'},
+  // Goal 20: Warfront's clockwork sentries, three-legged training machines of brass and iron that still march their rounds. Ranged like the drones (they lock the
+  // spot and fire a flash of light, so stepping aside dodges it), slower on their legs; they lose you when you duck into a trench (trench), as the locals say.
+  warfront:{kind:'sentry', name:'Clockwork Sentry', plural:'clockwork sentries', verb:'wind down', hp:50, dmg:11, walk:1.5, run:3.3, aggro:17, leash:27, patrol:7, reach:8, wind:0.9, cool:2.5, xp:14, credits:[5, 11], rad:0.8, size:1.15, col:0xe8a04a,
+    ranged:true, trench:true, beam:0xffa040, beamCore:0xfff0d8,
+    loot:[['brass-cog', 0.5], ['mainspring', 0.17], ['sentry-key', 0.04]], gossip:'You wound down a clockwork sentry? They have been marching the Ember line since before the Long Match had a score.'}
 };
+// a monster that locks a spot and fires at it (the grid drone; any kind with ranged:true)
+const monRanged = D => D.kind === 'drone' || !!D.ranged;
 const MON_CAP = 8, MON_CORE_N = 5, MON_ACT = 95, MON_RESPAWN = 45, MON_CELL_RESPAWN = 75;
 // the player's attack, by the realm's rules: tech realms fire a pulse, magic-but-no-tech realms (Night Grove) cast a ward round you, anything else is a plain strike
 const ATK = {pulse:{label:'Pulse', cool:0.42, dmg:20, range:24}, ward:{label:'Moon Ward', cool:0.8, dmg:18, range:5}, strike:{label:'Strike', cool:0.5, dmg:16, range:2.7}};
@@ -11862,7 +11869,7 @@ function fxFlush(dt){
 function monBeamMake(){
   const geo = new THREE.CylinderGeometry(1, 1, 1, 10, 1, true), mk2 = (col, op) => { const m = new THREE.InstancedMesh(geo, new THREE.MeshBasicMaterial({color:C(col), transparent:true, opacity:op, depthWrite:false, blending:THREE.AdditiveBlending, toneMapped:false}), MON_CAP * 2);
     m.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(MON_CAP * 6).fill(1), 3); m.count = 0; m.frustumCulled = false; m.castShadow = false; m.layers.set(1); m.renderOrder = 6; mon.root.add(m); return m; };
-  return {core:mk2(0xffe6f4, 0.95), sheath:mk2(0xff4fa3, 0.4), n:0};
+  const D = mon.def || {}; return {core:mk2(D.beamCore != null ? D.beamCore : 0xffe6f4, 0.95), sheath:mk2(D.beam != null ? D.beam : 0xff4fa3, 0.4), n:0};
 }
 const _bA = new V3(), _bB = new V3(), _bQ = new THREE.Quaternion(), _bY = new V3(0, 1, 0), _bM = new THREE.Matrix4();
 function monBeam(ax, ay, az, bx, by, bz, w, b){
@@ -11977,7 +11984,7 @@ function monMove(m, tx, tz, sp, dt, face){
   if(moved < st * 0.25 && m.mode === 'patrol') m.wait = 0.2 + m.r(), m.tx = m.x, m.tz = m.z;   // stuck against something: pick another way
   return d;
 }
-const monCenterY = m => m.y + ({wraith:1.05 * m.D.size, drone:0, stalker:0.85, harpy:0, unit:1.05})[m.D.kind];
+const monCenterY = m => m.y + ({wraith:1.05 * m.D.size, drone:0, stalker:0.85, harpy:0, unit:1.05, sentry:1.0 * m.D.size})[m.D.kind];
 // the player's centre (chest height)
 const pCenter = () => p.y + 1.05;
 
@@ -11992,20 +11999,20 @@ function monThink(m, dt, canHunt){
   if(m.lunge > 0){ const k = Math.min(m.lunge, dt); m.lunge -= dt; const q = monBlock(m, m.x + m.lx * k, m.z + m.lz * k); m.x = q[0]; m.z = q[1]; }
   if(M.freeze){ m.speed *= 0.9; }
   else if(m.mode === 'patrol'){
-    if(canHunt && dP < D.aggro && dH < D.leash){ m.mode = 'chase'; m.aware = 1; }
+    if(canHunt && dP < D.aggro && dH < D.leash && !(D.trench && warHidden())){ m.mode = 'chase'; m.aware = 1; }
     else if(D.fly){ m.orb += dt * D.walk / D.patrol; const rr = D.patrol * (0.75 + 0.25 * Math.sin(m.t * 0.21 + m.ph)); monMove(m, m.sp.x + Math.cos(m.orb) * rr, m.sp.z + Math.sin(m.orb) * rr, D.walk, dt); ty = m.sp.y0 + Math.sin(m.t * 0.37 + m.ph) * 2.5; }
     else if(m.wait > 0){ m.wait -= dt; m.speed *= Math.exp(-dt * 6); }
     else if(monMove(m, m.tx, m.tz, D.walk, dt) < 0.4){ const a = m.r() * TAU, d = Math.sqrt(m.r()) * D.patrol; m.tx = m.sp.x + Math.cos(a) * d; m.tz = m.sp.z + Math.sin(a) * d; m.wait = 1 + m.r() * 3; }
   }
   else if(m.mode === 'chase'){
-    if(!canHunt || dH > D.leash || dP > D.aggro * 1.8){ m.mode = 'return'; }
+    if(!canHunt || dH > D.leash || dP > D.aggro * 1.8 || (D.trench && dP > 4 && warHidden())){ m.mode = 'return'; }
     else { if(d3 <= D.reach && m.cool <= 0){ m.mode = 'wind'; m.wind = 0; m.ax = p.x; m.az = p.z; m.ay = pCenter(); sfx('mwind'); }
-      else { const st = D.kind === 'drone' ? D.reach * 0.7 : D.reach * 0.7; if(dP > st) monMove(m, p.x, p.z, D.run, dt); else { m.speed *= Math.exp(-dt * 8); m.yaw = lerpAngle(m.yaw, Math.atan2(dx, dz), 1 - Math.exp(-dt * 8)); } }
+      else { const st = D.reach * 0.7; if(dP > st) monMove(m, p.x, p.z, D.run, dt); else { m.speed *= Math.exp(-dt * 8); m.yaw = lerpAngle(m.yaw, Math.atan2(dx, dz), 1 - Math.exp(-dt * 8)); } }
       if(D.fly) ty = p.y + 1.6; }
   }
   else if(m.mode === 'wind'){
-    m.wind += dt; m.speed *= Math.exp(-dt * 8); m.yaw = lerpAngle(m.yaw, Math.atan2(dx, dz), 1 - Math.exp(-dt * (D.kind === 'drone' ? 3 : 10)));
-    if(D.kind !== 'drone'){ m.ax = p.x; m.az = p.z; m.ay = pCenter(); }   // a drone keeps the spot it locked: step aside to dodge it
+    m.wind += dt; m.speed *= Math.exp(-dt * 8); m.yaw = lerpAngle(m.yaw, Math.atan2(dx, dz), 1 - Math.exp(-dt * (monRanged(D) ? 3 : 10)));
+    if(!monRanged(D)){ m.ax = p.x; m.az = p.z; m.ay = pCenter(); }   // a drone (or a sentry) keeps the spot it locked: step aside to dodge it
     if(D.fly) ty = p.y + 1.4;
     if(m.wind >= D.wind){ monStrike(m, canHunt); m.mode = 'recover'; m.rt = 0.5; m.cool = D.cool; }
   }
@@ -12013,7 +12020,7 @@ function monThink(m, dt, canHunt){
   else if(m.mode === 'flee'){ m.flee -= dt; const d = Math.max(dP, 0.1); monMove(m, m.x - dx / d * 10, m.z - dz / d * 10, D.run, dt); if(D.fly) ty = Math.max(m.y, p.y) + 7; if(m.flee <= 0) m.mode = 'return'; }
   else if(m.mode === 'return'){
     if(monMove(m, m.sp.x, m.sp.z, D.walk * 1.6, dt) < 1.5){ m.mode = 'patrol'; m.hp = m.max; m.wait = 0.5; }
-    else if(canHunt && dP < D.aggro * 0.5 && dH < D.leash * 0.6){ m.mode = 'chase'; }
+    else if(canHunt && dP < D.aggro * 0.5 && dH < D.leash * 0.6 && !(D.trench && warHidden())){ m.mode = 'chase'; }
     if(D.fly) ty = m.sp.y0;
   }
   // height
@@ -12023,7 +12030,7 @@ function monThink(m, dt, canHunt){
 // the blow: a lunge (wraith, stalker, harpy) or a zap at the locked spot (drone). Damage only through hurt(), only where the realm says danger.
 function monStrike(m, canHunt){
   const D = m.D; let hit = false;
-  if(D.kind === 'drone'){ m.zap = 0.22; sfx('zap');
+  if(monRanged(D)){ m.zap = 0.22; sfx('zap');
     const ok = Math.hypot(p.x - m.ax, p.z - m.az) < 1.25 && Math.abs(pCenter() - m.ay) < 1.6 && Math.hypot(p.x - m.x, p.z - m.z) < D.reach + 1.5;
     hit = ok; }
   else { const dx = p.x - m.x, dz = p.z - m.z, d = Math.hypot(dx, dz) || 1; m.lx = dx / d * (D.kind === 'stalker' ? 9 : 6); m.lz = dz / d * (D.kind === 'stalker' ? 9 : 6); m.lunge = D.kind === 'stalker' ? 0.24 : 0.16; sfx('swing');
@@ -12052,7 +12059,8 @@ function monDie(m){
   const M = mon, D = M.def; m.mode = 'dying'; m.die = 0; M.dead.set(m.id, simTime + (m.sp.core ? MON_RESPAWN : MON_CELL_RESPAWN));
   sfx('mdie'); const cy = monCenterY(m);
   const burst = {wraith:[[0xb08850, 70, {speed:4, size:0.1, life:1.2, grav:5, drag:1, dust:true}], [0xe0c494, 14, {speed:1.5, size:0.7, life:1.4, grav:-0.3, op:0.3, dust:true}], [0xffb347, 18, {speed:2, size:0.2, life:0.7, grav:0}]], drone:[[0xff4fa3, 30, {speed:6, size:0.12, life:0.6, grav:6}], [0x5ce1e6, 16, {speed:4, size:0.16, life:0.5}], [0xffe6f4, 10, {speed:2, size:0.35, life:0.25, grav:0}]],
-    stalker:[[0x9dffb0, 30, {speed:3, size:0.14, life:1, grav:-0.5, drag:2}], [0x2c3a2c, 30, {speed:3, size:0.1, life:0.8, grav:3, op:0.5}]], harpy:[[0xf4f8ff, 40, {speed:3, size:0.16, life:1.8, grav:0.6, drag:2.5, dust:true}], [0xbff4ff, 12, {speed:2, size:0.2, life:0.6, grav:0}]]}[D.kind];
+    stalker:[[0x9dffb0, 30, {speed:3, size:0.14, life:1, grav:-0.5, drag:2}], [0x2c3a2c, 30, {speed:3, size:0.1, life:0.8, grav:3, op:0.5}]], harpy:[[0xf4f8ff, 40, {speed:3, size:0.16, life:1.8, grav:0.6, drag:2.5, dust:true}], [0xbff4ff, 12, {speed:2, size:0.2, life:0.6, grav:0}]],
+    sentry:[[0xe8a04a, 26, {speed:5, size:0.12, life:0.6, grav:6}], [0x6a645c, 18, {speed:1.4, size:0.6, life:1.3, grav:-0.6, op:0.35, dust:true}], [0xfff0d8, 10, {speed:2, size:0.3, life:0.3, grav:0}]]}[D.kind];
   burst.forEach(b => fxBurst(m.x, cy, m.z, b[1], b[0], b[2]));
   // the count, the deed and the reward (XP now, credits and loot from the drop)
   const K = state.kills; K.n++; K.by[M.key] = monKills(M.key) + 1; if(!K.first) K.first = {realm:M.key, t:Date.now()};
@@ -12374,6 +12382,46 @@ const MON_KITS = {
       [1, -1].forEach(s => { const I = mx(_k2, R0, s * 0.12, 0.08, 0.12, 0, -s * sweep, s * inA); monPut(K, s > 0 ? 'wingInR' : 'wingInL', 0, I, fl);
         monPut(K, s > 0 ? 'wingOutR' : 'wingOutL', 0, mx(_k3, I, s * 0.93, 0.0, 0.0, 0, -s * sweep * 0.8, s * outA), fl); });
       monPut(K, 'tail', 0, mx(_k1, R0, 0, 0.02, -0.5, -0.1 + pitch * 0.3, bank * 0.4, 0, 1, 1, 1), fl);
+    };
+    return K;
+  },
+  // Clockwork sentry (Goal 20, Warfront): a squat iron barrel with brass bands on three jointed legs, a signal lamp for an eye and a big brass winding key turning
+  // in its back. A training machine: its "shot" is a flash of light from the lamp at the spot it locked.
+  sentry(){
+    const K = {parts:{}};
+    const ironM = std(0x3a3632, {metalness:0.7, roughness:0.48, map:detailTex, normalMap:detailNormal, normalScale:new V2(0.3, 0.3)}), brassM = std(0xc29a52, {metalness:1, roughness:0.32});
+    const lampM = new THREE.MeshBasicMaterial({color:C(0xffc070), toneMapped:false}), glassM = std(0x2a1a0a, {roughness:0.05, metalness:0.2});
+    const body = monLathe([[0.001, -0.36], [0.3, -0.34], [0.42, -0.2], [0.45, 0.05], [0.42, 0.26], [0.3, 0.36], [0.001, 0.37]], 28);
+    const housing = monAt(new THREE.CylinderGeometry(0.15, 0.17, 0.2, 20).rotateX(Math.PI / 2), 0, 0.1, 0.43);
+    const vents = []; for(let k = 0; k < 4; k++) vents.push(monAt(new THREE.BoxGeometry(0.03, 0.12, 0.02), -0.3 + k * 0.06, -0.08, 0.41));
+    monPart(K, 'body', merge([body, housing].concat(vents)), ironM);
+    const bands = [new THREE.TorusGeometry(0.452, 0.025, 8, 48).rotateX(Math.PI / 2).translate(0, 0.05, 0), new THREE.TorusGeometry(0.4, 0.022, 8, 48).rotateX(Math.PI / 2).translate(0, -0.22, 0),
+      new THREE.SphereGeometry(0.22, 20, 10, 0, TAU, 0, Math.PI / 2).translate(0, 0.33, 0), new THREE.TorusGeometry(0.17, 0.02, 8, 32).translate(0, 0.1, 0.53), new THREE.CylinderGeometry(0.012, 0.012, 0.5, 6).translate(0.16, 0.65, -0.1)];
+    for(let k = 0; k < 16; k++){ const a = k / 16 * TAU; bands.push(new THREE.SphereGeometry(0.016, 6, 4).translate(Math.sin(a) * 0.455, 0.05, Math.cos(a) * 0.455)); }
+    monPart(K, 'brass', merge(bands), brassM);
+    monPart(K, 'lens', new THREE.CircleGeometry(0.13, 24).translate(0, 0.1, 0.535), lampM, 1, {cast:false});
+    monPart(K, 'glass', new THREE.SphereGeometry(0.14, 20, 10, 0, TAU, 0, Math.PI / 2).rotateX(Math.PI / 2).scale(1, 1, 0.45).translate(0, 0.1, 0.53), glassM, 1, {cast:false});
+    // the winding key: a shaft out of the back and a two-lobed bow, turning about the shaft
+    monPart(K, 'key', merge([new THREE.CylinderGeometry(0.03, 0.03, 0.22, 10).rotateX(Math.PI / 2).translate(0, 0, -0.11), new THREE.TorusGeometry(0.1, 0.028, 8, 24).translate(0.11, 0, -0.24), new THREE.TorusGeometry(0.1, 0.028, 8, 24).translate(-0.11, 0, -0.24), new THREE.BoxGeometry(0.1, 0.05, 0.05).translate(0, 0, -0.24)]), brassM);
+    const Lt = 0.55, Ls = 0.44;
+    monPart(K, 'thigh', merge([new THREE.CylinderGeometry(0.055, 0.045, Lt, 10).translate(0, -Lt / 2, 0), new THREE.SphereGeometry(0.075, 12, 8)]), ironM, 3);
+    monPart(K, 'shin', merge([new THREE.CylinderGeometry(0.045, 0.03, Ls, 10).translate(0, -Ls / 2, 0), new THREE.SphereGeometry(0.062, 12, 8)]), brassM, 3);
+    monPart(K, 'foot', new THREE.CylinderGeometry(0.1, 0.13, 0.05, 14).translate(0, 0.025, 0), ironM, 3);
+    const emberC = fxC(0xffa040), hotC = fxC(0xfff0d8);
+    K.pose = (m, time) => {
+      const D = m.D, S = D.size * m.sc, w = m.mode === 'wind' ? smooth(0, D.wind, m.wind) : 0, k = Math.min(1, m.speed / 1.2), ph = time * 7.5 + m.ph;
+      const bob = Math.abs(Math.sin(ph)) * 0.035 * k, pitch = Math.min(0.12, m.speed * 0.04) - w * 0.1, roll = clamp(-(m.turn || 0) * 0.04, -0.15, 0.15) + (m.hit > 0 ? Math.sin(m.t * 60) * 0.12 : 0);
+      const R0 = mx(_k0, null, m.x, m.y + (0.98 + bob) * S, m.z, pitch, m.yaw, roll, S), fl = 1 + m.flash * 1.6;
+      monPut(K, 'body', 0, R0, fl); monPut(K, 'brass', 0, R0, fl); monPut(K, 'glass', 0, R0, fl);
+      monPut(K, 'lens', 0, R0, 0.6 + 0.2 * Math.sin(m.t * 2 + m.ph) + w * 2.5 + m.zap * 5 + (m.mode === 'chase' ? 0.5 : 0));
+      monPut(K, 'key', 0, mx(_k1, R0, 0, 0.12, -0.36, 0, 0, m.t * (m.mode === 'wind' ? 9 : 1.6)), fl);
+      for(let i = 0; i < 3; i++){ const a = i / 3 * TAU + Math.PI / 3, lift = Math.max(0, Math.sin(ph + i * 2.094)) * k, t1 = 0.75 - 0.22 * lift, t2 = 0.12 + 0.4 * lift;
+        const L0 = mx(_k2, R0, Math.sin(a) * 0.34, -0.22, Math.cos(a) * 0.34, 0, a, 0), T = mx(_k3, L0, 0, 0, 0, -t1, 0, 0);
+        monPut(K, 'thigh', i, T, fl); const Kn = mx(_k4, T, 0, -Lt, 0, t1 - t2, 0, 0); monPut(K, 'shin', i, Kn, fl); monPut(K, 'foot', i, mx(_k5, Kn, 0, -Ls, 0, t2, 0, 0), fl); }
+      wp(R0, 0, 0.1, 0.6); const ex = _kv.x, ey = _kv.y, ez = _kv.z;
+      fxDot(ex, ey, ez, (0.35 + w * 0.6) * S, w > 0.6 ? hotC : emberC, 0.55 + w * 0.4);
+      if(w > 0 && m.hostile) monBeam(ex, ey, ez, m.ax, m.ay, m.az, 0.015 + w * 0.02, 0.25 + w * 0.6);
+      if(m.zap > 0){ const z2 = m.zap / 0.22; monBeam(ex, ey, ez, m.ax, m.ay, m.az, 0.09 * z2 + 0.02, 1.4 * z2 + 0.2); fxDot(m.ax, m.ay, m.az, 0.9 * z2, hotC, z2); }
     };
     return K;
   }
@@ -15496,6 +15544,9 @@ function warUpdate(dt, time){
   if(!war || state.world !== 'warfront') return;
   for(const f of war.flashes){ const u = (time + f.ph) % f.per, a = Math.exp(-u * 7) + (f.double ? 0.7 * Math.exp(-Math.abs(u - 0.32) * 12) * (u > 0.3 ? 1 : 0) : 0); f.s.material.opacity = Math.min(1, a * f.k); }
 }
+// down in a trench (cut more than 1.3 m deep where you stand, and on its floor): a clockwork sentry cannot see you. Warfront's own rule, as the locals say:
+// keep your head below the sandbags. Only monsters with trench:true (MON.warfront) read it.
+function warHidden(){ if(state.world !== 'warfront' || !warMemo || pocketIn()) return false; const g = G(p.x, p.z); return _wCut > 1.3 && p.y < g + 0.6; }
 // no boundaries (Goal 8a rule, Goal 20): past the core the battlefield goes on for ever in the same style: shell holes (in the heights, a pure function of a
 // 36 m grid), shattered towers on the ridges, sandbag breastworks, runs of wire, split stumps, puddles and the two sides' banners (Tidewall to the north)
 ENDLESS.warfront = {
