@@ -8504,12 +8504,21 @@ const ITEMS = {
   'dreamglass':     {name:'Dreamglass Lens', rarity:'rare', value:60, shape:'orb', col:0xb18cff, desc:'Hold it up (G) and a round window shows the live AI dream of the world. Needs the downloaded game and a Decart key.', use(){ dgLens(!dg.lens); return false; }},
   'fuel-cell':      {name:'Fuel Cell', rarity:'common', value:4, shape:'coil', col:0xffb020, desc:'Fills the hoverbike tank.', use(){
     if(state.fuel >= FUEL_MAX - 0.5){ toast('The hoverbike tank is already full. The cell stays in your bag.', 2200); return false; }
-    state.fuel = FUEL_MAX; fuelWarned = false; fuelShown = -1; fuelHud(); sfx('boost'); toast('Hoverbike tank refilled', 2200); return true; }}
+    state.fuel = FUEL_MAX; fuelWarned = false; fuelShown = -1; fuelHud(); sfx('boost'); toast('Hoverbike tank refilled', 2200); return true; }},
+  // Goal 20: Warfront. Field pickups, the clockwork sentries' loot (MON.warfront) and Signal Run's first-clear prize; added last so every earlier id keeps its place
+  'match-token':    {name:'Long Match Token', rarity:'common', value:5, shape:'coil', col:0xc9a46a, desc:'A brass token from the Long Match. Both sides take it at the canteen.'},
+  'banner-scrap':   {name:'Banner Scrap', rarity:'common', value:6, shape:'chip', col:0xc0563a, desc:'Torn from an Ember Pact banner. The white flame is still bright.'},
+  'signal-lens':    {name:'Signal Lens', rarity:'uncommon', value:18, shape:'orb', col:0x7fe0d0, desc:'The lens of a Tidewall signal lamp, ground to throw one colour a long way.'},
+  'brass-cog':      {name:'Brass Cog', rarity:'common', value:5, shape:'coil', col:0xc8a050, desc:'A cog from a clockwork sentry. It still turns if you blow on it.'},
+  'mainspring':     {name:'Wound Mainspring', rarity:'uncommon', value:15, shape:'coil', col:0xd8c070, desc:'A sentry\'s mainspring, wound tight. It hums when you hold it.'},
+  'sentry-key':     {name:'Sentry Winding Key', rarity:'rare', value:42, shape:'chip', col:0xe0b060, desc:'The key that kept a clockwork sentry on its rounds. Nobody remembers who first wound them.'},
+  'match-ribbon':   {name:'Long Match Ribbon', rarity:'uncommon', value:20, shape:'gem', col:0xe0703a, desc:'Pinned on after Signal Run, for holding three beacons under fire.'}
 };
 // fixed, seeded pickups per realm (placed by addPickups with their own rng, so nothing else moves)
 const LOOT = {
   hub:['dock-token', 'beacon-lens'], dunes:['glass-bead', 'glass-bead', 'sunfire-opal'], grid:['grid-chip', 'grid-chip', 'pulse-core'],
-  grove:['glowcap', 'glowcap', 'moonwood-charm'], sky:['sky-feather', 'sky-feather', 'stormglass-idol']
+  grove:['glowcap', 'glowcap', 'moonwood-charm'], sky:['sky-feather', 'sky-feather', 'stormglass-idol'],
+  warfront:['match-token', 'banner-scrap', 'signal-lens']
 };
 function cleanInv(o){ const out = {}; for(const id in o) if(ITEMS[id]){ const n = Math.floor(num(o[id], 0)); if(n > 0) out[id] = ITEMS[id].rarity === 'artifact' ? 1 : Math.min(n, 999); } return out; }
 state.inv = cleanInv(state.inv);
@@ -8828,7 +8837,9 @@ const VENDOR_LOOK = {
   grid: {body:() => phys(0x0c0818, {roughness:0.15, metalness:0.5}), trim:() => glowM(0xff4fa3, 2.5), acc:0x5ce1e6, bg:'#05030c', shape:'box', top:'edges'},
   grove:{body:() => std(0x4a3526, {map:detailTex, roughness:0.92}), trim:() => std(0x2e4a2a, {roughness:1}), acc:0x7dffb0, bg:'#04140c', shape:'stump', top:'cap'},
   campus:{body:() => phys(0xefebe4, {roughness:0.3}), trim:() => std(0x23385e, {metalness:0.6, roughness:0.35}), acc:0x7fd0ff, bg:'#0a1830', shape:'box', top:'ring'},
-  sky:  {body:() => phys(0xf4f1ea, {roughness:0.25}), trim:() => std(0xffd166, {metalness:1, roughness:0.2}), acc:0x9fd0ff, bg:'#0b1a33', shape:'pillar', top:'crystal'}
+  sky:  {body:() => phys(0xf4f1ea, {roughness:0.25}), trim:() => std(0xffd166, {metalness:1, roughness:0.2}), acc:0x9fd0ff, bg:'#0b1a33', shape:'pillar', top:'crystal'},
+  // Warfront: a field supply locker, dark iron with riveted brass bands and an ember lamp on top
+  warfront:{body:() => std(0x3e3a34, {map:detailTex, normalMap:detailNormal, normalScale:new V2(0.4, 0.4), metalness:0.55, roughness:0.6}), trim:() => std(0xb08a4a, {metalness:1, roughness:0.35}), acc:0xe8a04a, bg:'#1a120c', shape:'box', top:'dome'}
 };
 const vendorsSeen = {};
 function vendorSpot(key){
@@ -9841,7 +9852,8 @@ const AI_PROMPTS = {
   grid:'Photorealistic real-life video. A futuristic city at night: a glossy black glass floor with glowing pink and cyan neon grid lines, black glass pyramids with neon edges, a stepped black tower, arcade machines, a huge orange and pink sun low on the horizon, purple sky. Wet reflections, true to life.',
   grove:'Photorealistic real-life video. A moonlit pine forest at night: dark grass, tall pine trees, large glowing pink, cyan and violet mushrooms, a still pond reflecting the moon, fireflies, snow-capped mountains far away, cold blue moonlight and mist. True to life.',
   campus:'Photorealistic real-life video. A sunny university campus in bright late morning: a white marble hall with tall fluted columns and a pediment, pale granite walkways across a mown green lawn, a round gymnasium with a glass dome, a dense green broadleaf wood to one side, clear blue sky with small white clouds. True to life.',
-  sky:'Photorealistic real-life drone video. A lush green floating island high above a sea of white clouds on a bright morning: soft grass with wildflowers, round leafy trees, grey rocks, small floating islands with rocky undersides, clear blue sky. True to life.'
+  sky:'Photorealistic real-life drone video. A lush green floating island high above a sea of white clouds on a bright morning: soft grass with wildflowers, round leafy trees, grey rocks, small floating islands with rocky undersides, clear blue sky. True to life.',
+  warfront:'Photorealistic real-life video. A vast muddy battlefield under a dramatic stormy sky at dusk: zigzag trenches lined with timber planks and sandbags, shell craters with rain puddles, loose wire on wooden posts, a ruined round stone keep with a broken crown inside crumbling walls, shattered stone towers on the horizon, rust-red and teal banners on poles, low golden sunlight breaking under heavy slate clouds, soft flashes of light inside the clouds. True to life. No people, no weapons.'
 };
 const AI_KEY = 'hub-decart-key', aiVid = $('#aiVideo');
 const ai = {on:false, busy:false, rt:null, ctx:null, stream:null, w:1280, h:704, fps:25, last:0};
@@ -9970,7 +9982,8 @@ const PHOTO_SLOTS = {
   dunes: { ground:[0xd9b27c, 'fine golden desert sand with gentle wind ripples'], rock:[0xb0714a, 'red sandstone rock surface with fine layers and cracks'] },
   grove: { ground:[0x2e4232, 'dark forest floor with pine needles, moss and short grass'], rock:[0x5a5f6b, 'dark grey granite with lichen and moss'] },
   sky:   { ground:[0x6aa444, 'bright green meadow grass with tiny white and yellow wildflowers'], rock:[0x7a6f66, 'brown weathered cliff rock with cracks'] },
-  campus:{ ground:[0x5a8a36, 'freshly mown green lawn grass'], plaza:[0xcfc7b8, 'light warm grey granite paving slabs in a running bond, a clean campus walkway'] }
+  campus:{ ground:[0x5a8a36, 'freshly mown green lawn grass'], plaza:[0xcfc7b8, 'light warm grey granite paving slabs in a running bond, a clean campus walkway'] },
+  warfront:{ ground:[0x4a3a2c, 'churned dark brown mud with small stones and dried puddle marks'], rock:[0x6f6a64, 'dark grey weathered rock with cracks'] }
 };
 const TEX_SUFFIX = '. Photographed straight down from above as a flat surface filling the whole frame, soft even daylight, no shadows, no horizon, no objects, photorealistic seamless texture, sharp natural detail.';
 const idb = (() => {
@@ -10066,7 +10079,9 @@ const PH_WANT = {
   'sky:ground':{want:['grass','meadow','lawn','flowers'], avoid:['dry','dead','path','road','snow','leaves','rock','mud','sand']},
   'sky:rock':{want:['cliff','rock','boulder'], avoid:['wall','brick','sand','floor','tiles','snow']},
   'campus:ground':{want:['grass','lawn','turf','meadow'], avoid:['dry','dead','path','road','snow','leaves','rock','mud','sand','flowers']},
-  'campus:plaza':{want:['paving','pavement','slabs','stone floor','tiles'], avoid:['brick','wood','roof','wall','mossy','broken','old','dirty','mud','cobble']}
+  'campus:plaza':{want:['paving','pavement','slabs','stone floor','tiles'], avoid:['brick','wood','roof','wall','mossy','broken','old','dirty','mud','cobble']},
+  'warfront:ground':{want:['mud','muddy','dirt','soil','ground'], avoid:['grass','snow','sand','tiles','brick','leaves','moss','flowers','road','asphalt']},
+  'warfront:rock':{want:['rock','stone','boulder','cliff'], avoid:['wall','brick','moss','sand','floor','tiles','snow']}
 };
 let phIndex = null;
 async function phAssets(){
@@ -10352,6 +10367,14 @@ function chirps(){
     snd.timers.push(setTimeout(one, 2500 + Math.random() * 6000)); };
   snd.timers.push(setTimeout(one, 1500));
 }
+// Warfront's distant rumble: the Long Match scoring somewhere over the ridges (a low thump and its echo, now and then; its own rng, never Math.random)
+const boomR = rng(2901);
+function booms(){
+  const one = () => { if(state.world !== 'warfront' || !snd.ctx) return; const t = snd.ctx.currentTime, f = 48 + boomR() * 20, g = 0.05 + boomR() * 0.06;
+    try{ tone('sine', f, f * 0.55, 1.6, g, t, snd.amb); noiseHit(160 + boomR() * 120, 0.5, 1.8, g * 1.6, t, 60, snd.amb); if(boomR() < 0.5) noiseHit(120, 0.5, 1.4, g * 0.6, t + 0.35 + boomR() * 0.3, 50, snd.amb); }catch(e){}
+    snd.timers.push(setTimeout(one, 3500 + boomR() * 9000)); };
+  snd.timers.push(setTimeout(one, 2000));
+}
 function ambience(key){
   if(!snd.ctx) return; ambStop(); snd.world = key;
   if(key === 'hub'){ wind(160, 0.35, 0.07, 0.4); hum([55, 82.5], 220, 0.025, 0.3); }
@@ -10361,6 +10384,7 @@ function ambience(key){
   else if(key === 'sky'){ wind(900, 0.3, 0.13, 0.7); chirps(); }
   else if(key === 'ashfall'){ wind(220, 0.32, 0.09, 0.5); hum([41.2, 61.7], 140, 0.02, 0.3); }
   else if(key === 'campus'){ wind(240, 0.16, 0.07, 0.4); chirps(); }
+  else if(key === 'warfront'){ wind(340, 0.34, 0.12, 0.6); wind(120, 0.18, 0.05, 0.4); booms(); }
   else wind(300, 0.3, 0.1, 0.5);
 }
 function tone(type, f0, f1, dur, gain, t0, dest){
@@ -10401,7 +10425,7 @@ function sfx(name){
       case 'mdie': tone('triangle', 660, 110, 0.5, 0.09); noiseHit(700, 0.6, 0.5, 0.11, t, 120); break;
       case 'mwind': if(w === 'grid') tone('sine', 300, 1700, 0.7, 0.045); else if(w === 'grove') tone('sawtooth', 70, 110, 0.5, 0.05); else noiseHit(500, 0.7, 0.55, 0.06, t, 1600); break;
       case 'zap': tone('sawtooth', 1900, 180, 0.22, 0.06); noiseHit(4200, 1, 0.16, 0.07); break;
-      case 'step': { const soft = w === 'dunes' || w === 'sky' || w === 'grove' || w === 'campus'; noiseHit(soft ? 340 : w === 'grid' ? 2100 : 800, soft ? 0.7 : 2.5, soft ? 0.07 : 0.045, soft ? 0.045 : 0.035); break; }
+      case 'step': { const soft = w === 'dunes' || w === 'sky' || w === 'grove' || w === 'campus' || w === 'warfront'; noiseHit(soft ? 340 : w === 'grid' ? 2100 : 800, soft ? 0.7 : 2.5, soft ? 0.07 : 0.045, soft ? 0.045 : 0.035); break; }
     }
   }catch(e){}
 }
@@ -13657,7 +13681,10 @@ const LP_TRADES = {
     ['night-path guide', 'I walk travellers through the grove. The paths move when you are not looking.'], ['mushroom-choir singer', 'The mushrooms hum at night. I hum back. We are working on harmonies.']],
   sky:[['cloud cartographer', 'I map the clouds. By the time the map is dry, the clouds have moved. Job for life.'], ['chime tuner', 'I tune the little chimes on the lower isles. The big ones up top tune themselves.'],
     ['feather collector', 'I collect Skyglass Feathers. Whatever sheds them never lands.'], ['bridge-rope splicer', 'I splice the rope bridges. Do not look down. I never do.'],
-    ['wind reader', 'I read the wind. Today it says: hold on to your hat.'], ['isle-hopper courier', 'I carry letters from isle to isle with a boost and a prayer.']]
+    ['wind reader', 'I read the wind. Today it says: hold on to your hat.'], ['isle-hopper courier', 'I carry letters from isle to isle with a boost and a prayer.']],
+  warfront:[['trench warden', 'I sweep the duckboards in the Ember line. Every morning the mud puts itself back.'], ['scorekeeper', 'I chalk the Long Match score on the board by the portal. It has been three points in it for nine years.'],
+    ['banner mender', 'I sew the Ember Pact banners back together. The wind here has opinions.'], ['sentry winder', 'I used to wind the clockwork sentries. Then they learned to wind each other.'],
+    ['signal runner', 'I carry messages between the lines. Both sides tip well.'], ['wire stringer', 'I string the wire so it looks fierce and catches nobody. That is the whole job.']]
 };
 const LP_TEMPERS = {
   cheerful:{base:2, first:'Oh, hello! A new face!', word:'cheerful and quick to laugh'}, gruff:{base:-1, first:'Hm. Not seen you round here.', word:'gruff but fair'},
@@ -13695,7 +13722,8 @@ const LP_REALM_FACTS = {
   dunes:'Glass Dunes: a desert of glass and sandstone pillars under a hot sun; a buried chamber called the Hollow holds the Comet Rally cabinet; sand wraiths drift out on the open dunes.',
   grid:'Neon Grid: a neon city at night with laser sweepers on the plaza, out-of-order arcade cabinets, and The Drift, a zero-g dance club; grid drones patrol the streets.',
   grove:'Night Grove: a dark forest of glowing mushrooms, fireflies and lantern-lit paths; grove stalkers hunt between the pines.',
-  sky:'Sky Isles: floating islands joined by jumps and boosts; seven wind chimes hang on the highest isle; wild sky harpies wheel round the isles.'
+  sky:'Sky Isles: floating islands joined by jumps and boosts; seven wind chimes hang on the highest isle; wild sky harpies wheel round the isles.',
+  warfront:'Warfront: a battlefield planet where the war is a game, the Long Match between the Ember Pact (rust banners, a white flame) and the Tidewall Company (teal banners, three waves); trenches, wire and shell holes, the Old Bastion (a ruined keep you climb by the stair round its outside), clockwork sentries that still patrol, the Signal Run quest portal, and nobody is hurt for real: you zero out and walk back in.'
 };
 function strHash(t){ let h = 2166136261; t = String(t); for(let i = 0; i < t.length; i++) h = Math.imul(h ^ t.charCodeAt(i), 16777619); return h >>> 0; }
 const localId = nn => nn.home + ':' + nn.name;
@@ -14095,7 +14123,8 @@ const QUEST_LANDMARKS = {
   vault:{realm:'hub', name:'the vault in the Spaceport plaza', at:() => ({x:0, z:0, r:4})},
   hollow:{realm:'dunes', name:'the Hollow\'s door in the Glass Dunes', at:() => ({x:HOLLOW.x, z:HOLLOW.z, r:7})},
   drift:{realm:'grid', name:'The Drift in Neon Grid', at:() => ({x:DRIFT.x, z:DRIFT.z, r:DRIFT.r + 3})},
-  chimes:{realm:'sky', name:'the wind chimes on the highest isle of Sky Isles', at:() => chimes ? {x:chimes.x, z:chimes.z, r:5} : null}
+  chimes:{realm:'sky', name:'the wind chimes on the highest isle of Sky Isles', at:() => chimes ? {x:chimes.x, z:chimes.z, r:5} : null},
+  bastion:{realm:'warfront', name:'the top of the Old Bastion on Warfront', at:() => ({x:WAR.keep.x, z:WAR.keep.z, r:WAR.keep.r - 0.3})}   // inside the keep's footprint is only reachable on top of it
 };
 const QUEST_MAX = 3, QUEST_CREDITS = [10, 60];
 const bringIds = () => Object.keys(ITEMS).filter(id => ['artifact', 'epic'].indexOf(ITEMS[id].rarity) < 0 && id !== 'dreamglass');
