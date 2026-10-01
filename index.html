@@ -17409,6 +17409,70 @@ QM.swim = {
 // on the beach west of the bar, facing the boardwalk
 QPORTALS.saltlark = {kind:'swim', name:'Glowwater Ring Swim', x:-16.5, z:-0.5, face:[-16.5, -8], credits:45, xp:90, item:'snorkel-badge', col:0x5fd8e8,
   tag:'Swim through the seven glowing rings in order before the tide clock runs out. The next ring shines gold; if you miss one, just swim back through it.'};
+// ---- Saltlark Isle test hooks (Goal 20 part 3): the realm's facts, walks through the real update (stairs, fascia, pier, rails, bathing steps), the water
+// rule (wade, float, swim speed), the outskirts, the other realms' sums, one framed view
+const slPut = (x, z, y) => { p.x = x; p.z = z; p.y = y != null ? y : G(x, z); p.vy = 0; p.speed = 0; };
+function slWalk(route, n){ const out = []; for(const [x, z] of route){ const k = warWalkTo(x, z, n || 300, 0.35); out.push({to:[x, z], at:[+p.x.toFixed(2), +p.z.toFixed(2)], y:+p.y.toFixed(2), steps:k}); } return out; }
+// walk at a steady heading for n steps of 0.05 s and report the speed actually made good
+function slSwimSpeed(x, z, n){ slPut(x, z); const x0 = p.x, z0 = p.z; cam.yaw = Math.PI; keys.KeyW = true; for(let i = 0; i < (n || 60); i++) update(0.05, simTime); keys.KeyW = false;
+  return {from:[x, z], y:+p.y.toFixed(2), depth:+slDepth().toFixed(2), k:+slWadeK().toFixed(2), metresPerSecond:+(Math.hypot(p.x - x0, p.z - z0) / ((n || 60) * 0.05)).toFixed(2)}; }
+Object.defineProperties(window.__hub, {
+  saltlark:{get:() => { const W = WORLDS.saltlark, here = state.world === 'saltlark', ws = WORLD_ORDER.concat(HUNT_WORLDS), D = QPORTALS.saltlark;
+    return {name:W.name, sector:W.sector, sectorXYZ:sectorXYZ(W.sector), otherRealmsInSector:Object.keys(WORLDS).filter(k => k !== 'saltlark' && !WORLDS[k].custom && !WORLDS[k].planet && WORLDS[k].sector === W.sector), rules:Object.assign({}, W.rules), rulesText:rulesText(W),
+      fare:{fromHub:fare('hub', 'saltlark'), fromCampus:fare('campus', 'saltlark'), fromLampblack:fare('lampblack', 'saltlark'), fromWarfront:fare('warfront', 'saltlark'), toHub:fare('saltlark', 'hub')}, inWarpList:ws.indexOf('saltlark') >= 0, worldOrder:WORLD_ORDER.slice(), coinTotal:12 * WORLD_ORDER.length,
+      hubPortal:LATE_PORTALS.hub.filter(q => q.to === 'saltlark').map(q => ({x:q.x, z:q.z, built:state.world === 'hub' ? portals.some(o => o.to === q.to && o.late) : null})),
+      here, look:here ? {sky:hexStr(W.sky.top), horizon:hexStr(W.sky.horizon), sunDir:W.sky.dir, fog:W.fog, exposure:W.exposure, sea:!!(sl && sl.sea && sl.sea.isWater), seaLevel:SLK.sea, swimDepth:SLK.swim} : null,
+      core:here ? {coins:coins.length, coinIds:coins.map(c => c.id), npcs:npcs.map(n => ({name:n.name, living:living(n), trade:personaOf(n).trade})), pickups:pickups.map(q => q.id), vendor:vendor ? {x:vendor.x, z:vendor.z} : null,
+        returnPortal:portals.filter(q => q.to === 'hub').map(q => ({x:q.x, z:q.z})), huts:SLK.huts.length, palms:sl.palms, colliders:colliders.length, boxes:boxes.length, platforms:platforms.length, fall:sl.fall ? {x:+sl.fall.x.toFixed(1), z:+sl.fall.z.toFixed(1), lipY:+sl.fall.lip.y.toFixed(1)} : null, coreSum:coreSum()} : null,
+      life:here && sl.life ? {crabs:sl.life.crabs.length, fish:sl.life.fish.length, schools:sl.life.schools.length, boats:sl.life.boats.map(b => [+b.g.position.x.toFixed(1), +b.g.position.z.toFixed(1)]), gullFlocks:flyers.filter(f => f.kind === 'gull').length} : null,
+      monster:MON.saltlark ? MON.saltlark.kind : null, danger:W.rules.danger,
+      quest:D ? {kind:D.kind, name:D.name, x:D.x, z:D.z, credits:D.credits, xp:D.xp, item:D.item, built:here ? qpList.some(q => q.key === 'saltlark') : null, inQpOrder:QP_ORDER.indexOf('saltlark') >= 0, record:state.qp.saltlark || null,
+        favour:(() => { const nn = npcs.find(n => living(n)); if(!nn) return null; const ok = t => { try{ const r = questCheck(nn, {type:'portal', param:t}); return r.ok ? r.q.param : r.why; }catch(e){ return 'error ' + e.message; } }; return {byKey:ok('saltlark'), byName:ok('Glowwater Ring Swim'), byRealm:ok('Saltlark Isle')}; })()} : null,
+      vendorLook:!!VENDOR_LOOK.saltlark, loot:LOOT.saltlark, facts:LP_REALM_FACTS.saltlark, trades:(LP_TRADES.saltlark || []).map(t => t[0]), lines:LINES.saltlark.length, aiPrompt:!!AI_PROMPTS.saltlark, photoSlots:Object.keys(PHOTO_SLOTS.saltlark || {}), landmark:QUEST_LANDMARKS.lighthouse ? QUEST_LANDMARKS.lighthouse.name : null,
+      endless:here && endless ? {core:endless.style.core, cells:endless.chunks.size, tiers:endless.style.tiers.map(t => t.name)} : null}; }},
+  // walk the isle through the real update loop (stop the frame loop first): up the boardwalk's steps from the beach, into its fascia where there are no
+  // steps (it stops you), along the pier to the lighthouse, into the pier's rail, up the bathing steps out of the shallows; then the water rule
+  slPaths:{value:() => { if(state.world !== 'saltlark') return {error:'travel to saltlark first'}; const out = {}, Wk = SLK.walk;
+    slPut(2, 1.5); out.stairs = slWalk([[2, -8]]); out.stairsOk = Math.abs(p.y - Wk.y) < 0.01;
+    slPut(14, 0.5); out.fascia = slWalk([[14, -8]], 120); out.fasciaOk = p.z > Wk.z1 + 0.2 && p.y < Wk.y - 0.1;
+    slPut(-22, -8, Wk.y); out.pier = slWalk([[-22, 40], [-22, 89]], 600); out.pierOk = Math.abs(p.y - SLK.pier.y) < 0.01 && p.z > 86;
+    slPut(-22, 50, SLK.pier.y); out.rail = slWalk([[-30, 50]], 120); out.railOk = p.x > SLK.pier.x0 - 0.1 && Math.abs(p.y - SLK.pier.y) < 0.01;
+    slPut(-27.5, 31.2); out.bathFrom = {y:+p.y.toFixed(2), depth:+slDepth().toFixed(2)}; out.bath = slWalk([[-22, 31.2]], 200); out.bathOk = Math.abs(p.y - SLK.pier.y) < 0.01;
+    slPut(-22, 50, SLK.pier.y); out.jumpOff = (() => { cam.yaw = Math.atan2(p.x + 30, 0); keys.KeyW = true; jumpBuffer = 0.2; for(let i = 0; i < 40; i++){ if(i === 3 || i === 10) jumpBuffer = 0.2; update(0.05, simTime); } keys.KeyW = false; return {x:+p.x.toFixed(2), y:+p.y.toFixed(2), inWater:slDepth() > 0.5}; })();
+    out.water = {beach:slSwimSpeed(0, -24, 40), shelf:slSwimSpeed(8, 30, 40), lagoon:slSwimSpeed(SLK.lagoon.x, SLK.lagoon.z, 20), cove:slSwimSpeed(SLK.cove.x, SLK.cove.z, 10), deep:slSwimSpeed(10, 80, 60)};
+    out.waterOk = out.water.beach.k === 1 && out.water.shelf.depth > 0.3 && out.water.shelf.depth < SLK.swim && out.water.lagoon.depth <= SLK.swim && Math.abs(out.water.deep.y + SLK.swim) < 0.01 && out.water.deep.metresPerSecond < 3.2;
+    slPut(0, -18); return out; }},
+  // the water rule as a table: sea bed (hf), where you stand (G), how deep the water is there, and what you do (dry, wade, float)
+  slWater:{value:pts => { if(state.world !== 'saltlark') return {error:'travel to saltlark first'}; pts = pts || [[0, -18], [0, 10], [0, 30], [0, 60], [0, 120], [SLK.lagoon.x, SLK.lagoon.z], [SLK.cove.x, SLK.cove.z], [-22, 60], [300, 300]];
+    return pts.map(([x, z]) => { const b = hf(x, z), g = G(x, z), d = Math.max(0, SLK.sea - g); return {x, z, bed:+b.toFixed(2), stand:+g.toFixed(2), depth:+d.toFixed(2), mode:d < 0.05 ? 'dry' : g > b + 0.01 && d >= SLK.swim - 0.01 ? 'float' : 'wade'}; }); }},
+  // the outskirts: walk out, read a cell, go 1.8 km further and back, read it again; find dry land, a sandbar and open sea out there; the core's sum before and after
+  slEndless:{value:(x, z) => { if(state.world !== 'saltlark') return {error:'travel to saltlark first'}; window.__hub.teleport(0, -18); const c0 = coreSum(); x = x == null ? 620 : x; z = z == null ? 140 : z;
+    // find (from the heights alone) an island, a sandbar and open sea out there, then stand on the island
+    let isle = null, bar = null, sea = null; for(let r = 0; r < 900 && !(isle && bar && sea); r += 6) for(let a = 0; a < 24; a++){ const px = x + Math.cos(a / 24 * TAU) * r, pz = z + Math.sin(a / 24 * TAU) * r, h = hf(px, pz);
+      if(!isle && h > 1.0) isle = [+px.toFixed(1), +pz.toFixed(1), +h.toFixed(2)]; if(!bar && h > -0.5 && h < -0.3) bar = [+px.toFixed(1), +pz.toFixed(1), +h.toFixed(2)]; if(!sea && h < -4) sea = [+px.toFixed(1), +pz.toFixed(1), +h.toFixed(2)]; }
+    const at = isle || [x, z]; window.__hub.teleport(at[0], at[1]); const A = cellSum(), st = endless.slow.slice(-6), onIsle = {y:+p.y.toFixed(2), depth:+slDepth().toFixed(2), palmsNear:colliders.filter(c => Math.hypot(c.x - p.x, c.z - p.z) < 40).length};
+    window.__hub.teleport(at[0] + 1500, at[1] - 1000); window.__hub.teleport(at[0], at[1]); const B = cellSum();
+    const onBar = bar ? (window.__hub.teleport(bar[0], bar[1]), {y:+p.y.toFixed(2), depth:+slDepth().toFixed(2)}) : null, onSea = sea ? (window.__hub.teleport(sea[0], sea[1]), {y:+p.y.toFixed(2), depth:+slDepth().toFixed(2)}) : null;
+    window.__hub.teleport(0, -18); const c1 = coreSum();
+    return {cell:A, same:JSON.stringify(A) === JSON.stringify(B), cells:endless.chunks.size, slowSteps:st, isle, onIsle, sandbar:bar, onBar, openSea:sea, onSea, coreBefore:c0, coreAfter:c1, coreSame:JSON.stringify(c0) === JSON.stringify(c1)}; }},
+  // every other realm built once in this page (compare with the same call on another build; the full before/after uses the dump in the builder's scratchpad)
+  slOthers:{value:() => { const out = {}; for(const k of WORLD_ORDER.filter(w => w !== 'saltlark')){ try{ buildWorld(k); out[k] = {core:coreSum().world, coins:coins.map(c => c.id + '@' + c.g.position.x.toFixed(2) + ',' + c.g.position.z.toFixed(2)).join(';').length, npcs:npcs.map(n => n.name).join(','), pickups:pickups.map(q => q.pid).join(','), portals:portals.map(q => q.to).join(',')}; }catch(e){ out[k] = {error:e.message}; } } buildWorld('saltlark'); return out; }},
+  // frame the one screenshot: 'arrival' (default: the boardwalk, the Tidebell, the beach, the shallows, the pier and the lighthouse), 'pier', 'lighthouse', 'cove',
+  // 'lagoon', 'huts', 'fish' (looking down into the shallows at a school), 'quest' (the doorway), 'portal' (the Spaceport's portal, from the plaza)
+  slView:{value:what => { what = what || 'arrival'; let px, pz, tx, tz, pitch = 0.1, dist = 6.5, y = null;
+    if(what === 'portal'){ if(state.world !== 'hub') return {error:'travel to hub first'}; px = -6; pz = -15; tx = -14; tz = -31; dist = 6; }
+    else { if(state.world !== 'saltlark') return {error:'travel to saltlark first'};
+      if(what === 'pier'){ px = -14; pz = 6; tx = -22; tz = 93; pitch = 0.12; dist = 9; }
+      else if(what === 'lighthouse'){ px = -22; pz = 80; tx = -22; tz = 95; pitch = 0.3; dist = 7; y = SLK.pier.y; }
+      else if(what === 'cove'){ px = 27; pz = -42; tx = 37; tz = -58; pitch = 0.12; dist = 7; }
+      else if(what === 'lagoon'){ px = -30; pz = -22; tx = -48; tz = -30; pitch = 0.2; dist = 8; }
+      else if(what === 'huts'){ px = -10; pz = -2; tx = -22; tz = -12; pitch = 0.1; dist = 6; }
+      else if(what === 'fish'){ const s = sl.life && sl.life.schools[0]; if(s){ s.x = s.hx; s.z = s.hz; } px = s ? s.hx - 7 : 0; pz = s ? s.hz - 6 : 30; tx = s ? s.hx : 0; tz = s ? s.hz : 40; pitch = 0.75; dist = 5; }
+      else if(what === 'quest'){ const D = QPORTALS.saltlark; px = D.x + 1; pz = D.z - 7; tx = D.x; tz = D.z; pitch = 0.08; dist = 5; }
+      else { px = 0; pz = -18; tx = 0; tz = 30; pitch = 0.1; dist = 6.5; } }
+    slPut(px, pz, y); cam.yaw = Math.atan2(px - tx, pz - tz) + 0.1; p.facing = cam.yaw + Math.PI; cam.pitch = pitch; cam.dist = dist; cam.view = 0;
+    me.g.position.set(p.x, p.y, p.z); me.g.rotation.y = p.facing; snapCamera(); clipCamera(); renderer.shadowMap.needsUpdate = true; return {what, x:+p.x.toFixed(1), z:+p.z.toFixed(1), y:+p.y.toFixed(2)}; }}
+});
 })();
 </script>
 </body>
