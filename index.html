@@ -11911,6 +11911,39 @@ function chimeStep(S, n){
   const wrong = k !== S.k + 1; S.k = k; S.strikes++; if(wrong) S.wrongs++;
   return {n, k, wrong, won:k === O.length};
 }
+/* brushed metal for the chime tubes that reads with or without the environment map: a map with fine lengthwise streaks and a faint hue
+   (cool at the foot, a breath of warmth at the top), a matching roughness map so the sun's highlight runs along each tube as a broken line,
+   and a sky-and-sea reflection worked out in the shader (CHIME_FENV) that stands in for the environment map when there is none */
+let chimeTexC = null;
+const CHIME_FENV = {amt:{value:1}, top:{value:new THREE.Color(0x7fa9d6)}, bot:{value:new THREE.Color(0x3c4636)}, hor:{value:new THREE.Color(0xf3f1ea)}};
+const chimeFenvAmt = () => { CHIME_FENV.amt.value = scene.environment ? 0 : 1; };   // the stand-in only while there is no environment map
+function chimeTextures(){
+  if(chimeTexC) return chimeTexC;
+  return (chimeTexC = avQuiet(() => {   // its own rng for the uuids: the locals' wander draws from Math.random
+    const q = rng(1313), S = 256, st = new Float32Array(S);
+    for(let i = 0; i < S; i++) st[i] = q();
+    for(let k = 0; k < 3; k++) for(let i = 0; i < S; i++) st[i] = (st[i] + st[(i + 1) % S] + st[(i + S - 1) % S]) / 3 * 0.7 + st[i] * 0.3;   // streaks of a few pixels, tileable round the tube
+    const map = canvasTex(S, S, (x, w, h) => { const img = x.createImageData(w, h);
+      for(let yy = 0; yy < h; yy++){ const v = yy / h; for(let xx = 0; xx < w; xx++){ const o = (yy * w + xx) * 4, k = 0.9 + (st[xx] - 0.5) * 0.16 + (q() - 0.5) * 0.03;
+        img.data[o] = 255 * k * (0.96 + 0.05 * (1 - v)); img.data[o + 1] = 255 * k * (0.975 + 0.02 * (1 - v)); img.data[o + 2] = 255 * k * (1.0 - 0.03 * (1 - v)); img.data[o + 3] = 255; } }
+      x.putImageData(img, 0, 0); });
+    const rough = canvasTex(S, S, (x, w, h) => { const img = x.createImageData(w, h);
+      for(let yy = 0; yy < h; yy++) for(let xx = 0; xx < w; xx++){ const o = (yy * w + xx) * 4, r = 255 * clamp(0.3 + (st[xx] - 0.5) * 0.35 + (q() - 0.5) * 0.06, 0.14, 0.6); img.data[o] = img.data[o + 1] = img.data[o + 2] = r; img.data[o + 3] = 255; }
+      x.putImageData(img, 0, 0); }, false);
+    [map, rough].forEach(t => SHARED_TEX.add(t)); return {map, rough}; }));
+}
+function chimeFenv(sh){
+  Object.assign(sh.uniforms, {fenvAmt:CHIME_FENV.amt, fenvTop:CHIME_FENV.top, fenvBot:CHIME_FENV.bot, fenvHor:CHIME_FENV.hor});
+  sh.fragmentShader = 'uniform float fenvAmt;\nuniform vec3 fenvTop;\nuniform vec3 fenvBot;\nuniform vec3 fenvHor;\n' + sh.fragmentShader.replace('#include <lights_fragment_end>', `#include <lights_fragment_end>
+	if( fenvAmt > 0.0 ){
+		vec3 rW = inverseTransformDirection( reflect( -geometry.viewDir, geometry.normal ), viewMatrix );
+		// sky above, the isles and the cloud sea below, a bright horizon line, and broad light and dark bands round the compass (other isles,
+		// open sky), so a round tube shows the dark-and-light stripes of polished metal instead of one flat tone
+		float az = atan( rW.z, rW.x ), band = 0.35 + 0.65 * smoothstep( -0.35, 0.85, sin( az * 2.0 + 0.7 ) * 0.7 + sin( az * 5.0 + 2.1 ) * 0.3 );
+		vec3 sky = mix( fenvBot, fenvTop, smoothstep( -0.15, 0.5, rW.y ) ) * mix( 0.45, 1.0, band ) + fenvHor * 0.6 * band * exp( -abs( rW.y - 0.02 ) * 14.0 );
+		reflectedLight.indirectSpecular += fenvAmt * sky * material.specularColor * ( 1.0 - 0.6 * material.specularRoughness );
+	}`);
+}
 function buildChimes(){
   const I = platforms[CHIMES.isle], prev = platforms[CHIMES.isle - 1]; if(!I || !prev) return;
   // the frame stands on the far side of the isle from the one you jump up from; you face it with chime 1 (the longest) on your left
@@ -11939,10 +11972,11 @@ function buildChimes(){
     const lx = (i - (CHIMES.n - 1) / 2) * CHIMES.gap, cord = 0.1 + 0.03 * (i % 2);
     const pv = new THREE.Group(); pv.position.set(lx, B - 0.06, 0); g0.add(pv);
     const c = mk(cordG, iron, 0, -cord / 2, 0, pv); c.scale.y = cord; c.castShadow = false;
-    const mat = std(0xcfd6de, {roughness:0.26, metalness:0.85, side:THREE.DoubleSide, emissive:C(0x5ce1e6), emissiveIntensity:0});
+    const CT = chimeTextures(), mat = std(0xbfc7d1, {roughness:1, metalness:0.88, map:CT.map, roughnessMap:CT.rough, side:THREE.DoubleSide, emissive:C(0x5ce1e6), emissiveIntensity:0});
+    mat.onBeforeCompile = chimeFenv;   // one shared function: the seven tubes share one program
     const tube = mk(new THREE.CylinderGeometry(CHIMES.rad, CHIMES.rad, L, 28, 1, true), mat, 0, -cord - L / 2, 0, pv);
     mk(new THREE.TorusGeometry(CHIMES.rad * 0.72, 0.004, 6, 20), iron, 0, -cord - 0.03, 0, pv).rotation.x = Math.PI / 2;   // the pin the cord goes through
-    tube.userData.chime = i;
+    tube.userData.chime = i; tube.onBeforeRender = chimeFenvAmt;
     chimes.tubes.push({i, n:i + 1, hz, L, lx, cord, pv, tube, mat, ring:0, ringT:9, ph:i * 1.7 + 0.4, w:Math.sqrt(9.8 / (cord + L / 2))});
   }
   // stand-in solid so you walk up to the chimes rather than through them (the camera is not stopped by it)
