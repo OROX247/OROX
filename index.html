@@ -14346,7 +14346,7 @@ const ART_SHELL = {
     'void main(){ float f = 1.0 - abs(dot(normalize(vN), normalize(vV))); f = f * f * (3.0 - 2.0 * f); f = pow(f, 1.6);\n' +
     '  float rings = smoothstep(0.9, 1.0, sin(vY * ripple - t * 2.4) * 0.5 + 0.5);\n' +
     '  float rim = smoothstep(0.035, 0.0, vY) * 1.5;\n' +
-    '  float a = (0.035 + f * 0.75 + rings * (0.12 + 0.5 * f) + rim) * op + flash * (0.18 + 0.9 * f);\n' +
+    '  float a = (0.01 + f * 0.6 + rings * (0.05 + 0.4 * f) + rim) * op + flash * (0.12 + 0.8 * f);\n' +
     '  gl_FragColor = vec4(col * a, 1.0); }'
 };
 function artShell(col, ripple){ return new THREE.ShaderMaterial({uniforms:{col:{value:C(col)}, t:{value:0}, op:{value:1}, flash:{value:0}, ripple:{value:ripple == null ? 60 : ripple}}, vertexShader:ART_SHELL.vertexShader, fragmentShader:ART_SHELL.fragmentShader,
@@ -14439,8 +14439,9 @@ function artUnfound(o){
 }
 // the lamp: up to 16 pillars of light (one shared geometry, a material per colour), re-aimed twice a second
 const ART_BEAM = {
-  vertexShader:'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
-  fragmentShader:'uniform vec3 col; uniform float op, t; varying vec2 vUv; void main(){ float y = vUv.y; float a = pow(1.0 - y, 1.7) * smoothstep(0.0, 0.03, y); float s = 0.8 + 0.2 * sin(vUv.x * 37.7 + t * 1.3) * sin(vUv.x * 18.85 - t * 0.7); gl_FragColor = vec4(col * a * s * op, 1.0); }'
+  // soft at the silhouette (a light beam has no hard side): the part of the tube facing you is brightest, its edges fade to nothing
+  vertexShader:'varying vec2 vUv; varying vec3 vN; varying vec3 vV; void main(){ vUv = uv; vec4 mv = modelViewMatrix * vec4(position, 1.0); vN = normalize(normalMatrix * normal); vV = -mv.xyz; gl_Position = projectionMatrix * mv; }',
+  fragmentShader:'uniform vec3 col; uniform float op, t; varying vec2 vUv; varying vec3 vN; varying vec3 vV; void main(){ float y = vUv.y; float face = abs(dot(normalize(vN), normalize(vV))); float a = pow(1.0 - y, 2.2) * smoothstep(0.0, 0.03, y) * pow(face, 2.5); float s = 0.8 + 0.2 * sin(vUv.x * 37.7 + t * 1.3) * sin(vUv.x * 18.85 - t * 0.7); gl_FragColor = vec4(col * a * s * op, 1.0); }'
 };
 const artBeamMat = (col, op) => new THREE.ShaderMaterial({uniforms:{col:{value:C(col)}, op:{value:op == null ? 1 : op}, t:{value:0}}, vertexShader:ART_BEAM.vertexShader, fragmentShader:ART_BEAM.fragmentShader, transparent:true, depthWrite:false, side:THREE.DoubleSide, blending:THREE.AdditiveBlending, fog:false});
 function artLampScan(){
@@ -14493,7 +14494,8 @@ function artRow(id){
   const d = ITEMS[id], A = ART[id], row = itemRow(id, 'div', ''); row.classList.add('art'); row.querySelector('.ico').className = 'ico art';
   const nm = row.querySelector('.nm'), rar = nm.querySelector('.rar'); rar.outerHTML = '<span class="badge">Artifact</span>';
   const pw = document.createElement('span'); pw.className = 'pw'; const left = artCdLeft(id);
-  pw.textContent = 'Power: ' + A.power + (A.key ? ' (' + artKeyName(id) + ')' : '') + ' · ' + A.effect.replace(/^[A-Z]: /, ''); nm.insertBefore(pw, nm.querySelector('small'));
+  pw.textContent = 'Power: ' + A.power + (A.key ? ' · key ' + artKeyName(id) + ' · ' + A.dur + ' s, then rests ' + artClockFmt(A.cd) : ' · works by itself'); nm.insertBefore(pw, nm.querySelector('small'));
+  nm.querySelector('small').textContent = A.effect.replace(/^([A-Z]|Works by itself): /, ''); row.title = d.desc;   // what it does in the row; the lore in the tooltip (and on the reveal card)
   const v = row.querySelector('.val'); v.innerHTML = '<small style="display:block;color:#b9b2e0;font-size:11px">appraised ₵' + d.value + ' · not for sale</small>';
   if(A.key){ const b = document.createElement('button'); b.className = 'use'; b.textContent = left > 0 ? 'Rests ' + artClockFmt(left) : 'Use'; b.disabled = left > 0; b.addEventListener('click', () => { closeInventory(); artUse(id, 'bag'); }); v.appendChild(b); }
   else { const s = document.createElement('b'); s.textContent = 'Works by itself'; s.style.cssText = 'font-size:12px;color:#8ff5e0'; v.appendChild(s); }
@@ -14587,8 +14589,8 @@ function artReveal0(id){
   const mg = new THREE.BufferGeometry(); mg.setAttribute('position', new THREE.BufferAttribute(pos, 3));
   const motes = new THREE.Points(mg, new THREE.PointsMaterial({map:glowTex, color:C(0xffe2a0), size:0.07, transparent:true, opacity:0, blending:THREE.AdditiveBlending, depthWrite:false, fog:false})); motes.frustumCulled = false; motes.position.y = 1.1; g.add(motes);
   // the artifact itself, with its own glow
-  const art = artModel(id); art.position.y = 1.62; art.scale.setScalar(0.001); g.add(art);
-  const halo = glow(art.userData.glow || col, 1.6, 0, 1.62, 0, g, 0);
+  const art = artModel(id); art.position.y = 1.8; art.scale.setScalar(0.001); g.add(art);
+  const halo = glow(art.userData.glow || col, 2.2, 0, 1.8, 0, g, 0);
   g.traverse(o => { if(o.isPoints || o.isSprite || o.material && o.material.isShaderMaterial) o.userData.noAO = true; });
   artRt.reveal = {id, g, plinth, disc, shaft, motes, base, art, halo, t:0, world:state.world, x, z, fy};
   return artRt.reveal;
@@ -14600,16 +14602,17 @@ function artRevealStep(dt){
   if(!artRt.hold) R.t += dt; const t = R.t, E = ART_REVEAL, e = smooth(0, E.rise, t), out = smooth(E.hold, E.fly, t), gone = smooth(E.fly - 0.3, E.end, t);
   R.plinth.position.y = -1.2 * (1 - e) - 1.2 * gone;
   R.disc.material.uniforms.op.value = e * (1 - gone); R.disc.material.uniforms.t.value = artRt.clock;
-  R.shaft.material.uniforms.op.value = 0.55 * smooth(0.3, 1.4, t) * (1 - out); R.shaft.material.uniforms.t.value = artRt.clock;
+  R.shaft.material.uniforms.op.value = 0.42 * smooth(0.3, 1.4, t) * (1 - out); R.shaft.material.uniforms.t.value = artRt.clock;
   R.motes.material.opacity = 0.85 * smooth(0.4, 1.4, t) * (1 - out);
   const pa = R.motes.geometry.attributes.position; R.base.forEach((b, i) => { const y = (b[1] + artRt.clock * b[3]) % 3.2; pa.setXYZ(i, b[0] * (1 + y * 0.1), y, b[2] * (1 + y * 0.1)); }); pa.needsUpdate = true;
-  const s = 1.55 * smooth(0.5, 1.5, t) * (1 - 0.85 * out), A = R.art; A.scale.setScalar(Math.max(0.001, s)); A.rotation.y = artRt.clock * 0.9;
+  const s = 2.4 * smooth(0.5, 1.5, t) * (1 - 0.9 * out), A = R.art; A.scale.setScalar(Math.max(0.001, s)); A.rotation.y = artRt.clock * 0.9;
   if(A.userData.spin) A.userData.spin.rotation.set(artRt.clock * 1.7, artRt.clock * 1.1, 0);
   if(A.userData.needle) A.userData.needle.rotation.y = Math.sin(artRt.clock * 1.3) * 2.2;
-  const hy = 1.62 + Math.sin(artRt.clock * 1.6) * 0.05;
+  const hy = 1.8 + Math.sin(artRt.clock * 1.6) * 0.05;
   // flying home: from above the plinth to your chest
   const wx = lerp(0, p.x - R.x, out), wy = lerp(hy, p.y + 1.2 - R.fy, out), wz = lerp(0, p.z - R.z, out); A.position.set(wx, wy, wz);
-  R.halo.position.copy(A.position); R.halo.material.opacity = 0.55 * smooth(0.6, 1.6, t) * (1 - out * 0.7); R.halo.scale.setScalar(1.5 + 0.2 * Math.sin(artRt.clock * 3));
+  R.halo.position.copy(A.position); R.halo.material.opacity = 0.5 * smooth(0.6, 1.6, t) * (1 - out * 0.7); R.halo.scale.setScalar(2 + 0.25 * Math.sin(artRt.clock * 3));
+  if(t < E.fly && me.tag) me.tag.visible = false;   // your own name tag would sit across the plinth for the moment of the reveal
   if(t >= E.end) artRevealEnd();
 }
 
@@ -14684,9 +14687,9 @@ Object.defineProperties(window.__hub, {
   artUnfound:{value:o => artUnfound(o || {}).map(it => ({kind:it.kind, name:it.name, x:+it.x.toFixed(1), z:+it.z.toFixed(1), d:Math.round(it.d)}))},
   raiseField:{value:o => { const f = raiseField(o); return f.id; }}, dropField:{value:id => dropField(artRt.fields.find(f => f.id === id), 'test')}, fieldAt:{value:(x, y, z, s) => { const f = fieldAt(x, y, z, s); return f ? f.id : null; }},
   // frame the reveal for a screenshot: hold it at time t (default 3 s, artifact up, shaft lit), camera behind and to the left of you so the plinth stands clear
-  artView:{value:(t, id) => { if(id && (!artRt.reveal || artRt.reveal.id !== id)) artReveal(id); const R = artRt.reveal; if(!R) return null; R.t = t == null ? 3 : t; artRt.hold = true; artRevealStep(0);
-    const a = Math.atan2(p.x - R.x, p.z - R.z); cam.yaw = a - 0.35; cam.pitch = 0.12; cam.dist = 5.2; p.facing = Math.atan2(R.x - p.x, R.z - p.z); me.g.rotation.y = p.facing; snapCamera(); clipCamera(); return {id:R.id, t:R.t}; }},
-  artViewEnd:{value:() => { artRt.hold = false; return true; }},
+  artView:{value:(t, id) => { if(id) artReveal(id); const R = artRt.reveal; if(!R) return null; R.t = t == null ? 3 : t; artRt.hold = true;
+    const a = Math.atan2(p.x - R.x, p.z - R.z); p.x = R.x + Math.sin(a) * 1.9; p.z = R.z + Math.cos(a) * 1.9; p.y = R.fy; p.vy = 0; me.g.position.set(p.x, p.y, p.z); artRevealStep(0); cam.yaw = a + 0.55; cam.pitch = 0.02; cam.dist = 3.1; p.facing = Math.atan2(R.x - p.x, R.z - p.z); me.g.rotation.y = p.facing; if(me.tag) me.tag.visible = false; snapCamera(); clipCamera(); return {id:R.id, t:R.t}; }},
+  artViewEnd:{value:() => { artRt.hold = false; return true; }},   // (artView re-raises the plinth where you stand when given an id)
   artGo:{value:what => { if(what === 'chest'){ if(!hollow || !hollow.inside) return {error:'enter the Hollow first (__hub.enterHollow())'}; const K = HOLLOW.chest; p.x = HOLLOW.x + K.x + 1.2; p.z = HOLLOW.z + K.z - 0.6; p.y = pocketFloor(p.x, p.z); p.vy = 0; hollowUpdate(0, 0); return {near:hollowNear}; } return null; }}
 });
 artHudDraw();
