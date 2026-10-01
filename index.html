@@ -16858,8 +16858,9 @@ function slBedMaterial(mat){
 function slSea(){
   const w = makeWater(new THREE.CircleGeometry(950, 96), {color:0x1d7f86, distortion:1.1, size:9, alpha:0.36});
   if(!w){ const m = new THREE.Mesh(new THREE.CircleGeometry(950, 96), std(0x1d7f86, {roughness:0.05, metalness:0.1, normalMap:waterNormal, transparent:true, opacity:0.55})); m.rotation.x = -Math.PI / 2; m.position.y = SLK.sea; world.add(m); return m; }
-  w.material.fragmentShader = w.material.fragmentShader.replace('float rf0 = 0.3;', 'float rf0 = 0.06;').replace('gl_FragColor = vec4( outgoingLight, alpha );',
+  w.material.fragmentShader = w.material.fragmentShader.replace('float rf0 = 0.3;', 'float rf0 = 0.06;').replace('( sunColor * diffuseLight * 0.3 + scatter )', '( sunColor * diffuseLight * 0.035 + scatter )').replace('float theta = max( dot( eyeDirection, surfaceNormal ), 0.0 );', 'float theta = max( dot( eyeDirection, normalize( mix( vec3( 0.0, 1.0, 0.0 ), surfaceNormal, 0.3 ) ) ), 0.0 );').replace('gl_FragColor = vec4( outgoingLight, alpha );',
     'float fr = clamp( ( reflectance - rf0 ) / ( 1.0 - rf0 ), 0.0, 1.0 ); gl_FragColor = vec4( outgoingLight, mix( alpha, 0.97, pow( fr, 0.55 ) ) );');
+  // (rf0 0.06, the Fresnel taken mostly from the view angle and a much weaker diffuse sun term: looking down you see the shallows, not white blotches of sky and sun)
   w.material.needsUpdate = true; w.material.transparent = true; w.material.polygonOffset = true; w.material.polygonOffsetFactor = -2; w.material.polygonOffsetUnits = -4; w.receiveShadow = true;   // the sea wins where it meets the sand (no z-fighting along the shore)
   w.position.y = SLK.sea; w.name = 'slSea'; world.add(w); return w;
 }
