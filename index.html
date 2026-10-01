@@ -18373,8 +18373,10 @@ function addDenLift(){
   const btnM = glowM(0xffc96a, 2.2); mk(new THREE.BoxGeometry(0.14, 0.22, 0.05), dark, W / 2 + 0.05, 1.25, D / 2 - 0.1, g); mk(new THREE.SphereGeometry(0.035, 16, 12), btnM, W / 2 + 0.05, 1.28, D / 2 - 0.06, g).castShadow = false;
   [-1, 1].forEach(k => { const lm = mk(new THREE.CylinderGeometry(0.09, 0.12, 0.34, 20), glowM(0xffd08a, 1.6), k * (W / 2 + 0.06), 2.55, D / 2 - 0.15, g); lm.castShadow = false; glow(0xffc070, 1.2, k * (W / 2 + 0.06), 2.55, D / 2 - 0.1, g, 0.5); });
   const l = label('The Den · your private loft', {small:true, edge:'#ffd98a', fg:'#fff1d0'}); l.position.set(0, H + 0.75, 0); g.add(l);
-  // one solid box for the whole cabin (the doors stay shut: the lift is the trigger in front of them)
-  addBox(L.x - s * 0.05, L.z - c * 0.05, W / 2 + 0.05, D / 2 + 0.05, y0 - 20, y0 + H + 0.2, {a:-yaw, denLift:true});
+  // one solid box for the whole cabin (the doors stay shut: the lift is the trigger in front of them). It starts 2 m up and is flagged full,
+  // so it always stops the player but the locals' wander (which only sees boxes starting below 1.9 m) is exactly what it was before the lift,
+  // like the late portals, which locals walk through too
+  addBox(L.x - s * 0.05, L.z - c * 0.05, W / 2 + 0.05, D / 2 + 0.05, y0 + 2, y0 + H + 0.2, {a:-yaw, denLift:true, full:true});
   denRT.lift = {g, x:L.x, z:L.z, y:y0, yaw, c, s, D, armed:true};
 }
 // the player in the lift's own frame: [across the doors, out from the doors]
@@ -18388,7 +18390,7 @@ function denBuildRoom(){
   const M = R.M = {
     oak:std(0xffffff, {map:T.oak.map, normalMap:T.oak.normal, roughnessMap:T.oak.rough, roughness:1, normalScale:new V2(0.8, 0.8)}),
     brick:std(0xffffff, {map:br.map, normalMap:br.normal, roughnessMap:br.rough, roughness:1, normalScale:new V2(1.1, 1.1)}),
-    deck:std(0xd8c8b8, {map:T.deck.map, normalMap:T.deck.normal, roughnessMap:T.deck.rough, roughness:1}),
+    deck:std(0xe8dccc, {map:T.deck.map, normalMap:T.deck.normal, roughnessMap:T.deck.rough, roughness:1, emissive:C(0x6a4a34), emissiveMap:T.deck.map, emissiveIntensity:1}),   // a little warm bounce from the lamps
     steel:std(0x2e3138, {metalness:0.7, roughness:0.42}), iron:std(0x24262b, {metalness:0.6, roughness:0.55}),
     skirt:std(0x3a2618, {roughness:0.6}), brass:std(0xb8893e, {metalness:0.85, roughness:0.3}), dark:std(0x1c1d22, {roughness:0.6, metalness:0.3}),
     glass:new THREE.MeshStandardMaterial({color:C(0xcfe6ff), roughness:0.05, metalness:0, transparent:true, opacity:0.07, depthWrite:false}),
@@ -18691,7 +18693,7 @@ function denItemMats(){
   const R = denRT.room; if(R.IM) return R.IM; const T = denTextures(), lt = leafTexture('leaf');
   R.IM = {
     oak:std(0xffffff, {map:T.oak.map, normalMap:T.oak.normal, roughnessMap:T.oak.rough, roughness:1}), walnut:std(0x5a3622, {roughness:0.45}), darkwood:std(0x3a2418, {roughness:0.55}),
-    leather:std(0x8a5532, {roughness:0.55}), cord:std(0x2f4f3a, {roughness:0.92}), cushion:std(0x9c6a42, {roughness:0.6}), brass:std(0xc0904a, {metalness:0.85, roughness:0.28}),
+    leather:std(0x8a5532, {roughness:0.55}), shadeBrass:std(0xc0904a, {metalness:0.85, roughness:0.28, side:THREE.DoubleSide}), cord:std(0x2f4f3a, {roughness:0.92}), cushion:std(0x9c6a42, {roughness:0.6}), brass:std(0xc0904a, {metalness:0.85, roughness:0.28}),
     steel:std(0x3a3d44, {metalness:0.7, roughness:0.4}), black:std(0x141416, {roughness:0.3, metalness:0.2}), vinyl:std(0x0c0c0e, {roughness:0.22, metalness:0.1}),
     paper:std(0xffe2b0, {emissive:C(0xffb860), emissiveIntensity:1.35, roughness:0.8}), bulb:glowM(0xffd9a0, 2.6), glazeTeal:std(0x2f6f6a, {roughness:0.25}), terracotta:std(0x9a5838, {roughness:0.85}), soil:std(0x2c2018, {roughness:1}),
     books:std(0xffffff, {vertexColors:true, roughness:0.75}), sand:std(0xcdb48a, {roughness:1}), fabric:std(0x1a1a1e, {roughness:1}),
@@ -18723,7 +18725,7 @@ var DEN_BUILD = {
   'rug-tide':(g, M) => { const m = dCyl(g, M.tide, 0.98, 0.98, 0.018, 0, 0, 0, 64); m.castShadow = false; },
   'lamp-arc':(g, M) => { dCyl(g, M.black, 0.2, 0.23, 0.06, 0, 0, -0.32); dCyl(g, M.brass, 0.018, 0.022, 1.3, 0, 0.06, -0.32, 12);
     const cv = new THREE.QuadraticBezierCurve3(new V3(0, 1.34, -0.32), new V3(0, 2.25, -0.2), new V3(0, 1.8, 0.3)); mk(new THREE.TubeGeometry(cv, 32, 0.016, 10, false), M.brass, 0, 0, 0, g);
-    const sh = mk(new THREE.LatheGeometry([new V2(0.02, 0.2), new V2(0.09, 0.18), new V2(0.2, 0.04), new V2(0.22, 0)], 32), M.brass, 0, 1.58, 0.3, g); sh.material = M.brass;
+    const sh = mk(new THREE.LatheGeometry([new V2(0.02, 0.2), new V2(0.09, 0.18), new V2(0.2, 0.04), new V2(0.22, 0)], 32), M.shadeBrass, 0, 1.58, 0.3, g);
     mk(new THREE.SphereGeometry(0.06, 16, 12), M.bulb, 0, 1.62, 0.3, g).castShadow = false; glow(0xffc983, 1.0, 0, 1.6, 0.3, g, 0.5); denPool(g, 0, 0, 0.3, 2.2, 0.24);
     return {lamp:true}; },
   'lamp-lantern':(g, M) => { dCyl(g, M.darkwood, 0.11, 0.13, 0.04, 0, 0, 0); dCyl(g, M.darkwood, 0.012, 0.012, 1.2, 0, 0.04, 0, 8);
@@ -18754,7 +18756,7 @@ var DEN_BUILD = {
     const sc = mk(new THREE.PlaneGeometry(0.44, 0.31), M.screen, -0.35, 1.24, -0.22, g); sc.rotation.x = -0.08; sc.castShadow = false;
     dBox(g, M.black, 0.42, 0.02, 0.14, -0.35, 0.94, 0.08); dBox(g, M.steel, 0.24, 0.015, 0.035, 0.35, 0.94, 0.12); dBox(g, M.steel, 0.035, 0.015, 0.16, 0.48, 0.94, 0.05);
     dCyl(g, M.steel, 0.07, 0.08, 0.03, 0.55, 0.94, -0.28); const arm = new THREE.CatmullRomCurve3([new V3(0.55, 0.97, -0.28), new V3(0.55, 1.35, -0.3), new V3(0.42, 1.42, -0.12)]); mk(new THREE.TubeGeometry(arm, 16, 0.012, 8, false), M.steel, 0, 0, 0, g);
-    const hd = mk(new THREE.ConeGeometry(0.07, 0.12, 20, 1, true), M.steel, 0.4, 1.38, -0.1, g); hd.rotation.z = 0.5; mk(new THREE.SphereGeometry(0.03, 12, 8), M.bulb, 0.4, 1.35, -0.1, g).castShadow = false; glow(0xffd9a0, 0.6, 0.4, 1.33, -0.1, g, 0.5); denPool(g, 0.35, 0.94 - 0.0, -0.05, 0.9, 0.18);
+    const hd = mk(new THREE.ConeGeometry(0.07, 0.12, 20, 1, true), M.shadeBrass, 0.4, 1.38, -0.1, g); hd.rotation.z = 0.5; mk(new THREE.SphereGeometry(0.03, 12, 8), M.bulb, 0.4, 1.35, -0.1, g).castShadow = false; glow(0xffd9a0, 0.6, 0.4, 1.33, -0.1, g, 0.5); denPool(g, 0.35, 0.94 - 0.0, -0.05, 0.9, 0.18);
     return {lamp:true}; },
   'fish-tank':(g, M) => { dBox(g, M.darkwood, 1.46, 0.74, 0.5, 0, 0, 0); dBox(g, M.sand, 1.36, 0.06, 0.4, 0, 0.76, 0);
     const wtr = dBox(g, M.water, 1.36, 0.5, 0.4, 0, 0.82, 0); wtr.castShadow = false; wtr.renderOrder = 2; const gl = dBox(g, M.glass, 1.42, 0.6, 0.46, 0, 0.75, 0); gl.castShadow = false; gl.renderOrder = 3;
@@ -18987,7 +18989,7 @@ function denRecord(){
   return {shards:DEN_SHARDS.filter(s => state.shards.has(s[0])).map(s => s[0]), seed:!!(state.hunt && state.hunt.won), artifacts:art, spent:!!(state.art && state.art.spent && state.art.spent['second-breath']), ribbons:rib, planets:pl.length, planetIds:pl.slice(0, 9)};
 }
 function denShowcaseShell(R){
-  const g = new THREE.Group(); g.name = 'denShowcase'; R.g.add(g); const M = R.M, X = DEN.x - 3.5, Z = DEN.z + DEN.hd, W = 4.8, D = 0.45, H = 2.75, wal = std(0x4a2c1c, {roughness:0.5}), vel = std(0x1c1426, {roughness:1}), led = glowM(0xfff0d0, 1.6);
+  const g = new THREE.Group(); g.name = 'denShowcase'; R.g.add(g); const M = R.M, X = DEN.x - 3.5, Z = DEN.z + DEN.hd, W = 4.8, D = 0.45, H = 2.75, wal = std(0x7a4a2c, {roughness:0.45}), vel = std(0x2a3a4e, {roughness:1}), led = glowM(0xfff0d0, 2.2);
   R.showM = {wal, vel, led};
   const parts = [[-W / 2, -W / 2 + 0.06, 0, H], [W / 2 - 0.06, W / 2, 0, H], [-W / 2, W / 2, H - 0.08, H], [-W / 2, W / 2, 0, 0.9]];
   mk(boxGeo(parts.map(b => [X + b[0], X + b[1], DEN.y + b[2], DEN.y + b[3], Z - D, Z - 0.02]), 2), wal, 0, 0, 0, g);
@@ -18996,7 +18998,9 @@ function denShowcaseShell(R){
   [-1, 1].forEach(k => dBox(g, M.brass, 0.03, 0.18, 0.03, X + k * 0.12, DEN.y + 0.4, Z - D - 0.02));
   [1.55, 2.2].forEach(y => dBox(g, wal, W - 0.12, 0.04, D - 0.04, X, DEN.y + y, Z - D / 2 - 0.02));
   [1.53, 2.18, 2.66].forEach(y => { const l = mk(new THREE.BoxGeometry(W - 0.2, 0.012, 0.02), led, X, DEN.y + y - 0.012, Z - D + 0.05, g); l.castShadow = false; });
-  [1.3, 1.95, 2.55].forEach(y => glow(0xfff0d0, 2.4, X, DEN.y + y, Z - 0.2, g, 0.08));
+  [-1.2, 1.2].forEach(dx => [1.3, 1.95, 2.55].forEach(y => glow(0xfff0d0, 2.2, X + dx, DEN.y + y, Z - 0.2, g, 0.12)));
+  // the shelf lights' wash on the velvet: soft additive panels (no lights), one per shelf bay
+  [[0.9, 1.55], [1.59, 2.2], [2.24, 2.67]].forEach(b => { const w = denPool(g, X, DEN.y, Z - 0.045, 1, 0.3); w.rotation.set(0, Math.PI, 0); w.scale.set(W - 0.2, (b[1] - b[0]) * 1.6, 1); w.position.y = DEN.y + (b[0] + b[1]) / 2 + 0.1; });
   R.boxes.push(aabb(X - W / 2, X + W / 2, DEN.y - 0.5, DEN.y + H, Z - D, Z, {hollow:true, den:true, cam:false}));
   R.show = {g, X, Z, D, items:new THREE.Group()}; g.add(R.show.items);
 }
@@ -19005,10 +19009,10 @@ function denShowcase(){
   const S = R.show, rec = denRecord(), M = denItemMats(); S.items.children.slice().forEach(o => { S.items.remove(o); disposeTree(o); });
   const Y = DEN.y, zc = S.Z - S.D / 2 - 0.02, out = {shards:0, seed:0, artifacts:0, ribbons:0, planets:0, stands:0};
   noRandom(() => {
-    const SG = S.items, stand = (x, y) => { dCyl(SG, M.brass, 0.05, 0.06, 0.04, x, y, zc, 20); out.stands++; };
+    const SG = S.items, satin = std(0xc8a060, {metalness:0.35, roughness:0.4}), stand = (x, y) => { dCyl(SG, satin, 0.05, 0.06, 0.04, x, y, zc, 20); out.stands++; };
     // top shelf: the three shards either side of the Seed
     DEN_SHARDS.forEach((s, i) => { const x = S.X + [-1.7, -1.05, 1.05][i], y = Y + 2.22; stand(x, y);
-      if(rec.shards.indexOf(s[0]) >= 0){ const c = mk(new THREE.OctahedronGeometry(0.1, 0), std(s[1], {emissive:C(s[1]), emissiveIntensity:1.2, roughness:0.15, metalness:0.2}), x, y + 0.2, zc, SG); c.scale.set(0.7, 1.5, 0.7); c.rotation.y = 0.4; glow(s[1], 0.7, x, y + 0.2, zc + 0.05, SG, 0.45); out.shards++; } });
+      if(rec.shards.indexOf(s[0]) >= 0){ const c = mk(new THREE.OctahedronGeometry(0.13, 0), std(s[1], {emissive:C(s[1]), emissiveIntensity:1.2, roughness:0.15, metalness:0.2}), x, y + 0.2, zc, SG); c.scale.set(0.7, 1.5, 0.7); c.rotation.y = 0.4; glow(s[1], 0.7, x, y + 0.2, zc + 0.05, SG, 0.45); out.shards++; } });
     { const x = S.X + 0.15, y = Y + 2.22; dCyl(SG, M.darkwood, 0.11, 0.13, 0.08, x, y, zc, 24); if(rec.seed){ const sd = mk(new THREE.SphereGeometry(0.09, 28, 20), std(0xc8ff9a, {emissive:C(0x9dff6a), emissiveIntensity:1.6, roughness:0.2}), x, y + 0.2, zc, SG); sd.scale.set(0.8, 1.2, 0.8); glow(0xb8ff8a, 1.0, x, y + 0.2, zc + 0.05, SG, 0.55); out.seed = 1; } }
     // middle shelf: the artifacts you have won, as display copies
     ART_ORDER.forEach((id, i) => { const x = S.X - 1.8 + i * 0.9, y = Y + 1.57, col = ITEMS[id].col; stand(x, y); if(rec.artifacts.indexOf(id) < 0) return; out.artifacts++;
@@ -19019,12 +19023,12 @@ function denShowcase(){
       else if(id === 'mara-compass'){ const c = dCyl(SG, M.brass, 0.08, 0.08, 0.025, x, y + 0.04, zc, 32); c.rotation.x = 1.1; c.position.y += 0.06; }
       else { const o = mk(new THREE.SphereGeometry(0.075, 28, 20), std(col, {emissive:C(col), emissiveIntensity:rec.spent ? 0.1 : 1.0, roughness:0.1, transparent:true, opacity:rec.spent ? 0.5 : 0.85}), x, y + 0.12, zc, SG); o.castShadow = false; glow(col, 0.5, x, y + 0.12, zc + 0.04, SG, rec.spent ? 0.1 : 0.4); } });
     // lower shelf: a rosette for every quest portal cleared, and the planets you have charted
-    rec.ribbons.forEach((k, i) => { const x = S.X - 2.15 + i * 0.27, y = Y + 1.2, col = (QPORTALS[k] && QPORTALS[k].col) || 0xffd166, rm = std(col, {roughness:0.6});
+    rec.ribbons.forEach((k, i) => { const x = S.X - 2.15 + i * 0.27, y = Y + 1.2, col = (QPORTALS[k] && QPORTALS[k].col) || 0xffd166, rm = std(col, {roughness:0.6, emissive:C(col), emissiveIntensity:0.3});
       const ro = mk(new THREE.CylinderGeometry(0.075, 0.075, 0.015, 24), rm, x, y + 0.1, zc + 0.12, SG); ro.rotation.x = Math.PI / 2 - 0.15; mk(new THREE.CylinderGeometry(0.04, 0.04, 0.02, 20), M.brass, x, y + 0.1, zc + 0.13, SG).rotation.x = Math.PI / 2 - 0.15;
       [-1, 1].forEach(s => { const t = dBox(SG, rm, 0.035, 0.12, 0.006, x + s * 0.025, y - 0.03, zc + 0.12); t.rotation.z = s * 0.2; }); out.ribbons++; });
     dBox(SG, M.darkwood, 1.1, 0.03, 0.2, S.X + 1.6, Y + 0.9, zc);
     rec.planetIds.forEach((id, i) => { const h = strHash('planet:' + id), c = new THREE.Color().setHSL((h % 1000) / 1000, 0.45, 0.5), x = S.X + 1.15 + (i % 5) * 0.22, y = Y + 0.98 + Math.floor(i / 5) * 0.2;
-      const pm = mk(new THREE.SphereGeometry(0.055, 24, 16), std(c.getHex(), {roughness:0.7}), x, y + 0.06, zc + (i >= 5 ? 0.06 : -0.04), SG); out.planets++; });
+      const pm = mk(new THREE.SphereGeometry(0.055, 24, 16), std(c.getHex(), {roughness:0.7, emissive:c.clone().convertSRGBToLinear(), emissiveIntensity:0.25}), x, y + 0.06, zc + (i >= 5 ? 0.06 : -0.04), SG); out.planets++; });
     // the brass plaque on the base: the record in words
     const tex = canvasTex(1024, 256, (x, w, h) => { const g2 = x.createLinearGradient(0, 0, 0, h); g2.addColorStop(0, '#d9b06a'); g2.addColorStop(1, '#a8803e'); x.fillStyle = g2; x.fillRect(0, 0, w, h);
       x.strokeStyle = '#5a3e18'; x.lineWidth = 6; x.strokeRect(8, 8, w - 16, h - 16); x.fillStyle = '#3a2610'; x.textAlign = 'center'; x.font = '700 50px ' + SERIF; x.fillText('RECORD OF PLAY', w / 2, 70);
@@ -19085,14 +19089,14 @@ Object.defineProperties(window.__hub, {
       boxes:boxes.filter(b => b.denItem).length, tagHidden:!!(me.tag && !me.tag.visible), drawn:denRT && denRT.room && denRT.room.drawn ? denRT.room.drawn.size : 0}; },
     deeds:() => deedsNow().filter(d => d.id.indexOf('den') === 0).map(d => ({id:d.id, text:d.text, line:d.line})),
     // frame one screenshot: 'room' (from the window corner over the furniture), 'window' (out over the Spaceport), 'showcase', 'lift' (the plaza)
-    view:what => { what = what || 'room'; let px, pz, tx, tz, pitch = 0.16, dist = 3.6;
+    view:what => { what = what || 'room'; let px, pz, tx, tz, pitch = 0.16, dist = 3.6, off = 0.12;
       if(what === 'lift'){ if(denInside() || state.world !== 'hub') return {error:'be on the plaza'}; const L = denRT.lift; px = L.x + 7 * L.s + 2.5 * L.c; pz = L.z + 7 * L.c - 2.5 * L.s; p.x = px; p.z = pz; p.y = G(px, pz); tx = L.x; tz = L.z; pitch = 0.12; dist = 5; }
       else { if(!denInside()) return {error:'enter the Den first'};
-        if(what === 'window'){ px = 1.5; pz = -1.2; tx = -6; tz = -12; pitch = 0.04; dist = 3.2; }
-        else if(what === 'showcase'){ px = -3.5; pz = 2.6; tx = -3.5; tz = 6; pitch = 0.1; dist = 2.6; }
-        else { px = 3.2; pz = 1.5; tx = -6; tz = 0.6; pitch = 0.22; dist = 3.4; }   // from the walk by the lift (always clear) across the room
+        if(what === 'window'){ px = 1.5; pz = -1.2; tx = -8; tz = -12; pitch = 0.3; dist = 3.2; }   // looking down over the plaza
+        else if(what === 'showcase'){ px = -2.3; pz = 3.0; tx = -3.5; tz = 6; pitch = 0.08; dist = 2.4; off = 0.45; }
+        else { px = 3.2; pz = 1.5; tx = -6; tz = 0.6; pitch = 0.22; dist = 3.4; off = 0.38; }   // from the walk by the lift (always clear) across the room
         p.x = DEN.x + px; p.z = DEN.z + pz; p.y = DEN.y; tx += DEN.x; tz += DEN.z; }
-      cam.yaw = Math.atan2(p.x - tx, p.z - tz) + 0.12; p.facing = cam.yaw + Math.PI; cam.pitch = pitch; cam.dist = dist; cam.view = 0;
+      p.facing = Math.atan2(tx - p.x, tz - p.z); cam.yaw = p.facing + Math.PI + off; cam.pitch = pitch; cam.dist = dist; cam.view = 0;
       me.g.position.set(p.x, p.y, p.z); me.g.rotation.y = p.facing; update(0, simTime); snapCamera(); clipCamera(); renderer.shadowMap.needsUpdate = true; return {what, x:+p.x.toFixed(2), z:+p.z.toFixed(2)}; },
     // every other realm built once in this page with its coreSum (the full before/after uses the placement dump)
     others:() => { const out = {}; for(const k of WORLD_ORDER){ try{ buildWorld(k); out[k] = {core:coreSum().world, coins:coins.length, npcs:npcs.length, lift:!!(denRT && denRT.lift)}; }catch(e){ out[k] = 'THROW ' + e.message; } } buildWorld('hub'); return out; }
