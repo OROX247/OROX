@@ -3070,16 +3070,22 @@ const WORLDS = {
   warfront:{ name:'Warfront', seed:157, exposure:0.95, fog:0.0056, sector:4, rules:{magic:false, tech:true, danger:true},
            sky:{top:0x2a3344, horizon:0xc49a72, ground:0x2a2420, sun:0xffbf86, dir:[-0.78,0.16,0.6], size:0.011, clouds:0.7, lit:0xf2c49a, shade:0x34364a},
            atm:{turb:7, ray:1.5, mie:0.011, g:0.83, bright:0.42, tint:0xd8ccc8, sat:0.9, clouds:0.7, cloudH:1050, cirrus:0.2, rays:0.8, flare:0.5, fogSun:0.95, wind:[1.2, 0.4]}, fogH:0.035,
-           sun:[0xffcf9e,2.4], hemi:[0x8d98b4,0x3e3228,0.6], portals:[{to:'hub',x:0,z:-26}], pads:[{x:0,z:-19,r:7}] }
+           sun:[0xffcf9e,2.4], hemi:[0x8d98b4,0x3e3228,0.6], portals:[{to:'hub',x:0,z:-26}], pads:[{x:0,z:-19,r:7}] },
+  // Lampblack (Goal 20 part 2, blueprint 3's "noir city in permanent night", made Hub's own): a rain-soaked city held at night for ever. A low overcast lit from
+  // below by the streets, a cold moon somewhere above it for the shadows. Sector 2 was uncharted: one step from Sector 1, so the warp is 25 credits.
+  // A mystery city, not a combat zone: danger false (nothing hurts you), tech true (signs, trams, the boost), magic false.
+  lampblack:{ name:'Lampblack', seed:173, exposure:1.3, fog:0.0105, sector:2, rules:{magic:false, tech:true, danger:false},
+           sky:{top:0x030305, horizon:0x15131a, ground:0x060607, sun:0x6a7488, dir:[-0.55,0.62,-0.56], size:0, clouds:0.85, lit:0x1d1a20, shade:0x08080a},
+           sun:[0x9aaccc,0.45], hemi:[0x6a7590,0x2e2a26,0.85], fogH:0.02, portals:[{to:'hub',x:0,z:-26}], pads:[] }
 };
 // Warfront joins at the end, so every existing coin id (realm:index) and every realm's order stay as they were; the coin total grows by 12
-const WORLD_ORDER = ['hub','campus','dunes','grid','grove','sky','warfront'];
+const WORLD_ORDER = ['hub','campus','dunes','grid','grove','sky','warfront','lampblack'];   // Lampblack (Goal 20 part 2) joins last too
 /* the universe is a 3x3x3 cube of 27 sectors (blueprint section 3); a sector's coordinates come from its number */
 const sectorXYZ = n => [(n - 1) % 3, Math.floor((n - 1) / 3) % 3, Math.floor((n - 1) / 9)];
 function sectorDistance(a, b){ const A = sectorXYZ(a), B = sectorXYZ(b); return Math.max(Math.abs(A[0] - B[0]), Math.abs(A[1] - B[1]), Math.abs(A[2] - B[2])); }
 function fare(from, to){ if(to === 'hub') return 0; if(WORLDS[to] && WORLDS[to].own) return 0; if(state.enrolled && (from === 'campus' || to === 'campus')) return 0; const d = sectorDistance(WORLDS[from].sector, WORLDS[to].sector); return d === 0 ? 10 : d === 1 ? 25 : d === 2 ? 60 : 120; }
 const rulesText = W => (W.rules.magic ? 'magic' : 'no magic') + ' · ' + (W.rules.tech ? 'tech' : 'no tech') + ' · ' + (W.rules.danger ? 'danger zone' : 'safe');
-const PORTAL_COLORS = { hub:0xffd166, campus:0xb6ff7a, dunes:0xf2a07b, grid:0xff4fa3, grove:0x5ce1e6, sky:0xbfe0ff, ashfall:0xff7a3a, warfront:0xe8a04a };
+const PORTAL_COLORS = { hub:0xffd166, campus:0xb6ff7a, dunes:0xf2a07b, grid:0xff4fa3, grove:0x5ce1e6, sky:0xbfe0ff, ashfall:0xff7a3a, warfront:0xe8a04a, lampblack:0xd9b25c };
 // Ashfall is not in WORLD_ORDER (that list counts the coins, 12 a realm); it joins the Warp list and the star map here, sealed until you hold three shards
 const HUNT_WORLDS = ['ashfall'];
 const NPC_NAMES = ['Kestrel','Nyx_77','Pixelwolf','Dune Rider','Glitch','Moth','Sable','Byte Queen','Vektor','Ember','Lumen','Rook','Juno','Static','Marrow','Quill','Tallow','Orbit','Sixpence','Halcyon','Wren','Cinder'];
@@ -3097,7 +3103,10 @@ const LINES = {
     'They say every campus on this planet is built the same, down to the last desk.','Somebody swears there is a clearing in the east woods that is not on any map.','Shift pushes you down in the gym. I learned that the hard way.'],
   warfront: ['Day nine thousand of the Long Match, and the Ember Pact is still three points up.','Zero out here and you just walk back in from the Spaceport. That is the whole joke of it.',
     'The stair round the Old Bastion is the only way up. Mind the edge at the top.','Those clockwork sentries were built to train recruits. Nobody ever told them the training ended.',
-    'Keep your head below the sandbags. The sentries count heads.','The flashes in the clouds are the scoreboard. Every one is a point for somebody.']
+    'Keep your head below the sandbags. The sentries count heads.','The flashes in the clouds are the scoreboard. Every one is a point for somebody.'],
+  lampblack: ['It has been raining since before the city had a name. Nobody here owns an umbrella that has ever dried out.','The tram on the El runs all night. So does everything else.',
+    'They play at The Low Hour till the lamps go out. The lamps never go out.','Got a puzzle? The window over the square says E. Vanterpool, Inquiries.',
+    'Nothing in Lampblack can hurt you. It just likes you to think it might.','Mind the puddles on Vesper Square. They show you the whole city upside down.']
 };
 
 /* ================= renderer ================= */
@@ -3378,7 +3387,8 @@ const SURFACES = {
   ash:        {kind:9, per:8,  A:0x3c3a3a, B:0x2a2828, C:0x6a6260, strength:45},
   concrete:   {kind:10, per:6, A:0xa8a49c, B:0x8e8a84, C:0x8e8a84, strength:35},
   lava:       {kind:11, per:4, A:0x1a100c, B:0x2c1c14, C:0xffb040, strength:60},
-  mud:        {kind:1, per:6,  A:0x3a2e24, B:0x56473a, C:0x6e665c, strength:95}   // Warfront: churned battlefield mud
+  mud:        {kind:1, per:6,  A:0x3a2e24, B:0x56473a, C:0x6e665c, strength:95},   // Warfront: churned battlefield mud
+  asphalt:    {kind:3, per:8,  A:0x2c2c2e, B:0x3b3b3c, C:0x222224, strength:60}    // Lampblack: wet city asphalt
 };
 const surfCache = {};
 function surface(name){
@@ -7239,7 +7249,8 @@ function coreSum(detail){
   if(shardObj) [shardObj.m, shardObj.beam, shardObj.l, shardObj.gl].forEach(o => { if(o) skip.add(o); });
   if(chimes){ skip.add(chimes.g); if(chimes.shard){ skip.add(chimes.shard.m); skip.add(chimes.shard.gl); } }   // the chimes sway in the wind
   qpList.forEach(q => skip.add(q.g)); if(qa) skip.add(qa.g);   // Goal 15: the quest portal and its arena are added after the core
-  portals.forEach(q => { if(q.late) skip.add(q.g); });   // Goal 20: a portal added after the core (the Spaceport's Warfront portal)
+  portals.forEach(q => { if(q.late) skip.add(q.g); });
+  if(lb && state.world === 'lampblack') lb.skip.forEach(o => skip.add(o));   // Goal 20: Lampblack's road mirror follows you; the tram and the cats move   // Goal 20: a portal added after the core (the Spaceport's Warfront portal)
   if(mer && mer.g) skip.add(mer.g);   // Goal 18: Meridian's pylons come and go with the Hunt
   if(mon && mon.root) skip.add(mon.root);   // Goal 16: monsters move (and their loot comes and goes)
   if(trial.pad) skip.add(trial.pad); trial.rings.forEach(rg => { if(rg.g) skip.add(rg.g); if(rg.m) skip.add(rg.m); });
@@ -12590,7 +12601,7 @@ function update(dt, time){
     state.won = true; reward(500, 200); sfx('win'); setHalo(); toast('You opened the vault. First to crack the Hub.   +500 XP', 5000);
   }
   if(playing && p.grounded && p.speed > 0.6){ snd.stepT -= dt; if(snd.stepT <= 0){ sfx('step'); snd.stepT = p.speed > 7 ? 0.27 : 0.42; } } else snd.stepT = 0.1;
-  shopProximity(); bikeProximity(); vendProximity(); deskProximity(); archiveUpdate(dt); hollowUpdate(dt, time); chimeUpdate(dt, time); ashUpdate(dt, time); merUpdate(dt, time); warUpdate(dt, time); starTick(dt, time); driftUpdate(dt, time); hallUpdate(dt, time); rallyTick(dt, time); trialUpdate(dt, time); qpTick(dt, time);
+  shopProximity(); bikeProximity(); vendProximity(); deskProximity(); archiveUpdate(dt); hollowUpdate(dt, time); chimeUpdate(dt, time); ashUpdate(dt, time); merUpdate(dt, time); warUpdate(dt, time); lbUpdate(dt, time); starTick(dt, time); driftUpdate(dt, time); hallUpdate(dt, time); rallyTick(dt, time); trialUpdate(dt, time); qpTick(dt, time);
   const wdt = dt * artTideK();   // Goal 17: Slack Water slows monsters, traps and lasers (simTime), never the player
   updatePickups(dt, time); monUpdate(wdt, time); hurtCool -= dt; simTime += wdt; updateHazards(simTime); updateBurst(dt); checkBundles(); artUpdate(dt, time);
   if(!WORLDS[state.world].rules.danger && !zeroing && state.hp < maxHp()){ state.hp = Math.min(maxHp(), state.hp + 12 * dt); hpHud(); }
@@ -15714,7 +15725,7 @@ QPORTALS.warfront = {kind:'capture', name:'Signal Run', x:-19, z:-27, face:[0, -
 // portals added to a realm after its core was finished (Goal 20): no pad (the Spaceport's plaza is level there), no rng, and built with Math.random pointed
 // away from the NPCs' sequence (three.js draws it for every new object's id), so every coin, NPC, pickup, kiosk and their wander stay exactly as they were.
 // The Spaceport's Warfront portal stands at the head of the plaza between the Neon Grid and Night Grove portals, more than 15 m from every coin and pickup spot.
-const LATE_PORTALS = { hub:[{to:'warfront', x:0, z:-31, late:true}] };
+const LATE_PORTALS = { hub:[{to:'warfront', x:0, z:-31, late:true}, {to:'lampblack', x:14, z:-31, late:true}] };   // Lampblack's at the plaza's north-east, more than 6 m from every coin, NPC and pickup
 function addLatePortals(key){ const L = LATE_PORTALS[key]; if(!L || !WORLDS[key] || WORLDS[key].custom) return; noRandom(() => L.forEach(q => addPortal(q))); }
 // ---- Warfront test hooks (Goal 20): the realm's facts, a walk up the Bastion's stair and along the trenches through the real update, the wire, the outskirts, one framed view
 function warWalkTo(tx, tz, n, close){ let k = 0; for(; k < (n || 200); k++){ if(Math.hypot(p.x - tx, p.z - tz) < (close || 0.4)) break; cam.yaw = Math.atan2(p.x - tx, p.z - tz); keys.KeyW = true; update(0.05, simTime); } keys.KeyW = false; return k; }
@@ -15765,6 +15776,573 @@ Object.defineProperties(window.__hub, {
     if(mon && what === 'sentry'){ monRefresh(); const s = mon.core[1]; mon.live.forEach(m => { m.sc = 1; if(m.id === s.id){ m.x = s.x; m.z = s.z; m.y = monFloor(m); m.mode = 'patrol'; m.yaw = Math.atan2(p.x - m.x, p.z - m.z) + 0.5; } }); mon.freeze = true; cam.yaw += 0.35; }   // __hub.monViewEnd() lets them move again
     snapCamera(); clipCamera(); renderer.shadowMap.needsUpdate = true; return {what, x:+p.x.toFixed(1), z:+p.z.toFixed(1), y:+p.y.toFixed(2)}; }}
 });
+/* ================= Lampblack (Goal 20 part 2, blueprint 2, 3, 5e, 7, 9) =================
+   Hub's noir city: a rain-soaked city held at night for ever, made Hub's own (no real city, film, detective, brand or song). Sector 2 was uncharted: one
+   step from Sector 1 on the cube, so the warp is 25 credits; walking through the Spaceport portal is free. Rules: tech works (signs, trams, the boost),
+   magic does not, and nothing can hurt you: it is a mystery city, not a combat zone, so it has no monster, only pigeons, cats and the El's night tram.
+   The plan: a street grid on the 48 m cells of the endless machinery. Streets run along every cell edge (12 m of wet road, 3.5 m sidewalks raised on a
+   15 cm kerb), so each cell is one city block and the hand-made core (the 4 x 4 blocks round Vesper Square) runs on into endless blocks in the same style.
+   The roads are one mirror (THREE.Water's reflection, drawn with Lampblack's own wet-street shader: asphalt that mirrors in streaks, puddles that mirror
+   cleanly with rain rings), and the sidewalks sample the same mirror. Street lamps stand at fixed spots on every block (posts at 10, 24 and 38 m along
+   each kerb), so the shader lights their pools on the wet ground from the same rule, without a single point light. Everything is drawn from its own
+   rng seeds (6000 and up) or from cell seeds, never Math.random, so the city looks the same on every visit. */
+const LB = {
+  S:48, road:6, kerb:0.15, line:9.5, core:140, mirror:456, fh:3.6, gf:4.4,
+  sq:{x0:-6, x1:6, z0:-42, z1:-6},                                   // Vesper Square: the avenue between the two blocks south of the El, paved at kerb height
+  el:{z:0, deck:7.0, floor:7.6, colZ:4.6, bents:[16, 32]},            // the El runs along the z = 0 street, 7 m up, columns at 16 and 32 m into each block
+  stn:{x0:12, x1:25.6, z0:3.6, z1:7.0, r:1.7},                         // Vesper Street station: the platform over the north kerb
+  stair:{x0:25.6, top:27.7, x1:37.2, z0:7.6, z1:9.4, n:25},           // its stair up the hotel's south sidewalk (rises westward), landing at the top
+  steps:{x0:7.4, x1:9.5, z0:18.5, z1:24.5},                            // the Hotel Vesperine's front steps
+  lamps:[10, 24, 38]
+};
+LB.stair.rise = (LB.el.floor - LB.kerb) / LB.stair.n; LB.stair.tread = (LB.stair.x1 - LB.stair.top) / LB.stair.n;
+let lb = null, lbKitCache = null, lbTexCache = null;
+const lbMod = (a, n) => a - Math.floor(a / n) * n;
+// HEIGHTS.lampblack: the ground is the road (0), every block's raised sidewalk and the square (kerb height), the hotel's steps and the station stair
+function lbG(x, z){
+  const u = lbMod(x, LB.S), v = lbMod(z, LB.S), Q = LB.sq;
+  let h = (u >= 6 && u <= 42 && v >= 6 && v <= 42) || (x >= Q.x0 && x <= Q.x1 && z >= Q.z0 && z <= Q.z1) ? LB.kerb : 0;
+  if(z > 6.8 && z < 25 && x > 7 && x < 38){
+    const T = LB.steps, A = LB.stair;
+    if(x >= T.x0 && x <= T.x1 && z >= T.z0 && z <= T.z1) h = LB.kerb + 0.15 * Math.min(3, 1 + Math.floor((x - T.x0) / 0.7));
+    if(x >= A.x0 && x <= A.x1 && z >= A.z0 && z <= A.z1) h = x < A.top ? LB.el.floor : Math.min(LB.el.floor, LB.kerb + Math.ceil((A.x1 - x) / A.tread - 1e-6) * A.rise);
+    if(x >= A.x0 && x < A.top && z >= 6.9 && z < A.z0) h = LB.el.floor;   // the landing reaches the platform
+  }
+  return h;
+}
+/* ---- textures (made once per session): three facades (sooty red brick, grey-brown brick, pale limestone), two shopfront rows, a rusticated plinth,
+   the puddle field. A facade tile is 4 bays of 3 m by 8 floors of 3.6 m; lit windows go in a matching emissive map. ---- */
+function lbNormal(hgt, w, h, k){
+  const c = document.createElement('canvas'); c.width = w; c.height = h; const x = c.getContext('2d'), img = x.createImageData(w, h), H = (i, j) => hgt[((j + h) % h) * w + ((i + w) % w)];
+  for(let j = 0; j < h; j++) for(let i = 0; i < w; i++){ const nx = -(H(i + 1, j) - H(i - 1, j)) * k, ny = -(H(i, j + 1) - H(i, j - 1)) * k, l = Math.hypot(nx, ny, 1), o = (j * w + i) * 4;
+    img.data[o] = (nx / l * 0.5 + 0.5) * 255; img.data[o + 1] = (ny / l * 0.5 + 0.5) * 255; img.data[o + 2] = (1 / l * 0.5 + 0.5) * 255; img.data[o + 3] = 255; }
+  x.putImageData(img, 0, 0); const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = MAX_ANISO; return t;
+}
+// draw the same picture into a colour canvas, an emissive canvas, and a height canvas (grey, half size) through one routine
+function lbPaint(W, H, draw){
+  const mkC = (w, h) => { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; };
+  const cc = mkC(W, H), ec = mkC(W, H), hc = mkC(W / 2, H / 2), cx = cc.getContext('2d'), ex = ec.getContext('2d'), hx = hc.getContext('2d');
+  ex.fillStyle = '#000'; ex.fillRect(0, 0, W, H); hx.fillStyle = 'rgb(128,128,128)'; hx.fillRect(0, 0, W / 2, H / 2); hx.scale(0.5, 0.5);
+  draw(cx, ex, hx, W, H);
+  const hd = hx.getImageData(0, 0, W / 2, H / 2).data, hgt = new Float32Array(W / 2 * H / 2); for(let i = 0; i < hgt.length; i++) hgt[i] = hd[i * 4] / 255;
+  const tex = c => { const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = MAX_ANISO; t.encoding = THREE.sRGBEncoding; return t; };
+  const out = {map:tex(cc), em:tex(ec), normal:lbNormal(hgt, W / 2, H / 2, 5)}; for(const k in out) SHARED_TEX.add(out[k]); return out;
+}
+const lbHex = (h, k) => { const c = hexArr(h); return 'rgb(' + c.map(v => Math.round(clamp(v * (k == null ? 1 : k), 0, 1) * 255)).join(',') + ')'; };
+// a window's lit interior: warm lamp light (most), a cooler room, or the blue flicker of a wireless set's dial; blinds or a curtain half drawn
+const LB_LIT = ['#ffc47e', '#ffe2b0', '#b9d2ff'];
+function lbWindow(cx, ex, hx, x, y, w, h, lit, q, o){
+  o = o || {}; const f = Math.max(3, w * 0.06);
+  hx.fillStyle = 'rgb(40,40,40)'; hx.fillRect(x, y, w, h);
+  cx.fillStyle = o.frame || '#1c1a19'; cx.fillRect(x, y, w, h);
+  const gx = x + f, gy = y + f, gw = w - 2 * f, gh = h - 2 * f;
+  if(lit >= 0){ const g = cx.createLinearGradient(0, gy, 0, gy + gh); g.addColorStop(0, '#5a4630'); g.addColorStop(1, '#9a7a4e'); cx.fillStyle = lit === 2 ? '#34445e' : g; cx.fillRect(gx, gy, gw, gh);
+    const eg = ex.createLinearGradient(0, gy, 0, gy + gh); eg.addColorStop(0, LB_LIT[lit]); eg.addColorStop(1, lit === 2 ? '#6f8fc8' : '#c8894a'); ex.globalAlpha = lit === 2 ? 0.55 : 0.85; ex.fillStyle = eg; ex.fillRect(gx, gy, gw, gh); ex.globalAlpha = 1;
+    const kind = q();
+    if(kind < 0.45){ ex.fillStyle = 'rgba(0,0,0,0.38)'; for(let k = gy + 3; k < gy + gh; k += Math.max(4, gh / 22)) ex.fillRect(gx, k, gw, Math.max(1.5, gh / 60)); }   // blinds
+    else if(kind < 0.75){ const cw = gw * (0.25 + q() * 0.2); ex.fillStyle = 'rgba(0,0,0,0.75)'; ex.fillRect(gx, gy, cw, gh); ex.fillRect(gx + gw - cw * 0.6, gy, cw * 0.6, gh); cx.fillStyle = '#3a2a22'; cx.fillRect(gx, gy, cw, gh); cx.fillRect(gx + gw - cw * 0.6, gy, cw * 0.6, gh); }   // curtains
+    else { const sh = gh * (0.2 + q() * 0.35); ex.fillStyle = '#000'; ex.fillRect(gx, gy, gw, sh); cx.fillStyle = '#2a2420'; cx.fillRect(gx, gy, gw, sh); }   // a shade pulled half down
+  } else { const g = cx.createLinearGradient(gx, gy, gx + gw, gy + gh); g.addColorStop(0, '#1d232b'); g.addColorStop(0.55, '#121519'); g.addColorStop(1, '#262d36'); cx.fillStyle = g; cx.fillRect(gx, gy, gw, gh);
+    cx.fillStyle = 'rgba(160,175,195,0.07)'; cx.beginPath(); cx.moveTo(gx + gw * 0.15, gy); cx.lineTo(gx + gw * 0.45, gy); cx.lineTo(gx + gw * 0.1, gy + gh); cx.lineTo(gx - gw * 0.2 + gw * 0.15, gy + gh); cx.fill();
+    if(q() < 0.3){ const sh = gh * (0.15 + q() * 0.5); cx.fillStyle = '#2c2622'; cx.fillRect(gx, gy, gw, sh); } }
+  // sashes: a rail across the middle, two bars down each sash
+  cx.fillStyle = o.frame || '#1c1a19'; ex.fillStyle = '#000'; const rail = Math.max(3, f * 0.8);
+  [cx, ex].forEach(c => { c.fillRect(gx, gy + gh / 2 - rail / 2, gw, rail); if(!o.wide) c.fillRect(gx + gw / 2 - rail / 3, gy, rail * 0.66, gh); });
+  hx.fillStyle = 'rgb(70,70,70)'; hx.fillRect(gx, gy + gh / 2 - rail / 2, gw, rail);
+}
+function lbFacadeTex(v){
+  const q = rng(6101 + v * 13), W = 1024, H = 2048, pu = W / 12, pv = H / 28.8, hotel = v === 2;
+  return lbPaint(W, H, (cx, ex, hx) => {
+    const pal = [[0x6a3a2c, 0x5a3026, 0x74412f, 0x60372a, 0x4e2c24], [0x6a5e52, 0x5c534a, 0x766a5c, 0x52493f, 0x625548], [0xa7a194, 0x9c968a, 0xb0aa9d, 0x948e83]][v];
+    if(v < 2){
+      cx.fillStyle = v ? '#3c3732' : '#3a2e2a'; cx.fillRect(0, 0, W, H);   // mortar
+      const bh = 0.075 * pv, bw = 0.23 * pu; let row = 0;
+      for(let y = 0; y < H; y += bh, row++){ const off = row % 2 ? bw / 2 : 0; for(let x = -off; x < W; x += bw){ const c = pal[Math.floor(q() * pal.length)]; cx.fillStyle = lbHex(c, 0.8 + q() * 0.35); cx.fillRect(x + 1, y + 1, bw - 1.6, bh - 1.4); } }
+      hx.fillStyle = 'rgb(96,96,96)'; for(let y = 0; y < H; y += bh) hx.fillRect(0, y, W, 1.4); row = 0; for(let y = 0; y < H; y += bh, row++){ const off = row % 2 ? bw / 2 : 0; for(let x = -off; x < W; x += bw) hx.fillRect(x, y, 1.6, bh); }
+    } else {
+      cx.fillStyle = '#6e6a62'; cx.fillRect(0, 0, W, H); const bh = 0.6 * pv, bw = 1.5 * pu; let row = 0;
+      for(let y = 0; y < H; y += bh, row++){ const off = row % 2 ? bw / 2 : 0; for(let x = -off; x < W; x += bw){ cx.fillStyle = lbHex(pal[Math.floor(q() * pal.length)], 0.88 + q() * 0.18); cx.fillRect(x + 1.5, y + 1.5, bw - 3, bh - 3); } }
+      hx.fillStyle = 'rgb(100,100,100)'; for(let y = 0; y < H; y += bh) hx.fillRect(0, y, W, 2.5);
+      for(let f = 0; f < 8; f++){ const y = H - (f * 3.6 + 0.05) * pv; cx.fillStyle = '#b8b2a5'; cx.fillRect(0, y - 0.22 * pv, W, 0.22 * pv); hx.fillStyle = 'rgb(190,190,190)'; hx.fillRect(0, y - 0.22 * pv, W, 0.22 * pv); }   // a stringcourse at every floor
+    }
+    // grime: darker towards the top, and in vertical washes
+    for(let i = 0; i < 40; i++){ const x = q() * W, w = 20 + q() * 90; const g = cx.createLinearGradient(0, 0, 0, H); g.addColorStop(0, 'rgba(10,10,12,' + (0.12 + q() * 0.18).toFixed(2) + ')'); g.addColorStop(1, 'rgba(10,10,12,0)'); cx.fillStyle = g; cx.fillRect(x, 0, w, H); }
+    for(let b = 0; b < 4; b++) for(let f = 0; f < 8; f++){
+      const wx = (b * 3 + 0.85) * pu, ww = 1.3 * pu, wy = H - (f * 3.6 + 3.05) * pv, wh = 2.05 * pv, r = q(), lit = r < (hotel ? 0.3 : 0.2) ? (q() < 0.72 ? 0 : q() < 0.6 ? 1 : 2) : -1;
+      // streaks of rain grime under the sill
+      const g = cx.createLinearGradient(0, wy + wh, 0, wy + wh + 1.3 * pv); g.addColorStop(0, 'rgba(8,8,10,0.35)'); g.addColorStop(1, 'rgba(8,8,10,0)'); cx.fillStyle = g; cx.fillRect(wx + ww * 0.1, wy + wh, ww * 0.8, 1.3 * pv);
+      lbWindow(cx, ex, hx, wx, wy, ww, wh, lit, q, {frame:hotel ? '#2a2826' : '#1c1a19'});
+      // sill and lintel (the limestone has a keyed head)
+      const st = hotel ? '#c4beb0' : v ? '#8a8378' : '#9a8f80'; cx.fillStyle = st; cx.fillRect(wx - 0.12 * pu, wy + wh, ww + 0.24 * pu, 0.14 * pv); hx.fillStyle = 'rgb(200,200,200)'; hx.fillRect(wx - 0.12 * pu, wy + wh, ww + 0.24 * pu, 0.14 * pv);
+      if(hotel){ cx.fillRect(wx + ww / 2 - 0.18 * pu, wy - 0.35 * pv, 0.36 * pu, 0.35 * pv); hx.fillRect(wx + ww / 2 - 0.18 * pu, wy - 0.35 * pv, 0.36 * pu, 0.35 * pv); }
+      else { cx.fillStyle = v ? '#4a423a' : '#3e2a24'; cx.fillRect(wx - 0.08 * pu, wy - 0.2 * pv, ww + 0.16 * pu, 0.2 * pv); for(let k = 0; k < 9; k++){ cx.fillStyle = 'rgba(0,0,0,0.35)'; cx.fillRect(wx - 0.08 * pu + k * (ww + 0.16 * pu) / 9, wy - 0.2 * pv, 1.2, 0.2 * pv); } }
+    }
+  });
+}
+// shopfronts: three 4 m units to a 12 m tile, each with pilasters, a painted fascia (blank: the core's names are signs of their own), a display window and a door
+function lbShopTex(v){
+  const q = rng(6151 + v * 7), W = 1024, H = 512, pu = W / 12, pv = H / 4.25;
+  return lbPaint(W, H, (cx, ex, hx) => {
+    cx.fillStyle = '#2a2826'; cx.fillRect(0, 0, W, H);
+    const fas = ['#1f2a24', '#3a1c1c', '#1a1d26', '#2a2622', '#262626', '#33291c'];
+    for(let k = 0; k < 3; k++){
+      const x0 = k * 4 * pu, lit = q() < (v ? 0.55 : 0.75), col = fas[Math.floor(q() * fas.length)];
+      cx.fillStyle = '#6a655d'; cx.fillRect(x0, 0, 0.35 * pu, H); cx.fillRect(x0 + 3.65 * pu, 0, 0.35 * pu, H); hx.fillStyle = 'rgb(170,170,170)'; hx.fillRect(x0, 0, 0.35 * pu, H); hx.fillRect(x0 + 3.65 * pu, 0, 0.35 * pu, H);
+      cx.fillStyle = col; cx.fillRect(x0 + 0.35 * pu, 0, 3.3 * pu, 0.75 * pv); cx.fillStyle = 'rgba(255,240,210,0.12)'; cx.fillRect(x0 + 0.35 * pu, 0.62 * pv, 3.3 * pu, 3);   // fascia, with a lit edge
+      hx.fillStyle = 'rgb(160,160,160)'; hx.fillRect(x0 + 0.35 * pu, 0, 3.3 * pu, 0.75 * pv);
+      // display window
+      const wx = x0 + 0.5 * pu, wy = 0.95 * pv, ww = 2.1 * pu, wh = 2.55 * pv;
+      cx.fillStyle = '#121212'; cx.fillRect(wx - 6, wy - 6, ww + 12, wh + 12); hx.fillStyle = 'rgb(50,50,50)'; hx.fillRect(wx, wy, ww, wh);
+      if(lit){ const g = cx.createLinearGradient(0, wy, 0, wy + wh); g.addColorStop(0, '#6a5034'); g.addColorStop(1, '#3a2c1e'); cx.fillStyle = g; cx.fillRect(wx, wy, ww, wh);
+        const eg = ex.createLinearGradient(0, wy, 0, wy + wh); eg.addColorStop(0, '#ffd59a'); eg.addColorStop(1, '#a8743e'); ex.fillStyle = eg; ex.globalAlpha = 0.8; ex.fillRect(wx, wy, ww, wh); ex.globalAlpha = 1;
+        // shelves and goods in silhouette
+        for(let s = 0; s < 3; s++){ const sy = wy + wh * (0.35 + s * 0.22); [cx, ex].forEach(c => { c.fillStyle = 'rgba(20,14,10,0.85)'; c.fillRect(wx, sy, ww, 4); });
+          for(let i = 0; i < 9; i++){ const bx = wx + 6 + q() * (ww - 20), bh = 10 + q() * 26, bw = 8 + q() * 14; [cx, ex].forEach(c => { c.fillStyle = 'rgba(25,18,12,' + (0.6 + q() * 0.3).toFixed(2) + ')'; c.fillRect(bx, sy - bh, bw, bh); }); } }
+      } else { cx.fillStyle = '#15181c'; cx.fillRect(wx, wy, ww, wh); cx.strokeStyle = 'rgba(120,120,120,0.35)'; cx.lineWidth = 2; for(let i = wx; i < wx + ww; i += 9){ cx.beginPath(); cx.moveTo(i, wy); cx.lineTo(i, wy + wh); cx.stroke(); } }   // a shutter down
+      cx.fillStyle = 'rgba(200,210,225,0.06)'; cx.fillRect(wx + ww * 0.6, wy, ww * 0.12, wh);
+      // the door, with a transom
+      const dx = x0 + 2.85 * pu, dw = 0.75 * pu, dy = 1.0 * pv, dh = 3.25 * pv;
+      cx.fillStyle = '#1a1512'; cx.fillRect(dx, dy, dw, dh); hx.fillStyle = 'rgb(30,30,30)'; hx.fillRect(dx, dy, dw, dh);
+      cx.fillStyle = lit ? '#7a5c38' : '#202428'; cx.fillRect(dx + 6, dy + 8, dw - 12, dh * 0.45); if(lit){ ex.fillStyle = '#c99a5c'; ex.globalAlpha = 0.7; ex.fillRect(dx + 6, dy + 8, dw - 12, dh * 0.45); ex.globalAlpha = 1; }
+      cx.fillStyle = '#b08a4a'; cx.fillRect(dx + dw - 12, dy + dh * 0.55, 5, 10);
+      // the stall riser under the window
+      cx.fillStyle = '#4a4540'; cx.fillRect(wx - 6, wy + wh + 6, ww + 12, H - wy - wh - 6); hx.fillStyle = 'rgb(150,150,150)'; hx.fillRect(wx - 6, wy + wh + 6, ww + 12, H - wy - wh - 6);
+    }
+    for(let i = 0; i < 30; i++){ cx.fillStyle = 'rgba(0,0,0,' + (q() * 0.12).toFixed(2) + ')'; cx.fillRect(q() * W, q() * H, 30 + q() * 80, 6 + q() * 40); }
+  });
+}
+// the ground floor of a side or alley wall: rusticated stone, a steel door and a barred window
+function lbPlinthTex(){
+  const q = rng(6171), W = 1024, H = 512, pu = W / 12, pv = H / 4.25;
+  return lbPaint(W, H, (cx, ex, hx) => {
+    cx.fillStyle = '#26241f'; cx.fillRect(0, 0, W, H); const bh = 0.45 * pv, bw = 1.2 * pu; let row = 0;
+    for(let y = 0; y < H; y += bh, row++){ const off = row % 2 ? bw / 2 : 0; for(let x = -off; x < W; x += bw){ const k = 0.75 + q() * 0.3; cx.fillStyle = lbHex(0x5e5a52, k); cx.fillRect(x + 3, y + 3, bw - 6, bh - 6); hx.fillStyle = 'rgb(' + Math.round(150 + q() * 20) + ',0,0)'; hx.fillRect(x + 4, y + 4, bw - 8, bh - 8); } }
+    hx.fillStyle = 'rgb(90,90,90)'; for(let y = 0; y < H; y += bh) hx.fillRect(0, y, W, 4);
+    const dx = 2 * pu, dw = 1.1 * pu, dh = 2.4 * pv; cx.fillStyle = '#20262a'; cx.fillRect(dx, H - dh, dw, dh); hx.fillStyle = 'rgb(60,60,60)'; hx.fillRect(dx, H - dh, dw, dh);
+    cx.fillStyle = '#2c3438'; for(let k = 0; k < 4; k++) cx.fillRect(dx + 8, H - dh + 10 + k * dh / 4, dw - 16, dh / 4 - 14);
+    const wx = 7 * pu, wy = H - 3.2 * pv, ww = 1.4 * pu, wh = 0.9 * pv; cx.fillStyle = '#111316'; cx.fillRect(wx, wy, ww, wh); cx.fillStyle = '#3a3a3a'; for(let k = 1; k < 6; k++) cx.fillRect(wx + k * ww / 6, wy, 4, wh);
+    for(let i = 0; i < 25; i++){ const g = cx.createLinearGradient(0, H * 0.6, 0, H); g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,' + (0.2 + q() * 0.2).toFixed(2) + ')'); cx.fillStyle = g; cx.fillRect(q() * W, H * 0.6, 40 + q() * 120, H * 0.4); }
+  });
+}
+// where rain pools: soft blobs on a 16 m tile (each blob is drawn at every wrap, so the tile has no seam)
+function lbPuddleTex(){
+  const q = rng(6181), N = 512, c = document.createElement('canvas'); c.width = c.height = N; const x = c.getContext('2d'); x.fillStyle = '#000'; x.fillRect(0, 0, N, N);
+  for(let i = 0; i < 70; i++){ const px = q() * N, py = q() * N, r = 10 + q() * q() * 70, sx = 0.6 + q() * 1.2, a = q() * Math.PI, op = 0.35 + q() * 0.5;
+    for(let dy = -1; dy <= 1; dy++) for(let dx = -1; dx <= 1; dx++){ x.save(); x.translate(px + dx * N, py + dy * N); x.rotate(a); x.scale(sx, 1); const g = x.createRadialGradient(0, 0, 0, 0, 0, r); g.addColorStop(0, 'rgba(255,255,255,' + op.toFixed(2) + ')'); g.addColorStop(1, 'rgba(255,255,255,0)'); x.fillStyle = g; x.fillRect(-r, -r, 2 * r, 2 * r); x.restore(); } }
+  const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = MAX_ANISO; SHARED_TEX.add(t); return t;
+}
+function lbTex(){
+  if(lbTexCache) return lbTexCache;
+  return (lbTexCache = {facade:[0, 1, 2].map(lbFacadeTex), shop:[0, 1].map(lbShopTex), plinth:lbPlinthTex(), puddle:lbPuddleTex()});
+}
+/* ---- the wet street: one shader for the road (the mirror itself) and the sidewalks (which read the same mirror; a 15 cm parallax nobody can see).
+   Asphalt mirrors a little, in vertical streaks (the mirror sampled up and down), puddles mirror cleanly with rain rings; the street lamps' pools of light
+   come from their fixed spots (heads 1 m out over the road from posts 10, 24 and 38 m along every kerb), so no point light is needed. ---- */
+const LB_WET_VS = 'uniform mat4 textureMatrix; varying vec4 mirrorCoord; varying vec4 worldPosition;\n#include <common>\n#include <fog_pars_vertex>\n#include <shadowmap_pars_vertex>\n#include <logdepthbuf_pars_vertex>\n' +
+  'void main(){ mirrorCoord = modelMatrix * vec4(position, 1.0); worldPosition = mirrorCoord.xyzw; mirrorCoord = textureMatrix * mirrorCoord; vec4 mvPosition = modelViewMatrix * vec4(position, 1.0); gl_Position = projectionMatrix * mvPosition;\n' +
+  '#include <beginnormal_vertex>\n#include <defaultnormal_vertex>\n#include <logdepthbuf_vertex>\n#include <fog_vertex>\n#include <shadowmap_vertex>\n}';
+const LB_WET_FS = `uniform sampler2D mirrorSampler, albedoMap, puddleMap, normalSampler; uniform float time, aScale, pScale, pAmt, mirrorOn, streak, top, lampK; uniform vec3 tint, ambSky, ambGround, moonDir, moonCol, eye, lampCol;
+varying vec4 mirrorCoord; varying vec4 worldPosition;
+#include <common>
+#include <packing>
+#include <bsdfs>
+#include <fog_pars_fragment>
+#include <logdepthbuf_pars_fragment>
+#include <lights_pars_begin>
+#include <shadowmap_pars_fragment>
+#include <shadowmask_pars_fragment>
+float lbH(vec2 p){ p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+vec2 lbRing(vec2 p, float t){ vec2 c = floor(p), f = fract(p) - 0.5; float h = lbH(c); vec2 o = vec2(lbH(c + 3.7), lbH(c + 9.1)) * 0.3 - 0.15; float k = fract(t * (0.8 + 0.6 * h) + h * 7.0); vec2 d = f - o; float r = length(d), x = (r - k * 0.33) * 26.0; return d / max(r, 1e-3) * sin(x * 2.6) * exp(-x * x * 0.5) * (1.0 - k); }
+float lbD(float a, float b){ return min(min(abs(a - b), abs(a - b - 48.0)), abs(a - b + 48.0)); }
+float lbLamp(vec2 w){ vec2 l = mod(w, 48.0);
+  float du = min(lbD(l.x, 5.0), lbD(l.x, 43.0)), dv = min(min(lbD(l.y, 10.0), lbD(l.y, 24.0)), lbD(l.y, 38.0));
+  float eu = min(lbD(l.y, 5.0), lbD(l.y, 43.0)), ev = min(min(lbD(l.x, 10.0), lbD(l.x, 24.0)), lbD(l.x, 38.0));
+  return exp(-(du * du + dv * dv) / 16.0) + exp(-(eu * eu + ev * ev) / 16.0) + 0.25 * (exp(-(du * du + dv * dv) / 70.0) + exp(-(eu * eu + ev * ev) / 70.0)); }
+void main(){
+  #include <logdepthbuf_fragment>
+  vec2 wp = worldPosition.xz;
+  vec3 alb = pow(texture2D(albedoMap, wp * aScale).rgb, vec3(2.2)) * tint;
+  vec2 l = mod(wp, 48.0); float kd = min(min(l.x - 6.0, 42.0 - l.x), min(l.y - 6.0, 42.0 - l.y)), kerb = top * step(0.0, kd) * (1.0 - step(0.32, kd));
+  alb = mix(alb, vec3(0.16, 0.16, 0.155), kerb);
+  float pud = smoothstep(pAmt - 0.07, pAmt + 0.07, texture2D(puddleMap, wp * pScale).r) * (1.0 - kerb);
+  vec3 toEye = eye - worldPosition.xyz; float dist = length(toEye); vec3 V = toEye / max(dist, 1e-3);
+  vec3 bump = texture2D(normalSampler, wp * 0.23).rgb * 2.0 - 1.0;
+  float nearK = 1.0 - smoothstep(10.0, 28.0, dist);
+  vec2 rip = (lbRing(wp * 2.3, time * 1.6) + lbRing(wp * 2.3 + vec2(0.5, 0.31), time * 1.75 + 0.4)) * 0.5 * nearK;
+  vec2 nxz = mix(bump.xy * 0.16, rip * 0.8, pud);
+  vec3 N = normalize(vec3(nxz.x, 1.0, nxz.y));
+  float fres = 0.02 + 0.98 * pow(1.0 - max(dot(V, N), 0.0), 5.0);
+  vec3 refl = vec3(0.0);
+  if(mirrorOn > 0.5){
+    vec2 uv = mirrorCoord.xy / mirrorCoord.w + nxz * mix(0.25, 1.0, pud) * (0.01 + 1.2 / max(dist, 2.0)) * 0.5;
+    vec3 r0 = texture2D(mirrorSampler, uv).rgb; float s = streak * (1.0 - pud);
+    vec3 rb = r0 * 0.3 + (texture2D(mirrorSampler, uv + vec2(0.0, s)).rgb + texture2D(mirrorSampler, uv - vec2(0.0, s)).rgb) * 0.21 + (texture2D(mirrorSampler, uv + vec2(0.0, s * 2.5)).rgb + texture2D(mirrorSampler, uv - vec2(0.0, s * 2.5)).rgb) * 0.14;
+    refl = mix(rb, r0, pud);
+  }
+  float k = mix(0.14 + 0.5 * fres, 0.42 + 0.58 * fres, pud) * (1.0 - kerb * 0.6);
+  vec3 light = mix(ambGround, ambSky, 0.5 + 0.5 * N.y) + moonCol * max(dot(N, moonDir), 0.0) * getShadowMask() + lampCol * lbLamp(wp) * lampK;
+  vec3 col = alb * light * mix(1.0, 0.35, pud) * (1.0 - k * 0.55) + refl * k;
+  gl_FragColor = vec4(col, 1.0);
+  #include <tonemapping_fragment>
+  #include <fog_fragment>
+}`;
+function lbWetMat(U, o){
+  const u = THREE.UniformsUtils.merge([THREE.UniformsLib.fog, THREE.UniformsLib.lights, {albedoMap:{value:o.map}, aScale:{value:o.aScale}, tint:{value:new THREE.Color(o.tint[0], o.tint[1], o.tint[2])}, pScale:{value:1 / 16}, pAmt:{value:o.pAmt}, streak:{value:o.streak}, top:{value:o.top ? 1 : 0}}]);
+  ['mirrorSampler', 'textureMatrix', 'eye', 'time', 'mirrorOn', 'normalSampler', 'puddleMap', 'ambSky', 'ambGround', 'moonDir', 'moonCol', 'lampCol', 'lampK'].forEach(k => { u[k] = U[k]; });
+  u.fogSunDir = {value:FOG_SUN}; u.fogSunColor = {value:FOG_SUNCOL}; u.fogParams = {value:FOG_PARAMS};
+  const m = new THREE.ShaderMaterial({uniforms:u, vertexShader:LB_WET_VS, fragmentShader:LB_WET_FS, lights:true, fog:true}); m.userData.shared = true; return m;
+}
+// a 1x1 black texture stands in for the mirror while the mirror itself is being drawn (a texture cannot be read while it is the render target)
+let lbBlackTex = null;
+/* ---- the kit: materials and shapes made once per session and shared by the core and every streamed block ---- */
+function lbKit(){
+  if(lbKitCache) return lbKitCache;
+  const T = lbTex(), sw = sm => shareMat(sm);
+  if(!lbBlackTex){ lbBlackTex = new THREE.DataTexture(new Uint8Array([0, 0, 0, 255]), 1, 1, THREE.RGBAFormat); lbBlackTex.needsUpdate = true; SHARED_TEX.add(lbBlackTex); }
+  const U = {mirrorSampler:{value:lbBlackTex}, textureMatrix:{value:new THREE.Matrix4()}, eye:{value:new V3()}, time:{value:0}, mirrorOn:{value:0}, normalSampler:{value:waterNormal}, puddleMap:{value:T.puddle},
+    ambSky:{value:new THREE.Color()}, ambGround:{value:new THREE.Color()}, moonDir:{value:new V3(0, 1, 0)}, moonCol:{value:new THREE.Color()}, lampCol:{value:C(0xffb46a).multiplyScalar(1.6)}, lampK:{value:1}};
+  const asp = surface('asphalt'), pav = surface('flagstone'), con = surface('concrete');
+  const fac = v => sw(std(0xffffff, {map:T.facade[v].map, normalMap:T.facade[v].normal, normalScale:new V2(0.9, 0.9), emissive:C(0xffffff), emissiveMap:T.facade[v].em, emissiveIntensity:1.05, roughness:0.6, vertexColors:true}));
+  const shop = v => sw(std(0xffffff, {map:T.shop[v].map, normalMap:T.shop[v].normal, emissive:C(0xffffff), emissiveMap:T.shop[v].em, emissiveIntensity:1.15, roughness:0.45, vertexColors:true}));
+  const K = {U, T,
+    wall:[0, 1, 2].map(fac), shop:[0, 1].map(shop),
+    plinth:sw(std(0xffffff, {map:T.plinth.map, normalMap:T.plinth.normal, roughness:0.7, vertexColors:true})),
+    roof:sw(std(0x2a2a2d, {map:detailTex, normalMap:detailNormal, normalScale:new V2(0.5, 0.5), roughness:0.85})),
+    trim:sw(std(0x8e887e, {map:con.map, normalMap:con.normal, normalScale:new V2(0.6, 0.6), roughness:0.7, vertexColors:true})),
+    iron:sw(std(0x1e2022, {metalness:0.55, roughness:0.5, normalMap:detailNormal, normalScale:new V2(0.3, 0.3)})),
+    steel:sw(std(0x39423e, {metalness:0.5, roughness:0.55, map:detailTex, normalMap:detailNormal, normalScale:new V2(0.5, 0.5)})),
+    kerb:sw(std(0x5e5d5a, {map:con.map, normalMap:con.normal, roughness:0.5})),
+    paint:sw(std(0xb9b7ae, {map:detailTex, roughness:0.45, polygonOffset:true, polygonOffsetFactor:-1, polygonOffsetUnits:-2})),
+    awn:sw(std(0xffffff, {roughness:0.85, vertexColors:true, side:THREE.DoubleSide})),
+    wood:sw(std(0x4a3a2c, {map:detailTex, normalMap:detailNormal, roughness:0.85})),
+    bulb:sw(glowM(0xffd29a, 3.2)),
+    road:lbWetMat(U, {map:asp.map, aScale:1 / 5, tint:[0.62, 0.62, 0.66], pAmt:0.5, streak:0.012}),
+    top:lbWetMat(U, {map:pav.map, aScale:1 / 4, tint:[0.36, 0.35, 0.34], pAmt:0.74, streak:0.008, top:true})
+  };
+  // the street lamp: a fluted iron post, a swan-neck arm reaching 1.6 m over the road, a lantern hood (one shape, instanced; +z is the road side)
+  { const parts = [new THREE.CylinderGeometry(0.06, 0.1, 4.5, 10).translate(0, 2.25, 0), new THREE.CylinderGeometry(0.16, 0.2, 0.5, 10).translate(0, 0.25, 0), new THREE.SphereGeometry(0.09, 10, 8).translate(0, 4.55, 0)];
+    const arm = new THREE.TorusGeometry(0.8, 0.035, 6, 16, Math.PI / 2); arm.rotateY(-Math.PI / 2); arm.translate(0, 3.85, 0.8); parts.push(arm);
+    parts.push(new THREE.CylinderGeometry(0.035, 0.035, 0.85, 6).rotateX(Math.PI / 2).translate(0, 4.65, 1.2));
+    parts.push(new THREE.ConeGeometry(0.34, 0.32, 14, 1, true).translate(0, 4.62, 1.6), new THREE.CylinderGeometry(0.06, 0.06, 0.12, 8).translate(0, 4.83, 1.6));
+    K.lampGeo = shareGeo(merge(parts)); K.bulbGeo = shareGeo(new THREE.SphereGeometry(0.13, 12, 8).translate(0, 4.45, 1.6)); }
+  // a parked car of no make: a rounded body (an extruded side profile), a glasshouse, four wheels, chrome bumpers; length along z
+  { const S = new THREE.Shape(); S.moveTo(-2.5, 0.32); S.lineTo(2.45, 0.32); S.quadraticCurveTo(2.62, 0.36, 2.58, 0.62); S.quadraticCurveTo(2.5, 0.92, 1.4, 0.98); S.lineTo(0.85, 1.0);
+    S.quadraticCurveTo(0.45, 1.55, -0.2, 1.56); S.quadraticCurveTo(-0.95, 1.55, -1.3, 1.02); S.quadraticCurveTo(-2.35, 0.98, -2.55, 0.7); S.lineTo(-2.5, 0.32);
+    const body = new THREE.ExtrudeGeometry(S, {depth:1.7, bevelEnabled:true, bevelThickness:0.1, bevelSize:0.08, bevelSegments:3, curveSegments:10}); body.translate(0, 0, -0.85); body.rotateY(Math.PI / 2);
+    const G2 = new THREE.Shape(); G2.moveTo(0.78, 1.02); G2.quadraticCurveTo(0.42, 1.5, -0.2, 1.5); G2.quadraticCurveTo(-0.9, 1.49, -1.22, 1.03); G2.lineTo(0.78, 1.02);
+    const glass = new THREE.ExtrudeGeometry(G2, {depth:1.78, bevelEnabled:false, curveSegments:8}); glass.translate(0, 0, -0.89); glass.rotateY(Math.PI / 2);
+    const wh = []; [[-0.86, 1.6], [0.86, 1.6], [-0.86, -1.6], [0.86, -1.6]].forEach(([x, z]) => wh.push(new THREE.CylinderGeometry(0.34, 0.34, 0.24, 16).rotateZ(Math.PI / 2).translate(x, 0.34, z)));
+    const ch = [new THREE.BoxGeometry(1.86, 0.1, 0.14).translate(0, 0.42, 2.6), new THREE.BoxGeometry(1.86, 0.1, 0.14).translate(0, 0.42, -2.62)];
+    const li = [[-0.62, 0.66, 2.6], [0.62, 0.66, 2.6]].map(([x, y, z]) => new THREE.SphereGeometry(0.11, 10, 8).translate(x, y, z)).concat([[-0.66, 0.66, -2.62], [0.66, 0.66, -2.62]].map(([x, y, z]) => new THREE.BoxGeometry(0.16, 0.1, 0.05).translate(x, y, z)));
+    K.car = {body:shareGeo(body), glass:shareGeo(glass), wheel:shareGeo(merge(wh)), chrome:shareGeo(merge(ch)), light:shareGeo(merge(li))};
+    K.carM = {body:sw(phys(0xffffff, {roughness:0.28, metalness:0.35})), glass:sw(phys(0x0c0f13, {roughness:0.05, metalness:0.2})), wheel:sw(std(0x121212, {roughness:0.8})), chrome:sw(phys(0xd8d8d8, {metalness:1, roughness:0.22})), light:sw(glowM(0xff3a28, 0.9))}; }
+  return (lbKitCache = K);
+}
+/* ---- geometry builders: everything in Lampblack is axis-aligned boxes and wall faces, written straight into per-material buffers (one draw each) ---- */
+const lbAcc = () => ({p:[], n:[], u:[], c:[], i:[]});
+function lbQ(a, P, N, UV, CL){ const b = a.p.length / 3; for(let k = 0; k < 4; k++){ a.p.push(P[k * 3], P[k * 3 + 1], P[k * 3 + 2]); a.n.push(N[0], N[1], N[2]); a.u.push(UV[k * 2], UV[k * 2 + 1]); const c = CL.length > 3 ? CL.slice(k * 3, k * 3 + 3) : CL; a.c.push(c[0], c[1], c[2]); } a.i.push(b, b + 1, b + 2, b, b + 2, b + 3); }
+const LB_ONE = [1, 1, 1];
+// a box with world-space UVs (one tile = `t` m) and an optional colour
+function lbBox(a, x0, x1, y0, y1, z0, z1, t, col){
+  t = t || 2; const c = col || LB_ONE;
+  lbQ(a, [x1, y0, z1, x1, y0, z0, x1, y1, z0, x1, y1, z1], [1, 0, 0], [z1 / t, y0 / t, z0 / t, y0 / t, z0 / t, y1 / t, z1 / t, y1 / t], c);
+  lbQ(a, [x0, y0, z0, x0, y0, z1, x0, y1, z1, x0, y1, z0], [-1, 0, 0], [z0 / t, y0 / t, z1 / t, y0 / t, z1 / t, y1 / t, z0 / t, y1 / t], c);
+  lbQ(a, [x0, y0, z1, x1, y0, z1, x1, y1, z1, x0, y1, z1], [0, 0, 1], [x0 / t, y0 / t, x1 / t, y0 / t, x1 / t, y1 / t, x0 / t, y1 / t], c);
+  lbQ(a, [x1, y0, z0, x0, y0, z0, x0, y1, z0, x1, y1, z0], [0, 0, -1], [x1 / t, y0 / t, x0 / t, y0 / t, x0 / t, y1 / t, x1 / t, y1 / t], c);
+  lbQ(a, [x0, y1, z1, x1, y1, z1, x1, y1, z0, x0, y1, z0], [0, 1, 0], [x0 / t, z1 / t, x1 / t, z1 / t, x1 / t, z0 / t, x0 / t, z0 / t], c);
+  if(y0 > 0.2) lbQ(a, [x0, y0, z0, x1, y0, z0, x1, y0, z1, x0, y0, z1], [0, -1, 0], [x0 / t, z0 / t, x1 / t, z0 / t, x1 / t, z1 / t, x0 / t, z1 / t], c);
+}
+// a wall face from A to B (seen from outside, A on the left), split into bands so the colour can carry the street light (warm below, cold above)
+function lbFace(a, Ax, Az, Bx, Bz, y0, y1, u0, v0, tu, tv, cf){
+  const len = Math.hypot(Bx - Ax, Bz - Az), tx = (Bx - Ax) / len, tz = (Bz - Az) / len, N = [-tz, 0, tx], ys = [y0];
+  [y0 + 2.5, y0 + 6, y0 + 12, y0 + 22].forEach(y => { if(y < y1 - 0.5) ys.push(y); }); ys.push(y1);
+  for(let k = 0; k < ys.length - 1; k++){ const ya = ys[k], yb = ys[k + 1], ca = cf(ya), cb = cf(yb);
+    lbQ(a, [Ax, ya, Az, Bx, ya, Bz, Bx, yb, Bz, Ax, yb, Az], N, [u0 / tu, (v0 + ya - y0) / tv, (u0 + len) / tu, (v0 + ya - y0) / tv, (u0 + len) / tu, (v0 + yb - y0) / tv, u0 / tu, (v0 + yb - y0) / tv], ca.concat(ca, cb, cb)); }
+}
+function lbGeo(a){
+  if(!a.i.length) return null; const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(a.p, 3)); g.setAttribute('normal', new THREE.Float32BufferAttribute(a.n, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(a.u, 2)); g.setAttribute('color', new THREE.Float32BufferAttribute(a.c, 3));
+  g.setIndex(a.i); g.computeBoundingSphere(); return g;
+}
+// the light on a wall: the street lamps warm the lowest floors, the night sky cools the top
+const lbWallCol = y => { const k = Math.exp(-Math.max(0, y - 3) / 5.5); return [0.6 + 0.8 * k, 0.62 + 0.6 * k, 0.72 + 0.32 * k]; };
+const lbBandCol = () => [1.35, 1.2, 1.02];
+function lbBins(){ return {wall:[lbAcc(), lbAcc(), lbAcc()], shop:[lbAcc(), lbAcc()], plinth:lbAcc(), roof:lbAcc(), trim:lbAcc(), iron:lbAcc(), steel:lbAcc(), kerb:lbAcc(), paint:lbAcc(), awn:lbAcc(), wood:lbAcc(), top:lbAcc(),
+  lamps:[], cars:[], glows:[], signs:[], vents:[], ironGeo:[]}; }
+// write the bins out: one mesh per material, then the instanced lamps and cars, the signs, and one glow cloud
+function lbFlush(B, K){
+  const put = (a, m, cast) => { const g = lbGeo(a); if(!g) return null; const o = mk(g, m, 0, 0, 0); o.castShadow = cast !== false; return o; };
+  B.wall.forEach((a, v) => put(a, K.wall[v])); B.shop.forEach((a, v) => put(a, K.shop[v], false)); put(B.plinth, K.plinth, false); put(B.roof, K.roof); put(B.trim, K.trim); put(B.steel, K.steel); put(B.kerb, K.kerb, false); put(B.awn, K.awn); put(B.wood, K.wood);
+  { const o = put(B.iron, K.iron); if(B.ironGeo.length){ const g = merge(B.ironGeo); mk(g, K.iron, 0, 0, 0); } }
+  const pt = put(B.paint, K.paint, false); if(pt) pt.userData.noAO = true;
+  const tp = put(B.top, K.top, false); if(tp){ tp.receiveShadow = true; tp.userData.noAO = true; if(lb) lb.tops.push(tp); }
+  if(B.lamps.length){ instanced(K.lampGeo, K.iron, B.lamps.map(L => mat4(L[0], L[1], L[2], 0, L[3], 0)), null, true); const bm = instanced(K.bulbGeo, K.bulb, B.lamps.map(L => mat4(L[0], L[1], L[2], 0, L[3], 0)), null, false); }
+  if(B.cars.length){ const M = B.cars.map(c => mat4(c[0], 0, c[1], 0, c[2], 0)), cols = B.cars.map(c => C(c[3])); instanced(K.car.body, K.carM.body, M, cols, true); instanced(K.car.glass, K.carM.glass, M, null, false); instanced(K.car.wheel, K.carM.wheel, M, null, false); instanced(K.car.chrome, K.carM.chrome, M, null, false); instanced(K.car.light, K.carM.light, M, null, false); }
+  B.signs.forEach(s => lbSign(s));
+  if(B.glows.length) glowCloud(B.glows, 0.5);
+}
+/* ---- neon: Lampblack's own names (invented), letters of light on a dark board; blade signs stand out from a wall, flat ones lie on it ---- */
+const lbSignTex = {};
+function lbNeonTex(text, col, blade){
+  const key = text + '|' + col + '|' + (blade ? 1 : 0); if(lbSignTex[key]) return lbSignTex[key];
+  const chars = text.split(''), fs = 96, W = blade ? 160 : Math.max(256, Math.ceil(text.length * fs * 0.62 + 90)), H = blade ? chars.length * fs * 1.02 + 70 : 170, hc = hexStr(col);
+  const t = canvasTex(W, H, (x) => { x.fillStyle = '#0f0f11'; x.fillRect(0, 0, W, H); x.strokeStyle = hc; x.lineWidth = 6; x.shadowColor = hc; x.shadowBlur = 16; x.strokeRect(12, 12, W - 24, H - 24);
+    x.font = '700 ' + fs + 'px "Chakra Petch","Trebuchet MS",sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle';
+    const draw = (fill, blur) => { x.fillStyle = fill; x.shadowBlur = blur; if(blade) chars.forEach((ch, i) => x.fillText(ch, W / 2, 35 + fs * 0.55 + i * fs * 1.02)); else x.fillText(text, W / 2, H / 2 + 4); };
+    draw(hc, 26); draw(hc, 8); x.globalAlpha = 0.55; draw('#ffffff', 2); x.globalAlpha = 1; });
+  t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping; SHARED_TEX.add(t); return (lbSignTex[key] = {t, W, H});
+}
+// {text, col, x, y, z, nx, nz (the wall's outward normal), blade, h (metres tall)}
+let lbClockTex = null;
+function lbSign(s){
+  if(s.clock){ if(!lbClockTex){ lbClockTex = canvasTex(256, 256, (x, w) => { x.fillStyle = '#1a1a1c'; x.fillRect(0, 0, w, w); x.fillStyle = '#e8dcc0'; x.beginPath(); x.arc(128, 128, 110, 0, TAU); x.fill(); x.strokeStyle = '#2a2622'; x.lineWidth = 6; x.stroke();
+      for(let i = 0; i < 12; i++){ const a = i / 12 * TAU; x.fillStyle = '#2a2622'; x.fillRect(128 + Math.sin(a) * 92 - 4, 128 - Math.cos(a) * 92 - 9, 8, 18); }
+      const hand = (a, l, wd) => { x.save(); x.translate(128, 128); x.rotate(a); x.fillStyle = '#1a1612'; x.fillRect(-wd / 2, -l, wd, l + 12); x.restore(); }; hand(TAU * (11 / 12 + 50 / 720), 58, 10); hand(TAU * 50 / 60, 86, 6); }); SHARED_TEX.add(lbClockTex); }   // ten to midnight, for ever
+    const m = new THREE.Mesh(new THREE.CircleGeometry(s.h / 2, 32), std(0xffffff, {map:lbClockTex, emissive:C(0xffffff), emissiveMap:lbClockTex, emissiveIntensity:0.55, roughness:0.4})); m.position.set(s.x + s.nx * 0.01, s.y, s.z + s.nz * 0.01); m.rotation.y = Math.atan2(s.nx, s.nz); (buildParent || world).add(m); return m; }
+  const N = lbNeonTex(s.text, s.col, s.blade), h = s.h || 1, w = h * N.W / N.H, mat = new THREE.MeshBasicMaterial({map:N.t, toneMapped:false}); mat.color.setRGB(1.7, 1.7, 1.7);
+  const g = new THREE.Group(); g.position.set(s.x, s.y, s.z); g.rotation.y = Math.atan2(s.nx, s.nz); (buildParent || world).add(g);
+  if(s.blade){ [-1, 1].forEach(sd => { const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), mat); m.rotation.y = sd * Math.PI / 2; m.position.set(sd * 0.07, 0, w / 2 + 0.25); g.add(m); });
+    const b = new THREE.Mesh(new THREE.BoxGeometry(0.12, h + 0.1, w + 0.1), lbKitCache.iron); b.position.z = w / 2 + 0.25; b.castShadow = true; g.add(b);
+    const br = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.06, 0.35), lbKitCache.iron); br.position.set(0, h / 2 - 0.2, 0.15); g.add(br); }
+  else { const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), mat); m.position.z = 0.09; g.add(m); const b = new THREE.Mesh(new THREE.BoxGeometry(w + 0.08, h + 0.08, 0.08), lbKitCache.iron); b.position.z = 0.04; g.add(b); }
+  return g;
+}
+const LB_NAMES = ['BAR', 'CAFE', 'DINER', 'PAWN', 'LAUNDRY', 'BILLIARDS', 'RADIO', 'BOOKS', 'ROOMS', 'DANCING', 'HOTEL', 'OPEN', 'TAILOR', 'SHOES', 'CLOCKS', 'NOODLES'];
+const LB_NEON = [0xff5a3c, 0xff5a3c, 0xffd8a8, 0xffd8a8, 0xff4a6a, 0x5fe6d6, 0x8cff7a];
+const LB_CARS = [0x141516, 0x1d1e20, 0x2a2b2d, 0x3a1416, 0x18261e, 0xc9c2ae, 0x1a2230];
+/* ---- a city block: the plan (buildings, an alley) is a pure function of the cell's rng, so a block rebuilt later is the same block ---- */
+function lbPlan(q, cx, cz){
+  const bx = cx * LB.S, bz = cz * LB.S, b = [], a0 = 9.5, a1 = 38.5, alley = q() < 0.45 ? (q() < 0.5 ? 'x' : 'z') : (q(), null);
+  const strips = alley ? [[a0, 22], [26, a1]] : [[a0, a1]], fl = () => { const r = q(); return r < 0.1 ? 10 + Math.floor(q() * 5) : 2 + Math.floor(q() * 7) + (q() < 0 ? 1 : 0); };
+  strips.forEach(([s0, s1]) => {
+    const cuts = [a0]; let c = a0; while(c < a1 - 9){ const w = 8 + q() * 10; if(a1 - c - w < 7){ break; } c += w; cuts.push(c); } cuts.push(a1);
+    for(let i = 0; i < cuts.length - 1; i++){ const f = fl(), v = q() < 0.42 ? 0 : q() < 0.75 ? 1 : 2, r = {v, f, h:LB.gf + f * LB.fh + 1, uo:Math.floor(q() * 4) * 3, vo:Math.floor(q() * 8) * LB.fh, fire:q() < 0.3, tank:q() < 0.35 && f <= 7, shop:q() < 0.8 ? Math.floor(q() * 2) : -1, awn:q() < 0.5, awc:Math.floor(q() * 4)};
+      if(alley === 'x' || !alley){ r.x0 = bx + cuts[i]; r.x1 = bx + cuts[i + 1]; r.z0 = bz + s0; r.z1 = bz + s1; } else { r.z0 = bz + cuts[i]; r.z1 = bz + cuts[i + 1]; r.x0 = bx + s0; r.x1 = bx + s1; }
+      b.push(r); } });
+  const sign = q() < 0.55 ? {k:Math.floor(q() * b.length), text:LB_NAMES[Math.floor(q() * LB_NAMES.length)], col:LB_NEON[Math.floor(q() * LB_NEON.length)], side:Math.floor(q() * 4)} : (q(), q(), q(), q(), null);
+  return {b, alley:alley ? {axis:alley, lo:(alley === 'x' ? bz : bx) + 22, hi:(alley === 'x' ? bz : bx) + 26} : null, sign, carQ:[q(), q(), q(), q(), q(), q(), q(), q()], carC:[q(), q(), q(), q(), q(), q(), q(), q()], vent:q() < 0.3 ? [q(), q()] : null};
+}
+const LB_AWN = [[0x5a1e1e, 0xd8d0c0], [0x1e3a2a, 0xd8d0c0], [0x22222a, 0x8a8678], [0x6a5a2a, 0x2a2a2a]];
+// one building: walls (above the ground floor), the ground floor band (shopfronts on a street, plinth elsewhere), roof, cornice, fire escapes, a water tank
+function lbBuilding(B, r, P, K, o){
+  const y0 = r.y0 || 0, bx0 = Math.floor((r.x0 + r.x1) / 2 / LB.S) * LB.S, bz0 = Math.floor((r.z0 + r.z1) / 2 / LB.S) * LB.S;
+  const faces = [[r.x1, r.z0, r.x0, r.z0, 'S'], [r.x1, r.z1, r.x1, r.z0, 'E'], [r.x0, r.z1, r.x1, r.z1, 'N'], [r.x0, r.z0, r.x0, r.z1, 'W']];
+  const onStreet = s => s === 'S' ? Math.abs(r.z0 - bz0 - 9.5) < 0.01 : s === 'N' ? Math.abs(r.z1 - bz0 - 38.5) < 0.01 : s === 'W' ? Math.abs(r.x0 - bx0 - 9.5) < 0.01 : Math.abs(r.x1 - bx0 - 38.5) < 0.01;
+  const onAlley = s => !!P.alley && (P.alley.axis === 'x' ? ((s === 'N' && Math.abs(r.z1 - P.alley.lo) < 0.01) || (s === 'S' && Math.abs(r.z0 - P.alley.hi) < 0.01)) : ((s === 'E' && Math.abs(r.x1 - P.alley.lo) < 0.01) || (s === 'W' && Math.abs(r.x0 - P.alley.hi) < 0.01)));
+  const gb = y0 > 0 ? y0 : LB.gf;
+  faces.forEach(([ax, az, bx, bz, s], fi) => {
+    const len = Math.hypot(bx - ax, bz - az), st = onStreet(s), al = onAlley(s), nx = s === 'E' ? 1 : s === 'W' ? -1 : 0, nz = s === 'N' ? 1 : s === 'S' ? -1 : 0;
+    lbFace(B.wall[r.v], ax, az, bx, bz, gb, r.h, r.uo + fi * 3, r.vo, 12, 28.8, lbWallCol);
+    if(y0 > 0) return;
+    const ox = nx * 0.04, oz = nz * 0.04;
+    if(st && r.shop >= 0 && !o.noShop){ lbFace(B.shop[r.shop], ax + ox, az + oz, bx + ox, bz + oz, LB.kerb, LB.gf, r.uo, 0, 12, 4.25, lbBandCol);
+      if(r.awn){ const ac = LB_AWN[r.awc], d = 1.4; for(let u = 0.5; u < len - 1.5; u += 4){ const w = Math.min(3.3, len - u - 0.6), x0 = ax + (bx - ax) / len * u, z0 = az + (bz - az) / len * u, x1 = ax + (bx - ax) / len * (u + w), z1 = az + (bz - az) / len * (u + w);
+          // a canvas awning sloping out over the sidewalk, striped, with a valance
+          const cA = hexArr(ac[0]).map(v => Math.pow(v, 2.2)), cB = hexArr(ac[1]).map(v => Math.pow(v, 2.2)), n = 6;
+          for(let k = 0; k < n; k++){ const t0 = k / n, t1 = (k + 1) / n, c = k % 2 ? cB : cA, px0 = x0 + (x1 - x0) * t0, pz0 = z0 + (z1 - z0) * t0, px1 = x0 + (x1 - x0) * t1, pz1 = z0 + (z1 - z0) * t1;
+            lbQ(B.awn, [px1 + nx * 0.05, 3.9, pz1 + nz * 0.05, px0 + nx * 0.05, 3.9, pz0 + nz * 0.05, px0 + nx * d, 3.25, pz0 + nz * d, px1 + nx * d, 3.25, pz1 + nz * d], [nx * 0.42, 0.9, nz * 0.42], [0, 0, 1, 0, 1, 1, 0, 1], c);
+            lbQ(B.awn, [px1 + nx * d, 3.25, pz1 + nz * d, px0 + nx * d, 3.25, pz0 + nz * d, px0 + nx * d, 3.0, pz0 + nz * d, px1 + nx * d, 3.0, pz1 + nz * d], [nx, 0, nz], [0, 0, 1, 0, 1, 1, 0, 1], c); } } }
+    } else lbFace(B.plinth, ax + ox, az + oz, bx + ox, bz + oz, LB.kerb, LB.gf, r.uo + fi * 3, 0, 12, 4.25, lbBandCol);
+    if(r.fire && (al || (st && fi % 2 === 0)) && r.f >= 3 && len > 7) lbFireEscape(B, ax, az, bx, bz, nx, nz, len, r.f);
+  });
+  lbQ(B.roof, [r.x0, r.h - 0.9, r.z1, r.x1, r.h - 0.9, r.z1, r.x1, r.h - 0.9, r.z0, r.x0, r.h - 0.9, r.z0], [0, 1, 0], [r.x0 / 4, r.z1 / 4, r.x1 / 4, r.z1 / 4, r.x1 / 4, r.z0 / 4, r.x0 / 4, r.z0 / 4], LB_ONE);
+  // cornice and parapet coping round the top, a stone band over the ground floor
+  const cc = [0.75, 0.76, 0.8], e = 0.28; lbBox(B.trim, r.x0 - e, r.x1 + e, r.h - 0.55, r.h - 0.25, r.z0 - e, r.z1 + e, 2, cc);
+  lbBox(B.trim, r.x0 - 0.1, r.x1 + 0.1, r.h - 0.25, r.h, r.z0 - 0.1, r.z1 + 0.1, 2, cc);
+  if(!y0) lbBox(B.trim, r.x0 - 0.12, r.x1 + 0.12, LB.gf - 0.05, LB.gf + 0.3, r.z0 - 0.12, r.z1 + 0.12, 2, [1.1, 1.0, 0.9]);
+  // the roof's inside face of the parapet (seen from the El and the tall buildings)
+  lbBox(B.roof, r.x0 + 0.05, r.x1 - 0.05, r.h - 0.9, r.h - 0.88, r.z0 + 0.05, r.z1 - 0.05, 4);
+  if(r.tank){ const tx = r.x0 + (r.x1 - r.x0) * 0.68, tz = r.z0 + (r.z1 - r.z0) * 0.35, ty = r.h - 0.9;
+    [[-0.8, -0.8], [0.8, -0.8], [-0.8, 0.8], [0.8, 0.8]].forEach(([dx, dz]) => lbBox(B.iron, tx + dx - 0.06, tx + dx + 0.06, ty, ty + 2.2, tz + dz - 0.06, tz + dz + 0.06));
+    B.ironGeo.push(new THREE.CylinderGeometry(1.25, 1.25, 0.12, 20).translate(tx, ty + 2.2, tz));
+    const tg = new THREE.CylinderGeometry(1.2, 1.25, 2.6, 22, 1, true).translate(tx, ty + 3.6, tz), roof = new THREE.ConeGeometry(1.32, 0.9, 22).translate(tx, ty + 5.35, tz); B.ironGeo.push(merge([tg, roof])); }
+  if(!o.noBox) addBox((r.x0 + r.x1) / 2, (r.z0 + r.z1) / 2, (r.x1 - r.x0) / 2, (r.z1 - r.z0) / 2, -1, r.h, {});
+}
+// a fire escape on a face: a landing at every floor, railings, a stair between landings, the drop ladder held up above the street
+function lbFireEscape(B, ax, az, bx, bz, nx, nz, len, floors){
+  const tx = (bx - ax) / len, tz = (bz - az) / len, u0 = len * 0.5 - 2.2, u1 = u0 + 4.4, D = 1.25, I = B.iron;
+  const P = (u, d) => [ax + tx * u + nx * d, az + tz * u + nz * d];
+  const box = (ua, ub, da, db, y0, y1) => { const p0 = P(ua, da), p1 = P(ub, db); lbBox(I, Math.min(p0[0], p1[0]), Math.max(p0[0], p1[0]), y0, y1, Math.min(p0[1], p1[1]), Math.max(p0[1], p1[1]), 1); };
+  for(let k = 1; k < floors; k++){ const y = LB.gf + (k - 1) * LB.fh + 0.05;
+    box(u0, u1, 0.05, D, y, y + 0.06);                                                   // the grating
+    box(u0, u1, D - 0.04, D, y + 0.98, y + 1.03); box(u0, u1, D - 0.04, D, y + 0.5, y + 0.53);    // rails
+    box(u0, u0 + 0.04, 0.05, D, y + 0.98, y + 1.03); box(u1 - 0.04, u1, 0.05, D, y + 0.98, y + 1.03);
+    for(let u = u0; u <= u1 + 0.01; u += 1.1) box(u - 0.025, u + 0.025, D - 0.05, D, y, y + 1.0);
+    if(k < floors - 1){ // the stair up to the next landing, alternating ends
+      const sa = k % 2 ? u0 + 0.3 : u1 - 0.3, sb = k % 2 ? u0 + 3.3 : u1 - 3.3, n = 9;
+      for(let i = 0; i < n; i++){ const t = (i + 0.5) / n, u = sa + (sb - sa) * t, yy = y + LB.fh * t; box(u - 0.17, u + 0.17, D - 0.75, D - 0.08, yy, yy + 0.04); }
+      const p0 = P(sa, D - 0.72), p1 = P(sb, D - 0.72), g = new THREE.BoxGeometry(0.05, 0.12, Math.hypot(sb - sa, LB.fh) + 0.1); g.rotateX(-Math.atan2(LB.fh, sb - sa) * (k % 2 ? 1 : 1));
+      const m = new THREE.Matrix4().makeRotationY(Math.atan2(p1[0] - p0[0], p1[1] - p0[1])); g.applyMatrix4(m); g.translate((p0[0] + p1[0]) / 2, y + LB.fh / 2, (p0[1] + p1[1]) / 2); B.ironGeo.push(g);
+      const q0 = P(sa, D - 0.08), q1 = P(sb, D - 0.08), g2 = new THREE.BoxGeometry(0.05, 0.12, Math.hypot(sb - sa, LB.fh) + 0.1); g2.rotateX(-Math.atan2(LB.fh, sb - sa)); g2.applyMatrix4(m); g2.translate((q0[0] + q1[0]) / 2, y + LB.fh / 2, (q0[1] + q1[1]) / 2); B.ironGeo.push(g2); } }
+  // the drop ladder under the first landing, held up above head height
+  const lu = u1 - 0.6; box(lu - 0.25, lu - 0.21, D - 0.3, D - 0.25, 2.4, LB.gf); box(lu + 0.21, lu + 0.25, D - 0.3, D - 0.25, 2.4, LB.gf); for(let y = 2.6; y < LB.gf; y += 0.3) box(lu - 0.25, lu + 0.25, D - 0.3, D - 0.27, y, y + 0.03);
+}
+// the street round a block: its raised sidewalk (wet), kerb faces, lamps, parked cars, its share of the road paint (west and south street, the corner crossing)
+function lbStreet(B, cx, cz, P, o){
+  const bx = cx * LB.S, bz = cz * LB.S, k = LB.kerb;
+  lbQ(B.top, [bx + 6, k, bz + 42, bx + 42, k, bz + 42, bx + 42, k, bz + 6, bx + 6, k, bz + 6], [0, 1, 0], [0, 0, 1, 0, 1, 1, 0, 1], LB_ONE);
+  lbFace(B.kerb, bx + 42, bz + 6, bx + 6, bz + 6, 0, k, bx + 42, 0, 1, 1, () => LB_ONE); lbFace(B.kerb, bx + 42, bz + 42, bx + 42, bz + 6, 0, k, bz + 42, 0, 1, 1, () => LB_ONE);
+  lbFace(B.kerb, bx + 6, bz + 42, bx + 42, bz + 42, 0, k, bx, 0, 1, 1, () => LB_ONE); lbFace(B.kerb, bx + 6, bz + 6, bx + 6, bz + 42, 0, k, bz, 0, 1, 1, () => LB_ONE);
+  // lamps (posts 0.6 m in from the kerb, heads out over the road): the same spots on every block, which the wet shader lights
+  const sides = [['W', -1, 0], ['E', 1, 0], ['S', 0, -1], ['N', 0, 1]];
+  sides.forEach(([s, nx, nz], si) => { LB.lamps.forEach(t => { const x = nx ? bx + (nx < 0 ? 6.6 : 41.4) : bx + t, z = nz ? bz + (nz < 0 ? 6.6 : 41.4) : bz + t;
+      B.lamps.push([x, k, z, Math.atan2(nx, nz)]); B.glows.push([x + nx * 1.6, 4.45 + k, z + nz * 1.6, 2.6, 0xffc07a, 0.5]); colliders.push({x, z, r:0.16}); });
+    // parked cars, between the lamps, never on the El street or the square
+    const elSide = (s === 'S' && cz === 0) || (s === 'N' && cz === -1), sqSide = o.core && ((s === 'W' && cx === 0 && cz === -1) || (s === 'E' && cx === -1 && cz === -1));
+    if(!elSide && !sqSide && !o.noCars) [17, 31].forEach((t, j) => { if(P.carQ[si * 2 + j] > 0.45) return; const x = nx ? bx + (nx < 0 ? 4.85 : 43.15) : bx + t, z = nz ? bz + (nz < 0 ? 4.85 : 43.15) : bz + t, along = !!nx;
+      const ry = (along ? 0 : Math.PI / 2) + (P.carC[si * 2 + j] < 0.5 ? Math.PI : 0), cab = P.carC[si * 2 + j] > 0.9;
+      B.cars.push([x, z, ry, cab ? 0xb89a3a : LB_CARS[Math.floor(P.carC[si * 2 + j] * 7.9) % LB_CARS.length]]); addBox(x, z, along ? 0.95 : 2.6, along ? 2.6 : 0.95, -1, 1.5, {cam:false}); }); });
+  // road paint: the centre line of the west and south streets (dashed), zebra crossings round the corner they share
+  const pc = [0.62, 0.62, 0.6], y = 0.006;
+  if(!o.noPaint || !o.noPaint.W) for(let t = 8; t < 40; t += 6) lbBox(B.paint, bx - 0.08, bx + 0.08, 0, y, bz + t, bz + t + 3, 1, pc);
+  if(!o.noPaint || !o.noPaint.S) for(let t = 8; t < 40; t += 6) lbBox(B.paint, bx + t, bx + t + 3, 0, y, bz - 0.08, bz + 0.08, 1, pc);
+  const zebra = (leg) => { for(let t = -5.2; t <= 5.21; t += 1.04){ if(leg === 'N') lbBox(B.paint, bx + t - 0.24, bx + t + 0.24, 0, y, bz + 6.5, bz + 9, 1, pc); if(leg === 'S') lbBox(B.paint, bx + t - 0.24, bx + t + 0.24, 0, y, bz - 9, bz - 6.5, 1, pc);
+    if(leg === 'E') lbBox(B.paint, bx + 6.5, bx + 9, 0, y, bz + t - 0.24, bz + t + 0.24, 1, pc); if(leg === 'W') lbBox(B.paint, bx - 9, bx - 6.5, 0, y, bz + t - 0.24, bz + t + 0.24, 1, pc); } };
+  ['N', 'S', 'E', 'W'].forEach(L => { if(!(o.noZebra && o.noZebra[L])) zebra(L); });
+  // a manhole in the road, and now and then a vent that steams
+  const mx = bx + 24, mz = bz - 2.2; lbBox(B.iron, mx - 0.45, mx + 0.45, 0, 0.012, mz - 0.45, mz + 0.45, 1);
+  if(P.vent){ const vx = bx + 12 + P.vent[0] * 24, vz = bz + (P.vent[1] < 0.5 ? -2.5 : 2.5); lbBox(B.iron, vx - 0.5, vx + 0.5, 0, 0.014, vz - 0.35, vz + 0.35, 1); B.vents.push([vx, vz]); }
+}
+// a neon sign on a plan's building
+function lbPlanSign(B, P){
+  const s = P.sign; if(!s) return; const r = P.b[s.k], side = s.side, h = Math.min(r.h - 3, 7 + s.text.length * 0.9);
+  const x = side === 1 ? r.x1 : side === 3 ? r.x0 : (r.x0 + r.x1) / 2 + (r.x1 - r.x0) * 0.3, z = side === 0 ? r.z0 : side === 2 ? r.z1 : (r.z0 + r.z1) / 2 + (r.z1 - r.z0) * 0.3, nx = side === 1 ? 1 : side === 3 ? -1 : 0, nz = side === 2 ? 1 : side === 0 ? -1 : 0;
+  if(h < 4) return; const sh = Math.min(h - 0.5, s.text.length * 0.95 + 0.6), y = LB.gf + 1 + sh / 2;
+  // a blade sign turned to run along the street: its face is seen up and down the street, so its plane is the wall's normal and up
+  B.signs.push({text:s.text, col:s.col, x, y, z, nx, nz, blade:true, h:sh});
+  for(let k = 0; k < 3; k++) B.glows.push([x + nx * 0.85, y - sh / 3 + k * sh / 3, z + nz * 0.85, 3.2, s.col, 0.42]);
+}
+// build one block (cell cx, cz) from its plan; parts: 'bldg' (buildings, shopfronts, signs), 'street' (sidewalk, lamps, cars, paint), 'iron' etc. all in one bins
+function lbBlock(B, P, cx, cz, K, o){
+  o = o || {};
+  if(!o.noBldg){ P.b.forEach(r => lbBuilding(B, r, P, K, o)); if(!o.noSign) lbPlanSign(B, P); }
+  if(!o.noStreet) lbStreet(B, cx, cz, P, o);
+}
+/* ---- the hand-made core: the four blocks round Vesper Square are drawn by hand (the Hotel Vesperine, The Low Hour, the alley block with the
+   inquiry agent's window, the diner and the tailor's), the twelve round them come from fixed seeds. The El crosses the avenue on z = 0. ---- */
+const lbH = (x0, x1, z0, z1, f, v, e) => Object.assign({x0, x1, z0, z1, f, v, h:LB.gf + f * LB.fh + 1, uo:0, vo:0, fire:false, tank:false, shop:0, awn:false, awc:0}, e || {});
+const LB_PLANS = {
+  '0,0':() => { const ho = lbH(9.5, 30, 9.5, 30, 11, 2, {shop:1, uo:3, vo:7.2});   // the Hotel Vesperine, a crown on top; the annex; the north wing
+    return {b:[ho, Object.assign(lbH(13, 26.5, 13, 26.5, 0, 2, {uo:6}), {y0:ho.h, h:ho.h + 2 * LB.fh + 1}), lbH(30, 38.5, 9.5, 38.5, 4, 1, {fire:true, shop:0, awn:true, awc:2, uo:6}), lbH(9.5, 30, 30, 38.5, 5, 0, {shop:0, awn:true, awc:1, vo:14.4})],
+      alley:null, sign:null, carQ:[0.2, 0.6, 0.3, 0.1, 0.7, 0.2, 0.5, 0.3], carC:[0.1, 0.95, 0.3, 0.6, 0.2, 0.5, 0.8, 0.4], vent:[0.2, 0.7]}; },
+  '-1,0':() => ({b:[lbH(-22, -9.5, 9.5, 27, 2, 0, {shop:-1, uo:9}), lbH(-22, -9.5, 27, 38.5, 6, 1, {shop:0, awn:true, awc:3, uo:3}), lbH(-38.5, -22, 9.5, 38.5, 8, 0, {fire:true, shop:1, vo:10.8})],
+      alley:null, sign:null, carQ:[0.1, 0.3, 0.6, 0.2, 0.3, 0.7, 0.1, 0.9], carC:[0.6, 0.2, 0.92, 0.4, 0.3, 0.7, 0.1, 0.5], vent:[0.9, 0.7]}),
+  '-1,-1':() => ({b:[lbH(-38.5, -24, -38.5, -26, 5, 1, {fire:true, vo:3.6}), lbH(-24, -9.5, -38.5, -26, 7, 0, {fire:true, shop:0, awn:true, awc:0, uo:6}), lbH(-38.5, -20, -22, -9.5, 4, 0, {fire:true, shop:1, vo:18}), lbH(-20, -9.5, -22, -9.5, 3, 1, {fire:true, shop:0, awn:true, awc:2, tank:true, uo:9})],
+      alley:{axis:'x', lo:-26, hi:-22}, sign:null, carQ:[0.3, 0.1, 0.9, 0.9, 0.2, 0.6, 0.4, 0.2], carC:[0.3, 0.6, 0.1, 0.1, 0.8, 0.2, 0.96, 0.5], vent:null}),
+  '0,-1':() => ({b:[lbH(9.5, 24, -38.5, -24, 3, 1, {shop:0, awn:true, awc:0}), lbH(9.5, 24, -24, -9.5, 6, 0, {shop:1, awn:true, awc:1, uo:6, vo:7.2}), lbH(24, 38.5, -38.5, -9.5, 9, 2, {shop:0, uo:3})],
+      alley:null, sign:null, carQ:[0.9, 0.9, 0.2, 0.5, 0.3, 0.1, 0.6, 0.2], carC:[0.1, 0.1, 0.7, 0.3, 0.5, 0.97, 0.2, 0.8], vent:null})
+};
+// the El over a stretch of the z = 0 street: columns at 16 and 32 m into each block (clear of the lamps and the cross streets), plate girders, ties, rails
+function lbEl(B, xa, xb){
+  const E = LB.el;
+  for(let k = Math.floor(xa / LB.S); k * LB.S < xb; k++) E.bents.forEach(t => { const x = k * LB.S + t; if(x < xa || x >= xb) return;
+    [-1, 1].forEach(sd => { const z = sd * E.colZ; lbBox(B.steel, x - 0.22, x + 0.22, 0, 6.3, z - 0.22, z + 0.22, 2); lbBox(B.trim, x - 0.4, x + 0.4, 0, 0.45, z - 0.4, z + 0.4, 2, [0.6, 0.6, 0.62]);
+      lbBox(B.steel, x - 0.05, x + 0.05, 5.0, 6.25, z - sd * 0.2 - 0.05, z - sd * 1.6, 2); colliders.push({x, z, r:0.42}); });
+    lbBox(B.steel, x - 0.3, x + 0.3, 6.2, 6.9, -5.0, 5.0, 2); });
+  [-3.45, 3.15].forEach(z => lbBox(B.steel, xa, xb, 5.95, 7.05, z, z + 0.3, 2));
+  [-1.95, -1.25, 1.25, 1.95].forEach(z => lbBox(B.steel, xa, xb, 6.55, 7.0, z - 0.12, z + 0.12, 2));
+  for(let x = Math.ceil(xa / 0.75) * 0.75; x < xb; x += 0.75) lbBox(B.wood, x - 0.12, x + 0.12, 7.0, 7.14, -2.9, 2.9, 1);
+  [-2.32, -0.88, 0.88, 2.32].forEach(z => lbBox(B.iron, xa, xb, 7.14, 7.27, z - 0.04, z + 0.04, 1));
+  // the girders' rivet lines and stiffeners every 3 m, seen from the street
+  for(let x = Math.ceil(xa / 3) * 3; x < xb; x += 3) [-3.5, 3.45].forEach(z => lbBox(B.steel, x - 0.06, x + 0.06, 5.95, 7.05, z, z + 0.05, 1));
+}
+function lbCore(K){
+  const B = lbBins(), lit = lbAcc(), W = LB.stn, A = LB.stair, T = LB.steps;
+  for(let cz = -2; cz <= 1; cz++) for(let cx = -2; cx <= 1; cx++){
+    const key = cx + ',' + cz, P = LB_PLANS[key] ? LB_PLANS[key]() : lbPlan(rng(6300 + (cx + 2) * 4 + (cz + 2)), cx, cz);
+    lbBlock(B, P, cx, cz, K, {core:true, noPaint:key === '0,-1' ? {W:true} : null, noZebra:key === '0,-1' ? {N:true} : key === '0,0' ? {S:true} : null}); }
+  // Vesper Square: the avenue between the two southern blocks, paved at kerb height
+  { const Q = LB.sq, k = LB.kerb; lbQ(B.top, [Q.x0, k, Q.z1, Q.x1, k, Q.z1, Q.x1, k, Q.z0, Q.x0, k, Q.z0], [0, 1, 0], [0, 0, 1, 0, 1, 1, 0, 1], LB_ONE);
+    lbFace(B.kerb, Q.x0, Q.z1, Q.x1, Q.z1, 0, k, 0, 0, 1, 1, () => LB_ONE); lbFace(B.kerb, Q.x1, Q.z0, Q.x0, Q.z0, 0, k, 0, 0, 1, 1, () => LB_ONE);
+    // a four-faced clock on a post, and the evening paper's kiosk
+    lbBox(B.iron, 4.4, 4.6, k, k + 4.2, -11.1, -10.9); B.ironGeo.push(new THREE.CylinderGeometry(0.2, 0.28, 0.6, 12).translate(4.5, k + 0.3, -11));
+    lbBox(B.steel, 4.05, 4.95, k + 4.2, k + 5.1, -11.45, -10.55); [[4.5, -11.47, 0, -1], [4.5, -10.53, 0, 1], [4.03, -11, -1, 0], [4.97, -11, 1, 0]].forEach(([x, z, nx, nz]) => B.signs.push({clock:true, x, y:k + 4.65, z, nx, nz, h:0.7})); colliders.push({x:4.5, z:-11, r:0.3});
+    lbBox(B.steel, 3.2, 5.8, k, k + 2.3, -37.2, -34.8, 2); lbBox(B.roof, 3.0, 6.0, k + 2.3, k + 2.45, -37.4, -34.6, 2); lbBox(lit, 3.18, 5.82, k + 0.9, k + 2.0, -34.82, -34.78); colliders.push({x:4.5, z:-36, r:1.6});
+    B.signs.push({text:'EVENING WIRE', col:0xffe2b8, x:4.5, y:k + 2.75, z:-34.65, nx:0, nz:1, h:0.42}); B.glows.push([4.5, 2.7, -34.4, 2.6, 0xffe2b8, 0.35]); }
+  lbEl(B, -96, 96);
+  // Vesper Street station: the platform over the north kerb, its canopy and railings, the stair up the hotel's sidewalk
+  { const k = LB.kerb, fy = LB.el.floor; lbBox(B.trim, W.x0, W.x1, fy - 0.45, fy, W.z0, W.z1, 2, [0.7, 0.7, 0.72]); lbBox(B.awn, W.x0, W.x1, fy, fy + 0.006, W.z0, W.z0 + 0.35, 1, [0.55, 0.42, 0.06]);
+    [14, 23].forEach(x => { lbBox(B.steel, x - 0.15, x + 0.15, 0, fy - 0.45, 6.45, 6.75, 2); colliders.push({x, z:6.6, r:0.3}); });
+    [13, 18.8, 24.6].forEach(x => lbBox(B.steel, x - 0.1, x + 0.1, fy, fy + 3, 6.55, 6.75, 2));
+    lbBox(B.steel, W.x0 - 0.2, W.x1 + 0.2, fy + 3, fy + 3.2, 3.9, 7.1, 2); for(let x = 13; x < 25.5; x += 2.2) lbBox(lit, x, x + 1.2, fy + 2.96, fy + 3.0, 5.0, 5.3);
+    lbBox(B.iron, W.x0, W.x1, fy + 1.0, fy + 1.05, 6.95, 7.0); lbBox(B.iron, W.x0 - 0.05, W.x0, fy + 1.0, fy + 1.05, W.z0, W.z1); for(let x = W.x0; x <= W.x1; x += 1.2) lbBox(B.iron, x - 0.025, x + 0.025, fy, fy + 1.0, 6.95, 7.0);
+    addBox((W.x0 + W.x1) / 2, 6.975, (W.x1 - W.x0) / 2, 0.06, fy - 0.1, fy + 1.2, {cam:false}); addBox(W.x0 - 0.03, (W.z0 + W.z1) / 2, 0.06, (W.z1 - W.z0) / 2, fy - 0.1, fy + 1.2, {cam:false});
+    for(let x = W.x0 + 1.3; x <= W.x1 - 0.6 + 1e-6; x += 0.9) platforms.push({x, z:(W.z0 + W.z1) / 2, r:(W.z1 - W.z0) / 2, top:fy, bottom:fy - 0.5});
+    B.signs.push({text:'VESPER ST', col:0xffe6c0, x:18.8, y:fy + 2.55, z:3.75, nx:0, nz:-1, h:0.5}); B.signs.push({text:'VESPER ST', col:0xffe6c0, x:18.8, y:fy + 2.55, z:6.85, nx:0, nz:1, h:0.5});
+    B.glows.push([16, fy + 2.7, 5.2, 4, 0xfff0d8, 0.3], [22, fy + 2.7, 5.2, 4, 0xfff0d8, 0.3]);
+    // the stair: solid stone steps against the hotel's wall, a landing at the top, an iron rail on the open side (it stops you, not the people below)
+    for(let i = 0; i < A.n; i++){ const xb = A.x1 - i * A.tread, xa = xb - A.tread; lbBox(B.trim, xa, xb, 0, k + (i + 1) * A.rise, A.z0, A.z1, 2, [0.62, 0.62, 0.64]); }
+    lbBox(B.trim, A.x0, A.top, 0, fy, 6.9, A.z1, 2, [0.62, 0.62, 0.64]);
+    for(let x = A.top + 0.4; x < A.x1; x += 1.2){ const y = k + Math.ceil((A.x1 - x) / A.tread) * A.rise; lbBox(B.iron, x - 0.025, x + 0.025, y, y + 1.0, A.z0 + 0.02, A.z0 + 0.07); }
+    { const L = Math.hypot(A.x1 - A.top, fy - k), g = new THREE.BoxGeometry(L, 0.05, 0.06); g.rotateZ(-Math.atan2(fy - k, A.x1 - A.top)); g.translate((A.x1 + A.top) / 2, (fy + k) / 2 + 1.0, A.z0 + 0.05); B.ironGeo.push(g); }
+    addBox((A.top + A.x1) / 2, A.z0 + 0.05, (A.x1 - A.top) / 2, 0.06, -1, fy - 0.15, {cam:false});
+    lbBox(B.iron, A.x0 - 0.02, A.x0 + 0.03, fy, fy + 1.05, A.z0, A.z1); addBox(A.x0, (A.z0 + A.z1) / 2 + 0.3, 0.05, (A.z1 - A.z0) / 2 - 0.3, fy - 0.1, fy + 1.2, {cam:false});
+    B.signs.push({text:'TRAINS', col:0xffe6c0, x:A.x1 - 0.6, y:3.3, z:A.z0 - 0.02, nx:0, nz:-1, h:0.38}); }
+  // the Hotel Vesperine: front steps, a canopy with a lit soffit, the lobby doors, the long teal blade sign on the corner
+  { lbBox(B.trim, T.x0, T.x0 + 0.7, 0, LB.kerb + 0.15, T.z0, T.z1, 2, [0.8, 0.78, 0.74]); lbBox(B.trim, T.x0 + 0.7, T.x0 + 1.4, 0, LB.kerb + 0.3, T.z0, T.z1, 2, [0.8, 0.78, 0.74]); lbBox(B.trim, T.x0 + 1.4, T.x1, 0, LB.kerb + 0.45, T.z0, T.z1, 2, [0.8, 0.78, 0.74]);
+    lbBox(B.steel, 6.5, 9.5, 3.55, 3.8, 18.0, 25.0, 2); lbBox(lit, 6.7, 9.45, 3.51, 3.55, 18.3, 24.7); [18.3, 24.7].forEach(z => { const g = new THREE.BoxGeometry(0.04, 0.04, 3.4); g.rotateY(Math.PI / 2); g.rotateZ(-0.5); g.translate(8.1, 4.5, z); B.ironGeo.push(g); });
+    lbQ(lit, [9.43, 0.6, 20.0, 9.43, 0.6, 23.0, 9.43, 3.3, 23.0, 9.43, 3.3, 20.0], [-1, 0, 0], [0, 0, 1, 0, 1, 1, 0, 1], LB_ONE);
+    B.signs.push({text:'HOTEL VESPERINE', col:0x6fe6d8, x:6.45, y:4.15, z:21.5, nx:-1, nz:0, h:0.5});
+    B.signs.push({text:'VESPERINE', col:0x5fe0d0, x:9.55, y:15, z:11.6, nx:-1, nz:0, blade:true, h:10});
+    for(let k = 0; k < 6; k++) B.glows.push([8.4, 10.5 + k * 1.8, 11.6, 3.6, 0x5fe0d0, 0.4]); }
+  // The Low Hour: the club's marquee of bulbs, its red name, the doors glowing at the end of the night
+  { lbBox(B.steel, -9.55, -7.4, 3.95, 5.15, 18.0, 26.0, 2); for(let z = 18.25; z < 26; z += 0.42){ lbBox(lit, -7.42, -7.34, 3.98, 4.06, z - 0.04, z + 0.04); B.glows.push([-7.3, 4.0, z, 0.7, 0xffd290, 0.55]); }
+    B.signs.push({text:'TONIGHT · THE LATE LAMPS TRIO', col:0xffe0b0, x:-7.38, y:4.6, z:22, nx:1, nz:0, h:0.5});
+    B.signs.push({text:'THE LOW HOUR', col:0xff3a30, x:-8.3, y:5.95, z:22, nx:1, nz:0, h:1.1});
+    B.signs.push({text:'JAZZ', col:0xff6a3c, x:-9.55, y:8.6, z:10.6, nx:1, nz:0, blade:true, h:4.2});
+    for(let k = 0; k < 4; k++) B.glows.push([-7.6, 5.6 + k * 0.25, 18.5 + k * 2.4, 4.2, 0xff3a30, 0.4]);
+    B.glows.push([-8.4, 8.6, 10.6, 4, 0xff6a3c, 0.4]);
+    lbQ(lit, [-9.45, 0.4, 23.4, -9.45, 0.4, 20.6, -9.45, 3.1, 20.6, -9.45, 3.1, 23.4], [1, 0, 0], [0, 0, 1, 0, 1, 1, 0, 1], LB_ONE); }
+  // the square's shops and the alley: the diner, the tailor, the inquiry agent's window over the square, a rooming house's sign
+  B.signs.push({text:'KETTLE & CROW', col:0xff6a50, x:9.42, y:3.95, z:-31.25, nx:-1, nz:0, h:0.55}, {text:'DINER', col:0xffd8a8, x:9.55, y:7.2, z:-37.2, nx:-1, nz:0, blade:true, h:3.6},
+    {text:'ABERNATHY · TAILOR', col:0xffe6c0, x:9.42, y:3.95, z:-16.75, nx:-1, nz:0, h:0.45}, {text:'E. VANTERPOOL · INQUIRIES', col:0xe8c070, x:-9.42, y:6.6, z:-15.75, nx:1, nz:0, h:0.4},
+    {text:'ROOMS', col:0xff4a6a, x:-9.55, y:8.0, z:-36.5, nx:1, nz:0, blade:true, h:4.4});
+  B.glows.push([8.6, 7.2, -37.2, 3.4, 0xffd8a8, 0.4], [-8.6, 8.0, -36.5, 3.6, 0xff4a6a, 0.4], [8.8, 4.0, -31.25, 3.2, 0xff6a50, 0.3]);
+  // the alley: bins, crates, a steaming grate, a lamp over the side door
+  { const k = LB.kerb; [[-34, -25.3], [-31.6, -25.4]].forEach(([x, z]) => { lbBox(B.steel, x - 0.9, x + 0.9, k, k + 1.3, z - 0.55, z + 0.55, 1); lbBox(B.iron, x - 0.95, x + 0.95, k + 1.3, k + 1.38, z - 0.6, z + 0.6, 1); addBox(x, z, 0.95, 0.6, -1, 1.4, {cam:false, full:true}); });
+    [[-15, -22.6, 0.6], [-14.2, -22.7, 0.5]].forEach(([x, z, s], i) => { lbBox(B.wood, x - s / 2, x + s / 2, k + i * 0.6, k + i * 0.6 + s, z - s / 2, z + s / 2, 1); }); colliders.push({x:-14.6, z:-22.65, r:0.6});
+    lbBox(B.iron, -24.5, -23.5, 0.15, 0.165, -24.5, -23.5, 1); B.vents.push([-24, -24]); lbBox(lit, -20.6, -20.4, 3.0, 3.2, -22.15, -22.05); B.glows.push([-20.5, 3.1, -22.4, 2.4, 0xffc890, 0.5]); }
+  lbFlush(B, K);
+  { const g = lbGeo(lit); if(g){ const m = mk(g, K.bulb, 0, 0, 0); m.castShadow = false; } }
+  return B;
+}
+// steam from grates and manholes: soft grey puffs rising and spreading, drawn in one call (the motion is in the shader, on the game's clock)
+let lbSteamMat = null;
+function lbSteam(vents, parent){
+  if(!vents.length) return null;
+  if(!lbSteamMat) lbSteamMat = shareMat(new THREE.ShaderMaterial({uniforms:{map:{value:glowTex}, time:uTime, scale:{value:600}, col:{value:C(0x8f8c88)}}, transparent:true, depthWrite:false,
+    vertexShader:'attribute float ph; varying float vA; uniform float time, scale; void main(){ float t = fract(time * 0.16 + ph); vec3 p = position; p.y += t * 6.5; p.x += sin(ph * 31.0 + time * 0.5) * t * 1.6; p.z += cos(ph * 17.0 + time * 0.4) * t * 1.3; vA = pow(sin(t * 3.14159), 1.3) * (1.0 - t * 0.4); vec4 mv = modelViewMatrix * vec4(p, 1.0); gl_PointSize = (1.4 + t * 5.0) * scale / -mv.z; gl_Position = projectionMatrix * mv; }',
+    fragmentShader:'uniform sampler2D map; uniform vec3 col; varying float vA; void main(){ vec4 t = texture2D(map, gl_PointCoord); gl_FragColor = vec4(col, t.a * vA * 0.32); }'}));
+  const pos = [], ph = [], q = rng(6401 + vents.length);
+  vents.forEach(([x, z]) => { for(let i = 0; i < 24; i++){ pos.push(x + (q() - 0.5) * 0.6, 0.1, z + (q() - 0.5) * 0.5); ph.push(i / 24 + q() * 0.03); } });
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('ph', new THREE.Float32BufferAttribute(ph, 1));
+  const pts = new THREE.Points(g, lbSteamMat); pts.frustumCulled = false; pts.userData.noAO = true; pts.renderOrder = 3; (parent || buildParent || world).add(pts); return pts;
+}
+// the road: THREE.Water's mirror with Lampblack's wet-street material on it; it follows you in whole blocks
+function lbMirror(K){
+  const geo = new THREE.PlaneGeometry(LB.mirror * 2, LB.mirror * 2), w = makeWater(geo, {color:0x050608, distortion:1, size:1, alpha:1});
+  if(!w){ const m = new THREE.Mesh(geo, K.road); m.rotation.x = -Math.PI / 2; m.receiveShadow = true; world.add(m); return m; }
+  const wu = w.material.uniforms, old = w.material; w.material = K.road; old.dispose(); w.receiveShadow = true; w.name = 'lbRoad';
+  const orig = w.onBeforeRender, U = K.U;
+  w.onBeforeRender = (r, s, c) => { const f = w.userData.lastFrame; U.mirrorOn.value = 0; U.mirrorSampler.value = lbBlackTex;
+    try{ orig(r, s, c); } finally { U.mirrorSampler.value = w.renderTarget.texture; U.mirrorOn.value = 1; if(w.userData.lastFrame !== f){ U.textureMatrix.value.copy(wu.textureMatrix.value); U.eye.value.copy(wu.eye.value); } } };
+  U.mirrorSampler.value = w.renderTarget.texture; U.mirrorOn.value = 1; world.add(w); return w;
+}
+BUILD.lampblack = (r, n) => {
+  const K = lbKit(), W = WORLDS.lampblack, U = K.U;
+  lb = {skip:[], tops:[], vents:[], mirror:null, steam:null};
+  U.ambSky.value.copy(C(W.hemi[0])).multiplyScalar(W.hemi[2]); U.ambGround.value.copy(C(W.hemi[1])).multiplyScalar(W.hemi[2]); U.moonCol.value.copy(C(W.sun[0])).multiplyScalar(W.sun[1]); U.moonDir.value.copy(lightDir);
+  lb.mirror = lbMirror(K); lb.skip.push(lb.mirror);
+  const B = lbCore(K); lb.vents = B.vents.slice();
+  lb.steam = lbSteam(lb.vents, world);
+  addWeather('rain');
+};
+HEIGHTS.lampblack = () => lbG;
+function lbUpdate(dt, time){
+  if(!lb || state.world !== 'lampblack') return;
+  if(lb.mirror){ lb.mirror.position.x = Math.round(p.x / LB.S) * LB.S; lb.mirror.position.z = Math.round(p.z / LB.S) * LB.S; }
+  if(lbSteamMat){ const hgt = renderer.getDrawingBufferSize(_cellV2).y; lbSteamMat.uniforms.scale.value = hgt / (2 * Math.tan(camera.fov * Math.PI / 360)); }
+}
 })();
 </script>
 </body>
