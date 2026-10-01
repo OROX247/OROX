@@ -3076,16 +3076,23 @@ const WORLDS = {
   // A mystery city, not a combat zone: danger false (nothing hurts you), tech true (signs, trams, the boost), magic false.
   lampblack:{ name:'Lampblack', seed:173, exposure:1.3, fog:0.0105, sector:2, rules:{magic:false, tech:true, danger:false},
            sky:{top:0x030305, horizon:0x15131a, ground:0x060607, sun:0x6a7488, dir:[-0.55,0.62,-0.56], size:0, clouds:0.85, lit:0x1d1a20, shade:0x08080a},
-           sun:[0x9aaccc,0.45], hemi:[0x6a7590,0x2e2a26,0.85], fogH:0.02, portals:[{to:'hub',x:0,z:-26}], pads:[] }
+           sun:[0x9aaccc,0.45], hemi:[0x6a7590,0x2e2a26,0.85], fogH:0.02, portals:[{to:'hub',x:0,z:-26}], pads:[] },
+  // Saltlark Isle (Goal 20 part 3, the roadmap's "holiday isle", made Hub's own): an invented resort island held for ever at the last gold hour of the afternoon,
+  // a low warm sun in the north-west over the sea. Sector 5 was uncharted: one step from Sector 1, so the warp is 25 credits. A holiday, not a combat zone:
+  // danger false (nothing hurts you), tech true (the boost, the lighthouse lamp), magic true (the wishing shells the shell collector sells, the locals' joke).
+  saltlark:{ name:'Saltlark Isle', seed:191, exposure:0.92, fog:0.0024, sector:5, rules:{magic:true, tech:true, danger:false},
+           sky:{top:0x3c7fd2, horizon:0xf6d9a6, ground:0xe8d8b8, sun:0xffd59a, dir:[-0.72,0.2,0.66], size:0.011, clouds:0.24, lit:0xfff0d6, shade:0xc4b4c0},
+           atm:{turb:3.4, ray:1.35, mie:0.006, g:0.8, bright:0.64, tint:0xffe0b0, clouds:0.24, cloudH:1500, cirrus:0.4, rays:0.55, flare:0.6, fogSun:0.9, wind:[0.7, 0.25]}, fogH:0.02,
+           sun:[0xffd6a0,3.1], hemi:[0xbcd8ff,0xe0c8a0,0.62], portals:[{to:'hub',x:0,z:-26}], pads:[] }
 };
 // Warfront joins at the end, so every existing coin id (realm:index) and every realm's order stay as they were; the coin total grows by 12
-const WORLD_ORDER = ['hub','campus','dunes','grid','grove','sky','warfront','lampblack'];   // Lampblack (Goal 20 part 2) joins last too
+const WORLD_ORDER = ['hub','campus','dunes','grid','grove','sky','warfront','lampblack','saltlark'];   // Lampblack (Goal 20 part 2) joins last too, then Saltlark Isle (part 3)
 /* the universe is a 3x3x3 cube of 27 sectors (blueprint section 3); a sector's coordinates come from its number */
 const sectorXYZ = n => [(n - 1) % 3, Math.floor((n - 1) / 3) % 3, Math.floor((n - 1) / 9)];
 function sectorDistance(a, b){ const A = sectorXYZ(a), B = sectorXYZ(b); return Math.max(Math.abs(A[0] - B[0]), Math.abs(A[1] - B[1]), Math.abs(A[2] - B[2])); }
 function fare(from, to){ if(to === 'hub') return 0; if(WORLDS[to] && WORLDS[to].own) return 0; if(state.enrolled && (from === 'campus' || to === 'campus')) return 0; const d = sectorDistance(WORLDS[from].sector, WORLDS[to].sector); return d === 0 ? 10 : d === 1 ? 25 : d === 2 ? 60 : 120; }
 const rulesText = W => (W.rules.magic ? 'magic' : 'no magic') + ' · ' + (W.rules.tech ? 'tech' : 'no tech') + ' · ' + (W.rules.danger ? 'danger zone' : 'safe');
-const PORTAL_COLORS = { hub:0xffd166, campus:0xb6ff7a, dunes:0xf2a07b, grid:0xff4fa3, grove:0x5ce1e6, sky:0xbfe0ff, ashfall:0xff7a3a, warfront:0xe8a04a, lampblack:0xd9b25c };
+const PORTAL_COLORS = { hub:0xffd166, campus:0xb6ff7a, dunes:0xf2a07b, grid:0xff4fa3, grove:0x5ce1e6, sky:0xbfe0ff, ashfall:0xff7a3a, warfront:0xe8a04a, lampblack:0xd9b25c, saltlark:0x6fe0d0 };
 // Ashfall is not in WORLD_ORDER (that list counts the coins, 12 a realm); it joins the Warp list and the star map here, sealed until you hold three shards
 const HUNT_WORLDS = ['ashfall'];
 const NPC_NAMES = ['Kestrel','Nyx_77','Pixelwolf','Dune Rider','Glitch','Moth','Sable','Byte Queen','Vektor','Ember','Lumen','Rook','Juno','Static','Marrow','Quill','Tallow','Orbit','Sixpence','Halcyon','Wren','Cinder'];
@@ -3106,7 +3113,10 @@ const LINES = {
     'Keep your head below the sandbags. The sentries count heads.','The flashes in the clouds are the scoreboard. Every one is a point for somebody.'],
   lampblack: ['It has been raining since before the city had a name. Nobody here owns an umbrella that has ever dried out.','The tram on the El runs all night. So does everything else.',
     'They play at The Low Hour till the lamps go out. The lamps never go out.','Got a puzzle? The window over the square says E. Vanterpool, Inquiries.',
-    'Nothing in Lampblack can hurt you. It just likes you to think it might.','Mind the puddles on Vesper Square. They show you the whole city upside down.']
+    'Nothing in Lampblack can hurt you. It just likes you to think it might.','Mind the puddles on Vesper Square. They show you the whole city upside down.'],
+  saltlark: ['The sun has been about to set for as long as anyone can remember. Nobody minds.','You can wade all the way out to the shelf edge. Past that, you float.',
+    'The Tidebell does a pineapple fizz that tastes like a Tuesday off.','Climb round the side of the headland and you can stand at the top of the waterfall.',
+    'Nothing on Saltlark can hurt you. The crabs only pretend to be cross.','The lighthouse keeper says the lamp is for the boats. There are no rocks. She likes the light.']
 };
 
 /* ================= renderer ================= */
@@ -3388,7 +3398,8 @@ const SURFACES = {
   concrete:   {kind:10, per:6, A:0xa8a49c, B:0x8e8a84, C:0x8e8a84, strength:35},
   lava:       {kind:11, per:4, A:0x1a100c, B:0x2c1c14, C:0xffb040, strength:60},
   mud:        {kind:1, per:6,  A:0x3a2e24, B:0x56473a, C:0x6e665c, strength:95},   // Warfront: churned battlefield mud
-  asphalt:    {kind:3, per:8,  A:0x2c2c2e, B:0x3b3b3c, C:0x222224, strength:60}    // Lampblack: wet city asphalt
+  asphalt:    {kind:3, per:8,  A:0x2c2c2e, B:0x3b3b3c, C:0x222224, strength:60},   // Lampblack: wet city asphalt
+  whitesand:  {kind:5, per:6,  A:0xeee3cc, B:0xf8f0e0, C:0xffffff, strength:20}    // Saltlark Isle: fine white coral sand
 };
 const surfCache = {};
 function surface(name){
@@ -7251,7 +7262,8 @@ function coreSum(detail){
   if(chimes){ skip.add(chimes.g); if(chimes.shard){ skip.add(chimes.shard.m); skip.add(chimes.shard.gl); } }   // the chimes sway in the wind
   qpList.forEach(q => skip.add(q.g)); if(qa) skip.add(qa.g);   // Goal 15: the quest portal and its arena are added after the core
   portals.forEach(q => { if(q.late) skip.add(q.g); });
-  if(lb && state.world === 'lampblack') lb.skip.forEach(o => skip.add(o));   // Goal 20: Lampblack's road mirror follows you; the tram and the cats move   // Goal 20: a portal added after the core (the Spaceport's Warfront portal)
+  if(lb && state.world === 'lampblack') lb.skip.forEach(o => skip.add(o));
+  if(sl && state.world === 'saltlark') sl.skip.forEach(o => skip.add(o));   // Goal 20 part 3: Saltlark's sea follows you; the lighthouse beam turns, the boats sail, the crabs and fish move   // Goal 20: Lampblack's road mirror follows you; the tram and the cats move   // Goal 20: a portal added after the core (the Spaceport's Warfront portal)
   if(mer && mer.g) skip.add(mer.g);   // Goal 18: Meridian's pylons come and go with the Hunt
   if(mon && mon.root) skip.add(mon.root);   // Goal 16: monsters move (and their loot comes and goes)
   if(trial.pad) skip.add(trial.pad); trial.rings.forEach(rg => { if(rg.g) skip.add(rg.g); if(rg.m) skip.add(rg.m); });
@@ -7821,7 +7833,7 @@ function spawnNPCs(key, r){
     pickTarget(npc); npcs.push(npc);
   }
 }
-function pickTarget(n){ const a = Math.random() * TAU, d = 6 + Math.random() * 44; n.tx = Math.cos(a) * d; n.tz = Math.sin(a) * d; }
+function pickTarget(n){ const a = Math.random() * TAU, d = 6 + Math.random() * 44; n.tx = Math.cos(a) * d; n.tz = Math.sin(a) * d; if(state.world === 'saltlark') slNpcTarget(n); }
 
 /* fixed, seeded hazards (Phase 1: no monsters yet). They use their own rng so nothing placed before them moves.
    Neon Grid: laser sweepers, a pylon whose knee-high beam turns in a circle marked on the floor; jump it or take 20 HP. */
@@ -7872,7 +7884,7 @@ function buildWorld(key){
   const pads = W.portals.map(q => ({x:q.x, z:q.z, r:4})).concat(W.pads || []).concat(W.custom ? [{x:0, z:14, r:6}] : []);
   const pf = (x, z) => { let f = 1; for(const q of pads) f *= smooth(q.r, q.r + 7, Math.hypot(x - q.x, z - q.z)); return f; };
   hf = W.custom ? customHeight(W.custom)(noise, pf) : HEIGHTS[key](noise, pf);
-  G = key === 'grid' ? (x, z) => Math.max(0, hf(x, z)) : key === 'warfront' ? warG : W.custom ? (x, z) => { const h = hf(x, z); return waterBody && waterBody.kind !== 'ice' ? Math.max(h, waterBody.level - 0.75) : h; } : hf;
+  G = key === 'grid' ? (x, z) => Math.max(0, hf(x, z)) : key === 'warfront' ? warG : key === 'saltlark' ? slG : W.custom ? (x, z) => { const h = hf(x, z); return waterBody && waterBody.kind !== 'ice' ? Math.max(h, waterBody.level - 0.75) : h; } : hf;
   W.portals.forEach(addPortal);
   if(W.planet) addBeacon(W.portals[0]);
   if(W.custom) customBuild(W.custom)(r, noise); else BUILD[key](r, noise);
@@ -12476,7 +12488,7 @@ function update(dt, time){
   const sy = Math.sin(cam.yaw), cy = Math.cos(cam.yaw);
   const mx = -sy * fwd + cy * side, mz = -cy * fwd - sy * side, mag = Math.hypot(mx, mz), moving = mag > 0.05;
   const running = keys.ShiftLeft || keys.ShiftRight || Math.hypot(joy.x, joy.y) > 0.95;
-  const target = moving ? (running ? 9.5 : 5) * Math.min(1, mag) : 0;
+  const target = moving ? (running ? 9.5 : 5) * Math.min(1, mag) * slWadeK() : 0;   // slWadeK: wading and swimming on Saltlark Isle (1 everywhere else)
   p.speed += (target - p.speed) * (1 - Math.exp(-dt * 10));
   const prevY = p.y, dirx = moving ? mx / mag : Math.sin(p.facing), dirz = moving ? mz / mag : Math.cos(p.facing);
   // zero-g gym (Goal 8): inside the drum there is no gravity. The avatar keeps its momentum, WASD thrusts, Space pushes up, Shift pushes down,
@@ -12552,7 +12564,7 @@ function update(dt, time){
     if(d > lim){ camera.position.x = zv.x + dx / d * lim; camera.position.z = zv.z + dz / d * lim; }
     const c = gymCeil(camera.position.x, camera.position.z) - 0.5; if(camera.position.y > c) camera.position.y = c;
   }
-  const cg = (pocketIn() ? pocketFloor(camera.position.x, camera.position.z) : G(camera.position.x, camera.position.z)) + 0.4; if(camera.position.y < cg) camera.position.y = cg;
+  const cg = (pocketIn() ? pocketFloor(camera.position.x, camera.position.z) : G(camera.position.x, camera.position.z)) + 0.4; if(camera.position.y < cg) camera.position.y = cg; slCam();
   if(qa && qa.inside && qa.M.ceil){ const top = qa.A.y + qa.M.ceil - 0.25; if(camera.position.y > top) camera.position.y = top; }
   if(corr && corr.inside){ const top = CORR.y + CORR.h - 0.2 + (camera.position.z - CORR.z0 > CORR.zoneC ? 0.6 : 0); if(camera.position.y > top) camera.position.y = top; }
   camera.lookAt(_t1); if(corr && corr.inside && corr.roll) camera.rotateZ(corr.roll); camera.updateMatrixWorld(); camWorld.copy(camera.position);
@@ -12614,7 +12626,7 @@ function update(dt, time){
     state.won = true; reward(500, 200); sfx('win'); setHalo(); toast('You opened the vault. First to crack the Hub.   +500 XP', 5000);
   }
   if(playing && p.grounded && p.speed > 0.6){ snd.stepT -= dt; if(snd.stepT <= 0){ sfx('step'); snd.stepT = p.speed > 7 ? 0.27 : 0.42; } } else snd.stepT = 0.1;
-  shopProximity(); bikeProximity(); vendProximity(); deskProximity(); archiveUpdate(dt); hollowUpdate(dt, time); chimeUpdate(dt, time); ashUpdate(dt, time); merUpdate(dt, time); warUpdate(dt, time); lbUpdate(dt, time); starTick(dt, time); driftUpdate(dt, time); hallUpdate(dt, time); rallyTick(dt, time); trialUpdate(dt, time); qpTick(dt, time);
+  shopProximity(); bikeProximity(); vendProximity(); deskProximity(); archiveUpdate(dt); hollowUpdate(dt, time); chimeUpdate(dt, time); ashUpdate(dt, time); merUpdate(dt, time); warUpdate(dt, time); lbUpdate(dt, time); slUpdate(dt, time); starTick(dt, time); driftUpdate(dt, time); hallUpdate(dt, time); rallyTick(dt, time); trialUpdate(dt, time); qpTick(dt, time);
   const wdt = dt * artTideK();   // Goal 17: Slack Water slows monsters, traps and lasers (simTime), never the player
   updatePickups(dt, time); monUpdate(wdt, time); hurtCool -= dt; simTime += wdt; updateHazards(simTime); updateBurst(dt); checkBundles(); artUpdate(dt, time);
   if(!WORLDS[state.world].rules.danger && !zeroing && state.hp < maxHp()){ state.hp = Math.min(maxHp(), state.hp + 12 * dt); hpHud(); }
@@ -15855,7 +15867,7 @@ QPORTALS.lampblack = {kind:'case', name:'The Low Hour Case', x:-8.2, z:13, face:
 // portals added to a realm after its core was finished (Goal 20): no pad (the Spaceport's plaza is level there), no rng, and built with Math.random pointed
 // away from the NPCs' sequence (three.js draws it for every new object's id), so every coin, NPC, pickup, kiosk and their wander stay exactly as they were.
 // The Spaceport's Warfront portal stands at the head of the plaza between the Neon Grid and Night Grove portals, more than 15 m from every coin and pickup spot.
-const LATE_PORTALS = { hub:[{to:'warfront', x:0, z:-31, late:true}, {to:'lampblack', x:14, z:-31, late:true}] };   // Lampblack's at the plaza's north-east, more than 6 m from every coin, NPC and pickup
+const LATE_PORTALS = { hub:[{to:'warfront', x:0, z:-31, late:true}, {to:'lampblack', x:14, z:-31, late:true}, {to:'saltlark', x:-14, z:-31, late:true}] };   // Saltlark's at the plaza's north-west, 6.9 m from the nearest coin, clear of every NPC and pickup spot   // Lampblack's at the plaza's north-east, more than 6 m from every coin, NPC and pickup
 function addLatePortals(key){ const L = LATE_PORTALS[key]; if(!L || !WORLDS[key] || WORLDS[key].custom) return; noRandom(() => L.forEach(q => addPortal(q))); }
 // ---- Warfront test hooks (Goal 20): the realm's facts, a walk up the Bastion's stair and along the trenches through the real update, the wire, the outskirts, one framed view
 function warWalkTo(tx, tz, n, close){ let k = 0; for(; k < (n || 200); k++){ if(Math.hypot(p.x - tx, p.z - tz) < (close || 0.4)) break; cam.yaw = Math.atan2(p.x - tx, p.z - tz); keys.KeyW = true; update(0.05, simTime); } keys.KeyW = false; return k; }
@@ -16649,6 +16661,532 @@ function lbUpdate(dt, time){
   if(lb.mirror){ lb.mirror.position.x = Math.round(p.x / LB.S) * LB.S; lb.mirror.position.z = Math.round(p.z / LB.S) * LB.S; }
   lbLifeUpdate(dt, time);
   if(lbSteamMat){ const hgt = renderer.getDrawingBufferSize(_cellV2).y; lbSteamMat.uniforms.scale.value = hgt / (2 * Math.tan(camera.fov * Math.PI / 360)); }
+}
+/* ================= Saltlark Isle (Goal 20 part 3, blueprint 2, 3, 5e, 7, 9) =================
+   Hub's holiday isle, made Hub's own (no real resort, island, brand, film or song): an invented resort island held for ever at the last gold hour of
+   the afternoon. Sector 5 was uncharted: one step from Sector 1 on the cube (and from Lampblack's Sector 2 and Warfront's Sector 4), so the warp is 25
+   credits; walking through the Spaceport portal is free. Rules: nothing can hurt you (danger false), tech works (the boost, the lighthouse lamp, boat
+   motors), and magic works too: the isle's wishing shells are the locals' joke and the shell collector's living. No monster, only crabs, gulls and fish.
+   The plan: the main isle sits south of the arrival point; the arrival looks north over the pastel boardwalk and its beach huts, the Tidebell beach bar,
+   the white beach and a wide shelf of turquoise shallows you can wade across, the pier running out over deep water to the lighthouse, and sailing boats
+   offshore. West: a lagoon you can wade, joined to the sea by a channel. East: a rocky headland with a waterfall into a cove pool. South: Hotel Saltlark.
+   Water: one THREE.Water mirror (the existing approach) that follows you, made see-through looking down (Fresnel) so the sand shows through; the depth
+   colour, caustics and the swash of foam along every shore are drawn by the sea bed's own terrain shader from its height below the sea, so every
+   shore in the endless sea gets them for free. Deep water: you wade until the water is 1.05 m deep, then you float there and swim (slower), anywhere.
+   Everything is drawn from its own rng seeds (8000 and up) or cell seeds, never Math.random, so the isle looks the same on every visit. */
+const SLK = {
+  sea:0, swim:1.05, out:270, M:{x:0, z:-46, r:60},
+  shelf:{x0:-74, x1:70, z0:6, z1:52},                                   // the turquoise shallows north of the beach: wadeable all the way out
+  walk:{x0:-36, x1:36, z0:-10, z1:-6, y:1.45},                           // the boardwalk deck
+  stairs:[{x0:-6, x1:6, side:'n'}, {x0:-6, x1:6, side:'s'}, {x0:26, x1:30, side:'n'}, {side:'w'}, {side:'e'}],
+  tread:0.4, rise:0.16,
+  pier:{x0:-23.8, x1:-20.2, z0:-6, z1:88, y:1.45, bath:{z0:30, z1:32.4}},   // the pier and its bathing steps (west side, down into the shallows)
+  head:{x:-22, z:93, r:6.5}, light:{x:-22, z:95, r:2.3, h:16.5},
+  lagoon:{x:-46, z:-30, r:13, d:0.85}, chan:[-46, -30, -62, -10], cove:{x:35.5, z:-53, r:6, d:0.95}, hill:{x:44, z:-66, r:21, h:11},
+  bar:{x:10, z:-1, r:3.3}, hotel:{x0:-13, x1:13, z0:-60, z1:-50, y:2.3},
+  huts:[-34.5, -28, -21.5, -15, 15, 21.5, 28, 34.5], hutZ:[-13.8, -10.6], hutW:3.4,
+  islets:[[95, 95, 16, 3.2], [-120, 70, 20, 4.2], [140, -100, 24, 5.4]],
+  hammocks:[[-44, -12, -40.4, -11], [-37.5, -43.5, -34, -44.8], [23.5, -24, 27.1, -25.2]]
+};
+let sl = null, slMemo = null, slG = (x, z) => 0;
+// the deep sea floor, and an island's profile from e = metres inside its shoreline: a gentle beach, then the land rising to its top
+function slBed(n, x, z){ return -6.5 + n.fbm(x * 0.009 + 5, z * 0.009 - 3, 3) * 2.4; }
+function slProf(e, top){ if(e <= 0) return e * 0.075; const b = Math.min(e * 0.055, 1.2); return top <= 1.2 ? Math.min(e * 0.055, top) : b + (top - 1.2) * smooth(22, 40, e); }
+const slSeg = (x, z, a) => { const dx = a[2] - a[0], dz = a[3] - a[1], t = clamp(((x - a[0]) * dx + (z - a[1]) * dz) / (dx * dx + dz * dz), 0, 1); return Math.hypot(x - a[0] - dx * t, z - a[1] - dz * t); };
+function slPlan(){ if(!slMemo) slMemo = {outer:new Map()}; return slMemo; }
+// past the core: an island, a sandbar (wadeable, sometimes with a little sandy cay) or open sea, a pure function of a 150 m grid cell (memoised)
+function slOuterIsle(i, j){
+  const P = slPlan(), k = i + ',' + j; if(P.outer.has(k)) return P.outer.get(k);
+  const q = rng(((i * 73856093) ^ (j * 19349663) ^ 0x5a17a2c) | 0); let c = null;
+  const a = q(), fx = q(), fz = q(), rr = q(), hh = q(), kind = q(), w1 = q() * TAU, w2 = q() * TAU, cay = q();
+  if(a < 0.62){ const bar = kind < 0.32, r = bar ? 16 + rr * 26 : 13 + rr * 30, m = Math.min(0.45, (r + 24) / 150);
+    c = {x:(i + m + fx * (1 - 2 * m)) * 150, z:(j + m + fz * (1 - 2 * m)) * 150, r, top:bar ? (cay < 0.5 ? 0.55 : -0.42) : 1.6 + hh * 4.6, bar, w1, w2};
+    if(Math.hypot(c.x, c.z) < SLK.out + r + 40) c = null; }
+  P.outer.set(k, c); if(P.outer.size > 4000) P.outer.delete(P.outer.keys().next().value); return c;
+}
+// one island's (or sandbar's) height at a point, or -99 when it is far away
+function slIsleH(c, x, z){
+  const dx = x - c.x, dz = z - c.z, lim = c.r * 1.3 + 30; if(dx > lim || dx < -lim || dz > lim || dz < -lim) return -99;
+  const d = Math.sqrt(dx * dx + dz * dz), th = Math.atan2(dz, dx), e = c.r * (1 + 0.12 * Math.sin(3 * th + c.w1) + 0.07 * Math.sin(5 * th + c.w2)) - d;
+  if(c.bar){ const flat = e >= 0 ? -0.42 : -0.42 + e * 0.06; return c.top > 0 ? Math.max(flat, slProf(e - c.r * 0.55, 0.55)) : flat; }
+  return slProf(e, c.top);
+}
+// HEIGHTS.saltlark: the sea bed and the land (the ground disc draws this); G (slG) adds the boardwalk, the pier and its steps, and floats you in deep water
+function slHeights(n){
+  slPlan(); const K = SLK, M = K.M;
+  const base = (x, z) => {
+    const d = Math.hypot(x, z); let h = slBed(n, x, z);
+    // the main isle: a wobbly round shore, the beach, dunes inland
+    { const dx = x - M.x, dz = z - M.z, dm = Math.hypot(dx, dz);
+      if(dm < M.r + 80){ const th = Math.atan2(dz, dx), r0 = M.r + 4 * Math.sin(3 * th + 0.7) + 2.5 * Math.sin(5 * th + 2.1) + 3 * n.fbm(Math.cos(th) * 1.3 + 7, Math.sin(th) * 1.3, 2), e = r0 - dm;
+        let p = slProf(e, 2.2 + n.fbm(x * 0.03, z * 0.03, 3) * 0.7); if(e > 26) p += n.fbm(x * 0.07 + 3, z * 0.07, 2) * 0.35 * smooth(26, 40, e); h = Math.max(h, p); } }
+    // the shallows: a broad shelf of white sand under a hand's depth to a waist's depth of water
+    { const S = K.shelf, m = 1 - smooth(0, 16, rectDist(x, z, S, 0) + n.fbm(x * 0.02 - 4, z * 0.02 + 9, 2) * 9);
+      if(m > 0) h = Math.max(h, lerp(-9, -0.55 + 0.2 * n.fbm(x * 0.045 + 1, z * 0.045 - 2, 2), m)); }
+    // the headland: a rocky hill in the south-east (cliffs to the sea)
+    { const H = K.hill, dh = Math.hypot(x - H.x, z - H.z); if(dh < H.r + 4) h = Math.max(h, 1.6 + H.h * smooth(H.r, H.r * 0.38, dh) + n.fbm(x * 0.09, z * 0.09, 2) * 0.8 * smooth(H.r, H.r * 0.5, dh)); }
+    // the hotel's lawn is level
+    { const T = K.hotel, m = 1 - smooth(1, 7, rectDist(x, z, T, 0)); if(m > 0) h = lerp(h, T.y, m); }
+    // the lagoon, its channel to the sea and the waterfall's cove pool: wadeable bowls cut into the land
+    { const L = K.lagoon, dl = Math.hypot(x - L.x, z - L.z); if(dl < L.r + 12) h = Math.min(h, dl < L.r ? -L.d + L.d * Math.pow(dl / L.r, 2) * 0.75 - 0.05 : (dl - L.r) * 0.32 - 0.05); }
+    { const dc = slSeg(x, z, K.chan); if(dc < 9) h = Math.min(h, dc < 2.6 ? -0.62 : -0.62 + (dc - 2.6) * 0.35); }
+    { const P = K.cove, dp = Math.hypot(x - P.x, z - P.z); if(dp < P.r + 9) h = Math.min(h, dp < P.r ? -P.d + P.d * Math.pow(dp / P.r, 2) * 0.8 : (dp - P.r) * 2.4 - P.d * 0.2); }   // steep on every side: the headland's cliff behind the pool
+    // three islets offshore inside the hand-made core
+    for(const t of K.islets){ const c = {x:t[0], z:t[1], r:t[2], top:t[3], w1:t[0] * 0.1, w2:t[1] * 0.1}; const v = slIsleH(c, x, z); if(v > h) h = v; }
+    if(d > K.out){ const k = smooth(K.out, K.out + 120, d), ci = Math.floor(x / 150), cj = Math.floor(z / 150); let o = slBed(n, x, z);
+      for(let j = cj - 1; j <= cj + 1; j++) for(let i = ci - 1; i <= ci + 1; i++){ const c = slOuterIsle(i, j); if(c){ const v = slIsleH(c, x, z); if(v > o) o = v; } }
+      h = h + (o - h) * k; }
+    return h;
+  };
+  slG = (x, z) => slGround(x, z, base(x, z));
+  return base;
+}
+// where you can stand: the ground, raised to the boardwalk, the pier, the lighthouse's head and their steps; in deep water you float at SLK.swim
+function slGround(x, z, h){
+  const K = SLK, W = K.walk, P = K.pier, y = W.y;
+  if(x > W.x0 - 3 && x < W.x1 + 3 && z > W.z0 - 3 && z < W.z1 + 3){
+    if(x >= W.x0 && x <= W.x1 && z >= W.z0 && z <= W.z1) return Math.max(h, y);
+    for(const s of K.stairs){ let u = -1;
+      if(s.side === 'n' && x >= s.x0 && x <= s.x1 && z > W.z1) u = z - W.z1; else if(s.side === 's' && x >= s.x0 && x <= s.x1 && z < W.z0) u = W.z0 - z;
+      else if(s.side === 'w' && z >= W.z0 && z <= W.z1 && x < W.x0) u = W.x0 - x; else if(s.side === 'e' && z >= W.z0 && z <= W.z1 && x > W.x1) u = x - W.x1;
+      if(u > 0) h = Math.max(h, y - Math.ceil(u / K.tread - 1e-6) * K.rise); }
+  }
+  if(x >= P.x0 && x <= P.x1 && z >= P.z0 && z <= P.z1) return Math.max(h, P.y);
+  if(z >= P.bath.z0 && z <= P.bath.z1 && x < P.x0 && x > P.x0 - 2.2) h = Math.max(h, P.y - Math.ceil((P.x0 - x) / 0.36 - 1e-6) * 0.3);
+  if(Math.hypot(x - K.head.x, z - K.head.z) <= K.head.r) return Math.max(h, P.y);
+  return Math.max(h, K.sea - K.swim);
+}
+// how deep the water is where you stand (0 on dry land), on the isle or in its quest arena's pool
+function slDepth(){
+  if(state.world !== 'saltlark' || !sl) return 0;
+  if(qa && qa.inside){ const M = qa.M; return M.water == null ? 0 : Math.max(0, qa.A.y + M.water - p.y); }
+  if(pocketIn()) return 0;
+  return Math.max(0, SLK.sea - p.y);
+}
+// wading slows you, swimming slower still (running helps a little); 1 everywhere else
+function slWadeK(){ const d = slDepth(); if(d < 0.12) return 1; return lerp(1, 0.56, smooth(0.12, 0.95, d)); }
+
+/* ---- textures (made once per session): pastel planks for the huts, bleached boardwalk planks, a palm frond, the lighthouse's bands, the hotel's front,
+   the hammock and umbrella stripes ---- */
+let slTexCache = null;
+function slTex(){
+  if(slTexCache) return slTexCache;
+  const n = a => a.map(h => hexArr(h));
+  const T = {
+    deck:stoneSet({seed:8011, size:3, cols:1, rows:20, bond:true, base:n([0xb8a68c, 0xa8977d, 0xc2b296, 0x9c8c74, 0xb0a084]), vein:0.3, veinCol:hexArr(0x7a6a56), dirs:[[0, 60], [0, 52], [1, 70]], joint:0.008, jointDark:0.5, rough:0.9, grain:0.08, cloud:0.1, tint:0.1, bump:0.07, nStrength:6}),
+    // white-painted shiplap boards, tinted pastel by each hut's material colour
+    boards:canvasTex(512, 512, (x, w, h) => { const q = rng(8021); x.fillStyle = '#eeeae2'; x.fillRect(0, 0, w, h);
+      for(let i = 0; i < 16; i++){ const y = i * 32; x.fillStyle = 'rgba(70,60,50,0.35)'; x.fillRect(0, y, w, 2); x.fillStyle = 'rgba(255,255,255,0.35)'; x.fillRect(0, y + 2, w, 2);
+        for(let k = 0; k < 30; k++){ x.fillStyle = 'rgba(120,110,95,' + (q() * 0.08).toFixed(3) + ')'; x.fillRect(q() * w, y + 4 + q() * 26, 20 + q() * 90, 1); } }
+      for(let i = 0; i < 1800; i++){ x.fillStyle = 'rgba(90,80,70,' + (q() * 0.06).toFixed(3) + ')'; x.fillRect(q() * w, q() * h, 2, 2); } }),
+    // a palm frond on a transparent card: a midrib up the middle (v), long tapering leaflets swept towards the tip on both sides
+    frond:canvasTex(256, 512, (x, w, h) => { const q = rng(8031); x.clearRect(0, 0, w, h); x.lineCap = 'round';
+      for(let i = 0; i < 62; i++){ const t = 0.04 + i / 62 * 0.94, y = h - t * h, L = (0.25 + 0.75 * Math.sin(Math.PI * Math.min(1, t * 1.1))) * w * 0.47, sd = i % 2 ? 1 : -1, v = Math.round(150 + q() * 100), droop = 0.25 + q() * 0.25;
+        x.strokeStyle = 'rgb(' + Math.round(v * 0.86) + ',' + v + ',' + Math.round(v * 0.62) + ')'; x.lineWidth = 3.2 + (1 - t) * 3;
+        x.beginPath(); x.moveTo(w / 2, y); x.quadraticCurveTo(w / 2 + sd * L * 0.5, y - L * 0.3, w / 2 + sd * L, y - L * droop - L * 0.35); x.stroke(); }
+      x.strokeStyle = 'rgb(205,200,160)'; x.lineWidth = 5; x.beginPath(); x.moveTo(w / 2, h); x.lineTo(w / 2, 4); x.stroke(); }),
+    // the lighthouse: white with two red bands, a door, small windows up the stair
+    light:canvasTex(512, 1024, (x, w, h) => { const q = rng(8041); x.fillStyle = '#f2efe8'; x.fillRect(0, 0, w, h);
+      [[0.3, 0.42], [0.62, 0.74]].forEach(([a, b]) => { x.fillStyle = '#b8343a'; x.fillRect(0, h * (1 - b), w, h * (b - a)); });
+      for(let i = 0; i < 2400; i++){ x.fillStyle = 'rgba(80,70,60,' + (q() * 0.05).toFixed(3) + ')'; x.fillRect(q() * w, q() * h, 2, 3 + q() * 8); }
+      const g = x.createLinearGradient(0, h, 0, h * 0.8); g.addColorStop(0, 'rgba(60,70,60,0.35)'); g.addColorStop(1, 'rgba(60,70,60,0)'); x.fillStyle = g; x.fillRect(0, h * 0.8, w, h * 0.2);
+      x.fillStyle = '#3a4a5a'; x.fillRect(w * 0.47, h * 0.9, w * 0.06, h * 0.1); x.fillStyle = '#26303a'; [0.78, 0.52, 0.22].forEach(t => x.fillRect(w * 0.49, h * t, w * 0.02, h * 0.035)); }),
+    // Hotel Saltlark's front: salmon stucco, white shutters, balconies, its name
+    hotel:canvasTex(1024, 512, (x, w, h) => { const q = rng(8051); x.fillStyle = '#f0b9a2'; x.fillRect(0, 0, w, h);
+      for(let i = 0; i < 5000; i++){ x.fillStyle = 'rgba(' + (q() < 0.5 ? '255,240,230' : '150,90,70') + ',' + (q() * 0.08).toFixed(3) + ')'; x.fillRect(q() * w, q() * h, 3, 3); }
+      x.fillStyle = '#f7f1e6'; x.fillRect(0, h * 0.47, w, 10); x.fillRect(0, 0, w, 16); x.fillRect(0, h - 26, w, 26);
+      for(let f = 0; f < 2; f++) for(let i = 0; i < 9; i++){ const cx = 60 + i * 113, cy = f ? 300 : 70, ww = 44, hh = 120;
+        x.fillStyle = '#2c3e4e'; x.fillRect(cx - ww / 2, cy, ww, hh); x.fillStyle = 'rgba(255,220,170,0.4)'; x.fillRect(cx - ww / 2 + 4, cy + 4, ww - 8, hh * 0.45);
+        x.fillStyle = '#8fd0c8'; x.fillRect(cx - ww / 2 - 24, cy, 20, hh); x.fillRect(cx + ww / 2 + 4, cy, 20, hh);
+        x.fillStyle = 'rgba(0,0,0,0.25)'; for(let k = 0; k < 10; k++){ x.fillRect(cx - ww / 2 - 24, cy + 6 + k * 11, 20, 2); x.fillRect(cx + ww / 2 + 4, cy + 6 + k * 11, 20, 2); } }
+      x.fillStyle = '#2a5a66'; x.font = '700 46px "Chakra Petch","Trebuchet MS",sans-serif'; x.textAlign = 'center'; x.fillText('HOTEL  SALTLARK', w / 2, h * 0.47 - 14); }),
+    // cloth stripes for the hammocks and the umbrellas (white with a colour, tinted per use)
+    stripe:canvasTex(256, 256, (x, w, h) => { x.fillStyle = '#f6f2ea'; x.fillRect(0, 0, w, h); x.fillStyle = '#ffffff'; for(let i = 0; i < 8; i += 2) x.fillRect(i * 32, 0, 32, h);
+      x.fillStyle = 'rgba(0,0,0,0.05)'; for(let i = 0; i < h; i += 3) x.fillRect(0, i, w, 1); }),
+    thatch:canvasTex(512, 256, (x, w, h) => { const q = rng(8061); x.fillStyle = '#8a6a3c'; x.fillRect(0, 0, w, h);
+      for(let i = 0; i < 2600; i++){ const v = Math.round(110 + q() * 110), y = q() * h, L = 20 + q() * 60, xx = q() * w; x.strokeStyle = 'rgba(' + v + ',' + Math.round(v * 0.8) + ',' + Math.round(v * 0.5) + ',0.8)'; x.lineWidth = 1 + q() * 1.5; x.beginPath(); x.moveTo(xx, y); x.lineTo(xx + (q() - 0.5) * 6, y + L); x.stroke(); } })
+  };
+  [T.boards, T.frond, T.light, T.hotel, T.stripe, T.thatch].forEach(t => SHARED_TEX.add(t)); T.frond.wrapS = T.frond.wrapT = THREE.ClampToEdgeWrapping;
+  slTexCache = T; return T;
+}
+/* ---- the sea bed's shader: the depth colour (white sand to turquoise to deep blue), caustics in the shallows and the swash of foam up and down every shore.
+   It reads only the world height below the sea, so the core, the outskirts and any photo texture that replaces the sand all get it. ---- */
+const SL_BED_GLSL = `
+  { float sd = -vTWorld.y; vec2 wp = vTWorld.xz;
+    float wv = 0.07 * sin(slTime * 0.8 + wp.x * 0.045 + wp.y * 0.06) + 0.035 * sin(slTime * 1.31 - wp.x * 0.11 + wp.y * 0.03);
+    vec2 cp = wp * 0.55; float ca = sin(cp.x * 1.7 + sin(cp.y * 1.3 + slTime * 0.9) * 1.7 + slTime * 0.6) + sin(cp.y * 1.9 + sin(cp.x * 1.1 - slTime * 0.7) * 1.7 - slTime * 0.5);
+    float caus = pow(clamp(1.0 - abs(ca) * 0.55, 0.0, 1.0), 7.0) * smoothstep(0.05, 0.45, sd) * (1.0 - smoothstep(2.0, 6.5, sd));
+    vec3 tint = mix(vec3(1.0), vec3(0.36, 0.84, 0.8), smoothstep(0.0, 0.75, sd)); tint = mix(tint, vec3(0.05, 0.3, 0.45), smoothstep(1.3, 6.5, sd));
+    diffuseColor.rgb *= tint; diffuseColor.rgb += caus * 0.32 * tint;
+    float fn = (texture2D(tMacro, wp * 0.21 + vec2(slTime * 0.013, 0.0)).r - 0.68) / 0.32;
+    float band = 1.0 - smoothstep(0.0, 0.06, abs(sd + 0.02 - wv)); float trail = (1.0 - smoothstep(0.0, 0.14, abs(sd - wv - 0.1))) * 0.25;
+    float foam = clamp((band + trail) * smoothstep(0.25, 0.7, fn + 0.25 * sin(wp.x * 2.3 + slTime) * sin(wp.y * 2.1 - slTime * 0.7)), 0.0, 1.0);
+    diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.95, 0.97, 0.96), foam * 0.7);
+    diffuseColor.rgb *= 1.0 - 0.16 * smoothstep(0.35, 0.0, -sd) * smoothstep(-0.12, 0.05, -sd) * (1.0 - foam); }
+`;
+function slBedMaterial(mat){
+  const prev = mat.onBeforeCompile;
+  mat.onBeforeCompile = sh => { prev(sh); sh.uniforms.slTime = uTime;
+    sh.fragmentShader = 'uniform float slTime;\n' + sh.fragmentShader.replace('float roughnessFactor = roughness', SL_BED_GLSL + '\nfloat roughnessFactor = roughness'); };
+  mat.customProgramCacheKey = () => 'terrain-saltlark';
+  return mat;
+}
+// the sea: THREE.Water's mirror, see-through when you look down into it (its alpha rises with the Fresnel term), opaque and mirror-like towards the horizon
+function slSea(){
+  const w = makeWater(new THREE.CircleGeometry(950, 96), {color:0x1d7f86, distortion:1.1, size:9, alpha:0.36});
+  if(!w){ const m = new THREE.Mesh(new THREE.CircleGeometry(950, 96), std(0x1d7f86, {roughness:0.05, metalness:0.1, normalMap:waterNormal, transparent:true, opacity:0.55})); m.rotation.x = -Math.PI / 2; m.position.y = SLK.sea; world.add(m); return m; }
+  w.material.fragmentShader = w.material.fragmentShader.replace('gl_FragColor = vec4( outgoingLight, alpha );',
+    'float fr = clamp( ( reflectance - rf0 ) / ( 1.0 - rf0 ), 0.0, 1.0 ); gl_FragColor = vec4( outgoingLight, mix( alpha, 0.97, pow( fr, 0.55 ) ) );');
+  w.material.needsUpdate = true; w.material.transparent = true; w.material.polygonOffset = true; w.material.polygonOffsetFactor = -2; w.material.polygonOffsetUnits = -4; w.receiveShadow = true;   // the sea wins where it meets the sand (no z-fighting along the shore)
+  w.position.y = SLK.sea; w.name = 'slSea'; world.add(w); return w;
+}
+
+/* ---- palms: a ringed trunk that curves as it rises (leaning along local +z), a crown of arching fronds (each frond a folded ribbon of leaf-card
+   texture, so the crown has volume and a broken silhouette), and a few coconuts. Three shapes, each with a far version (fewer rings and segments,
+   the same silhouette). Built once per session. ---- */
+let slPalmCache = null;
+function slPalmGeos(){
+  if(slPalmCache) return slPalmCache;
+  const out = [];
+  [[7.4, 1.3, 11, 8101], [8.6, 2.1, 12, 8102], [6.2, 0.6, 10, 8103]].forEach(([H, curve, nF, seed]) => {
+    const q = rng(seed), top = new V3(0, H, curve * 1.6);
+    const trunk = (radial, rows) => { const g = new THREE.CylinderGeometry(0.16, 0.25, H, radial, rows); g.translate(0, H / 2, 0); const a = g.attributes.position, uv = g.attributes.uv;
+      for(let i = 0; i < a.count; i++){ const y = a.getY(i), t = y / H, ring = rows > 20 ? 1 + 0.07 * Math.pow(Math.abs(Math.sin(y * 13.5)), 6) - 0.03 * t : 1, flare = 1 + 0.5 * Math.pow(smooth(0.7, 0, y), 2);
+        a.setX(i, a.getX(i) * ring * flare); a.setZ(i, a.getZ(i) * ring * flare + curve * 1.6 * t * t); uv.setXY(i, uv.getX(i) * 1.5, y / 1.4); }
+      g.computeVertexNormals(); return g; };
+    const nuts = lo => { const parts = []; for(let i = 0; i < 4; i++){ const a = i * 1.7 + q() * 0.4, s = new THREE.SphereGeometry(0.15, lo ? 6 : 10, lo ? 5 : 8); s.translate(top.x + Math.cos(a) * 0.24, H - 0.32 - (i % 2) * 0.12, top.z + Math.sin(a) * 0.24); parts.push(s); } return parts; };
+    // the fronds: from the crown, out and up, then arching down; three vertices across (a V fold), segments along
+    const fronds = [];
+    for(let i = 0; i < nF; i++){ const az = i / nF * TAU + (q() - 0.5) * 0.35, up = i % 3 === 0 ? 0.75 + q() * 0.3 : 0.25 + q() * 0.45, L = 3.3 + q() * 1.1, droop = 1.1 + q() * 0.9, wd = 0.62 + q() * 0.22;
+      fronds.push({az, up, L, droop, wd, tw:(q() - 0.5) * 0.5}); }
+    const frondGeo = (segs, across) => {
+      const pos = [], nor = [], uv = [], col = [], idx = [];
+      fronds.forEach(F => { const b = pos.length / 3, dx = Math.sin(F.az), dz = Math.cos(F.az), px = dz, pz = -dx;
+        for(let s = 0; s <= segs; s++){ const t = s / segs, hor = F.L * t * Math.cos(F.up * (1 - t)), y = H + 0.05 + F.L * t * Math.sin(F.up) * (1 - t * 0.5) - F.droop * t * t * F.L * 0.42;
+          const w = F.wd * Math.pow(Math.sin(Math.PI * Math.min(1, 0.12 + t * 0.95)), 0.6), cx = top.x + dx * (hor + 0.15), cz = top.z + dz * (hor + 0.15), c = 0.55 + 0.45 * t;
+          for(let k = 0; k < across; k++){ const u = across === 3 ? k / 2 : k, o = (u - 0.5) * 2, fold = across === 3 ? (1 - Math.abs(o)) * 0.12 * w : 0, tw = F.tw * t;
+            pos.push(cx + px * o * w * Math.cos(tw), y + fold + o * w * Math.sin(tw), cz + pz * o * w * Math.cos(tw)); nor.push(dx * 0.2 + px * o * 0.3, 0.92, dz * 0.2 + pz * o * 0.3); uv.push(u, t); col.push(c, c * 1.02, c * 0.94); } }
+        for(let s = 0; s < segs; s++) for(let k = 0; k < across - 1; k++){ const a = b + s * across + k, c2 = a + across; idx.push(a, a + 1, c2 + 1, a, c2 + 1, c2); } });
+      const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
+      g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3)); g.setIndex(idx); g.normalizeNormals(); return g; };
+    out.push({H, curve, top, trunk:shareGeo(merge([trunk(12, 54)].concat(nuts(false)))), trunkLo:shareGeo(merge([trunk(7, 10)].concat(nuts(true)))), frond:shareGeo(frondGeo(7, 3)), frondLo:shareGeo(frondGeo(3, 2))});
+  });
+  return (slPalmCache = out);
+}
+let slPalmMats = null;
+function slPalmMaterials(){
+  if(slPalmMats) return slPalmMats;
+  const bk = surface('bark'), T = slTex();
+  const trunk = shareMat(std(0xbcb2a2, {map:bk.map, normalMap:bk.normal, normalScale:new V2(1, 1), roughness:0.95}));
+  const leaf = shareMat(std(0xffffff, {vertexColors:true, roughness:0.75, map:T.frond, alphaTest:0.45, side:THREE.DoubleSide}));
+  leaf.onBeforeCompile = sh => {
+    sh.uniforms.time = uTime;
+    sh.fragmentShader = sh.fragmentShader.replace('#include <normal_fragment_begin>', 'float faceDirection = gl_FrontFacing ? 1.0 : - 1.0; vec3 normal = normalize( mix( vNormal, vec3( 0.0, 1.0, 0.0 ), 0.3 ) ); vec3 geometryNormal = normal;');
+    sh.vertexShader = 'uniform float time;\n' + sh.vertexShader.replace('#include <begin_vertex>',
+      '#include <begin_vertex>\n vec4 lip = instanceMatrix[3]; float tip = uv.y * uv.y; float lw = sin(time * 1.6 + lip.x * 0.37 + lip.z * 0.29 + position.x * 0.6) * 0.16 * tip;\n transformed.x += lw; transformed.z += lw * 0.7; transformed.y += sin(time * 2.3 + lip.z * 0.5 + position.z) * 0.08 * tip;');
+  };
+  leaf.customProgramCacheKey = () => 'palmleaf';
+  const depth = new THREE.MeshDepthMaterial({depthPacking:THREE.RGBADepthPacking, map:T.frond, alphaTest:0.45});
+  return (slPalmMats = {trunk, leaf, depth});
+}
+// plant palms from a list of {x, z, v (shape), s (scale), yaw (the way it leans)}; fronds tinted from a fixed palette by their own rng
+function slPlantPalms(list, seed){
+  if(!list.length) return; const P = slPalmGeos(), M = slPalmMaterials(), q = rng(seed), hexes = [0x6a9a3a, 0x7aa844, 0x5c8a34, 0x86ad4c];
+  [0, 1, 2].forEach(v => { const L = list.filter(t => t.v === v); if(!L.length) return;
+    const mats = L.map(t => mat4(t.x, t.y != null ? t.y : G(t.x, t.z) - 0.15, t.z, 0, t.yaw, 0, t.s));
+    const cols = L.map(() => { const c = C(hexes[Math.floor(q() * hexes.length)]); c.multiplyScalar(0.85 + q() * 0.3); return c; });
+    lodInstanced(P[v].trunk, P[v].trunkLo, M.trunk, mats, null, 60, 8);
+    lodInstanced(P[v].frond, P[v].frondLo, M.leaf, mats, cols, 60, 8, {noAO:true, depth:M.depth}); });
+}
+// a hammock between two palms: a sagging striped cloth, its spreader bars and ropes
+function slHammock(x0, z0, x1, z1, hex){
+  const T = slTex(), L = Math.hypot(x1 - x0, z1 - z0), a = Math.atan2(x1 - x0, z1 - z0), g0 = G(x0, z0), g1 = G(x1, z1), y0 = g0 + 1.55, y1 = g1 + 1.55, sag = 0.85;
+  const g = new THREE.Group(); g.position.set(x0, 0, z0); g.rotation.y = a; (buildParent || world).add(g);
+  const cloth = new THREE.PlaneGeometry(1.0, L - 1.6, 4, 16), p = cloth.attributes.position;
+  for(let i = 0; i < p.count; i++){ const u = p.getX(i), v = p.getY(i) / (L - 1.6) + 0.5, zz = 0.8 + v * (L - 1.6), y = lerp(y0, y1, zz / L) - sag * 4 * (zz / L) * (1 - zz / L) - 0.12 * (1 - 4 * u * u) * 4 * v * (1 - v);
+    p.setXYZ(i, u * (1 - 0.25 * Math.pow(Math.abs(v - 0.5) * 2, 3)), y, zz); }
+  cloth.computeVertexNormals(); const cm = std(hex, {map:T.stripe, roughness:0.9, side:THREE.DoubleSide}); mk(cloth, cm, 0, 0, 0, g);
+  const rope = std(0xd8c8a0, {roughness:0.9}), parts = [], yAt = zz => lerp(y0, y1, zz / L) - sag * 4 * (zz / L) * (1 - zz / L);
+  [[0.8, yAt(0.8), 0, y0], [L - 0.8, yAt(L - 0.8), L, y1]].forEach(([zz, yy, ze, ye]) => {
+    [-0.48, 0, 0.48].forEach(xx => { const s = new V3(xx, yy, zz), e = new V3(0, ye, ze), d = e.clone().sub(s), c = new THREE.CylinderGeometry(0.012, 0.012, d.length(), 4); c.translate(0, d.length() / 2, 0);
+      const m4 = new THREE.Matrix4().makeRotationFromQuaternion(new THREE.Quaternion().setFromUnitVectors(new V3(0, 1, 0), d.normalize())).setPosition(s); parts.push(c.applyMatrix4(m4)); });
+    const bar = new THREE.CylinderGeometry(0.025, 0.025, 1.05, 6); bar.rotateZ(Math.PI / 2); bar.translate(0, yy, zz); parts.push(bar); });
+  mk(merge(parts), rope, 0, 0, 0, g).castShadow = false;
+  return g;
+}
+
+// the sea bed and shore colours (vertex colours): pale dry sand, a darker wet band at the water's edge; the depth colour is the shader's
+const slColor = n => (x, y, z, s) => { const v = n.fbm(x * 0.05, z * 0.05, 3) * 0.5 + 0.5, v2 = n.fbm(x * 0.21 + 3, z * 0.21, 2) * 0.5 + 0.5, wet = smooth(0.5, 0.06, y) * smooth(-0.5, -0.02, y);
+  const up = smooth(2.7, 4.6, y) * (0.7 + 0.3 * v2);   // higher ground (the headland, the islands' tops): sandy soil under the grass
+  return [(0.96 + 0.06 * v + 0.03 * v2) * (1 - 0.2 * wet) * (1 - 0.4 * up), (0.95 + 0.05 * v + 0.03 * v2) * (1 - 0.17 * wet) * (1 - 0.3 * up), (0.92 + 0.05 * v + 0.02 * v2) * (1 - 0.12 * wet) * (1 - 0.52 * up)]; };
+const SLK_TERRAIN = {layers:[{surf:'whitesand', rep:3.2}, {surf:'whitesand', rep:5.3}, {surf:'rock', rep:5}, {surf:'whitesand', rep:4.1}], rules:{patch:[0.62, 0.82], slope:[0.5, 0.85]}};
+// a hut: shiplap walls in its pastel, a white pitched roof, a door and a window towards the boardwalk, on stilts down to the sand
+function slHut(x, hex, K){
+  const W = SLK.walk, z0 = SLK.hutZ[0], z1 = SLK.hutZ[1], hw = SLK.hutW / 2, y = W.y, wallH = 2.45, g = new THREE.Group(); world.add(g);
+  const body = std(hex, {map:K.T.boards, roughness:0.82}); K.mats.push(body);
+  const walls = boxGeo([[x - hw, x + hw, y, y + wallH, z0, z1]], 4); { const uv = walls.attributes.uv; for(let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * 4 / 2.4, uv.getY(i) * 4 / 2.4); }
+  mk(walls, body, 0, 0, 0, g);
+  // roof: two slopes and gables, eaves over the front
+  const rh = 1.2, rp = [], ov = 0.3, slope = (sd) => { const a = new V3(x - hw - ov, y + wallH, sd > 0 ? z1 + ov : z0 - ov), b = new V3(x + hw + ov, y + wallH, a.z), c = new V3(x + hw + ov, y + wallH + rh, (z0 + z1) / 2), d = new V3(x - hw - ov, y + wallH + rh, (z0 + z1) / 2);
+    const gg = new THREE.BufferGeometry(); gg.setFromPoints(sd > 0 ? [a, b, c, a, c, d] : [b, a, d, b, d, c]); gg.computeVertexNormals(); gg.setAttribute('uv', new THREE.Float32BufferAttribute([0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1], 2)); return gg; };
+  rp.push(slope(1), slope(-1));
+  [-1, 1].forEach(sd => { const xx = x + sd * hw, gg = new THREE.BufferGeometry(); gg.setFromPoints(sd > 0 ? [new V3(xx, y + wallH, z0), new V3(xx, y + wallH, z1), new V3(xx, y + wallH + rh, (z0 + z1) / 2)] : [new V3(xx, y + wallH, z1), new V3(xx, y + wallH, z0), new V3(xx, y + wallH + rh, (z0 + z1) / 2)]);
+    gg.computeVertexNormals(); gg.setAttribute('uv', new THREE.Float32BufferAttribute([0, 0, 1, 0, 0.5, 0.5], 2)); K.gables.push(gg); });
+  K.roofs.push(...rp);
+  // the front (towards the boardwalk, +z): a door and a window, white trim, a little number board
+  const fz = z1 + 0.012;
+  K.doors.push(new THREE.PlaneGeometry(0.95, 1.95).translate(x - 0.6, y + 0.98, fz)); K.glass.push(new THREE.PlaneGeometry(0.8, 0.7).translate(x + 0.85, y + 1.45, fz));
+  K.trim.push(...[[x - 1.1, x - 0.1, y + 1.95, y + 2.05], [x - 1.12, x - 1.04, y, y + 2.05], [x - 0.16, x - 0.08, y, y + 2.05], [x + 0.4, x + 1.3, y + 1.05, y + 1.11], [x + 0.4, x + 1.3, y + 1.79, y + 1.85], [x - hw, x + hw, y + wallH - 0.08, y + wallH]].map(([a, b, c, d]) => [a, b, c, d, z1, z1 + 0.05]));
+  K.trim.push([x - hw - 0.04, x - hw + 0.06, y, y + wallH, z0, z1 + 0.06], [x + hw - 0.06, x + hw + 0.04, y, y + wallH, z0, z1 + 0.06]);
+  // stilts under the floor, a floor slab
+  [[x - hw + 0.15, z0 + 0.15], [x + hw - 0.15, z0 + 0.15], [x - hw + 0.15, z1 - 0.15], [x + hw - 0.15, z1 - 0.15]].forEach(([px, pz]) => K.posts.push(mat4(px, (G(px, pz) - 0.4 + y) / 2, pz, 0, 0, 0, 1, (y - G(px, pz) + 0.4), 1)));
+  K.deck.push([x - hw, x + hw, y - 0.12, y, z0, z1]);
+  addBox(x, (z0 + z1) / 2, hw + 0.05, (z1 - z0) / 2 + 0.05, -2, y + wallH + rh);
+}
+BUILD.saltlark = (r, n) => {
+  sl = {skip:[], sea:null, life:null, mist:null, fall:null};
+  const T = slTex(), color = slColor(n), q = rng(8001), W = SLK.walk, P = SLK.pier;
+  const ter = buildTerrain({maxR:900, surf:SLK_TERRAIN, color}); slBedMaterial(ter.material);
+  sl.sea = slSea(); sl.skip.push(sl.sea);
+  const deckM = std(0xffffff, {map:T.deck.map, normalMap:T.deck.normal, roughnessMap:T.deck.rough, roughness:1});
+  const postM = std(0x8a7a66, {map:detailTex, normalMap:detailNormal, normalScale:new V2(0.5, 0.5), roughness:0.9});
+  const whiteM = std(0xf4f1ea, {roughness:0.55}), mintM = std(0x9fd8c4, {roughness:0.6});
+  const K = {T, mats:[], roofs:[], gables:[], doors:[], glass:[], trim:[], posts:[], deck:[]};
+  // ---- the boardwalk: bleached planks on posts, a painted fascia, steps down to the beach (the steps are G; see slGround)
+  K.deck.push([W.x0, W.x1, W.y - 0.14, W.y, W.z0, W.z1]);
+  for(let x = W.x0 + 0.3; x <= W.x1; x += 2.4) [W.z0 + 0.25, W.z1 - 0.25].forEach(z => K.posts.push(mat4(x, (G(x, z) - 0.4 + W.y) / 2, z, 0, 0, 0, 1, W.y - G(x, z) + 0.4, 1)));
+  const fascia = [], stairBoxes = [];
+  const gap = (side, a, b) => SLK.stairs.filter(s => s.side === side).map(s => [s.x0, s.x1]).concat(side === 'n' ? [[P.x0, P.x1]] : []).filter(g2 => g2[0] < b && g2[1] > a);
+  ['n', 's'].forEach(side => { const z = side === 'n' ? W.z1 : W.z0; let a = W.x0; const cuts = gap(side, W.x0, W.x1).sort((u, v) => u[0] - v[0]);
+    cuts.concat([[W.x1, W.x1]]).forEach(c => { if(c[0] > a + 0.05){ fascia.push([a, c[0], W.y - 0.42, W.y - 0.02, z - 0.04, z + 0.04]); addBox((a + c[0]) / 2, z, (c[0] - a) / 2, 0.06, -3, W.y - 0.12, {cam:false}); } a = Math.max(a, c[1]); }); });
+  // the steps themselves: treads of planks, one box each, down to wherever the sand meets them
+  SLK.stairs.forEach(s => { for(let k = 1; k <= 8; k++){ const y = W.y - k * SLK.rise, u0 = (k - 1) * SLK.tread, u1 = k * SLK.tread;
+      let b; if(s.side === 'n') b = [s.x0, s.x1, -1, y, W.z1 + u0, W.z1 + u1]; else if(s.side === 's') b = [s.x0, s.x1, -1, y, W.z0 - u1, W.z0 - u0]; else if(s.side === 'w') b = [W.x0 - u1, W.x0 - u0, -1, y, W.z0, W.z1]; else b = [W.x1 + u0, W.x1 + u1, -1, y, W.z0, W.z1];
+      const cx = (b[0] + b[1]) / 2, cz = (b[4] + b[5]) / 2; if(G(cx, cz) > y + 0.02) break; b[2] = Math.min(y - 0.3, hf(cx, cz) - 0.3); stairBoxes.push(b); } });
+  // ---- the pier: deck on piles out over the shallows and the deep water, rails both sides (a gap for the bathing steps), the head round the lighthouse
+  K.deck.push([P.x0, P.x1, P.y - 0.14, P.y, P.z0, P.z1]);
+  const piles = [], rails = [];
+  for(let z = P.z0 + 2; z <= P.z1; z += 3) [P.x0 + 0.2, P.x1 - 0.2].forEach(x => { const b = hf(x, z) - 0.6; piles.push(mat4(x, (b + P.y) / 2, z, 0, 0, 0, 1.25, P.y - b, 1.25)); });
+  const railRun = (x, za, zb) => { if(zb - za < 0.5) return; rails.push([x - 0.05, x + 0.05, P.y + 0.92, P.y + 1.0, za, zb], [x - 0.04, x + 0.04, P.y + 0.45, P.y + 0.52, za, zb]); for(let z = za; z <= zb + 0.01; z += 1.8) rails.push([x - 0.06, x + 0.06, P.y, P.y + 1.0, z - 0.06, z + 0.06]);
+    addBox(x, (za + zb) / 2, 0.08, (zb - za) / 2, -12, P.y + 1.0, {cam:false}); };
+  const rz0 = W.z1 + 0.1, rz1 = P.z1 - 0.3; railRun(P.x1 - 0.06, rz0, rz1); railRun(P.x0 + 0.06, rz0, P.bath.z0); railRun(P.x0 + 0.06, P.bath.z1, rz1);
+  for(let k = 1; k <= 6; k++){ const u0 = (k - 1) * 0.36, u1 = k * 0.36; stairBoxes.push([P.x0 - u1, P.x0 - u0, -1.6, P.y - k * 0.3, P.bath.z0, P.bath.z1]); }
+  // the head: a round deck, piles round its rim, a rail round it except where the pier arrives
+  { const H = SLK.head, disc = new THREE.CylinderGeometry(H.r, H.r, 0.14, 48); const uv = disc.attributes.uv, a = disc.attributes.position; for(let i = 0; i < uv.count; i++) uv.setXY(i, a.getX(i) / 3, a.getZ(i) / 3);
+    mk(disc, deckM, H.x, P.y - 0.07, H.z);
+    for(let i = 0; i < 14; i++){ const an = i / 14 * TAU, x = H.x + Math.sin(an) * (H.r - 0.3), z = H.z + Math.cos(an) * (H.r - 0.3), b = hf(x, z) - 0.6; piles.push(mat4(x, (b + P.y) / 2, z, 0, 0, 0, 1.25, P.y - b, 1.25)); }
+    const N = 24, rr = H.r - 0.08; for(let i = 0; i < N; i++){ const a0 = i / N * TAU, a1 = (i + 1) / N * TAU, am = (a0 + a1) / 2; if(Math.abs(angGap(am, Math.PI)) < 0.32) continue;
+      const x = H.x + Math.sin(am) * rr, z = H.z + Math.cos(am) * rr, len = 2 * rr * Math.sin(Math.PI / N);
+      const rail = new THREE.BoxGeometry(len, 0.08, 0.1); rail.rotateY(am + Math.PI / 2); rail.translate(x, P.y + 0.96, z); K.rail2 = (K.rail2 || []).concat([rail]);
+      K.rail2.push(new THREE.BoxGeometry(0.12, 1.0, 0.12).translate(H.x + Math.sin(a0) * rr, P.y + 0.5, H.z + Math.cos(a0) * rr));
+      addBox(x, z, len / 2 + 0.05, 0.08, -12, P.y + 1.0, {a:-(am + Math.PI / 2), cam:false}); } }
+  // ---- the lighthouse: white with red bands, a gallery, a glowing lantern room, a red cap; its beam turns slowly (slUpdate)
+  { const L = SLK.light, y0 = P.y, body = new THREE.CylinderGeometry(L.r * 0.68, L.r, L.h, 40, 12, true); body.translate(0, L.h / 2, 0); const uv = body.attributes.uv; for(let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i), body.attributes.position.getY(i) / L.h);
+    mk(body, std(0xffffff, {map:T.light, roughness:0.6}), L.x, y0, L.z);
+    const top = y0 + L.h, rr = L.r * 0.68, iron = std(0x2c3238, {metalness:0.6, roughness:0.45});
+    mk(new THREE.CylinderGeometry(rr + 0.75, rr + 0.75, 0.22, 40), whiteM, L.x, top + 0.11, L.z);
+    const gal = []; for(let i = 0; i < 28; i++){ const an = i / 28 * TAU; gal.push(new THREE.CylinderGeometry(0.03, 0.03, 0.9, 5).translate(L.x + Math.sin(an) * (rr + 0.7), top + 0.65, L.z + Math.cos(an) * (rr + 0.7))); }
+    gal.push(new THREE.TorusGeometry(rr + 0.7, 0.035, 6, 48).rotateX(Math.PI / 2).translate(L.x, top + 1.1, L.z)); mk(merge(gal), iron, 0, 0, 0).castShadow = false;
+    mk(new THREE.CylinderGeometry(rr * 0.78, rr * 0.78, 0.3, 32), iron, L.x, top + 0.37, L.z);
+    const lamp = mk(new THREE.CylinderGeometry(rr * 0.72, rr * 0.72, 1.7, 32), phys(0xfff2c8, {emissive:C(0xffd890), emissiveIntensity:1.6, roughness:0.08, metalness:0.1, transparent:true, opacity:0.9}), L.x, top + 1.37, L.z); lamp.castShadow = false;
+    for(let i = 0; i < 8; i++){ const an = i / 8 * TAU; mk(new THREE.BoxGeometry(0.06, 1.7, 0.06), iron, L.x + Math.sin(an) * rr * 0.73, top + 1.37, L.z + Math.cos(an) * rr * 0.73).castShadow = false; }
+    mk(new THREE.ConeGeometry(rr * 0.9, 1.0, 32), std(0xb8343a, {roughness:0.5, metalness:0.2}), L.x, top + 2.72, L.z); mk(new THREE.SphereGeometry(0.16, 12, 8), iron, L.x, top + 3.3, L.z);
+    glow(0xffd890, 5, L.x, top + 1.4, L.z, world, 0.55);
+    sl.flash = glow(0xfff0c8, 6, L.x, top + 1.4, L.z, world, 0.4); sl.flash.userData.base = new V3(L.x, top + 1.4, L.z); sl.skip.push(sl.flash);   // the lens turns: a flash each time a beam sweeps past you (slUpdate)
+    colliders.push({x:L.x, z:L.z, r:L.r + 0.15}); }
+  // ---- piles, posts, decks, rails, fascia and steps: one draw each
+  instanced(new THREE.CylinderGeometry(0.12, 0.14, 1, 8), postM, piles.concat(K.posts), null, true);
+  mk(boxGeo(K.deck, 3), deckM, 0, 0, 0);
+  mk(boxGeo(stairBoxes, 3), deckM, 0, 0, 0);
+  mk(boxGeo(fascia.concat(rails), 2), whiteM, 0, 0, 0);
+  if(K.rail2) mk(merge(K.rail2), whiteM, 0, 0, 0).castShadow = false;
+  // ---- the beach huts (south of the boardwalk, doors onto it), in pastels fixed by their own rng
+  const pastels = [0x9fe0c8, 0xf4b6c2, 0xf6e3a1, 0xa9cfee, 0xc9b6e8, 0xf7c39e, 0xb8e6a8, 0xf2a7a0], hq = rng(8091);
+  SLK.huts.forEach(x => slHut(x, pastels[Math.floor(hq() * pastels.length)], K));
+  mk(merge(K.roofs), std(0xf2efe8, {map:T.boards, roughness:0.6, side:THREE.DoubleSide}), 0, 0, 0);
+  mk(merge(K.gables), std(0xf6f2ea, {roughness:0.7, side:THREE.DoubleSide}), 0, 0, 0);
+  mk(merge(K.doors), std(0x5a7a8a, {map:T.boards, roughness:0.6}), 0, 0, 0).castShadow = false;
+  mk(merge(K.glass), phys(0x2c4250, {roughness:0.1, metalness:0.3}), 0, 0, 0).castShadow = false;
+  mk(boxGeo(K.trim, 2), whiteM, 0, 0, 0).castShadow = false;
+  // ---- benches and lamp posts along the boardwalk (mint iron, warm globes lit for the evening)
+  { const parts = [], globes = [], gl = []; for(let x = W.x0 + 4; x < W.x1; x += 12){ if(Math.abs(x) < 7) continue; const z = W.z0 + 0.35;
+      parts.push(new THREE.CylinderGeometry(0.05, 0.07, 3.0, 8).translate(x, W.y + 1.5, z), new THREE.CylinderGeometry(0.12, 0.14, 0.2, 10).translate(x, W.y + 0.1, z)); globes.push(new THREE.SphereGeometry(0.19, 16, 12).translate(x, W.y + 3.15, z)); gl.push([x, W.y + 3.15, z, 1.4, 0xffd8a0, 0.35]);
+      [-1, 1].forEach(sd => { const bx = x + sd * 3; parts.push(new THREE.BoxGeometry(1.6, 0.06, 0.45).translate(bx, W.y + 0.45, z + 0.05), new THREE.BoxGeometry(1.6, 0.4, 0.05).translate(bx, W.y + 0.75, z - 0.18), new THREE.BoxGeometry(0.06, 0.45, 0.4).translate(bx - 0.7, W.y + 0.22, z), new THREE.BoxGeometry(0.06, 0.45, 0.4).translate(bx + 0.7, W.y + 0.22, z)); });
+      colliders.push({x, z, r:0.15}); }
+    mk(merge(parts), mintM, 0, 0, 0); mk(merge(globes), glowM(0xffe2b0, 1.3), 0, 0, 0).castShadow = false; glowCloud(gl.map(g2 => [g2[0], g2[1], g2[2], g2[3], g2[4], g2[5]]), 0.35); }
+  // ---- the Tidebell beach bar: a round thatched roof on posts over a ring counter, stools, a chalkboard
+  { const B = SLK.bar, y = G(B.x, B.z), parts = [], th = []; for(let i = 0; i < 8; i++){ const an = i / 8 * TAU; parts.push(new THREE.CylinderGeometry(0.1, 0.12, 2.9, 8).translate(B.x + Math.sin(an) * (B.r - 0.2), y + 1.45, B.z + Math.cos(an) * (B.r - 0.2))); }
+    const counter = new THREE.CylinderGeometry(B.r - 1.0, B.r - 0.9, 1.05, 40, 1, true); counter.translate(B.x, y + 0.52, B.z); parts.push(counter, new THREE.TorusGeometry(B.r - 0.95, 0.16, 8, 48).rotateX(Math.PI / 2).translate(B.x, y + 1.08, B.z));
+    mk(merge(parts), std(0x9a7448, {map:detailTex, normalMap:detailNormal, normalScale:new V2(0.5, 0.5), roughness:0.8}), 0, 0, 0);
+    const roof = new THREE.ConeGeometry(B.r + 1.1, 2.0, 40, 3, true); roof.translate(B.x, y + 3.75, B.z); { const uv = roof.attributes.uv; for(let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * 4, uv.getY(i)); }
+    mk(roof, std(0xffffff, {map:T.thatch, roughness:0.95, side:THREE.DoubleSide}), 0, 0, 0);
+    const st = []; for(let i = 0; i < 7; i++){ const an = i / 7 * TAU + 0.3, rr = B.r + 0.35; st.push(new THREE.CylinderGeometry(0.22, 0.2, 0.08, 14).translate(B.x + Math.sin(an) * rr, y + 0.78, B.z + Math.cos(an) * rr), new THREE.CylinderGeometry(0.04, 0.05, 0.76, 6).translate(B.x + Math.sin(an) * rr, y + 0.38, B.z + Math.cos(an) * rr)); }
+    mk(merge(st), mintM, 0, 0, 0);
+    const sign = label('The Tidebell', {small:true, edge:'#7fd8c8', fg:'#fff3d6'}); sign.position.set(B.x, y + 5.3, B.z); world.add(sign);
+    colliders.push({x:B.x, z:B.z, r:B.r - 0.7}); }
+  // ---- umbrellas and loungers on the beach
+  { const ums = [[-14, 3, 0xf28f7a], [-8.5, 5.5, 0x7fc8e8], [16.5, 4.5, 0xf6d36a], [22, 2.5, 0x8fd8b0], [31, 3.5, 0xf4a6c8], [-31, 2, 0xb8a8e8]], cloth = [], poles = [], lounge = [];
+    ums.forEach(([x, z, hex], i) => { const y = G(x, z), c = new THREE.ConeGeometry(1.5, 0.55, 16, 1, true); c.translate(0, 0, 0); const m = mk(c, std(hex, {map:T.stripe, roughness:0.85, side:THREE.DoubleSide}), x, y + 2.25, z); m.rotation.z = 0.12; m.rotation.y = i;
+      poles.push(new THREE.CylinderGeometry(0.03, 0.03, 2.3, 6).translate(x, y + 1.15, z)); colliders.push({x, z, r:0.12});
+      const a = i * 0.9 + 0.4, lx = x + Math.sin(a) * 1.2, lz = z + Math.cos(a) * 1.2, ly = G(lx, lz), seat = new THREE.BoxGeometry(0.62, 0.08, 1.8); seat.rotateY(a); seat.translate(lx, ly + 0.3, lz); const back = new THREE.BoxGeometry(0.62, 0.06, 0.7); back.rotateX(-0.9); back.translate(0, 0, -0.95); back.rotateY(a); back.translate(lx, ly + 0.55, lz); lounge.push(seat, back);
+      [[-0.25, -0.75], [0.25, -0.75], [-0.25, 0.75], [0.25, 0.75]].forEach(([u, v]) => lounge.push(new THREE.BoxGeometry(0.05, 0.3, 0.05).translate(lx + u * Math.cos(a) + v * Math.sin(a), ly + 0.15, lz - u * Math.sin(a) + v * Math.cos(a)))); });
+    mk(merge(poles), whiteM, 0, 0, 0); mk(merge(lounge), std(0xf2ece0, {map:detailTex, roughness:0.8}), 0, 0, 0); }
+  // ---- Hotel Saltlark on the rise south of the portal: two floors of salmon stucco, a terracotta roof, its name over the door
+  { const H = SLK.hotel, y = H.y, h = 7.2, front = new THREE.PlaneGeometry(H.x1 - H.x0, h); front.translate((H.x0 + H.x1) / 2, y + h / 2, H.z1 + 0.01);
+    const stuc = std(0xf0b9a2, {map:detailTex, normalMap:detailNormal, normalScale:new V2(0.35, 0.35), roughness:0.9});
+    mk(boxGeo([[H.x0, H.x1, y - 1, y + h, H.z0, H.z1]], 4), stuc, 0, 0, 0); mk(front, std(0xffffff, {map:T.hotel, roughness:0.85}), 0, 0, 0).castShadow = false;
+    const roof = new THREE.CylinderGeometry(0.01, 1, 1, 4, 1); roof.rotateY(Math.PI / 4); roof.scale((H.x1 - H.x0 + 1.4) / Math.SQRT2, 2.6, (H.z1 - H.z0 + 1.4) / Math.SQRT2); roof.translate((H.x0 + H.x1) / 2, y + h + 1.3, (H.z0 + H.z1) / 2);
+    mk(roof, std(0xc8603e, {map:detailTex, normalMap:detailNormal, roughness:0.75}), 0, 0, 0);
+    const bal = []; for(let i = 0; i < 9; i++){ const cx = H.x0 + (60 + i * 113) / 1024 * (H.x1 - H.x0); bal.push([cx - 0.75, cx + 0.75, y + h * 0.5 - 0.05, y + h * 0.5 + 0.08, H.z1, H.z1 + 0.7], [cx - 0.75, cx + 0.75, y + h * 0.5 + 0.85, y + h * 0.5 + 0.92, H.z1 + 0.62, H.z1 + 0.7]); }
+    bal.push([-2.2, 2.2, y + 2.6, y + 2.75, H.z1, H.z1 + 1.6], [-2.1, -1.95, y, y + 2.6, H.z1 + 1.4, H.z1 + 1.55], [1.95, 2.1, y, y + 2.6, H.z1 + 1.4, H.z1 + 1.55]);
+    mk(boxGeo(bal, 2), whiteM, 0, 0, 0);
+    addBox((H.x0 + H.x1) / 2, (H.z0 + H.z1) / 2, (H.x1 - H.x0) / 2, (H.z1 - H.z0) / 2, -2, y + h + 2); }
+  // ---- the waterfall cove: boulders round the back of the pool, a ribbon of falling water from the headland, mist and foam where it lands
+  slCove(n);
+  // ---- palms: hand-placed pairs for the hammocks, then a scatter over the isle and the islets (their own rng), leaning out towards the sea
+  { const list = [], M = SLK.M, ok = (x, z, m) => { if(hf(x, z) < 0.45 || slopeAt(x, z) > 0.55) return false;
+      if(rectDist(x, z, {x0:W.x0 - 1.5, x1:W.x1 + 1.5, z0:SLK.hutZ[0] - 2.5, z1:W.z1 + 4}, 0) < m) return false;
+      if(x > P.x0 - 3 && x < P.x1 + 3 && z > -12 && z < 20) return false;
+      if(Math.hypot(x - SLK.bar.x, z - SLK.bar.z) < 6 || rectDist(x, z, SLK.hotel, 0) < 3 + m || Math.hypot(x, z + 26) < 8 || rectDist(x, z, {x0:-10, x1:10, z0:-24, z1:-11}, 0) < m) return false;
+      if(Math.hypot(x - SLK.cove.x, z - SLK.cove.z) < SLK.cove.r + 4 || Math.hypot(x - SLK.lagoon.x, z - SLK.lagoon.z) < SLK.lagoon.r + 1.5) return false;
+      for(const t of list) if(Math.hypot(x - t.x, z - t.z) < 3.2) return false; return true; };
+    SLK.hammocks.forEach(([x0, z0, x1, z1]) => { list.push({x:x0, z:z0, v:2, s:1, yaw:Math.atan2(x0 - x1, z0 - z1) + 0.3}); list.push({x:x1, z:z1, v:2, s:1.05, yaw:Math.atan2(x1 - x0, z1 - z0) + 0.3}); });
+    const pq = rng(8111);
+    for(let t = 0; t < 1400 && list.length < 96; t++){ const a = pq() * TAU, d = Math.sqrt(pq()) * (M.r + 4), x = M.x + Math.cos(a) * d, z = M.z + Math.sin(a) * d, v = Math.floor(pq() * 3), s = 0.85 + pq() * 0.35, j = (pq() - 0.5) * 0.9;
+      if(!ok(x, z, 1)) continue; list.push({x, z, v, s, yaw:Math.atan2(x - M.x, z - M.z) + j}); }
+    SLK.islets.forEach(([ix, iz, ir], k) => { for(let t = 0; t < 60; t++){ const a = pq() * TAU, d = Math.sqrt(pq()) * ir * 0.8, x = ix + Math.cos(a) * d, z = iz + Math.sin(a) * d, v = Math.floor(pq() * 3), s = 0.85 + pq() * 0.4, j = (pq() - 0.5) * 0.9;
+      if(hf(x, z) < 0.5 || list.some(o => Math.hypot(o.x - x, o.z - z) < 3.5)) continue; list.push({x, z, v, s, yaw:Math.atan2(x - ix, z - iz) + j}); if(list.filter(o => Math.hypot(o.x - ix, o.z - iz) < ir).length >= 4 + k * 3) break; } });
+    slPlantPalms(list, 8121);
+    list.forEach(t => { const d = Math.hypot(t.x, t.z); if(d < 90) colliders.push({x:t.x, z:t.z, r:0.32 * t.s}); else coreSolids.push({kind:'round', x:t.x, z:t.z, r:0.32 * t.s}); });
+    SLK.hammocks.forEach(([x0, z0, x1, z1], i) => slHammock(x0, z0, x1, z1, [0xf27a6a, 0x5fb8d8, 0xf2c45a][i]));
+    sl.palms = list.length; }
+  // ---- grass and beach plants inland, shells and driftwood on the beach, rocks by the headland
+  makeGrass(Math.round(24000 * Q), 2, 118, [0x6f9a3c, 0x86a84a, 0x9aa858], [0.25, 0.55], (x, z) => hf(x, z) < 2.15 || rectDist(x, z, SLK.hotel, 0) < 1 || slopeAt(x, z) > 0.5);
+  addClutter(rng(8131), {weeds:260, weedHexes:[0x7a9a4a, 0x8aa858, 0x6a8a3a], rMin:8, rMax:62, skip:(x, z) => { const h = hf(x, z); return h < 1.0 || h > 2.6 || rectDist(x, z, {x0:W.x0 - 1, x1:W.x1 + 1, z0:SLK.hutZ[0] - 1, z1:W.z1 + 1}, 0) < 0.5 || Math.hypot(x, z + 26) < 5; }});
+  slShells(rng(8141));
+  { const rocks = []; for(let i = 0; i < 40; i++){ const a = q() * TAU, d = 6 + q() * 26, x = SLK.hill.x + Math.cos(a) * d, z = SLK.hill.z + Math.sin(a) * d, k = 0.6 + q() * 1.6; if(Math.hypot(x - SLK.cove.x, z - SLK.cove.z) < SLK.cove.r + 1) continue; rocks.push({x, y:G(x, z) - 0.2 * k, z, s:k, ry:q() * TAU}); if(k > 0.9 && Math.hypot(x, z) < 90) colliders.push({x, z, r:k * 0.75}); }
+    placeRocks(rocks, 0xb0a494, {surf:'rock', seed:8151}); }
+  slLife();
+};
+
+/* ---- the waterfall cove: the headland's face towards the pool is a wall of boulders; the fall is a ribbon of flowing water (a shader on the game's
+   clock) from the hill's lip into the pool, with mist rising and foam where it lands ---- */
+const SL_FALL_VS = 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }';
+const SL_FALL_FS = `uniform float time; varying vec2 vUv;
+  float h1(float n){ return fract(sin(n) * 43758.5453); }
+  float sn(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f); float a = h1(i.x + i.y * 57.0), b = h1(i.x + 1.0 + i.y * 57.0), c = h1(i.x + (i.y + 1.0) * 57.0), d = h1(i.x + 1.0 + (i.y + 1.0) * 57.0); return mix(mix(a, b, f.x), mix(c, d, f.x), f.y); }
+  void main(){ float v = vUv.y, u = vUv.x; vec2 p = vec2(u * 14.0, v * 5.0 + time * 2.6); float s = sn(p) * 0.6 + sn(p * 2.3 + 7.0) * 0.4; float st = sn(vec2(u * 40.0, v * 1.5 + time * 3.4));
+    float edge = smoothstep(0.0, 0.18, u) * smoothstep(1.0, 0.82, u); float a = (0.42 + 0.45 * s + 0.25 * st) * edge * smoothstep(0.0, 0.05, v) * (0.75 + 0.25 * smoothstep(0.6, 1.0, v));
+    vec3 col = mix(vec3(0.62, 0.86, 0.88), vec3(1.0), clamp(s * 0.8 + st * 0.5 + v * 0.3, 0.0, 1.0)); gl_FragColor = vec4(col, clamp(a, 0.0, 0.92)); }`;
+function slCove(n){
+  const P = SLK.cove, H = SLK.hill, ux = (H.x - P.x), uz = (H.z - P.z), ul = Math.hypot(ux, uz), dx = ux / ul, dz = uz / ul, q = rng(8201);
+  // the lip: where the hill's top meets the cove side; the fall drops from there to the pool's surface
+  let lip = null; for(let d = P.r + 1.5; d < P.r + 12; d += 0.25){ const x = P.x + dx * d, z = P.z + dz * d; if(G(x, z) > 8.5){ lip = {x, z, y:G(x, z), d}; break; } }
+  if(!lip) lip = {x:P.x + dx * (P.r + 10), z:P.z + dz * (P.r + 10), y:G(P.x + dx * (P.r + 10), P.z + dz * (P.r + 10)), d:P.r + 10};
+  // boulders: a curved wall behind the pool, two rows, leaving the fall's channel open
+  const rocks = []; for(let i = 0; i < 26; i++){ const side = i % 2 ? 1 : -1, a = Math.atan2(dz, dx) + side * (0.22 + q() * 1.05), d = P.r + 1.6 + q() * (lip.d - P.r - 1.4), x = P.x + Math.cos(a) * d, z = P.z + Math.sin(a) * d, k = 1.4 + q() * 2.4;
+    rocks.push({x, y:G(x, z) - k * 0.35, z, s:k, sy:1.1 + q() * 0.5, ry:q() * TAU}); if(Math.hypot(x, z) < 90) colliders.push({x, z, r:k * 0.7}); }
+  placeRocks(rocks, 0xa89c8c, {surf:'rock', seed:8211});
+  // the ribbon: 3.4 m wide, falling out from the lip in a short arc then straight down, a little in front of the rocks
+  const segs = 24, w = 3.4, px = -dz, pz = dx, pos = [], uv = [], idx = [], bottom = SLK.sea - 0.05;
+  for(let s = 0; s <= segs; s++){ const t = s / segs, out = 0.4 + (lip.d - P.r + 1.6) * Math.sqrt(t), y = lip.y + 0.15 - (lip.y + 0.15 - bottom) * t, x = lip.x - dx * out, z = lip.z - dz * out, ww = w * (1 + 0.25 * t);
+    for(let k = 0; k < 2; k++){ const o = k - 0.5; pos.push(x + px * o * ww, y, z + pz * o * ww); uv.push(k, t); } if(s < segs){ const a = s * 2; idx.push(a, a + 1, a + 3, a, a + 3, a + 2); } }
+  const gg = new THREE.BufferGeometry(); gg.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); gg.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); gg.setIndex(idx);
+  const fm = new THREE.ShaderMaterial({uniforms:{time:uTime}, vertexShader:SL_FALL_VS, fragmentShader:SL_FALL_FS, transparent:true, depthWrite:false, side:THREE.DoubleSide});
+  const fall = new THREE.Mesh(gg, fm); fall.userData.noAO = true; fall.renderOrder = 2; world.add(fall); const throwD = 0.4 + lip.d - P.r + 1.6; sl.fall = {x:lip.x - dx * throwD, z:lip.z - dz * throwD, lip};
+  // a stream on the hilltop feeding it, a foam ring where it lands, and mist
+  const foot = {x:sl.fall.x, z:sl.fall.z};
+  const ring = new THREE.Mesh(new THREE.CircleGeometry(2.6, 40), new THREE.MeshBasicMaterial({map:glowTex, color:C(0xffffff), transparent:true, opacity:0.75, depthWrite:false, toneMapped:false})); ring.rotation.x = -Math.PI / 2; ring.position.set(foot.x, SLK.sea + 0.03, foot.z); ring.userData.noAO = true; world.add(ring); sl.foam = ring; sl.skip.push(ring);
+  sl.mist = slMist([[foot.x, foot.z]], world);
+}
+// rising spray (soft white puffs in one draw, moved in the shader on the game's clock)
+let slMistMat = null;
+function slMist(spots, parent){
+  if(!slMistMat) slMistMat = shareMat(new THREE.ShaderMaterial({uniforms:{map:{value:glowTex}, time:uTime, scale:{value:600}}, transparent:true, depthWrite:false,
+    vertexShader:'attribute float ph; varying float vA; uniform float time, scale; void main(){ float t = fract(time * 0.35 + ph); vec3 p = position; p.y += t * 3.2; p.x += sin(ph * 31.0) * t * 2.4; p.z += cos(ph * 17.0) * t * 2.4; vA = pow(sin(t * 3.14159), 1.4); vec4 mv = modelViewMatrix * vec4(p, 1.0); gl_PointSize = (1.0 + t * 3.0) * scale / -mv.z; gl_Position = projectionMatrix * mv; }',
+    fragmentShader:'uniform sampler2D map; varying float vA; void main(){ vec4 t = texture2D(map, gl_PointCoord); gl_FragColor = vec4(vec3(0.97, 0.99, 1.0), t.a * vA * 0.38); }'}));
+  const pos = [], ph = [], q = rng(8221);
+  spots.forEach(([x, z]) => { for(let i = 0; i < 40; i++){ pos.push(x + (q() - 0.5) * 1.6, SLK.sea + 0.1, z + (q() - 0.5) * 1.6); ph.push(i / 40 + q() * 0.02); } });
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('ph', new THREE.Float32BufferAttribute(ph, 1));
+  const pts = new THREE.Points(g, slMistMat); pts.frustumCulled = false; pts.userData.noAO = true; pts.renderOrder = 3; (parent || buildParent || world).add(pts); return pts;
+}
+// shells on the beach (white, pink, sand) and a few bleached driftwood logs: instanced, their own rng
+let slShellGeo = null;
+function slShellGeos(){
+  if(slShellGeo) return slShellGeo;
+  const s = new THREE.SphereGeometry(1, 12, 6, 0, TAU, 0, Math.PI / 2), a = s.attributes.position; for(let i = 0; i < a.count; i++){ const x = a.getX(i), z = a.getZ(i), an = Math.atan2(z, x), f = 1 + 0.08 * Math.abs(Math.sin(an * 7)); a.setXYZ(i, x * f, a.getY(i) * 0.45, z * f * 0.8); }
+  s.computeVertexNormals();
+  const log = new THREE.CylinderGeometry(0.11, 0.15, 2.2, 8, 3); log.rotateZ(Math.PI / 2); { const p = log.attributes.position; for(let i = 0; i < p.count; i++) p.setY(i, p.getY(i) + Math.sin(p.getX(i) * 2.1) * 0.03); log.computeVertexNormals(); }
+  return (slShellGeo = {shell:shareGeo(s), log:shareGeo(log), shellM:shareMat(std(0xffffff, {roughness:0.45})), logM:shareMat(std(0xc8bca8, {map:surface('bark').map, roughness:0.95}))});
+}
+function slShells(q, area){
+  const S = slShellGeos(), mats = [], cols = [], logs = [], hexes = [0xfaf4ea, 0xf6d6cc, 0xf0dcc0, 0xe8c8b8], A = area || {x:SLK.M.x, z:SLK.M.z, r:SLK.M.r + 6, n:260, logs:6};
+  for(let i = 0; i < A.n; i++){ const a = q() * TAU, d = Math.sqrt(q()) * A.r, x = A.x + Math.cos(a) * d, z = A.z + Math.sin(a) * d, h = hf(x, z), k = 0.035 + q() * 0.05, ry = q() * TAU, ci = Math.floor(q() * hexes.length);
+    if(h < -0.4 || h > 1.3 || (!area && rectDist(x, z, SLK.walk, 0) < 0.3)) continue; mats.push(mat4(x, G(x, z) - 0.005, z, 0, ry, 0, k)); const c = C(hexes[ci]); c.multiplyScalar(0.9 + q() * 0.15); cols.push(c); }
+  for(let i = 0; i < A.logs; i++){ const a = q() * TAU, d = A.r * (0.75 + q() * 0.3), x = A.x + Math.cos(a) * d, z = A.z + Math.sin(a) * d, h = hf(x, z), s = 0.7 + q() * 0.6, ry = q() * TAU; if(h < 0.05 || h > 1.2) continue; logs.push(mat4(x, G(x, z) + 0.05, z, 0, ry, (q() - 0.5) * 0.1, s)); }
+  instanced(S.shell, S.shellM, mats, cols, false);
+  if(logs.length) instanced(S.log, S.logM, logs, null, true);
+}
+
+HEIGHTS.saltlark = (n, pf) => slHeights(n);   // no portal pad: the arrival ground is level beach anyway, and pf would sink it to the sea
+function slLife(){}
+function slUpdate(dt, time){
+  if(!sl || state.world !== 'saltlark') return;
+  if(sl.sea){ sl.sea.position.x = Math.round(p.x / 48) * 48; sl.sea.position.z = Math.round(p.z / 48) * 48; }
+  if(sl.flash){ const f = sl.flash, b = f.userData.base, ca = Math.atan2(camera.position.x - b.x, camera.position.z - b.z), k = Math.pow(Math.max(0, Math.cos(2 * (time * 0.33 - ca))), 40); f.material.opacity = 0.35 + 0.6 * k; f.scale.setScalar(6 + 30 * k); }   // two beams, opposite
+  if(sl.foam) sl.foam.material.opacity = 0.55 + 0.2 * Math.sin(time * 3.1);
+  if(slMistMat){ const hgt = renderer.getDrawingBufferSize(_cellV2).y; slMistMat.uniforms.scale.value = hgt / (2 * Math.tan(camera.fov * Math.PI / 360)); }
+}
+// the camera never dips under the sea (you swim with your head out of the water)
+function slCam(){ if(!sl || state.world !== 'saltlark') return; const top = qa && qa.inside ? (qa.M.water != null ? qa.A.y + qa.M.water + 0.3 : -1e9) : pocketIn() ? -1e9 : SLK.sea + 0.3; if(camera.position.y < top) camera.position.y = top; }
+// locals stay out of deep water: a target in the deep is drawn again (only on the isle, so no other realm's wander changes)
+function slNpcTarget(n){ for(let i = 0; i < 8 && hf(n.tx, n.tz) < -0.75; i++){ const a = Math.random() * TAU, d = 6 + Math.random() * 44; n.tx = Math.cos(a) * d; n.tz = Math.sin(a) * d; } }
+
+/* ---- no boundaries (Goal 8a rule): past the core the sea goes on for ever, with islands (white beaches, palms, a hut now and then), sandbars you can
+   wade out to (some with a little sandy cay) and deep water you can swim anywhere. The islands are in the heights (a pure function of a 150 m grid);
+   the cells only dress them: 'far' palms, 'mid' huts, rocks and driftwood, 'near' shells and beach grass. ---- */
+ENDLESS.saltlark = {
+  core:SLK.out, home:R + 12, dreamOdds:0.07, dreamR:2,
+  words:'an endless warm sea of turquoise shallows, white sand islands with palms, sandbars and lagoons, held at the golden hour',
+  dream:{kinds:['lighthouse', 'tower', 'arch', 'ruins', 'statues'], surface:'sand', time:'sunset'},
+  solidAt:(x, z, clear) => hf(x, z) > 0.55,   // landmarks, palms and huts only on dry land
+  kit(){ const P = slPalmGeos(), M = slPalmMaterials(), S = slShellGeos(), T = slTex();
+    return {P, M, S, deckM:shareMat(std(0xffffff, {map:T.deck.map, normalMap:T.deck.normal, roughnessMap:T.deck.rough, roughness:1})), whiteM:shareMat(std(0xf4f1ea, {roughness:0.55})),
+      roofM:shareMat(std(0xf2efe8, {map:T.boards, roughness:0.6, side:THREE.DoubleSide})), hutM:[0x9fe0c8, 0xf4b6c2, 0xf6e3a1, 0xa9cfee, 0xc9b6e8, 0xf7c39e].map(h => shareMat(std(h, {map:T.boards, roughness:0.82}))),
+      rockM:shareMat(std(0xb0a494, {map:surface('rock').map, normalMap:surface('rock').normal, normalScale:new V2(0.8, 0.8), roughness:0.9})), rock:shareGeo(rockGeo()), rockLo:shareGeo(rockGeo(true)),
+      warm:[() => surface('rock'), () => surface('whitesand')]}; },
+  tiers:[
+    {name:'far', r:3, build(c, k){
+      const q = c.q, list = [];
+      for(let i = 0; i < 16; i++){ const s = c.spot(2.6, {slope:0.5, tries:3}); if(!s) continue; const v = Math.floor(q() * 3), sc = 0.85 + q() * 0.4, j = (q() - 0.5) * 1.2;
+        const dir = slopeDir(s[0], s[1]); list.push({x:s[0], z:s[1], v, s:sc, yaw:Math.atan2(dir[0], dir[1]) + j}); c.local.push({x:s[0], z:s[1], r:1.6}); colliders.push({x:s[0], z:s[1], r:0.32 * sc}); }
+      if(list.length) slPlantPalms(list, cellSeed('saltlark', c.cx, c.cz, 41)); }},
+    {name:'mid', r:2, build(c, k){
+      const q = c.q;
+      // a beach hut on stilts, facing the sea, now and then
+      if(q() < 0.2){ const s = c.spot(5, {slope:0.25, ok:(x, z) => { const h = hf(x, z); return h > 0.6 && h < 1.6; }}); const hi = Math.floor(q() * 6); if(s){ const dir = slopeDir(s[0], s[1]), yaw = Math.atan2(dir[0], dir[1]);
+          slHutAt(s[0], s[1], yaw, k, hi); c.local.push({x:s[0], z:s[1], r:3.5}); } }
+      const rocks = []; for(let i = 0, n = Math.floor(q() * 4); i < n; i++){ const s = c.spot(2, {slope:0.6, tries:3}); if(!s) continue; const sc = 0.5 + q() * 1.3; rocks.push(mat4(s[0], G(s[0], s[1]) - 0.2 * sc, s[1], 0, q() * TAU, 0, sc, sc * 0.8, sc)); c.local.push({x:s[0], z:s[1], r:sc}); if(sc > 0.9) colliders.push({x:s[0], z:s[1], r:sc * 0.75}); }
+      if(rocks.length) instanced(k.rock, k.rockM, rocks, null, true); }},
+    {name:'near', r:1, build(c, k){
+      const x0 = c.cx * CHUNK, z0 = c.cz * CHUNK; let land = 0; for(let j = 0; j < 4; j++) for(let i = 0; i < 4; i++) if(hf(x0 + (i + 0.5) * 12, z0 + (j + 0.5) * 12) > -0.5) land++;
+      if(land) slShells(c.q, {x:x0 + 24, z:z0 + 24, r:34, n:18 * land, logs:land > 6 ? 2 : 0});
+      cellWeeds(c, 30, [0x7a9a4a, 0x8aa858, 0x6a8a3a], (x, z) => hf(x, z) > 1.3); }}
+  ]
+};
+// which way the ground falls away (towards the sea, for an island): a unit vector in x/z
+function slopeDir(x, z){ const e = 2, gx = hf(x + e, z) - hf(x - e, z), gz = hf(x, z + e) - hf(x, z - e), l = Math.hypot(gx, gz) || 1; return [-gx / l, -gz / l]; }
+// an outskirts hut (the core's are built by slHut along the boardwalk): the same pastel shiplap and white roof, on its own little deck
+function slHutAt(x, z, yaw, k, hi){
+  const g = new THREE.Group(); g.position.set(x, 0, z); g.rotation.y = yaw; (buildParent || world).add(g);
+  const y = Math.max(G(x, z), hf(x, z)) + 0.45, hw = 1.7, hd = 1.5, wh = 2.4, rh = 1.1;
+  mk(boxGeo([[-hw, hw, y, y + wh, -hd, hd]], 4 / 2.4 * 2.4), k.hutM[hi], 0, 0, 0, g);
+  mk(boxGeo([[-hw - 0.2, hw + 0.2, y - 0.14, y, -hd - 0.2, hd + 1.4]], 3), k.deckM, 0, 0, 0, g);
+  const roof = new THREE.CylinderGeometry(0.01, 1, 1, 4, 1); roof.rotateY(Math.PI / 4); roof.scale((2 * hw + 0.6) / Math.SQRT2, rh, (2 * hd + 0.6) / Math.SQRT2); roof.translate(0, y + wh + rh / 2, 0); mk(roof, k.roofM, 0, 0, 0, g);
+  mk(boxGeo([[-0.5, 0.5, y, y + 1.95, hd, hd + 0.04], [-hw - 0.05, hw + 0.05, y + wh - 0.08, y + wh, -hd - 0.05, hd + 0.05]], 2), k.whiteM, 0, 0, 0, g);
+  const posts = []; [[-hw, -hd], [hw, -hd], [-hw, hd + 1.2], [hw, hd + 1.2]].forEach(([u, v]) => { const c = Math.cos(yaw), s = Math.sin(yaw), wx = x + u * c + v * s, wz = z - u * s + v * c, gy = hf(wx, wz) - 0.3; posts.push(new THREE.BoxGeometry(0.16, y - gy, 0.16).translate(u, (y + gy) / 2, v)); });
+  mk(merge(posts), k.deckM, 0, 0, 0, g);
+  colliders.push({x, z, r:2.1});
 }
 })();
 </script>
