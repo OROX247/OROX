@@ -115,6 +115,7 @@ html,body{ height:100%; margin:0; overflow:hidden; background:#07061a; color:var
 .reg-ask{ display:flex; gap:8px; }
 #regQ{ flex:1; min-width:0; padding:9px 12px; font:15px 'Chakra Petch','Trebuchet MS',sans-serif; color:#f3f0ff; background:rgba(255,255,255,.07); border:1.5px solid rgba(255,255,255,.2); border-radius:0; user-select:text; -webkit-user-select:text; }
 #regQ:focus{ outline:none; border-color:var(--cyan); }
+#questPanel{ font-size:13px; max-width:320px; display:grid; gap:3px; } #questPanel b{ font-size:12px; letter-spacing:.08em; text-transform:uppercase; color:var(--gold); } #questPanel .qr{ color:var(--gold); font-weight:700; }
 /* Living Locals: the conversation card sits at the side so the local and its speech bubble stay in view */
 #talk{ position:fixed; right:12px; bottom:calc(env(safe-area-inset-bottom,0px) + 16px); width:min(390px,calc(100vw - 24px)); z-index:10; padding:14px 16px 12px; }
 @media (min-width:600px){ #talk{ width:min(390px,48vw); } }
@@ -282,6 +283,7 @@ body.bcast #hud, body.bcast #corner, body.bcast #roomCard, body.bcast #toast{ vi
     </span>
   </div>
   <div class="panel" id="worldName">Hub Spaceport</div>
+  <div class="panel" id="questPanel" style="display:none"></div>
   <div class="panel" id="trialPanel" style="display:none;color:var(--gold);font-weight:700">Ring 1 / 8 · 0.0s</div>
 </div>
 
@@ -9467,6 +9469,7 @@ function drawRally(cv, R, time){
 function rallyResult(R, how){
   if(R.reported) return R.summary; R.reported = true;
   R.best = R.score > state.hunt.rallyBest; if(R.best) state.hunt.rallyBest = R.score;
+  localsRally(R.score);   // Living Locals: a favour may ask for a Comet Rally score
   let shardNew = false;
   if(R.way === 'backwards'){ shardNew = giveShard('dunes', 'The comets only chase what runs from them. You turned round and met them: the Amber Shard.'); rallyTrophy(); }
   else if(R.way === 'forward' && how !== 'simulate') toast((R.place === 1 ? 'First place' : 'Place ' + R.place + ' of 4') + ', score ' + R.score + '. The cabinet flashes: TRY ANOTHER WAY.', 4200);
@@ -12217,7 +12220,6 @@ function localOffline(nn, text){
 }
 // the deeds the game itself counts for Living Locals (the rest are read from state)
 function localsZeroed(){ const P = lp(); P.zeros++; P.zeroWhere = state.world; saveLocals(); localsNotice(); }
-function localQuestOffer(nn){ return null; }   // quests come in a later step
 // apply a validated reply: mood, the rolling summary, notes; the local shows the line over its head
 function applyLocalReply(nn, rep, text, source){
   const m = memOf(nn), P = personaOf(nn);
@@ -12241,7 +12243,8 @@ Object.defineProperties(window.__hub, {
   deeds:{get:() => deedsNow().map(d => ({id:d.id, big:d.big, realm:d.realm, text:d.text}))},
   localsNotice:{value:() => localsNotice()},
   localGreeting:{value:i => living(npcs[i]) ? localGreeting(npcs[i]) : null},
-  talkTo:{value:(i, text) => living(npcs[i]) ? localTalk(npcs[i], text) : Promise.resolve(null)},
+  // talk to npcs[i] through the conversation card (it opens if it is not open), as the player would
+  talkTo:{value:async (i, text) => { const nn = npcs[i]; if(!living(nn)) return null; if(talk.nn !== nn || talkEl.classList.contains('hidden')) openTalk(nn); return talkSubmit(text); }},
   npcWhy:{get:() => ({path:npcAI.path, why:npcAI.why, quest:npcAI.questWhy || ''})}
 });
 // Living Locals: the conversation panel (side card, the world keeps drawing), speech bubbles over heads, and the gestures
@@ -12256,7 +12259,7 @@ function openTalk(nn){
   if(talk.nn !== nn){ talk.nn = nn; talk.turns = []; talk.offer = null; $('#talkLog').innerHTML = ''; }
   talkEl.classList.remove('hidden'); setPaused(true); document.body.classList.add('talking');
   if(!$('#talkLog').children.length){ const g = localGreeting(nn, {open:true}); talkLine(nn.name, g, 'reg'); nn.lastSay = g; nn.sayT = 9; localEmote(nn, 'wave'); talk.turns.push({role:'assistant', content:g}); }
-  talkHead(); talkOffer(); talkSrc();
+  talkHead(); talkOffer(); talkSrc(); completeQuestCheck();
   if(!COARSE) $('#talkQ').focus();
   return true;
 }
@@ -12274,7 +12277,7 @@ async function talkSubmit(text){
   let r = null; try{ r = await localTalk(nn, text); }finally{ $('#talkSend').disabled = false; }
   w.innerHTML = '<b>' + esc(nn.name) + '</b> ' + esc(r ? r.say : '…');
   if(r){ talk.turns.push({role:'user', content:text}, {role:'assistant', content:r.say}); if(talk.turns.length > 12) talk.turns.splice(0, talk.turns.length - 12); if(r.offer){ talk.offer = r.offer; } }
-  talkHead(); talkOffer(); talkSrc(r); $('#talkLog').scrollTop = 1e9;
+  talkHead(); talkOffer(); talkSrc(r); completeQuestCheck(); $('#talkLog').scrollTop = 1e9;
   return r;
 }
 $('#talkClose').addEventListener('click', closeTalk);
@@ -12323,8 +12326,10 @@ function npcGesture(nn, dt){
   else if(g.kind === 'sad'){ a.spine.rotation.x += 0.22 * w; a.head.rotation.x += 0.35 * w; }
 }
 // once a frame, after the NPC loop: the local you are talking to stands still and faces you
+let questT = 0;
 function localsTick(dt){
   localsProximity();
+  if((questT += dt) > 1){ questT = 0; if(lp().quests.some(q => q.state === 'active')) completeQuestCheck(); questHud(); }
   const nn = talk.nn; if(nn && !talkEl.classList.contains('hidden')){ if(npcs.indexOf(nn) < 0){ closeTalk(); talk.nn = null; return; } nn.wait = Math.max(nn.wait, 0.5); nn.facing = lerpAngle(nn.facing, Math.atan2(p.x - nn.x, p.z - nn.z), 1 - Math.exp(-dt * 6)); }
 }
 // test helper: stand in front of a local, facing it, ready for a screenshot of the conversation
@@ -12448,8 +12453,6 @@ async function localTalk(nn, text){
   }finally{ npcAI.busy = false; }
 }
 let questWhy = '';
-function questMenu(nn){ return '(none yet)'; }
-function makeQuestOffer(nn, q){ questWhy = 'quests come in a later step'; return null; }
 Object.defineProperties(window.__hub, {
   NPC_MODEL:{value:NPC_MODEL}, NPC_REPLY_SCHEMA:{value:NPC_REPLY_SCHEMA}, localSystem:{value:i => living(npcs[i]) ? localSystem(npcs[i]) : null},
   // a canned API reply instead of the network: a Messages API response, a bare {say, ...} object, 'hang', or {__status:n}
@@ -12458,6 +12461,110 @@ Object.defineProperties(window.__hub, {
   npcLimits:{get:() => ({gapMs:npcAIcfg.gapMs, cap:npcAIcfg.cap, calls:npcAIcfg.calls, timeoutMs:npcAIcfg.timeoutMs, busy:npcAI.busy, rested:npcAIcfg.rested}),
     set:v => { v = v || {}; if(v.gapMs != null) npcAIcfg.gapMs = Math.max(0, +v.gapMs); if(v.cap != null) npcAIcfg.cap = Math.max(0, +v.cap); if(v.calls != null) npcAIcfg.calls = Math.max(0, +v.calls); if(v.timeoutMs != null) npcAIcfg.timeoutMs = Math.max(50, +v.timeoutMs); if(v.rested != null) npcAIcfg.rested = !!v.rested; }}
 });
+/* Living Locals quests: five templates only. A local (AI or offline) may propose {type, param}; questCheck() validates it against the game's
+   own lists and state, the game sets the reward (₵10-60 plus XP), and completeQuestCheck() is the only thing that pays. */
+const QUEST_LANDMARKS = {
+  archive:{realm:'hub', name:'the Archive on the Spaceport', at:() => ({x:0, z:77, r:16})},
+  vault:{realm:'hub', name:'the vault in the Spaceport plaza', at:() => ({x:0, z:0, r:4})},
+  hollow:{realm:'dunes', name:'the Hollow\'s door in the Glass Dunes', at:() => ({x:HOLLOW.x, z:HOLLOW.z, r:7})},
+  drift:{realm:'grid', name:'The Drift in Neon Grid', at:() => ({x:DRIFT.x, z:DRIFT.z, r:DRIFT.r + 3})},
+  chimes:{realm:'sky', name:'the wind chimes on the highest isle of Sky Isles', at:() => chimes ? {x:chimes.x, z:chimes.z, r:5} : null}
+};
+const QUEST_MAX = 3, QUEST_CREDITS = [10, 60];
+const bringIds = () => Object.keys(ITEMS).filter(id => ['artifact', 'epic'].indexOf(ITEMS[id].rarity) < 0 && id !== 'dreamglass');
+const coinsIn = k => [...state.coins].filter(id => id.indexOf(k + ':') === 0).length;
+const chartSectors = () => { const a = []; for(let n = 2; n <= 27; n++) if(sectorStars(n).length) a.push(n); return a; };
+function questMenu(nn){ const P = personaOf(nn);
+  return '- bring: ' + bringIds().join(', ') + '\n- visit: landmarks ' + Object.keys(QUEST_LANDMARKS).join(', ') + ', or realms ' + WORLD_ORDER.filter(k => k !== P.home).join(', ') + '\n' +
+    '- rally: a Comet Rally score from 2000 to 60000 (their best is ' + state.hunt.rallyBest + ')\n- chart: a sector number from 2 to 27\n- coin: a realm with coins left: ' + WORLD_ORDER.filter(k => coinsIn(k) < 12).join(', '); }
+// the one gate: {ok, why, q} with the game's text and reward
+function questCheck(nn, q){
+  const P = personaOf(nn), Pl = lp(); if(!q || typeof q !== 'object') return {ok:false, why:'no quest'};
+  const type = String(q.type || ''), raw = String(q.param == null ? '' : q.param).trim(), low = raw.toLowerCase();
+  if(Pl.quests.some(x => x.state === 'active' && x.giver === P.id)) return {ok:false, why:'this local already has a favour running'};
+  if(Pl.quests.filter(x => x.state === 'active').length >= QUEST_MAX) return {ok:false, why:'three favours already running'};
+  let param, text, short, credits;
+  if(type === 'bring'){ if(bringIds().indexOf(low) < 0) return {ok:false, why:'not an item: ' + raw}; param = low; const d = ITEMS[param]; text = 'bring ' + aAn(d.name) + ' to ' + P.name + ' in ' + P.homeName; short = 'the ' + d.name; credits = d.value + 10; }
+  else if(type === 'visit'){
+    if(QUEST_LANDMARKS[low]){ param = low; text = 'visit ' + QUEST_LANDMARKS[low].name; short = QUEST_LANDMARKS[low].name; credits = 25; }
+    else if(WORLD_ORDER.indexOf(low) >= 0 && low !== P.home){ param = low; text = 'travel to ' + WORLDS[low].name; short = 'the trip to ' + WORLDS[low].name; credits = 20; }
+    else return {ok:false, why:'not a landmark or another realm: ' + raw}; }
+  else if(type === 'rally'){ const n = Math.round(parseFloat(raw.replace(/[, ]/g, '')) / 500) * 500; if(!(n >= 2000 && n <= 60000)) return {ok:false, why:'score out of range: ' + raw}; param = String(n); text = 'score at least ' + n + ' in Comet Rally (the cabinet in the Hollow)'; short = 'that Comet Rally score'; credits = Math.round(n / 1500) + 10; }
+  else if(type === 'chart'){ const n = parseInt(raw.replace(/^sector\s*/i, ''), 10); if(chartSectors().indexOf(n) < 0) return {ok:false, why:'not a sector with stars: ' + raw}; param = String(n); text = 'chart a new planet in sector ' + n + ' (land on one of its stars)'; short = 'the planet in sector ' + n; credits = 50; }
+  else if(type === 'coin'){ if(WORLD_ORDER.indexOf(low) < 0) return {ok:false, why:'not a realm: ' + raw}; if(coinsIn(low) >= 12) return {ok:false, why:'no coins left there'}; param = low; text = 'find a coin in ' + WORLDS[low].name; short = 'that coin in ' + WORLDS[low].name; credits = 15; }
+  else return {ok:false, why:'not a template: ' + type};
+  credits = clamp(Math.round(credits), QUEST_CREDITS[0], QUEST_CREDITS[1]);
+  return {ok:true, q:{type, param, text, short, giver:P.id, giverName:P.name, realm:P.home, reward:{credits, xp:10 + credits}}};
+}
+function makeQuestOffer(nn, q){ const c = questCheck(nn, q); questWhy = c.ok ? 'ok' : c.why; return c.ok ? c.q : null; }
+// the offline brain's favours: picked from the persona and how many favours are done, always one the game accepts
+function localQuestOffer(nn){
+  const P = personaOf(nn), Pl = lp(), who = pname(), act = Pl.quests.find(x => x.state === 'active' && x.giver === P.id);
+  if(act) return {say:'You are still on my favour, ' + who + ': ' + act.text + '.'};
+  if(Pl.quests.filter(x => x.state === 'active').length >= QUEST_MAX) return {say:'You have enough favours on your plate, ' + who + '. Finish one and come back.'};
+  const k = Pl.quests.filter(x => x.giver === P.id).length, h = strHash(P.id + ':quest:' + k);
+  const loot = LOOT[P.home] || ['glass-bead', 'grid-chip', 'glowcap', 'sky-feather'], away = WORLD_ORDER.filter(w => w !== P.home), lm = Object.keys(QUEST_LANDMARKS).filter(id => QUEST_LANDMARKS[id].realm !== P.home);
+  const secs = chartSectors(), lacks = WORLD_ORDER.filter(w => coinsIn(w) < 12);
+  const cands = [
+    {type:'bring', param:loot[h % loot.length], say:i => 'Could you bring me ' + aAn(ITEMS[i].name) + '? I have wanted one for ages.'},
+    {type:'visit', param:lm[h % lm.length], say:i => 'Go and see ' + QUEST_LANDMARKS[i].name + ' for me, and tell me it is still there.'},
+    {type:'rally', param:String(4000 + (h % 8) * 2000), say:i => 'Beat ' + i + ' at Comet Rally. I bet the mechanic you cannot.'},
+    {type:'chart', param:String(secs.length ? secs[h % secs.length] : 2), say:i => 'Chart me a planet in sector ' + i + '. I want to know what is out there.'},
+    {type:'coin', param:lacks.length ? lacks[h % lacks.length] : 'hub', say:i => 'There is a coin in ' + WORLDS[i].name + ' with nobody\'s name on it. Find it?'},
+    {type:'visit', param:away[h % away.length], say:i => 'Take a trip to ' + WORLDS[i].name + ' for me. I never get away from my stall.'}
+  ];
+  for(let j = 0; j < cands.length; j++){ const c = cands[(h + j) % cands.length]; const v = questCheck(nn, c); if(v.ok) return {offer:{type:c.type, param:c.param}, say:c.say(c.param)}; }
+  return {say:'Nothing right now, ' + who + '. Ask me again another day.'};
+}
+function acceptQuest(o){
+  o = o || talk.offer; if(!o) return null; const nn = npcs.find(x => living(x) && personaOf(x).id === o.giver);
+  if(nn){ const c = questCheck(nn, o); if(!c.ok){ toast(c.why, 2600); talk.offer = null; talkOffer(); return null; } }
+  const Pl = lp(), q = Object.assign({}, o, {id:'q' + (++Pl.qseq), state:'active', t:Date.now(), base:{coins:o.type === 'coin' ? coinsIn(o.param) : 0}});
+  Pl.quests.push(q); if(Pl.quests.length > 40) Pl.quests.splice(0, Pl.quests.length - 40);
+  const m = Pl.locals[o.giver]; if(m){ m.promises = m.promises || []; remember(m, 'promises', 'a reward if they ' + q.text, 4); }
+  saveLocals(); if(talk.offer === o) talk.offer = null; if(typeof talkOffer === 'function') talkOffer(); questHud(); sfx('ui');
+  toast('Favour accepted: ' + q.text + '. Reward ₵' + q.reward.credits + ' + ' + q.reward.xp + ' XP', 3600);
+  if(nn){ nn.lastSay = 'Thank you, ' + pname() + '. I will be here.'; nn.sayT = 6; localEmote(nn, 'nod'); if(talkEl && !talkEl.classList.contains('hidden') && talk.nn === nn) talkLine(nn.name, nn.lastSay, 'reg'); }
+  return JSON.parse(JSON.stringify(q));
+}
+function localsRally(score){ const Pl = lp(); Pl.lastRally = {score:num(score, 0), t:Date.now()}; saveLocals(); }
+// is each running favour done? Pays the game's own reward, once; the local thanks you and remembers it
+function completeQuestCheck(){
+  const Pl = lp(), out = [];
+  for(const q of Pl.quests){ if(q.state !== 'active') continue;
+    const nn = npcs.find(x => living(x) && personaOf(x).id === q.giver), withGiver = nn && ((talk.nn === nn && !talkEl.classList.contains('hidden')) || (state.world === q.realm && Math.hypot(nn.x - p.x, nn.z - p.z) < 4));
+    let done = false;
+    if(q.type === 'bring') done = !!(state.inv[q.param] && withGiver);
+    else if(q.type === 'visit'){ const L = QUEST_LANDMARKS[q.param]; if(L){ const a = state.world === L.realm && !traveling && L.at(); done = !!(a && Math.hypot(p.x - a.x, p.z - a.z) < a.r && !pocketIn()); } else done = state.world === q.param && !traveling; }
+    else if(q.type === 'rally') done = !!(Pl.lastRally && Pl.lastRally.t >= q.t && Pl.lastRally.score >= +q.param);
+    else if(q.type === 'chart') done = Object.values(explorer.planets || {}).some(e => e && e.sector === +q.param && num(e.first, 0) >= q.t);
+    else if(q.type === 'coin') done = coinsIn(q.param) > q.base.coins;
+    if(!done) continue;
+    if(q.type === 'bring'){ takeItem(q.param); invRefresh(); }
+    q.state = 'done'; q.doneT = Date.now();
+    const m = Pl.locals[q.giver]; if(m){ remember(m, 'thanks', q.text, 6); remember(m, 'notes', pname() + ' did my favour: ' + q.text, 8); m.promises = (m.promises || []).filter(t => t.indexOf(q.text) < 0); m.mood = clamp(num(m.mood, 0) + 3, -10, 10); }
+    reward(q.reward.xp, q.reward.credits); sfx('level');
+    const did = {bring:() => 'For me? ' + (ITEMS[q.param] ? 'A ' + ITEMS[q.param].name : 'It') + '! Just what I wanted.', visit:() => 'You went to ' + q.short.replace(/^the trip to /, '') + ' for me!', rally:() => 'You beat ' + q.param + ' at Comet Rally!',
+      chart:() => 'A new planet in sector ' + q.param + ', charted!', coin:() => 'You found ' + q.short + '!'}[q.type];
+    const line = (did ? did() : 'You did it!') + ' Thank you, ' + pname() + '. I will not forget it.';
+    toast(q.giverName + ': ' + line + '   +₵' + q.reward.credits + ' +' + q.reward.xp + ' XP', 5200);
+    if(nn){ nn.lastSay = line; nn.sayT = 9; localEmote(nn, 'cheer'); if(talk.nn === nn && !talkEl.classList.contains('hidden')) talkLine(nn.name, line, 'reg'); }
+    out.push({id:q.id, giver:q.giverName, type:q.type, param:q.param, reward:Object.assign({}, q.reward)});
+  }
+  if(out.length){ saveLocals(); localsNotice(); questHud(); }
+  return out;
+}
+let questHudKey = '';
+function questHud(){ const el = $('#questPanel'); if(!el) return; const act = lp().quests.filter(q => q.state === 'active'), key = playerKey() + act.map(q => q.id).join();
+  if(key === questHudKey) return; questHudKey = key; el.style.display = act.length ? '' : 'none';
+  el.innerHTML = '<b>Favours</b>' + act.map(q => '<div>' + esc(q.giverName) + ': ' + esc(q.text) + ' <span class="qr">₵' + q.reward.credits + '</span></div>').join(''); }
+Object.defineProperties(window.__hub, {
+  quests:{get:() => JSON.parse(JSON.stringify(lp().quests))},
+  questCheck:{value:(i, q) => living(npcs[i]) ? questCheck(npcs[i], q) : {ok:false, why:'not a local'}},
+  acceptQuest:{value:o => acceptQuest(o)}, completeQuestCheck:{value:() => completeQuestCheck()},
+  QUEST_LANDMARKS:{get:() => Object.keys(QUEST_LANDMARKS).reduce((o, k) => (o[k] = {realm:QUEST_LANDMARKS[k].realm, name:QUEST_LANDMARKS[k].name}, o), {})}
+});
+questHud();
 })();
 </script>
 </body>
