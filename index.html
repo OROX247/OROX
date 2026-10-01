@@ -275,7 +275,8 @@ body.paused #strikeBtn{ display:none !important; }
 #bcast.titled .bc-title{ opacity:1; }
 #bcast .bc-sub{ position:absolute; left:50%; bottom:calc(9vh + 18px); transform:translateX(-50%); width:min(900px,90vw); margin:0; text-align:center; font:italic clamp(17px,2vw,24px)/1.4 Georgia,"Times New Roman",serif; color:#f6efd9; text-shadow:0 1px 3px #000,0 0 14px rgba(0,0,0,.85); opacity:0; transition:opacity .5s; }
 #bcast .bc-sub.on{ opacity:1; }
-#bcSkip{ position:absolute; right:18px; bottom:calc(9vh - 42px); width:auto; margin:0; pointer-events:auto; font-size:13px; padding:6px 14px; background:rgba(0,0,0,.35); z-index:1; }
+#bcSkip{ position:absolute; right:max(12px, env(safe-area-inset-right,0px)); bottom:max(calc(env(safe-area-inset-bottom,0px) + 6px), calc(4.5vh - 15px)); width:auto; max-width:calc(100vw - 24px); margin:0; pointer-events:auto; font-size:13px; padding:6px 14px; white-space:nowrap; background:rgba(0,0,0,.35); z-index:1; }   /* in the lower black bar, never past the screen's edge */
+@media (max-height:420px){ #bcSkip{ padding:4px 11px; font-size:12px; bottom:max(calc(env(safe-area-inset-bottom,0px) + 4px), calc(4.5vh - 12px)); } }
 #bcast .bc-fade{ position:absolute; inset:0; background:#000; opacity:1; transition:opacity 1.2s; }
 #bcast.open .bc-fade{ opacity:0; } #bcast.open.out .bc-fade{ opacity:1; }
 body.bcast #hud, body.bcast #corner, body.bcast #roomCard, body.bcast #toast{ visibility:hidden; }
