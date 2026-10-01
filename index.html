@@ -10909,7 +10909,7 @@ const QPORTALS = {
   hub:{kind:'relay', name:'Beacon Relay', x:-20, z:-1, face:[0, 6], credits:40, xp:80, item:'beacon-lens', col:0xffc04d,
     tag:'Watch the landing beacons light up, then run to them in the same order. Three rounds; one slip is forgiven.'}
 };
-const QP_ORDER = ['hub', 'campus', 'dunes', 'grid', 'grove', 'sky', 'warfront'];   // Goal 20: Warfront's Signal Run joins last
+const QP_ORDER = ['hub', 'campus', 'dunes', 'grid', 'grove', 'sky', 'warfront', 'lampblack'];   // Goal 20: Warfront's Signal Run joins last, then Lampblack's case
 const qpReplay = d => ({credits:Math.max(5, Math.round(d.credits / 4)), xp:Math.max(5, Math.round(d.xp / 4))});
 const QM = {};
 let qpLast = null, qpBtnShown = false;
@@ -15740,6 +15740,118 @@ QM.capture = {
 // in the Muster Field, west of the arrival point, facing it
 QPORTALS.warfront = {kind:'capture', name:'Signal Run', x:-19, z:-27, face:[0, -19], credits:50, xp:100, item:'match-ribbon', col:0xe8a04a,
   tag:'Hold the three signal beacons in turn: stand in each ring until it turns ember. The spotter drones mark where you stand and flash it a beat later; step out of the ring on the floor. Three hits and you are out.'};
+/* ---- Lampblack: The Low Hour Case (quest portal, Goal 20 part 2). A small, fair detective case in the club after hours: the bandleader's brass
+   metronome went missing before the late set. Three clues (walk up and press E), three suspects on three answer pads, each with a card that says what
+   anyone in the club could tell you about them. The clues fit exactly one card, every wrong card is ruled out by a clue, and the answer pads stay shut
+   until all three clues are found, so nobody can win by guessing. Nobody stole anything: it was borrowed, and it comes back with a pot of tea.
+   The pads' order comes from rng(attempt), never Math.random, so a test reads it from the state. ---- */
+const CASE = {hw:9, z0:-1.5, z1:22, h:5, near:1.7, padR:1.1, hold:1.0, limit:300, answer:1,
+  clues:[{x:5.6, z:15.9, name:'By the bandstand', text:'A red wool glove on the floor by the piano, still damp from the rain. Whoever borrowed the metronome wore red wool gloves tonight.'},
+    {x:-4.7, z:9.0, name:'The coat-room counter', text:'On the counter, a used tram token, punched at Vesper Street at five to ten, the minute the metronome went missing. Whoever borrowed it came in off the El.'},
+    {x:7.6, z:6.0, name:'By the stage door', text:'Chalk on the back step: "1-2-3, 1-2-3", tap-dance counts, the way a metronome ticks. Someone was practising a step in time.'}],
+  suspects:[{name:'Pip Larkin', role:'pianist', facts:['Red wool gloves', 'Walked here from Rook Street', 'Played the first set'], no:'Not Pip: the punched tram token says whoever borrowed it came in off the El, and Pip walked here from Rook Street.'},
+    {name:'Dot Merriweather', role:'hat-check clerk', facts:['Red wool gloves', 'Rides the El to work', 'Learning a new tap routine'], no:''},
+    {name:'Juniper Vale', role:'night cab driver', facts:['Blue leather gloves', 'Drives cab No. 7', 'Waiting outside for a fare'], no:'Not Juniper: the glove by the piano is red wool, and Juniper wears blue leather.'}],
+  pads:[[-4.2, 3.0], [0, 3.0], [4.2, 3.0]],
+  solved:'Dot Merriweather borrowed it to practise her new tap routine on the back step, and meant to put it back before the set. She brings it back with a pot of tea, and the Late Lamps Trio start on time.'};
+QM.case = {
+  start:[0, 0.4, 0], ceil:CASE.h, view:[0, -0.6, Math.PI + 0.1, 0.3, 7.5],
+  light:{sky:0xffd8b0, ground:0x4a2c20, i:1.05, fog:0x140c0a, fd:0.008},
+  init(att){ const q = rng(7100 + att * 31), order = [0, 1, 2]; for(let i = 2; i > 0; i--){ const j = Math.floor(q() * (i + 1)); const t = order[i]; order[i] = order[j]; order[j] = t; }
+    return {kind:'case', state:'run', t:0, why:null, att, order, found:[false, false, false], hold:0, pad:-1, lockSaid:false, picked:-1}; },
+  // which pad holds the borrower
+  correct(S){ return S.order.indexOf(CASE.answer); },
+  // pose: {x, z, e} (played) or {clue:k} / {answer:k} (sims). Events: clue:k, locked, won, failed
+  step(S, pose, dt){
+    const ev = []; if(S.state !== 'run') return ev;
+    S.t += dt;
+    if(S.t > CASE.limit){ S.state = 'failed'; S.why = 'the late set started without an answer'; ev.push('failed'); return ev; }
+    let ck = pose.clue != null ? pose.clue : -1;
+    if(ck < 0 && pose.e) CASE.clues.forEach((c, k) => { if(Math.hypot(pose.x - c.x, pose.z - c.z) < CASE.near) ck = k; });
+    if(ck >= 0 && !S.found[ck]){ S.found[ck] = true; ev.push('clue:' + ck); }
+    let pad = -1; if(pose.answer == null) CASE.pads.forEach((P, k) => { if(Math.hypot(pose.x - P[0], pose.z - P[1]) < CASE.padR) pad = k; });
+    if(pad !== S.pad){ S.pad = pad; S.hold = 0; }
+    let k = pose.answer != null ? pose.answer : -1;
+    if(k < 0 && pad >= 0){ S.hold += dt; if(S.hold >= CASE.hold || pose.e) k = pad; }
+    if(k >= 0){
+      if(!S.found.every(f => f)){ if(!S.lockSaid){ S.lockSaid = true; ev.push('locked'); } }
+      else { S.picked = S.order[k]; if(S.picked === CASE.answer){ S.state = 'won'; ev.push('won'); } else { S.state = 'failed'; S.why = CASE.suspects[S.picked].no; ev.push('failed'); } } }
+    return ev;
+  },
+  // scripted players: 'win' finds the three clues and names the borrower; 'rush' tries a pad first (shut), then does it properly; 'wrong:0' / 'wrong:2' name Pip / Juniper after the clues; 'idle' does nothing
+  sim(S, policy){
+    if(['win', 'rush', 'wrong:0', 'wrong:2', 'idle'].indexOf(policy) < 0) return {error:'unknown policy', policies:['win', 'rush', 'wrong:0', 'wrong:2', 'idle']};
+    const log = [], go = pose => QM.case.step(S, pose, 0.5).forEach(e => log.push(e + '@' + S.t.toFixed(1)));
+    if(policy === 'idle'){ for(let i = 0; i < 2000 && S.state === 'run'; i++) go({x:0, z:0.4}); return log; }
+    if(policy === 'rush') go({answer:QM.case.correct(S)});
+    [0, 1, 2].forEach(c => go({clue:c}));
+    const who = policy.indexOf('wrong:') === 0 ? +policy.split(':')[1] : CASE.answer; go({answer:S.order.indexOf(who)});
+    return log;
+  },
+  summary(S){ return {found:S.found.slice(), order:S.order.map(i => CASE.suspects[i].name), picked:S.picked >= 0 ? CASE.suspects[S.picked].name : null}; },
+  hud(S){ const n = S.found.filter(f => f).length;
+    return '<b>The Low Hour Case</b> Clues ' + n + ' / 3' + (n < 3 ? ' · walk up to a lit clue and press E' : ' · stand on the suspect who borrowed the metronome') + ' · ' + Math.max(0, CASE.limit - S.t).toFixed(0) + ' s' +
+      CASE.clues.map((c, k) => S.found[k] ? '<br><small>' + c.name + ': ' + c.text + '</small>' : '').join('') + '<span class="qpq">Q: leave</span>'; },
+  react(o, e, S){
+    if(e.indexOf('clue:') === 0){ const c = CASE.clues[+e.split(':')[1]]; sfx('coin'); toast(c.name + ': ' + c.text, 6500); }
+    else if(e === 'locked'){ if(snd.ctx && snd.on) try{ tone('triangle', 220, 180, 0.4, 0.04); }catch(err){} toast('Not yet: find all three clues before you name anyone.', 3200); }
+    else if(e === 'won') toast('Case closed. ' + CASE.solved, 7000); },
+  build(o){
+    const A = o.A, g = o.g, Y = A.y, hw = CASE.hw, z0 = CASE.z0, z1 = CASE.z1, H = CASE.h, K = roomKit({cx:A.x, cz:A.z, sd:1, ry:a => a}, g), T = campusTextures(), LK = lbKit();
+    const Ms = {floor:std(0x9a7a5a, {map:T.wood.map, normalMap:T.wood.normal, roughnessMap:T.wood.rough, roughness:1}), wall:std(0x4a1e1c, {map:detailTex, normalMap:detailNormal, normalScale:new V2(0.4, 0.4), roughness:0.85}),
+      dark:std(0x1a1414, {roughness:0.6}), wood:std(0x3a2618, {map:T.wood.map, roughness:0.6}), brass:phys(0xc9a24a, {metalness:0.9, roughness:0.3}), cloth:std(0x6a1a1e, {roughness:0.95}), lamp:glowM(0xffcf8a, 1.6), black:phys(0x0c0c0e, {roughness:0.18, metalness:0.2})};
+    K.box(Ms.floor, 4, -hw, hw, Y - 0.3, Y, z0, z1);
+    K.box(Ms.wall, 4, -hw - 0.4, -hw, Y, Y + H, z0 - 0.4, z1 + 0.4); K.box(Ms.wall, 4, hw, hw + 0.4, Y, Y + H, z0 - 0.4, z1 + 0.4); K.box(Ms.wall, 4, -hw, hw, Y, Y + H, z1, z1 + 0.4); K.box(Ms.wall, 4, -hw, hw, Y, Y + H, z0 - 0.4, z0);
+    K.box(Ms.dark, 4, -hw - 0.4, hw + 0.4, Y + H, Y + H + 0.3, z0 - 0.4, z1 + 0.4);
+    K.box(Ms.wood, 2, -hw, hw, Y, Y + 0.9, z1 - 0.05, z1);   // wainscot
+    // the bandstand at the back: a low stage, the piano (where clue 1 is), a double bass on its side, three chairs, a microphone; a curtain behind
+    K.box(Ms.wood, 2, -6, 8, Y, Y + 0.25, 16.8, z1); K.box(Ms.cloth, 2, -6, 8, Y + 0.25, Y + H, z1 - 0.3, z1 - 0.1);
+    K.box(Ms.black, 1, 4.2, 7.4, Y + 0.25, Y + 1.25, 17.6, 19.4); K.box(Ms.black, 1, 4.2, 7.4, Y + 1.25, Y + 1.3, 17.6, 19.4); K.box(Ms.black, 1, 5.0, 6.6, Y + 0.25, Y + 0.75, 16.8, 17.6);
+    [[4.5, 17.8], [7.1, 17.8], [5.8, 19.2]].forEach(([x, z]) => K.box(Ms.black, 1, x - 0.06, x + 0.06, Y, Y + 0.3, z - 0.06, z + 0.06));
+    K.box(Ms.dark, 1, -2.2, -1.9, Y + 0.25, Y + 1.8, 19.6, 19.9); [-3.6, -0.6, 1.6].forEach(x => { K.box(Ms.wood, 1, x - 0.25, x + 0.25, Y + 0.7, Y + 0.75, 18.6, 19.1); K.box(Ms.wood, 1, x - 0.25, x + 0.25, Y + 0.7, Y + 1.3, 19.05, 19.1); });
+    K.box(Ms.brass, 1, -0.02, 0.02, Y + 0.25, Y + 1.7, 17.4, 17.44); K.box(Ms.dark, 1, -0.06, 0.06, Y + 1.66, Y + 1.8, 17.36, 17.48);
+    addBox(A.x + 5.8, A.z + 18.5, 1.6, 0.9, Y - 1, Y + 1.3, {hollow:true, full:true}); addBox(A.x + 1, A.z + 19.4, 7, 2.6, Y - 1, Y + 0.25, {hollow:true}); 
+    // the coat room on the left (clue 2): a counter, coats on a rail
+    K.box(Ms.wood, 2, -hw, -5.2, Y, Y + 1.1, 10.6, 11.0); K.box(Ms.wood, 2, -5.6, -5.2, Y, Y + 1.1, 6.5, 11.0); K.box(Ms.brass, 1, -hw, -5.6, Y + 1.9, Y + 1.94, 8.6, 8.64);
+    for(let i = 0; i < 6; i++){ const z = 6.8 + i * 0.6; K.box(i % 2 ? Ms.cloth : Ms.dark, 1, -8.6, -8.0, Y + 0.7, Y + 1.9, z - 0.2, z + 0.2); }
+    addBox(A.x - 7.1, A.z + 10.8, 1.9, 0.2, Y - 1, Y + 1.1, {hollow:true, full:true}); addBox(A.x - 5.4, A.z + 8.75, 0.2, 2.25, Y - 1, Y + 1.1, {hollow:true, full:true});
+    // the stage door on the right (clue 3), with its sign
+    K.box(Ms.dark, 1, hw - 0.05, hw, Y, Y + 2.4, 5.2, 6.8); K.panel(lbNeonTex('STAGE DOOR', 0x9fe070, false).t, 1.4, 0.38, hw - 0.06, Y + 2.75, 6.0, -Math.PI / 2, {emi:1.2});
+    // tables with little lamps, round the floor (solid)
+    [[-4.5, 13.5], [-1.5, 12.2], [2.5, 12.6], [-6.8, 15.8], [7.8, 12.5]].forEach(([x, z]) => { K.part(Ms.dark, new THREE.CylinderGeometry(0.55, 0.55, 0.05, 24), x, Y + 0.75, z); K.part(Ms.brass, new THREE.CylinderGeometry(0.04, 0.12, 0.75, 10), x, Y + 0.37, z);
+      K.part(Ms.lamp, new THREE.CylinderGeometry(0.08, 0.12, 0.16, 12), x, Y + 0.88, z); K.glow(0xffc070, 1.4, x, Y + 0.95, z, 0.5); colliders.push({x:A.x + x, z:A.z + z, r:0.6, hollow:true}); });
+    for(let x = -hw + 2; x < hw; x += 4) K.box(Ms.lamp, 1, x - 0.5, x + 0.5, Y + H - 0.04, Y + H, 4, 4.25), K.box(Ms.lamp, 1, x - 0.5, x + 0.5, Y + H - 0.04, Y + H, 12, 12.25);
+    // the three clues: a soft glow on the spot and a small label, gold once found
+    o.clues = CASE.clues.map((c, k) => { const x = A.x + c.x, z = A.z + c.z, rm = new THREE.MeshBasicMaterial({color:C(0x9fd8ff), transparent:true, opacity:0.7, toneMapped:false, depthWrite:false, side:THREE.DoubleSide});
+      const ring = mk(new THREE.RingGeometry(0.45, 0.55, 48), rm, x, Y + 0.03 + (c.z > 16.8 ? 0.25 : 0), z, g); ring.rotation.x = -Math.PI / 2; ring.castShadow = false;
+      const gl = glow(0x9fd8ff, 1.8, x, Y + 0.5, z, g, 0.45), l = label('Clue: ' + c.name, {small:true, edge:'#9fd8ff', fg:'#e8f4ff'}); l.scale.multiplyScalar(0.55); l.position.set(x, Y + 1.6, z); g.add(l);
+      return {rm, gl, l}; });
+    // the suspects' pads, each with its card on a lectern facing the room's door
+    o.pads = CASE.pads.map(([px, pz], k) => { const x = A.x + px, z = A.z + pz;
+      mk(new THREE.CylinderGeometry(CASE.padR, CASE.padR + 0.05, 0.05, 48), Ms.brass, x, Y + 0.025, z, g);
+      const dm = std(0xd9b25c, {emissive:C(0xd9b25c), emissiveIntensity:0.3, roughness:0.35}), disc = mk(new THREE.CylinderGeometry(CASE.padR - 0.12, CASE.padR - 0.12, 0.06, 48), dm, x, Y + 0.03, z, g); disc.castShadow = false;
+      mk(new THREE.BoxGeometry(0.1, 1.2, 0.1), Ms.wood, x, Y + 0.6, z + 1.5, g);
+      const sc = document.createElement('canvas'); sc.width = 512; sc.height = 256; const st = new THREE.CanvasTexture(sc); st.encoding = THREE.sRGBEncoding; st.anisotropy = 8;
+      const sm = mk(new THREE.BoxGeometry(1.9, 0.95, 0.06), [Ms.wood, Ms.wood, Ms.wood, Ms.wood, std(0xffffff, {map:st, emissive:C(0xffffff), emissiveMap:st, emissiveIntensity:0.45, roughness:0.7}), Ms.wood], x, Y + 1.5, z + 1.5, g); sm.rotation.x = -0.3; sm.rotation.y = Math.PI;
+      colliders.push({x, z:z + 1.5, r:0.3, hollow:true}); return {dm, sc, st, shown:-1}; });
+    addBox(A.x - hw - 0.2, A.z + (z0 + z1) / 2, 0.2, (z1 - z0) / 2 + 0.4, Y - 1, Y + H + 1, {hollow:true}); addBox(A.x + hw + 0.2, A.z + (z0 + z1) / 2, 0.2, (z1 - z0) / 2 + 0.4, Y - 1, Y + H + 1, {hollow:true});
+    addBox(A.x, A.z + z1 + 0.2, hw + 0.4, 0.2, Y - 1, Y + H + 1, {hollow:true}); addBox(A.x, A.z + z0 - 0.2, hw + 0.4, 0.2, Y - 1, Y + H + 1, {hollow:true});
+    K.done();
+    qaExit(o, 0, z0 + 0.45, 0, {frame:LK.trim, base:LK.trim, tile:2});
+  },
+  reset(o){ o.pads.forEach(P => { P.shown = -1; }); },
+  visual(o, dt, time){ const S = o.S; if(!S) return;
+    o.clues.forEach((c, k) => { const f = S.found[k]; c.rm.color.setHex(f ? 0xffd27a : 0x9fd8ff); c.gl.material.color.setHex(f ? 0xffd27a : 0x9fd8ff); c.gl.material.opacity = f ? 0.25 : 0.35 + 0.15 * Math.sin(time * 3 + k); });
+    const open = S.found.every(f => f);
+    o.pads.forEach((P, k) => { const who = S.order[k], key = who * 10 + (open ? 1 : 0); P.dm.emissiveIntensity = open ? (S.pad === k ? 1.2 : 0.55) : 0.12;
+      if(P.shown !== key){ P.shown = key; const x = P.sc.getContext('2d'), Sp = CASE.suspects[who]; x.fillStyle = '#f2ead6'; x.fillRect(0, 0, 512, 256); x.strokeStyle = '#3a2618'; x.lineWidth = 8; x.strokeRect(6, 6, 500, 244);
+        x.fillStyle = '#2a1a10'; x.font = '700 40px "Chakra Petch","Trebuchet MS",sans-serif'; x.fillText(String.fromCharCode(65 + k) + '. ' + Sp.name, 24, 58); x.font = 'italic 26px Georgia,serif'; x.fillText(Sp.role, 24, 94);
+        x.font = '26px Georgia,serif'; Sp.facts.forEach((f, i) => x.fillText('· ' + f, 30, 140 + i * 36)); if(!open){ x.fillStyle = 'rgba(42,26,16,0.55)'; x.font = '700 22px "Chakra Petch",sans-serif'; x.fillText('find all three clues first', 290, 236); }
+        P.st.needsUpdate = true; } }); }
+};
+// at The Low Hour's door, facing the avenue
+QPORTALS.lampblack = {kind:'case', name:'The Low Hour Case', x:-8.2, z:13, face:[0, 13], credits:45, xp:90, item:'agent-card', col:0xd9b25c,
+  tag:'The bandleader\'s brass metronome has gone missing before the late set. Find the three clues in the club (walk up and press E), then stand on the suspect who borrowed it.'};
 // portals added to a realm after its core was finished (Goal 20): no pad (the Spaceport's plaza is level there), no rng, and built with Math.random pointed
 // away from the NPCs' sequence (three.js draws it for every new object's id), so every coin, NPC, pickup, kiosk and their wander stay exactly as they were.
 // The Spaceport's Warfront portal stands at the head of the plaza between the Neon Grid and Night Grove portals, more than 15 m from every coin and pickup spot.
@@ -16307,9 +16419,9 @@ function lbCore(K){
   { lbBox(B.steel, -9.55, -7.4, 3.95, 5.15, 18.0, 26.0, 2); for(let z = 18.25; z < 26; z += 0.42){ lbBox(lit, -7.42, -7.34, 3.98, 4.06, z - 0.04, z + 0.04); B.glows.push([-7.3, 4.0, z, 0.7, 0xffd290, 0.55]); }
     B.signs.push({text:'TONIGHT · THE LATE LAMPS TRIO', col:0xffe0b0, x:-7.38, y:4.6, z:22, nx:1, nz:0, h:0.5});
     B.signs.push({text:'THE LOW HOUR', col:0xff3a30, x:-8.3, y:5.95, z:22, nx:1, nz:0, h:1.1});
-    B.signs.push({text:'JAZZ', col:0xff6a3c, x:-9.55, y:8.6, z:10.6, nx:1, nz:0, blade:true, h:4.2});
+    B.signs.push({text:'JAZZ', col:0xff6a3c, x:-9.55, y:11.2, z:10.6, nx:1, nz:0, blade:true, h:4.2});
     for(let k = 0; k < 4; k++) B.glows.push([-7.6, 5.6 + k * 0.25, 18.5 + k * 2.4, 4.2, 0xff3a30, 0.4]);
-    B.glows.push([-8.4, 8.6, 10.6, 4, 0xff6a3c, 0.4]);
+    B.glows.push([-8.4, 11.2, 10.6, 4, 0xff6a3c, 0.4]);
     lbQ(dim, [-9.45, 0.4, 23.4, -9.45, 0.4, 20.6, -9.45, 3.1, 20.6, -9.45, 3.1, 23.4], [1, 0, 0], [0, 0, 1, 0, 1, 1, 0, 1], LB_ONE); }
   // the square's shops and the alley: the diner, the tailor, the inquiry agent's window over the square, a rooming house's sign
   B.signs.push({text:'KETTLE & CROW', col:0xff6a50, x:9.42, y:3.95, z:-31.25, nx:-1, nz:0, h:0.55}, {text:'DINER', col:0xffd8a8, x:9.55, y:7.2, z:-37.2, nx:-1, nz:0, blade:true, h:3.6},
