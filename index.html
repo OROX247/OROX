@@ -310,6 +310,28 @@ body.bcast #hud, body.bcast #corner, body.bcast #roomCard, body.bcast #toast{ vi
 .inv-row .pw{ display:block; font-weight:600; font-size:12px; color:#ffd98a; }
 .inv-row .use[disabled]{ opacity:.45; cursor:default; }
 .ico.art{ border-radius:50%; background:radial-gradient(circle at 35% 30%,#fff 0 9%,var(--c) 42%,#3a2208 100%); box-shadow:0 0 0 2px #ffb020, 0 0 10px rgba(255,176,32,.7); }
+/* small screens (phones, 640x360 windows): the buttons leave the minimap's column, where they ran across the middle of the view, and sit in one
+   compact row on the bottom edge (it scrolls sideways if it does not fit, so every button stays reachable); things that sat just above the
+   bottom move up past it, and the Den's decorating bar takes the bottom edge itself while you decorate (the row hides then) */
+@media (max-width:760px), (max-height:500px){
+  #corner .btns{ position:fixed; left:50%; bottom:calc(env(safe-area-inset-bottom,0px) + 4px); transform:translateX(-50%); width:max-content; max-width:calc(100vw - 12px); gap:4px;
+    overflow-x:auto; overflow-y:hidden; scrollbar-width:none; -webkit-overflow-scrolling:touch; overscroll-behavior-x:contain; }
+  #corner .btns::-webkit-scrollbar{ display:none; }
+  #corner .btns .hbtn{ flex:0 0 auto; font-size:12.5px; padding:6px 9px; clip-path:polygon(6px 0,100% 0,100% calc(100% - 6px),calc(100% - 6px) 100%,0 100%,0 6px); }
+  #toast{ bottom:calc(env(safe-area-inset-bottom,0px) + 50px); }
+  #roomCard{ bottom:calc(env(safe-area-inset-bottom,0px) + 48px); }
+  #talk{ bottom:calc(env(safe-area-inset-bottom,0px) + 46px); }
+  body:has(#denBar:not(.hidden)) #corner .btns{ display:none; }
+  #denBar{ bottom:calc(env(safe-area-inset-bottom,0px) + 4px); padding:6px 10px; gap:5px; font-size:13px; }
+  #denBar small{ font-size:11px; margin-top:0; }
+  .denBtns{ gap:4px; } .denBtns button{ min-width:52px; padding:5px 6px; font-size:12.5px; }
+}
+@media (pointer:coarse) and (max-width:760px), (pointer:coarse) and (max-height:500px){
+  #joy{ bottom:calc(env(safe-area-inset-bottom,0px) + 48px); } #jumpBtn{ bottom:calc(env(safe-area-inset-bottom,0px) + 60px); } #strikeBtn{ bottom:calc(env(safe-area-inset-bottom,0px) + 156px); }
+  #denBar{ left:160px; right:126px; width:auto; transform:none; bottom:calc(env(safe-area-inset-bottom,0px) + 4px); }
+  #toast{ bottom:calc(env(safe-area-inset-bottom,0px) + 170px); } #roomCard{ bottom:calc(env(safe-area-inset-bottom,0px) + 228px); }
+}
+@media (pointer:coarse) and (max-width:560px){ #denBar{ left:6px; right:6px; bottom:calc(env(safe-area-inset-bottom,0px) + 178px); } }   /* a phone held upright: above the stick and the jump button, full width */
 </style>
 </head>
 <body class="paused">
