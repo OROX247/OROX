@@ -332,7 +332,7 @@ body.bcast #hud, body.bcast #corner, body.bcast #roomCard, body.bcast #toast{ vi
 
 <div id="corner">
   <canvas id="minimap" aria-label="Minimap"></canvas>
-  <div class="btns"><button class="hbtn" id="aiBtn" title="AI reality mode (R)">AI</button><button class="hbtn" id="lookBtn" title="Realm look (L)">Look</button><button class="hbtn" id="forgeBtn" title="Worldsmith: describe a realm (F)">Forge</button><button class="hbtn" id="rideBtn" style="display:none">Ride</button><button class="hbtn" id="sndBtn" title="Sound on/off (N)">Sound</button><button class="hbtn" id="shopBtn" style="display:none">Shop</button><button class="hbtn" id="vendBtn" style="display:none">Vend</button><button class="hbtn" id="enrolBtn" style="display:none">Enrol</button><button class="hbtn" id="archBtn" style="display:none">Inspect</button><button class="hbtn" id="hollowBtn" style="display:none">Knock</button><button class="hbtn" id="chimeBtn" style="display:none">Strike</button><button class="hbtn" id="ashBtn" style="display:none">Recite</button><button class="hbtn" id="qpBtn" style="display:none" title="Quest portal (E); Q leaves">Quest</button><button class="hbtn" id="talkBtn" style="display:none" title="Talk (E)">Talk</button><button class="hbtn" id="invBtn" title="Inventory (I)">Bag</button><button class="hbtn" id="mapBtn">Warp</button><button class="hbtn" id="helpBtn" aria-label="Avatar and controls">?</button></div>
+  <div class="btns"><button class="hbtn" id="aiBtn" title="AI reality mode (R)">AI</button><button class="hbtn" id="lookBtn" title="Realm look (L)">Look</button><button class="hbtn" id="forgeBtn" title="Worldsmith: describe a realm (F)">Forge</button><button class="hbtn" id="rideBtn" style="display:none">Ride</button><button class="hbtn" id="sndBtn" title="Sound on/off (N)">Sound</button><button class="hbtn" id="shopBtn" style="display:none">Shop</button><button class="hbtn" id="vendBtn" style="display:none">Vend</button><button class="hbtn" id="enrolBtn" style="display:none">Enrol</button><button class="hbtn" id="archBtn" style="display:none">Inspect</button><button class="hbtn" id="hollowBtn" style="display:none">Knock</button><button class="hbtn" id="chimeBtn" style="display:none">Strike</button><button class="hbtn" id="ashBtn" style="display:none">Recite</button><button class="hbtn" id="denBtn" style="display:none" title="The Den (E; P decorates inside)">Den</button><button class="hbtn" id="qpBtn" style="display:none" title="Quest portal (E); Q leaves">Quest</button><button class="hbtn" id="talkBtn" style="display:none" title="Talk (E)">Talk</button><button class="hbtn" id="invBtn" title="Inventory (I)">Bag</button><button class="hbtn" id="mapBtn">Warp</button><button class="hbtn" id="helpBtn" aria-label="Avatar and controls">?</button></div>
   <div id="artHud" hidden></div>
 </div>
 
@@ -7271,7 +7271,7 @@ function coreSum(detail){
   if(shardObj) [shardObj.m, shardObj.beam, shardObj.l, shardObj.gl].forEach(o => { if(o) skip.add(o); });
   if(chimes){ skip.add(chimes.g); if(chimes.shard){ skip.add(chimes.shard.m); skip.add(chimes.shard.gl); } }   // the chimes sway in the wind
   qpList.forEach(q => skip.add(q.g)); if(qa) skip.add(qa.g);   // Goal 15: the quest portal and its arena are added after the core
-  portals.forEach(q => { if(q.late) skip.add(q.g); });
+  portals.forEach(q => { if(q.late) skip.add(q.g); }); if(denRT){ if(denRT.lift) skip.add(denRT.lift.g); if(denRT.room) skip.add(denRT.room.g); }   // Goal 21: the Den's lift and the room above it
   if(lb && state.world === 'lampblack') lb.skip.forEach(o => skip.add(o));
   if(fb && state.world === 'fennick') fb.skip.forEach(o => skip.add(o));   // Goal 20 part 4: Fennick Bay's water follows you; the ferry crosses, the lighthouse flashes, the smoke rises
   if(sl && state.world === 'saltlark') sl.skip.forEach(o => skip.add(o));   // Goal 20 part 3: Saltlark's sea follows you; the lighthouse beam turns, the boats sail, the crabs and fish move   // Goal 20: Lampblack's road mirror follows you; the tram and the cats move   // Goal 20: a portal added after the core (the Spaceport's Warfront portal)
@@ -7923,6 +7923,7 @@ function buildWorld(key){
   if(key === 'hub') buildArchive();   // Goal 9: the Archive goes up after every coin, NPC, pickup and the vendor are placed, so none of them moves
   addQuestPortal(key);   // Goal 15: the realm's quest portal goes up last, at a fixed spot clear of everything above; it draws no rng
   addLatePortals(key);   // Goal 20: portals added after a realm's core was finished (the Spaceport's Warfront portal): no pad, no rng, nothing above moves
+  denOnBuild(key);   // Goal 21: the Den's lift on the Spaceport goes up after the late portals: no pad, no rng, one box, nothing above moves
   merBuild(key);   // Goal 18: Meridian's dome and pylons on Ashfall (no colliders, no rng; before monBuild so the Units keep clear of the glass)
   monBuild(key);   // Goal 16: the realm's monsters come last of all: their own rng, no colliders, nothing above moves
   bundles.forEach(b => { b.g = null; if(b.world === key) addBundleMesh(b); });
@@ -9799,6 +9800,7 @@ window.addEventListener('keydown', e => {
   if(!invEl.classList.contains('hidden')){ if(e.code === 'Escape' || e.code === 'KeyI') closeInventory(); return; }
   if(!vendEl.classList.contains('hidden')){ if(e.code === 'Escape' || e.code === 'KeyE') closeVendor(); return; }
   if(!forgeEl.classList.contains('hidden')){ if(e.code === 'Escape') closeForge(); return; }
+  if(denKey(e)) return;   // Goal 21: P decorates in the Den; while placing, the arrows, R, Enter, Delete and Esc belong to the Den
   if(e.code === 'KeyI'){ openInventory(); return; }
   if(e.code === 'KeyJ'){ e.preventDefault(); openXlog(); return; }
   if(e.code === 'KeyF'){ e.preventDefault(); openForge(); return; }
@@ -10812,8 +10814,8 @@ function buildCorrHall(){   // (named apart from Campus's buildHall(T): two decl
   g.visible = false; hall.built = true;
 }
 let qa = null, qpList = [], qpNear = null, qpCool = 0;   // Goal 15: the quest arena you are in (or built this visit), this realm's quest portals
-const pocketIn = () => !!((hollow && hollow.inside) || (corr && corr.inside) || (qa && qa.inside));
-function pocketFloor(x, z){ if(hollow && hollow.inside) return hollowFloor(x, z); if(qa && qa.inside) return qa.A.y + (qa.M.floor ? qa.M.floor(x - qa.A.x, z - qa.A.z) : 0); const u = z - CORR.z0; return CORR.y + (u > CORR.L - 0.45 && x < CORR.x ? 0.17 : 0); }
+const pocketIn = () => !!((hollow && hollow.inside) || (corr && corr.inside) || (qa && qa.inside) || (denRT && denRT.inside));   // Goal 21: the Den is a pocket too
+function pocketFloor(x, z){ if(denRT && denRT.inside) return DEN.y; if(hollow && hollow.inside) return hollowFloor(x, z); if(qa && qa.inside) return qa.A.y + (qa.M.floor ? qa.M.floor(x - qa.A.x, z - qa.A.z) : 0); const u = z - CORR.z0; return CORR.y + (u > CORR.L - 0.45 && x < CORR.x ? 0.17 : 0); }
 function corrReset(){
   const H = corr; H.S = corrNew(); H.stepT = 0.2; H.echoOn = false; H.tuneOn = false; H.tuneNext = 0; H.roll = 0; H.stopEcho = false; H.lastSpeed = 0;
   H.lanterns.forEach(l => { l.lvl = l.want = 1; l.flick = 0; }); H.doors.forEach(d => { d.ang = d.want = 0; d.hinge.rotation.y = 0; }); H.signs.forEach(s => { s.on = 0; s.flick = 0; });
@@ -10954,7 +10956,7 @@ function vrUpdate(dt){
   if(Math.abs(turn) > 0.7 && vr.snapCool <= 0){ vr.rig.rotation.y -= Math.sign(turn) * Math.PI / 6; vr.snapCool = 0.3; }
   if(Math.abs(turn) < 0.4) vr.snapCool = Math.min(vr.snapCool, 0);
 }
-function interactKey(){ if(qa && qa.inside){ qa.eDown = true; return; } if(bike.riding) dismountBike(); else if(bike.near) mountBike(); else if(shopNear) openShop(); else if(vendNear) openVendor(); else if(deskNear) enroll(); else if(forgeNear) openForge(); else if(archNear) archiveAct(); else if(hollowNear) hollowAct(); else if(chimeNear != null) strikeChime(chimeNear + 1, 'key'); else if(ashNear) ashAct(); else if(fbNear) fbAct(); else if(qpNear) qpEnter(qpNear); else if(localNear) openTalk(localNear); }
+function interactKey(){ if(qa && qa.inside){ qa.eDown = true; return; } if(bike.riding) dismountBike(); else if(bike.near) mountBike(); else if(shopNear) openShop(); else if(vendNear) openVendor(); else if(deskNear) enroll(); else if(forgeNear) openForge(); else if(archNear) archiveAct(); else if(hollowNear) hollowAct(); else if(chimeNear != null) strikeChime(chimeNear + 1, 'key'); else if(ashNear) ashAct(); else if(fbNear) fbAct(); else if(denNear) denAct(); else if(qpNear) qpEnter(qpNear); else if(localNear) openTalk(localNear); }
 vrSetup();
 
 /* ================= Goal 15: quest portals (blueprint 7) =================
@@ -12679,7 +12681,7 @@ function update(dt, time){
     state.won = true; reward(500, 200); sfx('win'); setHalo(); toast('You opened the vault. First to crack the Hub.   +500 XP', 5000);
   }
   if(playing && p.grounded && p.speed > 0.6){ snd.stepT -= dt; if(snd.stepT <= 0){ sfx('step'); snd.stepT = p.speed > 7 ? 0.27 : 0.42; } } else snd.stepT = 0.1;
-  shopProximity(); bikeProximity(); vendProximity(); deskProximity(); archiveUpdate(dt); hollowUpdate(dt, time); chimeUpdate(dt, time); ashUpdate(dt, time); merUpdate(dt, time); warUpdate(dt, time); lbUpdate(dt, time); slUpdate(dt, time); fbUpdate(dt, time); starTick(dt, time); driftUpdate(dt, time); hallUpdate(dt, time); rallyTick(dt, time); trialUpdate(dt, time); qpTick(dt, time);
+  shopProximity(); bikeProximity(); vendProximity(); deskProximity(); archiveUpdate(dt); hollowUpdate(dt, time); chimeUpdate(dt, time); ashUpdate(dt, time); merUpdate(dt, time); warUpdate(dt, time); lbUpdate(dt, time); slUpdate(dt, time); fbUpdate(dt, time); starTick(dt, time); driftUpdate(dt, time); hallUpdate(dt, time); rallyTick(dt, time); trialUpdate(dt, time); qpTick(dt, time); denUpdate(dt, time);
   const wdt = dt * artTideK();   // Goal 17: Slack Water slows monsters, traps and lasers (simTime), never the player
   updatePickups(dt, time); monUpdate(wdt, time); hurtCool -= dt; simTime += wdt; updateHazards(simTime); updateBurst(dt); checkBundles(); artUpdate(dt, time);
   if(!WORLDS[state.world].rules.danger && !zeroing && state.hp < maxHp()){ state.hp = Math.min(maxHp(), state.hp + 12 * dt); hpHud(); }
@@ -18297,6 +18299,206 @@ Object.defineProperties(window.__hub, {
     fbPut(px, pz, y); cam.yaw = Math.atan2(px - tx, pz - tz) + 0.1; p.facing = cam.yaw + Math.PI; cam.pitch = pitch; cam.dist = dist; cam.view = 0;
     me.g.position.set(p.x, p.y, p.z); me.g.rotation.y = p.facing; snapCamera(); clipCamera(); renderer.shadowMap.needsUpdate = true; return {what, x:+p.x.toFixed(2), y:+p.y.toFixed(2), z:+p.z.toFixed(2)}; }}
 });
+/* ================= Goal 21: The Den, the player's private loft (blueprint 7) =================
+   A lift on the Spaceport plaza (added last, like LATE_PORTALS: no rng, one box, its group skipped by coreSum, so nothing in the
+   Spaceport moves) takes you up to a converted hangar loft: a pocket room (pocketIn/pocketFloor, its own floor, walls and boxes flagged
+   hollow) 22 m above the grass south-east of the plaza, with one big north window onto the Spaceport at golden hour, warm lamps, a
+   catalogue terminal and a showcase of your record of play. The room is only shown while you are in it, so from the plaza nothing changes.
+   Everything here is `var` or a function declaration: buildWorld('hub') runs at load long before this section, and denOnBuild must not
+   meet a variable in its temporal dead zone (it waits for denBooted instead). */
+var denBooted = false, denRT = null, denNear = null, denTex = null;
+var DEN = {x:30, z:60, y:22, hw:7, hd:5, h:4.4, cell:0.5, lift:{x:24, z:21}, door:{z:1.5, w:1.5, h:2.6}, arrive:[2.6, 1.5], term:{x:6.45, z:-2.6}};
+// the Den's painted textures (made once per session, shared): oak boards, the lift's sign, the catalogue screen
+function denTextures(){
+  if(denTex) return denTex;
+  const n = a => a.map(h => hexArr(h));
+  denTex = {
+    // 1.6 m x 16 cm oak boards in a running bond, warm and a little worn (tile 3.2 m)
+    oak:stoneSet({seed:2101, size:3.2, cols:2, rows:20, bond:true, base:n([0x9b6a40, 0x8c5e37, 0xa77649, 0x83552f, 0x946540]), vein:0.3, veinCol:hexArr(0x4a2e18), dirs:[[0, 60], [0, 52], [1, 70]], joint:0.003, jointDark:0.5, rough:0.46, grain:0.03, cloud:0.1, tint:0.09, bump:0.02, nStrength:5}),
+    // ceiling boards: narrower, darker, painted long ago (tile 2.4 m)
+    deck:stoneSet({seed:2103, size:2.4, cols:1, rows:20, bond:false, base:n([0x5a4232, 0x4f3a2c, 0x624838]), vein:0.2, veinCol:hexArr(0x2a1c12), dirs:[[0, 50]], joint:0.004, jointDark:0.45, rough:0.7, grain:0.03, cloud:0.08, tint:0.06, bump:0.02, nStrength:4}),
+    sign:archTex('denSign', 1024, 256, (x, w, h) => {
+      const g = x.createLinearGradient(0, 0, 0, h); g.addColorStop(0, '#2b1d14'); g.addColorStop(1, '#1a110b'); x.fillStyle = g; x.fillRect(0, 0, w, h);
+      x.strokeStyle = '#d9a95a'; x.lineWidth = 8; x.strokeRect(10, 10, w - 20, h - 20);
+      x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillStyle = '#ffd98a'; x.font = '700 120px ' + SERIF; x.fillText('THE DEN', w / 2, h * 0.44);
+      x.fillStyle = '#e8c88a'; x.font = '600 34px "Chakra Petch","Trebuchet MS",sans-serif'; x.fillText('PRIVATE LOFTS  ·  RESIDENTS ONLY', w / 2, h * 0.8); }),
+    screen:archTex('denScreen', 512, 384, (x, w, h) => {
+      const g = x.createLinearGradient(0, 0, 0, h); g.addColorStop(0, '#0d2430'); g.addColorStop(1, '#06121a'); x.fillStyle = g; x.fillRect(0, 0, w, h);
+      x.fillStyle = 'rgba(120,230,255,0.06)'; for(let y = 0; y < h; y += 4) x.fillRect(0, y, w, 1);
+      x.textAlign = 'center'; x.fillStyle = '#ffd98a'; x.font = '700 46px "Chakra Petch","Trebuchet MS",sans-serif'; x.fillText('DEN CATALOGUE', w / 2, 80);
+      x.fillStyle = '#9fe8ff'; x.font = '500 28px "Chakra Petch","Trebuchet MS",sans-serif'; ['Rugs · lamps · plants', 'Furniture · posters', 'Fish tank · record player', 'Delivered to your storage'].forEach((t, i) => x.fillText(t, w / 2, 150 + i * 46));
+      x.fillStyle = '#ffd98a'; x.font = '700 30px "Chakra Petch","Trebuchet MS",sans-serif'; x.fillText('Press E', w / 2, h - 34); })
+  };
+  return denTex;
+}
+// a fresh Den state on every buildWorld (the room was in the old world group, its boxes in the old list); the lift goes up on the Spaceport only
+function denOnBuild(key){
+  if(!denBooted) return;
+  if(denRT && denRT.music) denMusic(false);
+  denRT = {key, lift:null, room:null, inside:false, near:null, inT:0, items:[]};
+  denNear = null; denShowBtn(null);
+  if(key === 'hub' && WORLDS.hub && !WORLDS.hub.custom) noRandom(() => addDenLift());
+}
+// the lift on the plaza: a brass-and-steel cabin facing the plaza's centre, one solid box, its sign and lamps
+function addDenLift(){
+  const L = DEN.lift, yaw = Math.atan2(-L.x, -L.z), c = Math.cos(yaw), s = Math.sin(yaw), y0 = G(L.x, L.z);
+  const g = new THREE.Group(); g.position.set(L.x, y0, L.z); g.rotation.y = yaw; g.name = 'denLift'; world.add(g);
+  const steel = std(0x3a3d44, {metalness:0.75, roughness:0.38}), brass = std(0xb8893e, {metalness:0.85, roughness:0.3}), dark = std(0x1c1d22, {roughness:0.6, metalness:0.3});
+  const W = 2.4, D = 1.7, H = 3.3;
+  mk(new THREE.BoxGeometry(W + 0.5, 0.12, D + 0.6), dark, 0, 0.06, -0.1, g);                                                   // plinth
+  mk(new THREE.BoxGeometry(W, H, 0.12), steel, 0, H / 2, -D / 2, g);                                                           // back
+  [-1, 1].forEach(k => mk(new THREE.BoxGeometry(0.12, H, D), steel, k * (W / 2 - 0.06), H / 2, 0, g));                        // sides
+  mk(new THREE.BoxGeometry(W + 0.3, 0.16, D + 0.4), steel, 0, H + 0.08, 0.05, g);                                              // roof
+  mk(new THREE.BoxGeometry(W - 0.24, 0.5, 0.1), dark, 0, H - 0.25, D / 2 - 0.05, g);                                           // header
+  [-1, 1].forEach(k => mk(new THREE.BoxGeometry((W - 0.36) / 2 - 0.02, H - 0.62, 0.06), brass, k * (W - 0.36) / 4, (H - 0.62) / 2 + 0.12, D / 2 - 0.08, g));   // the closed doors
+  [-1, 1].forEach(k => { const st = mk(new THREE.BoxGeometry(0.03, H - 0.8, 0.02), steel, k * 0.32, (H - 0.62) / 2 + 0.12, D / 2 - 0.04, g); st.castShadow = false; });
+  const sign = mk(new THREE.PlaneGeometry(W - 0.34, (W - 0.34) / 4), std(0xffffff, {map:denTextures().sign, emissive:C(0xffffff), emissiveMap:denTextures().sign, emissiveIntensity:0.55, roughness:0.6}), 0, H - 0.25, D / 2 + 0.005, g); sign.castShadow = false;
+  const btnM = glowM(0xffc96a, 2.2); mk(new THREE.BoxGeometry(0.14, 0.22, 0.05), dark, W / 2 + 0.05, 1.25, D / 2 - 0.1, g); mk(new THREE.SphereGeometry(0.035, 16, 12), btnM, W / 2 + 0.05, 1.28, D / 2 - 0.06, g).castShadow = false;
+  [-1, 1].forEach(k => { const lm = mk(new THREE.CylinderGeometry(0.09, 0.12, 0.34, 20), glowM(0xffd08a, 1.6), k * (W / 2 + 0.06), 2.55, D / 2 - 0.15, g); lm.castShadow = false; glow(0xffc070, 1.2, k * (W / 2 + 0.06), 2.55, D / 2 - 0.1, g, 0.5); });
+  const l = label('The Den · your private loft', {small:true, edge:'#ffd98a', fg:'#fff1d0'}); l.position.set(0, H + 0.75, 0); g.add(l);
+  // one solid box for the whole cabin (the doors stay shut: the lift is the trigger in front of them)
+  addBox(L.x - s * 0.05, L.z - c * 0.05, W / 2 + 0.05, D / 2 + 0.05, y0 - 20, y0 + H + 0.2, {a:-yaw, denLift:true});
+  denRT.lift = {g, x:L.x, z:L.z, y:y0, yaw, c, s, D, armed:true};
+}
+// the player in the lift's own frame: [across the doors, out from the doors]
+function denLiftLocal(x, z){ const L = denRT.lift, dx = x - L.x, dz = z - L.z; return [dx * L.c - dz * L.s, dx * L.s + dz * L.c - L.D / 2]; }
+// local room coordinates (x across the window, z from the window back) to world
+function denW(lx, lz){ return [DEN.x + lx, DEN.z + lz]; }
+function denBuildRoom(){
+  const R = {g:new THREE.Group(), boxes:[], M:{}}, g = R.g, X = DEN.x, Y = DEN.y, Z = DEN.z, hw = DEN.hw, hd = DEN.hd, H = DEN.h;
+  g.name = 'den'; world.add(g); g.visible = false;
+  const T = denTextures(), br = archiveStone().brick;
+  const M = R.M = {
+    oak:std(0xffffff, {map:T.oak.map, normalMap:T.oak.normal, roughnessMap:T.oak.rough, roughness:1, normalScale:new V2(0.8, 0.8)}),
+    brick:std(0xffffff, {map:br.map, normalMap:br.normal, roughnessMap:br.rough, roughness:1, normalScale:new V2(1.1, 1.1)}),
+    deck:std(0xd8c8b8, {map:T.deck.map, normalMap:T.deck.normal, roughnessMap:T.deck.rough, roughness:1}),
+    steel:std(0x2e3138, {metalness:0.7, roughness:0.42}), iron:std(0x24262b, {metalness:0.6, roughness:0.55}),
+    skirt:std(0x3a2618, {roughness:0.6}), brass:std(0xb8893e, {metalness:0.85, roughness:0.3}), dark:std(0x1c1d22, {roughness:0.6, metalness:0.3}),
+    glass:new THREE.MeshStandardMaterial({color:C(0xcfe6ff), roughness:0.05, metalness:0, transparent:true, opacity:0.07, depthWrite:false}),
+    shade:std(0x2f4a3a, {roughness:0.35, metalness:0.4, side:THREE.DoubleSide}), bulb:glowM(0xffd9a0, 2.6), warm:glowM(0xffc56a, 1.8)
+  };
+  const B = (mat, tile, list) => { const m = mk(boxGeo(list.map(b => [X + b[0], X + b[1], Y + b[2], Y + b[3], Z + b[4], Z + b[5]]), tile), mat, 0, 0, 0, g); return m; };
+  // floor, walls (brick, a hangar's), ceiling boards
+  B(M.oak, 3.2, [[-hw, hw, -0.3, 0, -hd, hd]]);
+  B(M.brick, 3, [[-hw - 0.3, hw + 0.3, -0.3, H, hd, hd + 0.3], [-hw - 0.3, -hw, -0.3, H, -hd - 0.3, hd], [hw, hw + 0.3, -0.3, H, -hd - 0.3, hd]]);
+  B(M.deck, 2.4, [[-hw - 0.3, hw + 0.3, H, H + 0.3, -hd - 0.3, hd + 0.3]]);
+  // the north wall is the window: a knee wall, a header, steel mullions and one transom, faint glass
+  B(M.brick, 3, [[-hw, hw, -0.3, 0.55, -hd - 0.3, -hd], [-hw, hw, 3.75, H, -hd - 0.3, -hd]]);
+  const fr = []; for(let i = 0; i <= 7; i++){ const x = -hw + i * 2; fr.push([x - 0.07, x + 0.07, 0.55, 3.75, -hd - 0.12, -hd + 0.04]); }
+  fr.push([-hw, hw, 2.62, 2.72, -hd - 0.1, -hd + 0.02], [-hw, hw, 0.55, 0.62, -hd - 0.14, -hd + 0.2], [-hw, hw, 3.68, 3.75, -hd - 0.12, -hd + 0.04]);
+  B(M.steel, 2, fr);
+  const gl = mk(new THREE.PlaneGeometry(hw * 2, 3.13), M.glass, X, Y + 0.55 + 3.13 / 2, Z - hd - 0.05, g); gl.castShadow = false; gl.receiveShadow = false; gl.renderOrder = 2;
+  // steel I-beams under the ceiling and a skirting board round the brick
+  const bm = []; [-3, 0, 3].forEach(z => { bm.push([-hw, hw, H - 0.04, H, z - 0.13, z + 0.13], [-hw, hw, H - 0.34, H - 0.04, z - 0.025, z + 0.025], [-hw, hw, H - 0.38, H - 0.34, z - 0.13, z + 0.13]); });
+  B(M.iron, 2, bm);
+  B(M.skirt, 1, [[-hw, hw, 0, 0.12, hd - 0.02, hd], [-hw, -hw + 0.02, 0, 0.12, -hd, hd], [hw - 0.02, hw, 0, 0.12, -hd, hd]]);
+  // pendant lamps over the room, each with a soft warm pool on the boards (no point lights: emissive, glow sprites and a floor decal)
+  R.pools = [];
+  [[-3.5, -0.6], [0, 1.6], [3.5, -0.6]].forEach(q => { const [x, z] = denW(q[0], q[1]);
+    mk(new THREE.CylinderGeometry(0.008, 0.008, 1.15, 6), M.dark, x, Y + H - 0.4 - 0.575, z, g).castShadow = false;
+    const sh = new THREE.LatheGeometry([new V2(0.04, 0.32), new V2(0.07, 0.3), new V2(0.2, 0.18), new V2(0.3, 0.02), new V2(0.31, 0)], 32); mk(sh, M.shade, x, Y + H - 2.0, z, g);
+    mk(new THREE.SphereGeometry(0.07, 16, 12), M.bulb, x, Y + H - 1.96, z, g).castShadow = false;
+    glow(0xffc983, 1.6, x, Y + H - 2.0, z, g, 0.55); R.pools.push(denPool(g, x, Y, z, 3.4, 0.2)); });
+  // the lift door on the east wall (brass leaves in a steel frame, a lamp above), and its way-out mat
+  { const dz = DEN.door.z, dw = DEN.door.w, dh = DEN.door.h, [x, z] = denW(hw, dz);
+    const fr2 = [[-0.06, 0, 0, dh + 0.12, -dw / 2 - 0.12, -dw / 2], [-0.06, 0, 0, dh + 0.12, dw / 2, dw / 2 + 0.12], [-0.06, 0, dh, dh + 0.12, -dw / 2, dw / 2]];
+    mk(boxGeo(fr2.map(b => [x + b[0], x + b[1], Y + b[2], Y + b[3], z + b[4], z + b[5]]), 2), M.steel, 0, 0, 0, g);
+    [-1, 1].forEach(k => mk(new THREE.BoxGeometry(0.04, dh - 0.04, dw / 2 - 0.02), M.brass, x - 0.03, Y + dh / 2, z + k * dw / 4, g));
+    mk(new THREE.BoxGeometry(0.05, 0.12, 0.5), M.warm, x - 0.04, Y + dh + 0.3, z, g).castShadow = false; glow(0xffc070, 0.9, x - 0.1, Y + dh + 0.3, z, g, 0.45);
+    const l = label('Lift · back to the plaza', {small:true, edge:'#ffd98a', fg:'#fff1d0'}); l.scale.multiplyScalar(0.5); l.position.set(x - 0.4, Y + dh + 0.75, z); g.add(l); }
+  // the catalogue terminal by the window corner
+  { const [x, z] = denW(DEN.term.x, DEN.term.z);
+    mk(new THREE.BoxGeometry(0.5, 1.05, 0.7), M.dark, x, Y + 0.525, z, g);
+    const scr = mk(new THREE.PlaneGeometry(0.62, 0.46), std(0xffffff, {map:T.screen, emissive:C(0xffffff), emissiveMap:T.screen, emissiveIntensity:0.9, roughness:0.3}), x - 0.27, Y + 1.25, z, g);
+    scr.rotation.order = 'YXZ'; scr.rotation.set(-0.45, -Math.PI / 2, 0); scr.castShadow = false;
+    mk(new THREE.BoxGeometry(0.1, 0.56, 0.74), M.steel, x - 0.2, Y + 1.25, z, g).rotation.z = -0.45;
+    glow(0x7fe0ff, 1.1, x - 0.4, Y + 1.25, z, g, 0.25); }
+  // walls and ceiling are solid only up here (y0 above the plaza's grass), flagged hollow: the pocket's own
+  const wb = o => R.boxes.push(addBox(o[0], o[1], o[2], o[3], Y - 1, Y + H + 1.5, {hollow:true, den:true}));
+  wb([X, Z + hd + 0.15, hw + 0.3, 0.15]); wb([X, Z - hd - 0.15, hw + 0.3, 0.15]); wb([X - hw - 0.15, Z, 0.15, hd + 0.3]); wb([X + hw + 0.15, Z, 0.15, hd + 0.3]);
+  R.boxes.push(addBox(X, Z, hw + 0.3, hd + 0.3, Y + H, Y + H + 0.6, {hollow:true, den:true}));   // the ceiling (the camera stops under it)
+  { const [x, z] = denW(DEN.term.x, DEN.term.z); R.boxes.push(addBox(x, z, 0.3, 0.4, Y - 0.5, Y + 1.4, {hollow:true, den:true, cam:false})); }
+  return R;
+}
+// a soft round pool of lamp light on the floor: additive, no depth write, a little above the boards
+var denPoolTex = null;
+function denPool(g, x, y, z, size, op){
+  if(!denPoolTex){ denPoolTex = canvasTex(128, 128, (c, w, h) => { const r = c.createRadialGradient(64, 64, 0, 64, 64, 64); r.addColorStop(0, 'rgba(255,214,150,1)'); r.addColorStop(0.45, 'rgba(255,190,110,0.45)'); r.addColorStop(1, 'rgba(255,170,90,0)'); c.fillStyle = r; c.fillRect(0, 0, w, h); }); denPoolTex.wrapS = denPoolTex.wrapT = THREE.ClampToEdgeWrapping; SHARED_TEX.add(denPoolTex); }
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(size, size), new THREE.MeshBasicMaterial({map:denPoolTex, transparent:true, opacity:op, blending:THREE.AdditiveBlending, depthWrite:false, fog:false}));
+  m.rotation.x = -Math.PI / 2; m.position.set(x, y + 0.012, z); m.renderOrder = 1; m.userData.noAO = true; g.add(m); return m;
+}
+function denInside(){ return !!(denRT && denRT.inside); }
+function denEnter(){
+  if(!denRT || !denRT.lift || traveling || zeroing || denRT.inside || state.world !== 'hub' || pocketIn()) return false;
+  if(bike.riding) dismountBike(true);
+  traveling = true; fadeEl.classList.add('on'); sfx('warp');
+  setTimeout(() => { try{
+    if(!denRT || state.world !== 'hub') return;
+    if(!denRT.room) denRT.room = denBuildRoom();
+    denRT.inside = true; denRT.room.g.visible = true; denRT.inT = 0; p.zeroG = false; p.vx = p.vy = p.vz = 0; p.speed = 0;
+    const [x, z] = denW(DEN.arrive[0], DEN.arrive[1]); p.x = x; p.z = z; p.y = DEN.y; p.facing = -Math.PI / 2;
+    cam.yaw = Math.PI / 2 + 0.25; cam.pitch = Math.min(Math.max(cam.pitch, 0.12), 0.26); cam.dist = Math.min(cam.dist, 3.4);
+    if(typeof denLayout === 'function') denLayout();
+    snapCamera(); clipCamera(); if(camHid){ cam.yaw += 0.6; snapCamera(); clipCamera(); }
+    renderer.shadowMap.needsUpdate = true;
+    toast('Your Den. E at the terminal for the catalogue, P to decorate, the lift door to leave.', 4200);
+  } finally { fadeEl.classList.remove('on'); traveling = false; } }, 450);
+  return true;
+}
+function denLeave(){
+  if(!denRT || !denRT.inside || traveling) return false;
+  traveling = true; fadeEl.classList.add('on'); sfx('warp');
+  setTimeout(() => { try{
+    if(!denRT) return;
+    if(typeof denDecorate === 'function') denDecorate(false);
+    if(denRT.music) denMusic(false);
+    denRT.inside = false; if(denRT.room) denRT.room.g.visible = false;
+    const L = denRT.lift; if(L && state.world === 'hub'){ const d = L.D / 2 + 2.2; p.x = L.x + d * L.s; p.z = L.z + d * L.c; p.y = G(p.x, p.z); p.vx = p.vy = p.vz = 0; p.speed = 0; p.facing = L.yaw; cam.yaw = L.yaw + Math.PI; L.armed = false; snapCamera(); clipCamera(); }
+    renderer.shadowMap.needsUpdate = true;
+  } finally { fadeEl.classList.remove('on'); traveling = false; } }, 450);
+  return true;
+}
+// what E (or the Den button) does here: the lift outside; inside, the terminal, the record player or the door
+function denNearNow(){
+  if(!denRT || !playing || traveling || zeroing) return null;
+  if(!denRT.inside){ const L = denRT.lift; if(!L || pocketIn() || bike.riding || state.world !== 'hub') return null; const q = denLiftLocal(p.x, p.z); return Math.abs(q[0]) < 1.6 && q[1] > -0.2 && q[1] < 2.4 && Math.abs(p.y - L.y) < 2 ? 'lift' : null; }
+  const lx = p.x - DEN.x, lz = p.z - DEN.z;
+  if(Math.hypot(lx - DEN.term.x, lz - DEN.term.z) < 1.7) return 'term';
+  if(lx > DEN.hw - 1.6 && Math.abs(lz - DEN.door.z) < 1.1) return 'door';
+  if(typeof denRecordNear === 'function' && denRecordNear()) return 'record';
+  return null;
+}
+function denShowBtn(k){ const b = document.getElementById('denBtn'); if(!b) return; const t = k === 'lift' ? 'Den' : k === 'term' ? 'Catalogue' : k === 'door' ? 'Leave' : k === 'record' ? (denRT && denRT.music ? 'Stop' : 'Play') : denInside() ? 'Decorate' : '';
+  b.style.display = t ? '' : 'none'; if(t && b.textContent !== t) b.textContent = t; }
+function denAct(k){
+  k = k || denNear; if(k === 'lift') return denEnter(); if(k === 'door') return denLeave();
+  if(k === 'term' && typeof denOpenShop === 'function') return denOpenShop();
+  if(k === 'record' && typeof denMusic === 'function') return denMusic(!(denRT && denRT.music));
+  return false;
+}
+function denUpdate(dt, time){
+  if(!denRT) return;
+  const L = denRT.lift;
+  if(denRT.inside){
+    denRT.inT += dt;
+    const top = DEN.y + DEN.h - 1.95; if(p.y > top){ p.y = top; if(p.vy > 0) p.vy = 0; }
+    const lx = p.x - DEN.x, lz = p.z - DEN.z;
+    if(denRT.inT > 1.2 && playing && !traveling && lx > DEN.hw - 0.75 && Math.abs(lz - DEN.door.z) < DEN.door.w / 2 && !denRT.mode) denLeave();   // walk into the lift door to leave
+    if(typeof denAnimate === 'function') denAnimate(dt, time);
+  } else if(L && playing && !traveling && !zeroing && !pocketIn() && !bike.riding && state.world === 'hub'){
+    const q = denLiftLocal(p.x, p.z); if(Math.hypot(q[0], q[1]) > 2.6) L.armed = true;
+    if(L.armed && Math.abs(q[0]) < 0.75 && q[1] < 0.75 && q[1] > -0.2 && Math.abs(p.y - L.y) < 1.2) denEnter();   // step up to the doors and they take you
+  }
+  const k = denNearNow(); if(k !== denNear){ denNear = k; if(k === 'lift' && playing) toast('The Den: your private loft. Step up to the doors, press E or tap Den.', 2600); }
+  denShowBtn(denNear);
+}
+function denKey(e){
+  if(!denRT) return false;
+  if(e.code === 'KeyP' && denInside()){ e.preventDefault(); if(!e.repeat && typeof denDecorate === 'function') denDecorate(!denRT.mode); return true; }
+  return false;
+}
+document.getElementById('denBtn').addEventListener('click', () => { if(denNear) denAct(); else if(denInside() && typeof denDecorate === 'function') denDecorate(!denRT.mode); });
+denBooted = true; if(state.world === 'hub' && world) denOnBuild('hub');
 })();
 </script>
 </body>
