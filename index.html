@@ -8292,6 +8292,7 @@ function updateBike(dt, time){
   for(const c of colliders) push(c.x, c.z, c.r + 0.9);
   for(const s of platforms) if(B.y < s.top + 0.4 && B.y + 1.2 > s.bottom) push(s.x, s.z, (s.rAt ? s.rAt(B.y - s.bottom) : s.r) + 0.9);
   for(const nn of npcs) push(nn.x, nn.z, nn.av.rad + 0.6);
+  if(mer){ const q = merBlock(nx, nz, 0.9); if(q){ nx = q[0]; nz = q[1]; if(Math.abs(B.speed) > 6) sfx('hit'); B.speed *= 0.4; } }   // Meridian's dome and the pylon shields stop the bike as they stop you (the jar still lets you through a shield)
   if(!endless){ const dr = Math.hypot(nx, nz), lim = R - 1.5; if(dr > lim){ nx *= lim / dr; nz *= lim / dr; B.speed *= 0.5; } }
   B.x = nx; B.z = nz;
   let ground = G(B.x, B.z); for(const s of platforms) if(Math.hypot(B.x - s.x, B.z - s.z) < s.r + 0.3 && B.y >= s.top - 0.6) ground = Math.max(ground, s.top);
@@ -13709,6 +13710,7 @@ function deedsNow(){
   if(state.shards.has('grid')) out.push({id:'shard:grid', big:true, realm:'grid', text:'walked the hallway behind The Drift without looking back and won the Rose Shard', line:'You walked the hallway behind The Drift and never looked back. That is the Rose Shard, isn\'t it?'});
   if(state.shards.has('sky')) out.push({id:'shard:sky', big:true, realm:'sky', text:'rang Low Tide on the wind chimes and won the Cyan Shard', line:'They say the chimes on the highest isle played Low Tide for you. The Cyan Shard!'});
   if(state.shards.size >= 1 && !H.won) out.push({id:'meridian:units', big:true, realm:'hub', text:'has grey Meridian Units standing about wherever the Hunt takes them', line:'Careful. Since you found that shard, Meridian Logistics has grey Units standing about wherever the Hunt goes. All the same face, numbers starting with nine. They want the Seed for themselves.'});   // Goal 18
+  if(state.shards.size >= 3 && !H.won && !H.field) out.push({id:'meridian:field-up', big:true, realm:'hub', text:'holds all three shards, and Meridian has thrown a dome of glass over the Citadel on Ashfall to keep them out', line:'They say the glass over the Citadel only gives way to glass. Someone mentioned a jar in the Hoard under the dunes.'});   // the field's rule, as a hint (same test as fieldUp, which is defined further down)
   if(H.field) out.push({id:'meridian:field', big:true, realm:'ashfall', text:'broke Meridian\'s glass dome over the Citadel on Ashfall with the Architect\'s own Bell Jar', line:'They say you broke Meridian\'s dome over the Citadel with Lyle\'s own Bell Jar. Glass gives way only to glass!'});
   if(H.blackout) out.push({id:'meridian:blackout', big:true, realm:'ashfall', text:H.blackout.breath ? 'lived through Meridian\'s Blackout on Ashfall: The Second Breath broke and they breathed again' : 'was zeroed out by Meridian\'s Blackout on Ashfall with every Unit there, and walked back in',
     line:H.blackout.breath ? 'Meridian set off the Blackout and every avatar on Ashfall went dark, and you just breathed again? Their whole army is gone and you are still standing!' : 'The Blackout zeroed out everyone on Ashfall, you and Meridian\'s whole army too. Only you came back. Go and finish it.'});
@@ -14917,10 +14919,10 @@ function merSync(){
     if(P.shield) mer.walls.push({kind:'shield', i, x:P.x, z:P.z, r:MERIDIAN.shieldR, top:P.y + 8.8}); });
 }
 // the player against the glass (from update's walking step): the dome always holds; a shield holds unless your own Bell Jar is down over you
-function merBlock(nx, nz){
+function merBlock(nx, nz, m){   // m: how far to keep off (the avatar 0.35, the hoverbike 0.9)
   if(!mer || pocketIn() || !mer.walls.length) return null;
   let hit = null; const jar = jarUp();
-  for(const w of mer.walls){ if(w.kind === 'shield' && jar) continue; if(p.y > w.top) continue; const lim = w.r + 0.35, dx = nx - w.x, dz = nz - w.z, d = Math.hypot(dx, dz);
+  for(const w of mer.walls){ if(w.kind === 'shield' && jar) continue; if(p.y > w.top) continue; const lim = w.r + (m || 0.35), dx = nx - w.x, dz = nz - w.z, d = Math.hypot(dx, dz);
     if(d < lim){ const e = d > 1e-4 ? 1 / d : 0; nx = w.x + (e ? dx * e : 1) * lim; nz = w.z + (e ? dz * e : 0) * lim; hit = w; } }
   if(hit && playing && !zeroing) merTouch(hit);
   return hit ? [nx, nz] : null;
