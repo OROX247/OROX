@@ -248,6 +248,16 @@ body.paused #joy, body.paused #jumpBtn{ display:none; }
 #knob{ position:absolute; left:50%; top:50%; width:52px; height:52px; margin:-26px 0 0 -26px; border-radius:50%; background:rgba(92,225,230,.55); }
 #jumpBtn{ right:28px; bottom:calc(env(safe-area-inset-bottom,0px) + 44px); width:84px; height:84px; border-radius:50%;
   background:rgba(255,79,163,.8); border:none; color:#fff; font:700 16px 'Chakra Petch','Trebuchet MS',sans-serif; }
+/* Goal 16: the fight button (touch screens, in realms with monsters) and the target bar */
+#strikeBtn{ display:none; position:fixed; z-index:4; touch-action:none; right:36px; bottom:calc(env(safe-area-inset-bottom,0px) + 140px); width:68px; height:68px; border-radius:50%;
+  background:rgba(92,225,230,.78); border:none; color:#0b1020; font:700 13px 'Chakra Petch','Trebuchet MS',sans-serif; }
+@media (pointer:coarse){ body.mon-on #strikeBtn{ display:block; } }
+body.paused #strikeBtn{ display:none !important; }
+#monBar{ position:fixed; left:50%; top:calc(env(safe-area-inset-top,0px) + 14px); transform:translateX(-50%); z-index:3; min-width:180px; padding:6px 12px 8px; border-radius:10px;
+  background:rgba(10,9,28,.62); border:1px solid rgba(255,90,110,.5); color:#ffd7dc; font:600 13px 'Chakra Petch','Trebuchet MS',sans-serif; text-align:center; pointer-events:none; }
+#monBar[hidden]{ display:none; }
+#monBar .mb{ height:6px; margin-top:4px; border-radius:3px; background:rgba(255,255,255,.12); overflow:hidden; }
+#monBar .mb i{ display:block; height:100%; width:100%; background:linear-gradient(90deg,#ff3b4e,#ff9a5c); transition:width .12s; }
 @media (prefers-reduced-motion: reduce){ #toast,#fade,.xpbar i,.hpbar i,#hurtFx,#zeroFx{ transition:none; } #statPanel.bump,#idPanel.hurt{ animation:none; } }
 #bcast{ position:fixed; inset:0; z-index:9; pointer-events:none; }
 #bcast[hidden]{ display:none; }
@@ -306,7 +316,7 @@ body.bcast #hud, body.bcast #corner, body.bcast #roomCard, body.bcast #toast{ vi
     <div class="avatar-made"><img id="avatarPortrait" alt="Your avatar's portrait" width="48" height="48" hidden><p class="lede" id="avatarState">Any species, size or style. Watch it appear on the left.</p></div>
     <div class="swatch-row"><span>Suit</span><span class="swatches" id="suitSw"></span></div>
     <div class="swatch-row"><span>Glow</span><span class="swatches" id="visorSw"></span></div>
-    <p class="controls mouse-only">WASD to move, Shift to run, Space to jump and Space again mid-air to boost. Drag to look, scroll to zoom. M warp, E ride / shop / vend (and read, ask and inspect in the Archive, south of the plaza), F Worldsmith (describe a realm and it is built; it goes on forever, with landmarks invented as you walk), I inventory, J Explorer Log (every star on the Warp map is a planet), V camera, C cinematic, N sound, Esc this panel. A VR button appears when a headset is connected.</p>
+    <p class="controls mouse-only">WASD to move, Shift to run, Space to jump and Space again mid-air to boost. Drag to look, scroll to zoom. M warp, E ride / shop / vend (and read, ask and inspect in the Archive, south of the plaza), F Worldsmith (describe a realm and it is built; it goes on forever, with landmarks invented as you walk), X fight back (a pulse where tech works, a ward where only magic does), I inventory, J Explorer Log (every star on the Warp map is a planet), V camera, C cinematic, N sound, Esc this panel. A VR button appears when a headset is connected.</p>
     <p class="controls touch-only">Left stick to move, Jump twice to boost, drag anywhere else to look. Warp is top right.</p>
     <button class="ghost" id="ledgerBtn" style="margin:0 0 10px">The Ashcombe Ledger</button>
     <button class="start" id="startBtn">Enter the Hub</button>
@@ -475,6 +485,8 @@ body.bcast #hud, body.bcast #corner, body.bcast #roomCard, body.bcast #toast{ vi
 <div id="loading" style="position:fixed;inset:0;display:grid;place-items:center;background:#07061a;z-index:20;font-size:18px;color:#b9b2e0">Building worlds…</div>
 <div id="joy"><div id="knob"></div></div>
 <button id="jumpBtn">Jump</button>
+<button id="strikeBtn" aria-label="Fight back (X)">Pulse</button>
+<div id="monBar" hidden><b id="monName"></b><div class="mb"><i id="monFill"></i></div></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
@@ -2943,14 +2955,15 @@ const state = {
   fuel: Math.min(100, Math.max(0, num(sv.fuel, 100))),  // the hoverbike tank, 0-100 (FUEL_MAX), shared by the bike in every realm
   enrolled: !!sv.enrolled,                               // enrolled at Campus (Goal 8): warps to and from Campus cost nothing
   archive: {ledger:!!(sv.archive && sv.archive.ledger), rooms:new Set(arr(sv.archive && sv.archive.rooms).filter(n => n >= 0 && n < 6)), found:new Set(arr(sv.archive && sv.archive.found).filter(n => n >= 0 && n < 6)), broadcast:!!(sv.archive && sv.archive.broadcast)},   // Goal 9 (+ Goal 10: the Broadcast seen): the Ledger taken, rooms visited, hidden details found
-  qp: (sv.qp && typeof sv.qp === 'object' && !Array.isArray(sv.qp)) ? sv.qp : {},   // Goal 15: quest portal wins, tries, best time per realm (cleaned by qpClean)
+  qp: (sv.qp && typeof sv.qp === 'object' && !Array.isArray(sv.qp)) ? sv.qp : {},
+  kills: (k => ({n:Math.max(0, Math.floor(num(k && k.n, 0))), by:Object.fromEntries(Object.entries(k && k.by && typeof k.by === 'object' ? k.by : {}).filter(e => /^[a-z]{2,8}$/.test(e[0])).map(e => [e[0], Math.max(0, Math.floor(num(e[1], 0)))])), first:k && k.first && typeof k.first.realm === 'string' && /^[a-z]{2,8}$/.test(k.first.realm) ? {realm:k.first.realm, t:num(k.first.t, 0)} : null}))(sv.kills),   // Goal 16: monsters seen off, in all and per realm, and where the first was   // Goal 15: quest portal wins, tries, best time per realm (cleaned by qpClean)
   hunt: {door:!!(sv.hunt && sv.hunt.door), rallyBest:num(sv.hunt && sv.hunt.rallyBest, 0), rallyPlays:num(sv.hunt && sv.hunt.rallyPlays, 0), hoard:!!(sv.hunt && sv.hunt.hoard), rose:!!(sv.hunt && sv.hunt.rose), roseTries:num(sv.hunt && sv.hunt.roseTries, 0), cyan:!!(sv.hunt && sv.hunt.cyan),
     gates:[0, 1, 2].map(i => !!(sv.hunt && Array.isArray(sv.hunt.gates) && sv.hunt.gates[i])), won:!!(sv.hunt && sv.hunt.won), starBest:num(sv.hunt && sv.hunt.starBest, 0), g1Tries:num(sv.hunt && sv.hunt.g1Tries, 0), starPlays:num(sv.hunt && sv.hunt.starPlays, 0), g3Tries:num(sv.hunt && sv.hunt.g3Tries, 0)}   // Goal 14: the three gates opened, the Seed won, the Starling high score, tries   // Goal 11: the Hollow's door opened, the Comet Rally high score and plays, the hoard chest taken (+ Goal 12: rose, roseTries; Goal 13: cyan, the chimes sung)
 };
 // state.recipe is filled in once the recipe schema below is defined (see loadRecipe)
 function persist(){
   try{ localStorage.setItem(SAVE_KEY, JSON.stringify({coins:[...state.coins], shards:[...state.shards], visited:[...state.visited],
-    name:state.name, color:state.color, visor:state.visor, xp:state.xp, credits:state.credits, won:state.won, look:state.look, lookSeed:state.lookSeed, lookPath:state.lookPath, recipe:state.recipe, owned:[...state.owned], mute:state.mute, best:state.best, inv:state.inv, picked:[...state.picked], fuel:Math.round(state.fuel * 10) / 10, enrolled:state.enrolled, archive:{ledger:state.archive.ledger, rooms:[...state.archive.rooms], found:[...state.archive.found], broadcast:state.archive.broadcast}, hunt:state.hunt, qp:state.qp})); }catch(e){}
+    name:state.name, color:state.color, visor:state.visor, xp:state.xp, credits:state.credits, won:state.won, look:state.look, lookSeed:state.lookSeed, lookPath:state.lookPath, recipe:state.recipe, owned:[...state.owned], mute:state.mute, best:state.best, inv:state.inv, picked:[...state.picked], fuel:Math.round(state.fuel * 10) / 10, enrolled:state.enrolled, archive:{ledger:state.archive.ledger, rooms:[...state.archive.rooms], found:[...state.archive.found], broadcast:state.archive.broadcast}, hunt:state.hunt, qp:state.qp, kills:state.kills})); }catch(e){}
 }
 function rng(seed){ return function(){ seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
 function makeNoise(seed){
@@ -7173,6 +7186,7 @@ function coreSum(detail){
   if(shardObj) [shardObj.m, shardObj.beam, shardObj.l, shardObj.gl].forEach(o => { if(o) skip.add(o); });
   if(chimes){ skip.add(chimes.g); if(chimes.shard){ skip.add(chimes.shard.m); skip.add(chimes.shard.gl); } }   // the chimes sway in the wind
   qpList.forEach(q => skip.add(q.g)); if(qa) skip.add(qa.g);   // Goal 15: the quest portal and its arena are added after the core
+  if(mon && mon.root) skip.add(mon.root);   // Goal 16: monsters move (and their loot comes and goes)
   if(trial.pad) skip.add(trial.pad); trial.rings.forEach(rg => { if(rg.g) skip.add(rg.g); if(rg.m) skip.add(rg.m); });
   if(detail){ const list = []; sumObject(world, skip, list); return list; }
   return {world:sumObject(world, skip), terrain:mainTerrain ? hashNums(2166136261, mainTerrain.geometry.attributes.position.array, 7).toString(16) : null, centre:mainTerrain ? [mainTerrain.userData.terrain.cx, mainTerrain.userData.terrain.cz] : null};
@@ -7818,6 +7832,7 @@ function buildWorld(key){
   if(key === 'sky') buildChimes();   // Goal 13: the wind chimes on the highest isle go up after everything is placed; they draw no rng
   if(key === 'hub') buildArchive();   // Goal 9: the Archive goes up after every coin, NPC, pickup and the vendor are placed, so none of them moves
   addQuestPortal(key);   // Goal 15: the realm's quest portal goes up last, at a fixed spot clear of everything above; it draws no rng
+  monBuild(key);   // Goal 16: the realm's monsters come last of all: their own rng, no colliders, nothing above moves
   bundles.forEach(b => { b.g = null; if(b.world === key) addBundleMesh(b); });
   if(ENDLESS[key] && !W.custom) startBuiltin(key);   // no boundaries (Goal 8a): the land goes on past the hand-made core
   applyPhotos(key); autoReal(key);
@@ -8399,6 +8414,19 @@ const ITEMS = {
   'sky-feather':    {name:'Skyglass Feather', rarity:'uncommon', value:16, shape:'gem', col:0xbff4ff, desc:'Shed by something that never lands.'},
   'stormglass-idol':{name:'Stormglass Idol', rarity:'epic', value:120, shape:'gem', col:0x6a8cff, desc:'Old Sky Isles craft. Nobody knows who made it.'},
   'honour-pin':     {name:'Honour Pin', rarity:'uncommon', value:12, shape:'gem', col:0xffd166, desc:'Pinned on in the Lesson Hall on Campus, for a lesson well learned.'},   // Goal 15: the Lesson Hall's first-clear prize
+  // Goal 16: monster loot, one set per realm (MON[realm].loot gives the drop chances; credits drop as well)
+  'wraith-dust':    {name:'Wraith Dust', rarity:'common', value:4, shape:'orb', col:0xe8c48a, desc:'A pinch of the sand a wraith was made of. Still warm.'},
+  'ember-glass':    {name:'Ember Glass', rarity:'uncommon', value:14, shape:'gem', col:0xff9a3c, desc:'Glass a wraith\'s glare fused out of the sand.'},
+  'wraith-heart':   {name:'Wraith Heart', rarity:'rare', value:40, shape:'orb', col:0xffb347, desc:'The amber knot that held a sand wraith together.'},
+  'drone-cell':     {name:'Drone Cell', rarity:'common', value:5, shape:'coil', col:0xff4fa3, desc:'A spent power cell from a grid drone.'},
+  'optic-lens':     {name:'Drone Optic', rarity:'uncommon', value:15, shape:'orb', col:0x5ce1e6, desc:'A grid drone\'s eye. It still tries to focus on you.'},
+  'drone-core':     {name:'Patrol Core', rarity:'rare', value:42, shape:'chip', col:0xb14cff, desc:'The little brain that flew a grid drone on its rounds.'},
+  'stalker-thorn':  {name:'Stalker Thorn', rarity:'common', value:5, shape:'gem', col:0xd8d2b8, desc:'A spine shed from a grove stalker\'s back.'},
+  'shade-pelt':     {name:'Shade Pelt', rarity:'uncommon', value:16, shape:'chip', col:0x4a5a48, desc:'Bark-dark hide that drinks the moonlight.'},
+  'moonfang':       {name:'Moonfang', rarity:'rare', value:44, shape:'gem', col:0x9dffb0, desc:'A stalker\'s glowing tooth. Grove folk wear them for luck.'},
+  'harpy-plume':    {name:'Harpy Plume', rarity:'common', value:4, shape:'gem', col:0xf2f6ff, desc:'A long white feather, light as a breath.'},
+  'gale-quill':     {name:'Gale Quill', rarity:'uncommon', value:14, shape:'gem', col:0x9fd0ff, desc:'A flight feather that hums in a crosswind.'},
+  'sky-pearl':      {name:'Cloud Pearl', rarity:'rare', value:38, shape:'orb', col:0xe8f4ff, desc:'Harpies line their nests with these. Nobody knows where they find them.'},
   // consumables (Goal 7), sold by the vending terminal in every realm (VEND). use() returns false when it would be wasted.
   'health-kit':     {name:'Health Kit', rarity:'common', value:6, shape:'chip', col:0xff5a6e, desc:'Restores 50 HP, up to your maximum.', use(){
     const m = maxHp(); if(zeroing || state.hp <= 0) return false;
@@ -9569,6 +9597,7 @@ window.addEventListener('keydown', e => {
   if(e.code === 'KeyI'){ openInventory(); return; }
   if(e.code === 'KeyJ'){ e.preventDefault(); openXlog(); return; }
   if(e.code === 'KeyF'){ e.preventDefault(); openForge(); return; }
+  if(e.code === 'KeyX'){ e.preventDefault(); if(!e.repeat) monAttack(); return; }   // Goal 16: fight back (pulse, ward or strike, by the realm's rules)
   if(e.code === 'KeyE'){ interactKey(); return; }
   if(e.code === 'KeyN'){ setMute(snd.on); return; }
   if(e.code === 'KeyV'){ cycleView(); return; }
@@ -9617,6 +9646,7 @@ joyEl.addEventListener('pointermove', e => { if(e.pointerId === joyId) joyMove(e
 const joyEnd = e => { if(e.pointerId !== joyId) return; joyId = null; joy.x = joy.y = 0; knob.style.transform = ''; };
 joyEl.addEventListener('pointerup', joyEnd); joyEl.addEventListener('pointercancel', joyEnd);
 $('#jumpBtn').addEventListener('pointerdown', e => { jumpBuffer = 0.15; e.preventDefault(); });
+$('#strikeBtn').addEventListener('pointerdown', e => { monAttack(); e.preventDefault(); });   // Goal 16
 
 /* ================= travel ================= */
 let traveling = false, portalCool = 0;
@@ -9672,6 +9702,7 @@ function drawMap(){
   bundles.forEach(bb => { if(bb.world === state.world) star(bb.x, bb.z, '#ff9f1c'); });
   if(endless) for(const ch of endless.chunks.values()){ const d = ch.dream; if(d && d.x != null) star(d.x, d.z, d.found ? 'rgba(177,140,255,0.45)' : '#b18cff'); }   // landmarks nearby: violet, faded once found
   const tip = T(p.x + Math.sin(p.facing) * 2.4, p.z + Math.cos(p.facing) * 2.4), ang = Math.atan2(tip[1] - c, tip[0] - c);
+  monMap(T, sc);   // Goal 16: monsters (red when hunting you) and their loot
   mx2.translate(c, c); mx2.rotate(ang); mx2.fillStyle = '#fff'; mx2.beginPath(); mx2.moveTo(9, 0); mx2.lineTo(-6, -6); mx2.lineTo(-3, 0); mx2.lineTo(-6, 6); mx2.fill();
   mx2.restore();
   mx2.strokeStyle = 'rgba(92,225,230,0.7)'; mx2.lineWidth = 2; mx2.beginPath(); mx2.arc(c, c, c - 1.5, 0, TAU); mx2.stroke();
@@ -10236,6 +10267,14 @@ function sfx(name){
       case 'ui': tone('square', 1200, 1200, 0.04, 0.03); break;
       case 'rumble': tone('sawtooth', 48, 34, 2.8, 0.09); noiseHit(180, 0.5, 2.8, 0.22, t, 70); break;
       case 'thud': tone('sine', 110, 60, 0.18, 0.2); noiseHit(260, 1, 0.1, 0.08); break;
+      // Goal 16: fighting
+      case 'pulse': tone('sawtooth', 1500, 320, 0.16, 0.05); tone('sine', 900, 1800, 0.08, 0.04); noiseHit(3200, 2, 0.07, 0.04); break;
+      case 'ward': tone('sine', 520, 1040, 0.4, 0.09); tone('triangle', 780, 1560, 0.34, 0.05, t + 0.03); noiseHit(1400, 0.6, 0.3, 0.05, t, 4200); break;
+      case 'swing': noiseHit(900, 0.8, 0.16, 0.09, t, 260); break;
+      case 'mhit': tone('square', 230, 110, 0.09, 0.05); noiseHit(1800, 1.2, 0.07, 0.07); break;
+      case 'mdie': tone('triangle', 660, 110, 0.5, 0.09); noiseHit(700, 0.6, 0.5, 0.11, t, 120); break;
+      case 'mwind': if(w === 'grid') tone('sine', 300, 1700, 0.7, 0.045); else if(w === 'grove') tone('sawtooth', 70, 110, 0.5, 0.05); else noiseHit(500, 0.7, 0.55, 0.06, t, 1600); break;
+      case 'zap': tone('sawtooth', 1900, 180, 0.22, 0.06); noiseHit(4200, 1, 0.16, 0.07); break;
       case 'step': { const soft = w === 'dunes' || w === 'sky' || w === 'grove' || w === 'campus'; noiseHit(soft ? 340 : w === 'grid' ? 2100 : 800, soft ? 0.7 : 2.5, soft ? 0.07 : 0.045, soft ? 0.045 : 0.035); break; }
     }
   }catch(e){}
@@ -11575,6 +11614,602 @@ function chimePick(cx, cy){
   canvas.addEventListener('pointerdown', e => { down = {x:e.clientX, y:e.clientY, t:performance.now()}; });
   canvas.addEventListener('pointerup', e => { const d = down; down = null; if(d && Math.hypot(e.clientX - d.x, e.clientY - d.y) < 6 && performance.now() - d.t < 500) chimePick(e.clientX, e.clientY); }); }
 
+/* ================= Goal 16: monsters per realm, with loot (blueprint 6 and 8) =================
+   One monster type per realm, each in that realm's own look: sand wraiths (Glass Dunes), grid drones (Neon Grid), grove stalkers (Night Grove),
+   sky harpies (Sky Isles). Hub Spaceport, Campus and Ashfall have none (Ashfall waits for the Meridian Units, Goal 18); forged realms and planets have none yet.
+   Rules: a monster is hostile exactly where its realm's rules say danger. Sky Isles is danger:false, so its harpies are wildlife: they wheel round the isles,
+   never chase and never strike, and when you hit one it flees. Damage to the player only ever goes through hurt(), which does nothing in a safe realm anyway.
+   Placement: the core's spawn points come from their own rng(seed * 97 + 61) and are chosen after everything else in buildWorld (they draw nothing from the realm's
+   rng and add no colliders), so no coin, NPC, pickup or prop moves; the endless outskirts get 0-2 spawn points per cell from cellSeed(key, cx, cz, 61).
+   Every spawn point keeps clear of the safe spots (arrival and portals, vendors, Outfitters, the Worldsmith stand, the trial pad, quest portals and the arena column,
+   the Hollow's door, The Drift and its porch, the wind chimes) by more than its patrol ring, and a moving monster is pushed back out of any safe circle,
+   so none ever stands in one. The pockets (the Hollow, the hallway behind The Drift, quest arenas) are underground or far below: monsters stay on the surface,
+   and while you are in a pocket or a safe circle they lose interest and walk home.
+   Drawing: every body part of a kind is one InstancedMesh shared by all its live monsters (a wraith is 9 draws however many there are), the glows, sand and sparks
+   are one Points draw, beams one more. At most MON_CAP are live; spawns further than MON_ACT wait unbuilt. No lights. */
+const MON = {
+  dunes:{kind:'wraith', name:'Sand Wraith', plural:'sand wraiths', verb:'see off', hp:45, dmg:12, walk:1.7, run:4.3, aggro:15, leash:26, patrol:7, reach:1.9, wind:0.6, cool:1.7, xp:12, credits:[4, 9], rad:0.6, size:1.4, col:0xffb347,
+    loot:[['wraith-dust', 0.5], ['ember-glass', 0.17], ['wraith-heart', 0.04]], gossip:'I heard you saw off a sand wraith out on the dunes. They say their eyes keep burning after the sand falls.'},
+  grid:{kind:'drone', name:'Grid Drone', plural:'grid drones', verb:'switch off', hp:40, dmg:10, walk:2.6, run:5.2, aggro:18, leash:28, patrol:9, reach:7.5, wind:0.8, cool:2.3, xp:12, credits:[5, 10], rad:0.9, size:1.3, col:0xff4fa3,
+    loot:[['drone-cell', 0.5], ['optic-lens', 0.17], ['drone-core', 0.04]], gossip:'You switched off one of those patrol drones? Good. They kept zapping my stall lights.'},
+  grove:{kind:'stalker', name:'Grove Stalker', plural:'grove stalkers', verb:'drive off', hp:55, dmg:14, walk:2.0, run:6.0, aggro:14, leash:24, patrol:7, reach:2.3, wind:0.55, cool:1.9, xp:15, credits:[5, 11], rad:0.6, size:1, col:0x9dffb0,
+    loot:[['stalker-thorn', 0.5], ['shade-pelt', 0.17], ['moonfang', 0.04]], gossip:'A grove stalker, and you drove it off with nothing but moonlight? The whole grove is whispering.'},
+  sky:{kind:'harpy', name:'Sky Harpy', plural:'sky harpies', verb:'chase off', hp:35, dmg:9, walk:4.2, run:7.5, aggro:16, leash:34, patrol:15, reach:2.4, wind:0.6, cool:2.2, xp:8, credits:[3, 7], rad:0.8, size:1.4, col:0xbff4ff, fly:true,
+    loot:[['harpy-plume', 0.55], ['gale-quill', 0.17], ['sky-pearl', 0.04]], gossip:'They say you shooed a harpy off the isles. They only ever wanted the shiny things, you know.'}
+};
+const MON_CAP = 8, MON_CORE_N = 5, MON_ACT = 95, MON_RESPAWN = 45, MON_CELL_RESPAWN = 75;
+// the player's attack, by the realm's rules: tech realms fire a pulse, magic-but-no-tech realms (Night Grove) cast a ward round you, anything else is a plain strike
+const ATK = {pulse:{label:'Pulse', cool:0.42, dmg:20, range:24}, ward:{label:'Moon Ward', cool:0.8, dmg:18, range:5}, strike:{label:'Strike', cool:0.5, dmg:16, range:2.7}};
+const atk = {cool:0, anim:0, mode:'pulse', bolts:[], shots:0};
+let mon = null, monDropSeq = 0;
+const fxR = rng(4242);   // sparks and dust only: never Math.random, so the NPCs' wander (which draws from Math.random) is the same with or without monsters
+// three.js draws Math.random for every new object's uuid; monsters and their loot are built with it pointed at fxR, so they leave the NPCs' sequence alone
+function noRandom(f){ const mr = Math.random; Math.random = fxR; try{ return f(); } finally{ Math.random = mr; } }
+const monKills = k => num(state.kills.by[k], 0);
+const monHostile = key => !!(MON[key] && WORLDS[key] && WORLDS[key].rules.danger);
+function atkMode(){ const R = (WORLDS[state.world] || {}).rules || {}; return R.tech ? 'pulse' : R.magic ? 'ward' : 'strike'; }
+
+// ---- shapes ----
+const monLathe = (pts, seg, ps, pl) => new THREE.LatheGeometry(pts.map(a => new V2(a[0], a[1])), seg, ps || 0, pl || TAU);
+// blown-sand ripple: push the surface in and out by angle and height (whole cycles round the lathe, so no seam)
+function monSwirl(g, k){ const a = g.attributes.position; for(let i = 0; i < a.count; i++){ const x = a.getX(i), y = a.getY(i), z = a.getZ(i), an = Math.atan2(x, z), f = 1 + k * (Math.sin(an * 3 + y * 6) * 0.6 + Math.sin(an * 7 - y * 11) * 0.4) * smooth(0, 0.3, y); a.setXYZ(i, x * f, y, z * f); } g.computeVertexNormals(); return g; }
+// a tube along a curve whose radius tapers from r0 to r1 (limbs, tails, horns, sleeves); the normals stay radial
+function taperTube(pts, r0, r1, seg, rad){
+  const cv = new THREE.CatmullRomCurve3(pts.map(a => new V3(a[0], a[1], a[2]))), g = new THREE.TubeGeometry(cv, seg, 1, rad, false), a = g.attributes.position, c = new V3();
+  for(let i = 0; i <= seg; i++){ cv.getPointAt(i / seg, c); const s = r0 + (r1 - r0) * Math.pow(i / seg, 0.85); for(let j = 0; j <= rad; j++){ const k = i * (rad + 1) + j; a.setXYZ(k, c.x + (a.getX(k) - c.x) * s, c.y + (a.getY(k) - c.y) * s, c.z + (a.getZ(k) - c.z) * s); } }
+  return g;
+}
+// a left-hand copy of a right-hand part: x mirrored, winding reversed so the faces still point outwards
+function mirrorX(g){ const o = g.clone(), a = o.attributes.position, n = o.attributes.normal; for(let i = 0; i < a.count; i++){ a.setX(i, -a.getX(i)); if(n) n.setX(i, -n.getX(i)); }
+  if(o.index){ const ix = o.index.array; for(let i = 0; i < ix.length; i += 3){ const t = ix[i + 1]; ix[i + 1] = ix[i + 2]; ix[i + 2] = t; } } return o; }
+// vertex colours from a function of position and normal (linear colours, for materials with vertexColors)
+function monPaint(g, f){ const a = g.attributes.position, n = g.attributes.normal, c = new Float32Array(a.count * 3); for(let i = 0; i < a.count; i++){ const v = f(a.getX(i), a.getY(i), a.getZ(i), n ? n.getX(i) : 0, n ? n.getY(i) : 1, n ? n.getZ(i) : 0); c[i * 3] = v.r; c[i * 3 + 1] = v.g; c[i * 3 + 2] = v.b; } g.setAttribute('color', new THREE.BufferAttribute(c, 3)); return g; }
+const monTint = (g, hex) => { const c = C(hex); return monPaint(g, () => c); };
+const monAt = (g, x, y, z, rx, ry, rz, s) => { g.applyMatrix4(mat4(x, y, z, rx, ry, rz, s == null ? 1 : s)); return g; };
+
+// ---- instanced parts: every part of a kind is one InstancedMesh for all live monsters ----
+const _mE = new THREE.Euler(0, 0, 0, 'YXZ'), _mQ = new THREE.Quaternion(), _mP = new V3(), _mS = new V3(), _mCol = new THREE.Color();
+// out = parent * T(x, y, z) R(yaw ry, pitch rx, roll rz) S
+function mx(out, par, x, y, z, rx, ry, rz, s, sy, sz){ _mE.set(rx || 0, ry || 0, rz || 0, 'YXZ'); _mQ.setFromEuler(_mE); _mP.set(x, y, z); const S = s == null ? 1 : s; _mS.set(S, sy == null ? S : sy, sz == null ? S : sz); out.compose(_mP, _mQ, _mS); if(par) out.premultiply(par); return out; }
+function monPart(K, name, geo, mat, n, o){
+  o = o || {}; n = n || 1; const N = MON_CAP * n, m = new THREE.InstancedMesh(geo, mat, N);
+  m.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(N * 3).fill(1), 3); m.count = 0; m.frustumCulled = false;
+  m.castShadow = o.cast !== false; m.receiveShadow = o.recv !== false; if(o.noAO) m.userData.noAO = true; if(o.order != null) m.renderOrder = o.order; m.layers.set(1); m.name = 'mon:' + name;
+  mon.root.add(m); K.parts[name] = {m, n, k:0}; return m;
+}
+function monPut(K, name, j, M, bright){ const P = K.parts[name]; if(!P) return; const i = P.slot * P.n + j; P.m.setMatrixAt(i, M); const b = bright == null ? 1 : bright; _mCol.setRGB(b, b, b); P.m.setColorAt(i, _mCol); }
+
+// ---- the glow layer: eyes, sand, thrusters, sparks and bolts in one Points draw ----
+const MON_FX = 1200;
+function monFxMake(){
+  const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(MON_FX * 3), 3)); geo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(MON_FX * 3), 3));
+  geo.setAttribute('size', new THREE.BufferAttribute(new Float32Array(MON_FX), 1)); geo.setAttribute('op', new THREE.BufferAttribute(new Float32Array(MON_FX), 1));
+  const mat = new THREE.ShaderMaterial({uniforms:{map:{value:glowTex}, scale:{value:600}}, transparent:true, depthWrite:false, blending:THREE.AdditiveBlending, vertexColors:true,
+    vertexShader:'attribute float size; attribute float op; varying vec3 vC; varying float vO; uniform float scale; void main(){ vC = color; vO = op; vec4 mv = modelViewMatrix * vec4(position, 1.0); gl_PointSize = min(size * scale / max(-mv.z, 0.05), 300.0); gl_Position = projectionMatrix * mv; }',
+    fragmentShader:'uniform sampler2D map; varying vec3 vC; varying float vO; void main(){ vec4 t = texture2D(map, gl_PointCoord); gl_FragColor = vec4(vC * t.rgb, t.a * vO); }'});
+  const pts = new THREE.Points(geo, mat); pts.frustumCulled = false; pts.layers.set(1); pts.renderOrder = 5; pts.name = 'mon:fx'; geo.setDrawRange(0, 0); mon.root.add(pts);
+  return {pts, geo, n:0, parts:[]};
+}
+function fxDot(x, y, z, size, col, op){ const F = mon.fx; if(F.n >= MON_FX) return; const i = F.n++, g = F.geo.attributes; g.position.array[i * 3] = x; g.position.array[i * 3 + 1] = y; g.position.array[i * 3 + 2] = z;
+  g.color.array[i * 3] = col.r; g.color.array[i * 3 + 1] = col.g; g.color.array[i * 3 + 2] = col.b; g.size.array[i] = size; g.op.array[i] = op; }
+// a short-lived particle: drifts, falls (grav), fades
+function fxBurst(x, y, z, n, col, o){ if(!mon) return; o = o || {}; const F = mon.fx, c = C(col);
+  for(let i = 0; i < n && F.parts.length < 500; i++){ const a = fxR() * TAU, u = fxR() * 2 - 1, s = (o.speed || 3) * (0.4 + fxR() * 0.8), h = Math.sqrt(1 - u * u);
+    F.parts.push({x, y, z, vx:Math.cos(a) * h * s, vy:u * s * (o.flat ? 0.3 : 1) + (o.up || 0), vz:Math.sin(a) * h * s, life:(o.life || 0.6) * (0.6 + fxR() * 0.6), t:0, size:(o.size || 0.12) * (0.6 + fxR() * 0.8), c, op:o.op || 0.9, grav:o.grav == null ? 4 : o.grav, drag:o.drag || 1.5}); } }
+function fxFlush(dt){
+  const F = mon.fx;
+  for(let i = F.parts.length - 1; i >= 0; i--){ const q = F.parts[i]; q.t += dt; if(q.t >= q.life){ F.parts.splice(i, 1); continue; }
+    const k = Math.exp(-dt * q.drag); q.vx *= k; q.vz *= k; q.vy = q.vy * k - q.grav * dt; q.x += q.vx * dt; q.y += q.vy * dt; q.z += q.vz * dt;
+    fxDot(q.x, q.y, q.z, q.size, q.c, q.op * (1 - q.t / q.life)); }
+  const g = F.geo.attributes; F.geo.setDrawRange(0, F.n); ['position', 'color', 'size', 'op'].forEach(k => { g[k].needsUpdate = true; g[k].updateRange.count = -1; });
+  F.n = 0;
+  const hgt = renderer.getDrawingBufferSize(_cellV2).y; F.pts.material.uniforms.scale.value = hgt / (2 * Math.tan(camera.fov * Math.PI / 360));
+}
+// beams: a drone's zap and its aiming line (one instanced core and one sheath)
+function monBeamMake(){
+  const geo = new THREE.CylinderGeometry(1, 1, 1, 10, 1, true), mk2 = (col, op) => { const m = new THREE.InstancedMesh(geo, new THREE.MeshBasicMaterial({color:C(col), transparent:true, opacity:op, depthWrite:false, blending:THREE.AdditiveBlending, toneMapped:false}), MON_CAP * 2);
+    m.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(MON_CAP * 6).fill(1), 3); m.count = 0; m.frustumCulled = false; m.castShadow = false; m.layers.set(1); m.renderOrder = 6; mon.root.add(m); return m; };
+  return {core:mk2(0xffe6f4, 0.95), sheath:mk2(0xff4fa3, 0.4), n:0};
+}
+const _bA = new V3(), _bB = new V3(), _bQ = new THREE.Quaternion(), _bY = new V3(0, 1, 0), _bM = new THREE.Matrix4();
+function monBeam(ax, ay, az, bx, by, bz, w, b){
+  const B = mon.beam; if(B.n >= MON_CAP * 2) return; _bA.set(ax, ay, az); _bB.set(bx - ax, by - ay, bz - az); const L = _bB.length(); if(L < 0.01) return; _bB.multiplyScalar(1 / L);
+  _bQ.setFromUnitVectors(_bY, _bB); _mP.set(ax + (bx - ax) / 2, ay + (by - ay) / 2, az + (bz - az) / 2);
+  _mS.set(w * 0.3, L, w * 0.3); _bM.compose(_mP, _bQ, _mS); B.core.setMatrixAt(B.n, _bM); _mS.set(w, L, w); _bM.compose(_mP, _bQ, _mS); B.sheath.setMatrixAt(B.n, _bM);
+  _mCol.setRGB(b, b, b); B.core.setColorAt(B.n, _mCol); B.sheath.setColorAt(B.n, _mCol); B.n++;
+}
+
+// ---- where monsters may go ----
+function monSafeList(key){
+  const L = [], add = (x, z, r, why) => L.push({x, z, r, why});
+  portals.forEach(q => add(q.x, q.z, 16, 'portal ' + q.to));   // a portal and the arrival spot in front of it (travel puts you up to 12 m out)
+  if(WORLDS[key] && WORLDS[key].custom) add(0, 14, 10, 'arrival');
+  if(vendor) add(vendor.x, vendor.z, 9, 'vendor'); if(shopKiosk) add(shopKiosk.x, shopKiosk.z, 9, 'outfitters'); if(forgeStand) add(forgeStand.x, forgeStand.z, 9, 'worldsmith');
+  if(trial.padPos) add(trial.padPos.x, trial.padPos.z, 10, 'trial pad');
+  qpList.forEach(q => add(q.x, q.z, 10, 'quest portal')); add(QP_ARENA.x, QP_ARENA.z, 40, 'quest arena');
+  if(hollow && hollow.door) add(hollow.door.x, hollow.door.z, 10, 'hollow door');
+  if(drift) add(drift.x, drift.z, drift.r + DRIFT.porch + 6, 'the drift');
+  if(chimes) add(chimes.x, chimes.z, 8, 'chimes');
+  if(key === 'hub') add(0, 77, 30, 'archive');
+  return L;
+}
+const monInSafe = (x, z, pad) => !!mon && mon.safe.some(s => Math.hypot(x - s.x, z - s.z) < s.r + (pad || 0));
+// the core's spawn points: own rng, chosen after everything in the core is placed
+function monCoreSpawns(key, D){
+  const q = rng(WORLDS[key].seed * 97 + 61), out = [];
+  for(let t = 0; t < 300 && out.length < MON_CORE_N; t++){
+    const a = q() * TAU, d = 18 + q() * 34, h = q(), x = Math.cos(a) * d, z = Math.sin(a) * d;
+    if(monInSafe(x, z, D.patrol + 4) || out.some(s => Math.hypot(s.x - x, s.z - z) < 14)) continue;
+    if(!D.fly && (colliders.some(c => Math.hypot(c.x - x, c.z - z) < c.r + 1.5) || platforms.some(s => s.bottom < 2 && Math.hypot(s.x - x, s.z - z) < s.r + 1.5) || boxes.some(b => b.y0 < 2 && boxOut(x, z, b, 1.5)))) continue;
+    out.push({id:key + ':c' + out.length, x, z, y0:9 + h * 9, core:true});
+  }
+  return out;
+}
+// the outskirts: 0-2 spawn points per cell, a pure function of the cell (memoised)
+function monCellSpawns(cx, cz){
+  const M = mon, k = chunkKey(cx, cz); let o = M.cells.get(k); if(o) return o; o = [];
+  const S = ENDLESS[M.key], q = rng(cellSeed(M.key, cx, cz, 61)), a = q(), n = a < 0.4 ? 0 : a < 0.85 ? 1 : 2;
+  if(S && !cellInCore(cx, cz, S.core)) for(let j = 0; j < 2; j++){ const x = (cx + 0.12 + q() * 0.76) * CHUNK, z = (cz + 0.12 + q() * 0.76) * CHUNK, h = q();
+    if(j >= n || Math.hypot(x, z) < S.core + 8 || monInSafe(x, z, M.def.patrol + 4)) continue;
+    const g = G(x, z); o.push({id:M.key + ':' + k + ':' + j, x, z, y0:(g > -1000 ? Math.max(g, 0) : 0) + 9 + h * 9, cell:k}); }
+  M.cells.set(k, o); if(M.cells.size > 400) M.cells.delete(M.cells.keys().next().value); return o;
+}
+
+// ---- build (last in buildWorld) ----
+function monBuild(key){ return noRandom(() => monBuild0(key)); }
+function monBuild0(key){
+  atk.bolts = []; mon = null; document.body.classList.remove('mon-on'); monBarHide();
+  const D = MON[key], W = WORLDS[key]; if(!D || !W || W.custom || W.planet) return;
+  const root = new THREE.Group(); root.name = 'monsters'; world.add(root);
+  mon = {key, def:D, hostile:monHostile(key), root, kit:null, safe:[], core:[], cells:new Map(), live:[], dead:new Map(), drops:[], refreshT:0, focus:null, focusT:0, told:false, freeze:false, slots:0};
+  mon.safe = monSafeList(key); mon.core = monCoreSpawns(key, D);
+  mon.fx = monFxMake(); mon.beam = monBeamMake();
+  mon.dropG = {coin:new THREE.CylinderGeometry(0.16, 0.16, 0.04, 24), gem:new THREE.OctahedronGeometry(0.2, 0), orb:new THREE.IcosahedronGeometry(0.15, 3), chip:new THREE.BoxGeometry(0.3, 0.06, 0.22), coil:new THREE.TorusGeometry(0.14, 0.05, 12, 32)};
+  mon.dropG.coin.rotateX(Math.PI / 2); mon.dropG.gem.scale(0.8, 1.4, 0.8); mon.goldM = std(0xffc94d, {metalness:1, roughness:0.22, emissive:C(0x8a5a00), emissiveIntensity:0.6});
+  mon.ring = new THREE.Mesh(new THREE.RingGeometry(0.82, 1, 72), new THREE.MeshBasicMaterial({color:C(0xcfe4ff), transparent:true, opacity:0, depthWrite:false, blending:THREE.AdditiveBlending, toneMapped:false, side:THREE.DoubleSide}));
+  mon.ring.rotation.x = -Math.PI / 2; mon.ring.visible = false; mon.ring.layers.set(1); mon.ring.renderOrder = 6; root.add(mon.ring); mon.ringT = -1;
+  mon.kit = MON_KITS[D.kind]();
+  document.body.classList.add('mon-on'); $('#strikeBtn').textContent = ATK[atkMode()].label;
+}
+
+// ---- spawning and the live set ----
+function monSpawn(s){
+  const D = mon.def, r = rng(strHash(s.id));
+  const m = {id:s.id, sp:s, x:s.x, z:s.z, y:0, yaw:r() * TAU, hp:D.hp, max:D.hp, mode:'patrol', tx:s.x, tz:s.z, wait:r() * 2, cool:0, t:r() * 10, flash:0, sc:0, die:0, ph:r() * TAU, r,
+    speed:0, gait:0, wind:0, lunge:0, lx:0, lz:0, rt:0, swell:0, lean:0, roll:0, orb:r() * TAU, vy:0, flee:0, ax:0, ay:0, az:0, zap:0, hit:0};
+  const q = monBlock(m, m.x, m.z); m.x = q[0]; m.z = q[1]; m.y = monFloor(m, true);
+  mon.live.push(m); return m;
+}
+function monRefresh(){
+  const M = mon, cand = M.core.slice();
+  if(endless && endless.builtin === M.key){ const pcx = Math.floor(p.x / CHUNK), pcz = Math.floor(p.z / CHUNK); for(let dz = -2; dz <= 2; dz++) for(let dx = -2; dx <= 2; dx++) for(const s of monCellSpawns(pcx + dx, pcz + dz)) cand.push(s); }
+  const want = cand.filter(s => !(M.dead.get(s.id) > simTime) && Math.hypot(s.x - p.x, s.z - p.z) < MON_ACT).sort((a, b) => Math.hypot(a.x - p.x, a.z - p.z) - Math.hypot(b.x - p.x, b.z - p.z)).slice(0, MON_CAP), ids = new Set(want.map(s => s.id));
+  M.live = M.live.filter(m => m.mode === 'dying' || ids.has(m.id) || ((m.mode === 'chase' || m.mode === 'wind') && Math.hypot(m.x - p.x, m.z - p.z) < MON_ACT));
+  const have = new Set(M.live.map(m => m.id));
+  for(const s of want){ if(M.live.length >= MON_CAP) break; if(!have.has(s.id)) monSpawn(s); }
+}
+
+// ---- moving ----
+function monBlock(m, nx, nz){
+  const D = mon.def, rr = D.rad, y0 = m.y - (D.fly ? 1 : 0), y1 = m.y + (D.fly ? 1 : 1.8);
+  for(const c of colliders){ if(c.hollow) continue; const lim = c.r + rr, dx = nx - c.x, dz = nz - c.z; if(dx > lim || dx < -lim || dz > lim || dz < -lim) continue; if(D.fly && m.y - G(c.x, c.z) > 6) continue;
+    const d = Math.hypot(dx, dz); if(d < lim && d > 1e-4){ nx = c.x + dx / d * lim; nz = c.z + dz / d * lim; } }
+  for(const s of platforms){ if(s.bottom > y1 || s.top < y0) continue; const lim = (s.rAt ? s.rAt(clamp(m.y + 0.4 - s.bottom, 0, s.top - s.bottom)) : s.r) + rr, dx = nx - s.x, dz = nz - s.z; if(dx > lim || dx < -lim || dz > lim || dz < -lim) continue;
+    const d = Math.hypot(dx, dz); if(d < lim && d > 1e-4){ nx = s.x + dx / d * lim; nz = s.z + dz / d * lim; } }
+  for(const b of boxes){ if(b.hollow || !(b.full || (b.y0 < y1 && b.y1 > y0))) continue; const q = boxOut(nx, nz, b, rr); if(q){ nx = q[0]; nz = q[1]; } }
+  for(const s of mon.safe){ const dx = nx - s.x, dz = nz - s.z, d = Math.hypot(dx, dz); if(d < s.r && d > 1e-4){ nx = s.x + dx / d * s.r; nz = s.z + dz / d * s.r; } }
+  return [nx, nz];
+}
+// the height a monster rests at: walkers on the ground, drones hover, harpies fly above whatever is under them
+function monFloor(m, snap){
+  const D = mon.def, g = G(m.x, m.z);
+  if(D.kind === 'drone') return Math.max(g, 0) + 1.9;
+  if(!D.fly) return g;
+  let lo = g > -1000 ? g + 2.5 : -60; for(const s of platforms) if(Math.hypot(m.x - s.x, m.z - s.z) < s.r + 1.5) lo = Math.max(lo, s.top + 2.5);
+  return snap ? Math.max(lo, m.sp.y0) : lo;
+}
+function monMove(m, tx, tz, sp, dt, face){
+  const dx = tx - m.x, dz = tz - m.z, d = Math.hypot(dx, dz);
+  if(d < 0.08){ m.speed += (0 - m.speed) * (1 - Math.exp(-dt * 6)); return d; }
+  const st = Math.min(d, sp * dt), q = monBlock(m, m.x + dx / d * st, m.z + dz / d * st), moved = Math.hypot(q[0] - m.x, q[1] - m.z);
+  m.x = q[0]; m.z = q[1]; m.speed += (moved / Math.max(dt, 1e-3) - m.speed) * (1 - Math.exp(-dt * 8));
+  if(face !== false){ const y0 = m.yaw; m.yaw = lerpAngle(m.yaw, Math.atan2(dx, dz), 1 - Math.exp(-dt * 7)); m.turn = (m.yaw - y0) / Math.max(dt, 1e-3); }
+  if(moved < st * 0.25 && m.mode === 'patrol') m.wait = 0.2 + m.r(), m.tx = m.x, m.tz = m.z;   // stuck against something: pick another way
+  return d;
+}
+const monCenterY = m => m.y + ({wraith:1.05 * mon.def.size, drone:0, stalker:0.85, harpy:0})[mon.def.kind];
+// the player's centre (chest height)
+const pCenter = () => p.y + 1.05;
+
+// ---- thinking ----
+function monThink(m, dt, canHunt){
+  const M = mon, D = M.def; m.t += dt; m.flash = Math.max(0, m.flash - dt * 4); m.cool -= dt; m.zap = Math.max(0, m.zap - dt); m.hit = Math.max(0, m.hit - dt);
+  if(m.mode === 'dying'){ m.die += dt; m.sc = 1 - smooth(0, 0.55, m.die); if(D.fly) m.y += dt * 2; return; }
+  m.sc = Math.min(1, m.sc + dt * 1.6);
+  const dx = p.x - m.x, dz = p.z - m.z, dP = Math.hypot(dx, dz), dH = Math.hypot(m.x - m.sp.x, m.z - m.sp.z), d3 = Math.hypot(dP, pCenter() - monCenterY(m));
+  let ty = null;
+  if(m.lunge > 0){ const k = Math.min(m.lunge, dt); m.lunge -= dt; const q = monBlock(m, m.x + m.lx * k, m.z + m.lz * k); m.x = q[0]; m.z = q[1]; }
+  if(M.freeze){ m.speed *= 0.9; }
+  else if(m.mode === 'patrol'){
+    if(canHunt && dP < D.aggro && dH < D.leash){ m.mode = 'chase'; m.aware = 1; }
+    else if(D.fly){ m.orb += dt * D.walk / D.patrol; const rr = D.patrol * (0.75 + 0.25 * Math.sin(m.t * 0.21 + m.ph)); monMove(m, m.sp.x + Math.cos(m.orb) * rr, m.sp.z + Math.sin(m.orb) * rr, D.walk, dt); ty = m.sp.y0 + Math.sin(m.t * 0.37 + m.ph) * 2.5; }
+    else if(m.wait > 0){ m.wait -= dt; m.speed *= Math.exp(-dt * 6); }
+    else if(monMove(m, m.tx, m.tz, D.walk, dt) < 0.4){ const a = m.r() * TAU, d = Math.sqrt(m.r()) * D.patrol; m.tx = m.sp.x + Math.cos(a) * d; m.tz = m.sp.z + Math.sin(a) * d; m.wait = 1 + m.r() * 3; }
+  }
+  else if(m.mode === 'chase'){
+    if(!canHunt || dH > D.leash || dP > D.aggro * 1.8){ m.mode = 'return'; }
+    else { if(d3 <= D.reach && m.cool <= 0){ m.mode = 'wind'; m.wind = 0; m.ax = p.x; m.az = p.z; m.ay = pCenter(); sfx('mwind'); }
+      else { const st = D.kind === 'drone' ? D.reach * 0.7 : D.reach * 0.7; if(dP > st) monMove(m, p.x, p.z, D.run, dt); else { m.speed *= Math.exp(-dt * 8); m.yaw = lerpAngle(m.yaw, Math.atan2(dx, dz), 1 - Math.exp(-dt * 8)); } }
+      if(D.fly) ty = p.y + 1.6; }
+  }
+  else if(m.mode === 'wind'){
+    m.wind += dt; m.speed *= Math.exp(-dt * 8); m.yaw = lerpAngle(m.yaw, Math.atan2(dx, dz), 1 - Math.exp(-dt * (D.kind === 'drone' ? 3 : 10)));
+    if(D.kind !== 'drone'){ m.ax = p.x; m.az = p.z; m.ay = pCenter(); }   // a drone keeps the spot it locked: step aside to dodge it
+    if(D.fly) ty = p.y + 1.4;
+    if(m.wind >= D.wind){ monStrike(m, canHunt); m.mode = 'recover'; m.rt = 0.5; m.cool = D.cool; }
+  }
+  else if(m.mode === 'recover'){ m.rt -= dt; m.speed *= Math.exp(-dt * 5); if(m.rt <= 0) m.mode = canHunt ? 'chase' : 'return'; if(D.fly) ty = m.y + 1.5; }
+  else if(m.mode === 'flee'){ m.flee -= dt; const d = Math.max(dP, 0.1); monMove(m, m.x - dx / d * 10, m.z - dz / d * 10, D.run, dt); if(D.fly) ty = Math.max(m.y, p.y) + 7; if(m.flee <= 0) m.mode = 'return'; }
+  else if(m.mode === 'return'){
+    if(monMove(m, m.sp.x, m.sp.z, D.walk * 1.6, dt) < 1.5){ m.mode = 'patrol'; m.hp = m.max; m.wait = 0.5; }
+    else if(canHunt && dP < D.aggro * 0.5 && dH < D.leash * 0.6){ m.mode = 'chase'; }
+    if(D.fly) ty = m.sp.y0;
+  }
+  // height
+  if(D.fly && !M.freeze){ const lo = monFloor(m); const want = Math.max(lo, ty == null ? m.sp.y0 : ty), y0 = m.y; m.y += (want - m.y) * (1 - Math.exp(-dt * 1.6)); if(m.y < lo) m.y = lo; m.vy = (m.y - y0) / Math.max(dt, 1e-3); }
+  else m.y = monFloor(m);
+}
+// the blow: a lunge (wraith, stalker, harpy) or a zap at the locked spot (drone). Damage only through hurt(), only where the realm says danger.
+function monStrike(m, canHunt){
+  const D = mon.def; let hit = false;
+  if(D.kind === 'drone'){ m.zap = 0.22; sfx('zap');
+    const ok = Math.hypot(p.x - m.ax, p.z - m.az) < 1.25 && Math.abs(pCenter() - m.ay) < 1.6 && Math.hypot(p.x - m.x, p.z - m.z) < D.reach + 1.5;
+    hit = ok; }
+  else { const dx = p.x - m.x, dz = p.z - m.z, d = Math.hypot(dx, dz) || 1; m.lx = dx / d * (D.kind === 'stalker' ? 9 : 6); m.lz = dz / d * (D.kind === 'stalker' ? 9 : 6); m.lunge = D.kind === 'stalker' ? 0.24 : 0.16; sfx('swing');
+    hit = Math.hypot(Math.max(0, d - 1.1), pCenter() - monCenterY(m)) < D.reach; }
+  m.lastStrike = {hit, canHunt, t:simTime};
+  if(hit && canHunt && hurtCool <= 0 && !pocketIn()){ const n = hurt(D.dmg, D.name.toLowerCase()); if(n > 0){ hurtCool = 0.5; m.lastStrike.dealt = n; mon.focus = m; mon.focusT = 3; fxBurst(p.x, pCenter(), p.z, 10, D.col, {speed:3, size:0.1, life:0.4}); } }
+  return hit;
+}
+
+// ---- the player hits back ----
+function monTargets(){ return mon && !pocketIn() ? mon.live.filter(m => m.mode !== 'dying' && m.sc > 0.3) : []; }
+function monDamage(m, n, why){
+  if(!mon || !m || m.mode === 'dying') return 0;
+  const D = mon.def; n = Math.max(1, Math.round(n)); m.hp = Math.max(0, m.hp - n); m.flash = 1; m.hit = 0.25; sfx('mhit');
+  const dx = m.x - p.x, dz = m.z - p.z, d = Math.hypot(dx, dz) || 1, kb = why === 'ward' ? 1.6 : 0.6, q = monBlock(m, m.x + dx / d * kb, m.z + dz / d * kb); m.x = q[0]; m.z = q[1];
+  fxBurst(m.x, monCenterY(m), m.z, 14, why === 'ward' ? 0xcfe4ff : 0x9ff4ff, {speed:4, size:0.09, life:0.35, grav:2});
+  fxBurst(m.x, monCenterY(m), m.z, 8, D.col, {speed:2.5, size:0.14, life:0.5});
+  mon.focus = m; mon.focusT = 4;
+  if(m.hp <= 0){ monDie(m); return n; }
+  if(!mon.hostile){ m.mode = 'flee'; m.flee = 4.5; }
+  else if(m.mode !== 'wind' && m.mode !== 'recover'){ m.mode = 'chase'; m.cool = Math.max(m.cool, 0.4); }
+  return n;
+}
+function monDie(m){
+  const M = mon, D = M.def; m.mode = 'dying'; m.die = 0; M.dead.set(m.id, simTime + (m.sp.core ? MON_RESPAWN : MON_CELL_RESPAWN));
+  sfx('mdie'); const cy = monCenterY(m);
+  const burst = {wraith:[[0xe8c48a, 60, {speed:4, size:0.12, life:1.1, grav:5, drag:1}], [0xffb347, 18, {speed:2, size:0.2, life:0.7, grav:0}]], drone:[[0xff4fa3, 30, {speed:6, size:0.12, life:0.6, grav:6}], [0x5ce1e6, 16, {speed:4, size:0.16, life:0.5}], [0xffe6f4, 10, {speed:2, size:0.35, life:0.25, grav:0}]],
+    stalker:[[0x9dffb0, 30, {speed:3, size:0.14, life:1, grav:-0.5, drag:2}], [0x2c3a2c, 30, {speed:3, size:0.1, life:0.8, grav:3, op:0.5}]], harpy:[[0xf4f8ff, 40, {speed:3, size:0.16, life:1.6, grav:0.6, drag:2.5}], [0xbff4ff, 12, {speed:2, size:0.2, life:0.6, grav:0}]]}[D.kind];
+  burst.forEach(b => fxBurst(m.x, cy, m.z, b[1], b[0], b[2]));
+  // the count, the deed and the reward (XP now, credits and loot from the drop)
+  const K = state.kills; K.n++; K.by[M.key] = monKills(M.key) + 1; if(!K.first) K.first = {realm:M.key, t:Date.now()};
+  const q = rng(strHash(m.id + ':' + K.n)), credits = D.credits[0] + Math.floor(q() * (D.credits[1] - D.credits[0] + 1)), u = q();
+  let item = null, acc = 0; for(const row of D.loot){ acc += row[1]; if(u < acc){ item = row[0]; break; } }
+  reward(D.xp, 0);
+  let gy = groundAt(m.x, m.z, m.y + 0.5), dx = m.x, dz = m.z;
+  if(!(gy > p.y - 30) || pocketIn()){ const a = Math.atan2(m.x - p.x, m.z - p.z); dx = p.x + Math.sin(a) * 1.8; dz = p.z + Math.cos(a) * 1.8; gy = groundAt(dx, dz, p.y + 0.5); }   // over the void (a harpy above the clouds): the loot flutters down next to you
+  monDropAdd(dx, gy, dz, credits, item, cy);
+  M.last = {id:m.id, credits, item, kills:K.n};
+  if(typeof localsNotice === 'function') localsNotice();
+  persist();
+  toast((mon.hostile ? D.name + ' defeated' : D.name + ' flew off') + '   +' + D.xp + ' XP · loot dropped', 2400);
+  return M.last;
+}
+
+// ---- loot drops: credits and sometimes an item, picked up like a pickup (walk into it); session only ----
+function monDropAdd(x, y, z, credits, item, fromY){ return noRandom(() => monDropAdd0(x, y, z, credits, item, fromY)); }
+function monDropAdd0(x, y, z, credits, item, fromY){
+  const M = mon, g = new THREE.Group(); g.position.set(x, y, z); g.name = 'mon:drop'; M.root.add(g);
+  const rc = item ? RARITY[ITEMS[item].rarity].col : '#ffd166', rh = parseInt(rc.slice(1), 16);
+  const spin = new THREE.Group(); spin.position.y = 0.6; g.add(spin);
+  if(credits > 0) [[0.16, 0, 0.05, 0.2], [-0.12, -0.05, -0.08, -0.4], [0.02, 0.06, -0.14, 0.9]].forEach(c => { const k = new THREE.Mesh(M.dropG.coin, M.goldM); k.position.set(c[0], c[1] - 0.25, c[2]); k.rotation.set(c[3], c[3] * 2, 0); k.castShadow = true; spin.add(k); });
+  if(item){ const d = ITEMS[item], k = new THREE.Mesh(M.dropG[d.shape], phys(d.col, {roughness:0.18, metalness:0.3, emissive:C(d.col), emissiveIntensity:0.6})); k.scale.setScalar(1.25); k.position.y = 0.12; k.castShadow = true; spin.add(k); }
+  const ring = new THREE.Mesh(new THREE.RingGeometry(0.36, 0.46, 48), new THREE.MeshBasicMaterial({color:C(rh), transparent:true, opacity:0.6, depthWrite:false, side:THREE.DoubleSide, toneMapped:false})); ring.rotation.x = -Math.PI / 2; ring.position.y = 0.03; g.add(ring);
+  const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 2.6, 8, 1, true), new THREE.MeshBasicMaterial({color:C(rh), transparent:true, opacity:0.35, depthWrite:false, blending:THREE.AdditiveBlending, toneMapped:false})); beam.position.y = 1.4; g.add(beam);
+  glow(rh, 1.2, 0, 0.6, 0, g, 0.55);
+  g.traverse(o => o.layers.set(1));
+  const dr = {id:'d' + (++monDropSeq), x, y, z, credits, item, g, spin, t:simTime, pop:0, fromY:fromY == null ? y + 1 : fromY};
+  M.drops.push(dr); return dr;
+}
+function monDropTake(dr){
+  const M = mon, i = M.drops.indexOf(dr); if(i < 0) return null; M.drops.splice(i, 1);
+  M.root.remove(dr.g); dr.g.traverse(o => { if(o.geometry && !Object.values(M.dropG).includes(o.geometry)) o.geometry.dispose(); if(o.material && o.material !== M.goldM){ o.material.dispose(); } });
+  state.credits += dr.credits; if(dr.item) giveItem(dr.item, 1, true); persist(); refreshHud(); bump(); invRefresh(); sfx('coin');
+  const d = dr.item && ITEMS[dr.item];
+  toast('Loot: ₵' + dr.credits + (d ? ' + ' + d.name + ' · ' + RARITY[d.rarity].name + ' · sells for ₵' + d.value : '') + (d ? '   (I to view)' : ''), 3000);
+  M.lastPick = {id:dr.id, credits:dr.credits, item:dr.item}; return M.lastPick;
+}
+function monDropsUpdate(dt, time){
+  const M = mon;
+  for(let i = M.drops.length - 1; i >= 0; i--){ const dr = M.drops[i]; dr.pop = Math.min(1, dr.pop + dt * 2.2);
+    const e = dr.pop, hop = (1 - e) * (dr.fromY - dr.y) + Math.sin(e * Math.PI) * 0.9; dr.g.position.y = dr.y + Math.max(0, hop);
+    dr.spin.rotation.y += dt * 1.8; dr.spin.position.y = 0.6 + Math.sin(time * 1.9 + i) * 0.08;
+    if(simTime - dr.t > 180){ M.drops.splice(i, 1); M.root.remove(dr.g); continue; }
+    if(e < 1 || !playing || zeroing || traveling || pocketIn()) continue;
+    if(Math.hypot(dr.x - p.x, dr.y + 0.6 - (p.y + 1), dr.z - p.z) < 1.45) monDropTake(dr);
+  }
+}
+
+// ---- the attack (X, or the round button on touch screens) ----
+function monAttack(){
+  if(!playing || zeroing || traveling || (typeof bc !== 'undefined' && bc.on) || atk.cool > 0) return false;
+  if(bike.riding){ toast('Hop off the hoverbike to fight (E).', 1800); return false; }
+  const mode = atkMode(), A = ATK[mode], dmg = A.dmg + Math.min(10, lvlOf(state.xp) - 1), T = monTargets(); atk.cool = A.cool; atk.anim = 0.001; atk.mode = mode; atk.shots++;
+  const fx = -Math.sin(cam.yaw), fz = -Math.cos(cam.yaw), hits = [];
+  if(mode === 'pulse'){
+    let best = null, bs = 1e9;
+    for(const m of T){ const dx = m.x - p.x, dz = m.z - p.z, d = Math.hypot(dx, dz), d3 = Math.hypot(d, monCenterY(m) - pCenter()); if(d3 > A.range) continue; const cos = (dx * fx + dz * fz) / Math.max(d, 1e-3), s = cos > 0.75 ? d3 : d3 < 6 ? d3 + 30 : 1e9; if(s < bs){ bs = s; best = m; } }
+    let tx, ty, tz; if(best){ tx = best.x; ty = monCenterY(best); tz = best.z; } else { tx = p.x + fx * A.range; tz = p.z + fz * A.range; ty = pCenter() + 0.3; }
+    p.facing = Math.atan2(tx - p.x, tz - p.z); me.g.rotation.y = p.facing;
+    const sx = p.x + Math.sin(p.facing) * 0.5 + Math.cos(p.facing) * 0.28, sz = p.z + Math.cos(p.facing) * 0.5 - Math.sin(p.facing) * 0.28, sy = p.y + 1.3;
+    atk.bolts.push({x:sx, y:sy, z:sz, m:best, tx, ty, tz, life:A.range / 40 + 0.2, dmg, trail:[]}); if(mon) fxBurst(sx, sy, sz, 6, 0x9ff4ff, {speed:2, size:0.1, life:0.2, grav:0});
+    sfx('pulse'); if(best) hits.push(best.id);
+  } else if(mode === 'ward'){
+    for(const m of T){ if(Math.hypot(m.x - p.x, m.z - p.z, monCenterY(m) - pCenter()) < A.range + mon.def.rad){ monDamage(m, dmg, 'ward'); hits.push(m.id); } }
+    if(mon){ mon.ringT = 0; mon.ring.position.set(p.x, p.y + 0.12, p.z); for(let i = 0; i < 28; i++){ const a = i / 28 * TAU; fxBurst(p.x + Math.cos(a) * 0.8, p.y + 0.4, p.z + Math.sin(a) * 0.8, 1, 0xcfe4ff, {speed:5, size:0.14, life:0.5, grav:-1, flat:true}); } }
+    sfx('ward');
+  } else {
+    const hx = Math.sin(p.facing), hz = Math.cos(p.facing);
+    for(const m of T){ const dx = m.x - p.x, dz = m.z - p.z, d = Math.hypot(dx, dz); if(d < A.range + mon.def.rad && (dx * hx + dz * hz) / Math.max(d, 1e-3) > 0.3 && Math.abs(monCenterY(m) - pCenter()) < 2){ monDamage(m, dmg, 'strike'); hits.push(m.id); } }
+    if(mon) fxBurst(p.x + hx * 1.2, pCenter(), p.z + hz * 1.2, 12, 0xffffff, {speed:3, size:0.08, life:0.25, grav:0});
+    sfx('swing');
+  }
+  atk.last = {mode, dmg, hits, t:simTime}; return atk.last;
+}
+function monBolts(dt){
+  for(let i = atk.bolts.length - 1; i >= 0; i--){ const b = atk.bolts[i]; b.life -= dt;
+    if(b.m && b.m.mode !== 'dying' && mon && mon.live.indexOf(b.m) >= 0){ b.tx = b.m.x; b.ty = monCenterY(b.m); b.tz = b.m.z; }
+    const dx = b.tx - b.x, dy = b.ty - b.y, dz = b.tz - b.z, d = Math.hypot(dx, dy, dz), st = 40 * dt;
+    b.trail.unshift([b.x, b.y, b.z]); if(b.trail.length > 5) b.trail.pop();
+    if(d <= st + 0.25 || b.life <= 0){ if(b.m && d <= st + 0.6 && b.m.mode !== 'dying') monDamage(b.m, b.dmg, 'pulse'); else if(mon) fxBurst(b.x, b.y, b.z, 8, 0x9ff4ff, {speed:2, size:0.08, life:0.25, grav:0}); atk.bolts.splice(i, 1); continue; }
+    b.x += dx / d * st; b.y += dy / d * st; b.z += dz / d * st;
+    if(mon){ const c = mon.boltC || (mon.boltC = [C(0xffffff), C(0x5ce1e6)]); fxDot(b.x, b.y, b.z, 0.55, c[0], 1); fxDot(b.x, b.y, b.z, 1.2, c[1], 0.6); b.trail.forEach((q, k) => fxDot(q[0], q[1], q[2], 0.4 - k * 0.06, c[1], 0.5 - k * 0.09)); }
+  }
+}
+// the avatar's own move: a punch-forward for the pulse, arms flung out for the ward, a swing for the strike
+function atkPose(dt){
+  if(!(atk.anim > 0) || !me) return; atk.anim += dt; const t = Math.min(1, atk.anim / 0.38), w = Math.sin(Math.PI * t);
+  if(atk.anim > 0.38){ atk.anim = 0; return; }
+  if(me.blob){ const s = 1 + w * 0.12; me.hips.scale.x *= s; me.hips.scale.z *= s; me.hips.scale.y /= s; return; }
+  const AR = me.armR, AL = me.armL; if(!AR || !AL) return;
+  if(atk.mode === 'pulse'){ AR.sh.rotation.x = lerp(AR.sh.rotation.x, -1.55, w); AR.sh.rotation.z = lerp(AR.sh.rotation.z, 0.05, w); AR.el.rotation.x = lerp(AR.el.rotation.x, -0.05, w); me.spine.rotation.y += -0.2 * w; }
+  else if(atk.mode === 'ward'){ AR.sh.rotation.z = lerp(AR.sh.rotation.z, 1.5, w); AL.sh.rotation.z = lerp(AL.sh.rotation.z, -1.5, w); AR.sh.rotation.x = lerp(AR.sh.rotation.x, -0.3, w); AL.sh.rotation.x = lerp(AL.sh.rotation.x, -0.3, w); AR.el.rotation.x = AL.el.rotation.x = lerp(AR.el.rotation.x, -0.1, w); }
+  else { AR.sh.rotation.x = lerp(AR.sh.rotation.x, -2.2 + 3 * t, w); AR.el.rotation.x = lerp(AR.el.rotation.x, -0.3, w); me.spine.rotation.y += (0.3 - 0.6 * t) * w; }
+}
+
+// ---- the frame ----
+function monUpdate(dt, time){
+  atk.cool -= dt;
+  const M = mon; if(!M){ atk.bolts.length = 0; return; }
+  const t0 = performance.now(), pin = pocketIn(); M.root.visible = !pin;
+  M.refreshT -= dt; if(M.refreshT <= 0){ M.refreshT = 0.4; monRefresh(); }
+  const live = playing && !zeroing && !traveling, canHunt = M.hostile && live && !pin && !monInSafe(p.x, p.z, 0) && !driftSafe();
+  for(const m of M.live) monThink(m, dt, canHunt);
+  M.live = M.live.filter(m => !(m.mode === 'dying' && m.die > 0.6));
+  // monsters are solid to walk into (never inside a pocket)
+  if(!pin && live) for(const m of M.live){ if(m.mode === 'dying' || M.def.fly) continue; const dx = p.x - m.x, dz = p.z - m.z, d = Math.hypot(dx, dz), lim = M.def.rad + 0.35;
+    if(d < lim && d > 1e-4 && Math.abs(p.y - m.y) < 1.8){ p.x = m.x + dx / d * lim; p.z = m.z + dz / d * lim; } }
+  if(!M.told && live && M.live.some(m => Math.hypot(m.x - p.x, m.z - p.z) < 30)){ M.told = true; toast((M.hostile ? M.def.plural[0].toUpperCase() + M.def.plural.slice(1) + ' roam ' + WORLDS[M.key].name + '. ' : 'Wild ' + M.def.plural + ' wheel round the isles; they will not hurt you. ') + 'X (or the round button) to ' + ATK[atkMode()].label.toLowerCase() + '.', 4200); }
+  monBolts(dt);
+  if(M.ringT >= 0){ M.ringT += dt; const t = M.ringT / 0.4; M.ring.visible = t < 1; M.ring.scale.setScalar(0.6 + t * ATK.ward.range); M.ring.material.opacity = 0.85 * (1 - t); if(t >= 1) M.ringT = -1; }
+  monDropsUpdate(dt, time);
+  // draw
+  const K = M.kit; for(const k in K.parts) K.parts[k].slot = 0;
+  M.beam.n = 0; let slot = 0;
+  for(const m of M.live){ if(m.sc <= 0.001) continue; for(const k in K.parts) K.parts[k].slot = slot; K.pose(m, time); slot++; }
+  for(const k in K.parts){ const P = K.parts[k]; P.m.count = slot * P.n; P.m.instanceMatrix.needsUpdate = true; if(P.m.instanceColor) P.m.instanceColor.needsUpdate = true; }
+  M.beam.core.count = M.beam.sheath.count = M.beam.n; [M.beam.core, M.beam.sheath].forEach(b => { b.instanceMatrix.needsUpdate = true; b.instanceColor.needsUpdate = true; });
+  fxFlush(dt);
+  monBarUpdate(dt);
+  M.ms = performance.now() - t0; M.maxMs = Math.max(M.maxMs || 0, M.ms);
+}
+// the target bar: the monster you last hit (or that last hit you), for a few seconds
+function monBarHide(){ const el = $('#monBar'); if(el) el.hidden = true; }
+function monBarUpdate(dt){
+  const M = mon, el = $('#monBar'); M.focusT -= dt; const f = M.focus;
+  if(!f || M.focusT <= 0 || (M.live.indexOf(f) < 0 && f.mode !== 'dying')){ if(!el.hidden) el.hidden = true; return; }
+  el.hidden = false; const t = M.def.name + (M.hostile ? '' : ' · wild'); if(el.dataset.t !== t){ el.dataset.t = t; $('#monName').textContent = t; }
+  $('#monFill').style.width = (f.hp / f.max * 100).toFixed(1) + '%';
+}
+function monMap(T, sc){
+  if(!mon || pocketIn()) return;
+  for(const m of mon.live){ if(m.mode === 'dying') continue; const o = T(m.x, m.z); mx2.fillStyle = mon.hostile ? (m.mode === 'chase' || m.mode === 'wind' ? '#ff3b4e' : '#ff8a5c') : '#cfe8ff'; mx2.beginPath(); mx2.arc(o[0], o[1], Math.max(2.5, 0.7 * sc), 0, TAU); mx2.fill(); }
+  for(const dr of mon.drops){ const o = T(dr.x, dr.z); mx2.fillStyle = '#ffd166'; mx2.fillRect(o[0] - 2, o[1] - 2, 4, 4); }
+}
+
+// ---- the four kinds: shapes built once per realm visit, posed every frame into the shared instanced parts ----
+const _k0 = new THREE.Matrix4(), _k1 = new THREE.Matrix4(), _k2 = new THREE.Matrix4(), _k3 = new THREE.Matrix4(), _k4 = new THREE.Matrix4(), _k5 = new THREE.Matrix4(), _kv = new V3();
+const _fxc = {};
+const fxC = hex => _fxc[hex] || (_fxc[hex] = C(hex));
+const wp = (M, x, y, z) => _kv.set(x, y, z).applyMatrix4(M);
+const frac = x => x - Math.floor(x);
+const MON_KITS = {
+  // Sand wraith: the Hollow's wraith grown tall for the open dunes: a column of blown sand round an ember core, a crusted hood with amber eyes, two sleeves of sand ending in glass claws
+  wraith(){
+    const K = {parts:{}};
+    const sandM = std(0xd8b07a, {transparent:true, opacity:0.42, depthWrite:false, roughness:1, emissive:C(0x4a2a0a), emissiveIntensity:0.55, map:detailTex});
+    const veilM = std(0xe6c48c, {transparent:true, opacity:0.6, depthWrite:false, roughness:1, emissive:C(0x5a3410), emissiveIntensity:0.45, side:THREE.DoubleSide, map:detailTex});
+    const coreM = std(0x8a5424, {transparent:true, opacity:0.62, depthWrite:false, roughness:1, emissive:C(0xb35a10), emissiveIntensity:0.9});
+    const hoodM = std(0xc89e68, {roughness:1, side:THREE.DoubleSide, map:detailTex, normalMap:detailNormal}), faceM = std(0x0e0603, {roughness:1});
+    // a ragged hem: the lower edge of a lathe pulled down in tatters
+    const tatter = (g, below, amt) => { const a = g.attributes.position; for(let i = 0; i < a.count; i++){ const y = a.getY(i); if(y > below) continue; const an = Math.atan2(a.getX(i), a.getZ(i)), k = smooth(below, below - 0.25, y); a.setY(i, y - amt * k * (0.55 + 0.45 * Math.sin(an * 7) * Math.sin(an * 3 + 1))); } g.computeVertexNormals(); return g; };
+    const eyeM = new THREE.MeshBasicMaterial({color:C(0xffc46a), toneMapped:false});
+    const clawM = phys(0xffc880, {roughness:0.08, transparent:true, opacity:0.9, emissive:C(0xa04a00), emissiveIntensity:0.7});
+    // a twister of sand from the ground up to a hooded torso: narrow and twisting below, broad shoulders, a peaked cowl
+    monPart(K, 'core', monSwirl(monLathe([[0.02, 0.48], [0.1, 0.58], [0.19, 0.8], [0.21, 0.98], [0.13, 1.14], [0.02, 1.2]], 24), 0.08), coreM, 1, {cast:false, noAO:true, order:2});
+    monPart(K, 'body', monSwirl(monLathe([[0.05, -0.02], [0.13, 0.08], [0.1, 0.28], [0.16, 0.5], [0.28, 0.74], [0.4, 0.96], [0.43, 1.1], [0.34, 1.22], [0.18, 1.3], [0.03, 1.33]], 44), 0.16), sandM, 1, {cast:false, noAO:true, order:3});
+    monPart(K, 'mantle', tatter(monLathe([[0.2, 1.3], [0.36, 1.2], [0.45, 1.06], [0.48, 0.88], [0.46, 0.66], [0.44, 0.56]], 40, 0.55, TAU - 1.1), 0.75, 0.3), veilM, 1, {cast:true, order:4});
+    monPart(K, 'hood', monLathe([[0.01, 1.76], [0.07, 1.7], [0.18, 1.58], [0.27, 1.44], [0.32, 1.3], [0.33, 1.17], [0.3, 1.08]], 36, 0.8, TAU - 1.6), hoodM);
+    monPart(K, 'face', new THREE.SphereGeometry(0.22, 20, 14).scale(1, 1.2, 0.6).translate(0, 1.33, 0.05), faceM, 1, {cast:false});
+    monPart(K, 'eyes', merge([new THREE.SphereGeometry(0.04, 12, 8).scale(1.3, 0.75, 1).translate(0.09, 1.36, 0.17), new THREE.SphereGeometry(0.04, 12, 8).scale(1.3, 0.75, 1).translate(-0.09, 1.36, 0.17)]), eyeM, 1, {cast:false});
+    const arm = taperTube([[0, 0, 0], [0.07, -0.22, 0.08], [0.11, -0.5, 0.2], [0.09, -0.76, 0.32]], 0.11, 0.035, 16, 10);
+    const claw = merge([-0.35, 0, 0.35].map((s, i) => monAt(new THREE.ConeGeometry(0.026, 0.3, 6).rotateX(Math.PI).translate(0, -0.13, 0), 0.09 + s * 0.07, -0.74, 0.32 + (i === 1 ? 0.03 : 0), 0.45, 0, s)));
+    monPart(K, 'armR', arm, veilM, 1, {cast:true, order:4}); monPart(K, 'armL', mirrorX(arm), veilM, 1, {cast:true, order:4});
+    monPart(K, 'clawR', claw, clawM, 1, {cast:false}); monPart(K, 'clawL', mirrorX(claw), clawM, 1, {cast:false});
+    const eyeC = fxC(0xffa040), sandC = fxC(0xe8c48a);
+    K.pose = (m, time) => {
+      const D = mon.def, S = D.size * m.sc, w = m.mode === 'wind' ? smooth(0, D.wind, m.wind) : 0, rec = m.mode === 'recover' ? m.rt / 0.5 : 0;
+      const bob = Math.sin(m.t * 2.1 + m.ph) * 0.08, lean = Math.min(0.22, m.speed * 0.045) - w * 0.12 + (m.mode === 'recover' ? 0.25 * Math.sin(Math.PI * (1 - rec)) : 0);
+      const R0 = mx(_k0, null, m.x, m.y + 0.1 + bob, m.z, lean, m.yaw, 0, S), fl = 1 + m.flash * 1.6;
+      monPut(K, 'body', 0, mx(_k1, R0, 0, 0, 0, 0, m.t * 0.9, 0, 1 + w * 0.12, 1 + w * 0.05), fl);
+      monPut(K, 'core', 0, mx(_k1, R0, 0, 0, 0, 0, -m.t * 1.4, 0, 1 + w * 0.25), fl + w);
+      const H = mx(_k2, R0, 0, 0, 0, -0.12 * w + Math.sin(m.t * 0.8 + m.ph) * 0.03, Math.sin(m.t * 0.6 + m.ph) * 0.12, 0);
+      monPut(K, 'hood', 0, H, fl); monPut(K, 'mantle', 0, H, fl); monPut(K, 'face', 0, H); const eb = 1 + w * 2.5 + m.flash * 2 + (m.mode === 'chase' ? 0.6 : 0); monPut(K, 'eyes', 0, H, eb);
+      const sway = Math.sin(m.t * 1.7 + m.ph) * 0.15, rest = 0.25 + m.speed * 0.06;
+      let ax = rest; if(w > 0) ax = lerp(rest, -2.5, w); if(m.mode === 'recover'){ const k = 1 - rec; ax = k < 0.3 ? lerp(-2.5, 0.7, k / 0.3) : lerp(0.7, rest, (k - 0.3) / 0.7); }
+      const AR = mx(_k1, R0, 0.4, 1.12, 0.03, ax + sway, 0, 0.32 + 0.1 * sway + w * 0.25); monPut(K, 'armR', 0, AR, fl); monPut(K, 'clawR', 0, AR, 1 + w);
+      const AL = mx(_k3, R0, -0.4, 1.12, 0.03, ax - sway * 0.8, 0, -0.32 + 0.1 * sway - w * 0.25); monPut(K, 'armL', 0, AL, fl); monPut(K, 'clawL', 0, AL, 1 + w);
+      [0.09, -0.09].forEach(ex => { wp(H, ex, 1.36, 0.2); fxDot(_kv.x, _kv.y, _kv.z, 0.3 * S, eyeC, Math.min(1, 0.35 * eb)); });
+      // the sand that makes it: grains spiral up the column and drift off the top
+      for(let i = 0; i < 34; i++){ const a = i * 2.39996 + m.t * (1.5 + (i % 3) * 0.45), h = frac(i * 0.37 + m.t * 0.16), rr = (0.3 + 0.32 * frac(i * 0.618)) * (1 + w * 0.35) * (1 - h * 0.35);
+        fxDot(m.x + Math.cos(a) * rr * S, m.y + (h * 1.35 - 0.02) * S, m.z + Math.sin(a) * rr * S, 0.07 * S, sandC, 0.32 * (1 - h * 0.6) * m.sc); }
+      if(m.speed > 1.2 && fxR() < 0.2) fxBurst(m.x, m.y + 0.15, m.z, 1, 0xd8b07a, {speed:0.8, size:0.25, life:0.9, grav:-0.2, op:0.25, drag:0.5});
+    };
+    return K;
+  },
+  // Grid drone: a faceted black octagonal saucer with a pink neon rim, a glass dome, four rotors on struts and one cyan eye that turns white when it locks on
+  drone(){
+    const K = {parts:{}};
+    const shellM = phys(0x1c1830, {roughness:0.28, metalness:0.45}), domeM = phys(0x2a0a3a, {roughness:0.05, metalness:0.1, transparent:true, opacity:0.82, emissive:C(0x3a0a4a), emissiveIntensity:0.6});
+    const neonM = new THREE.MeshBasicMaterial({color:C(0xff4fa3), toneMapped:false}), lensM = new THREE.MeshBasicMaterial({color:C(0x5ce1e6), toneMapped:false});
+    const bladeM = std(0x2a2440, {roughness:0.4, metalness:0.3}), blurM = new THREE.MeshBasicMaterial({color:C(0xd8c8ff), transparent:true, opacity:0.12, depthWrite:false, blending:THREE.AdditiveBlending, side:THREE.DoubleSide});
+    const shell = monLathe([[0.001, -0.17], [0.22, -0.16], [0.42, -0.1], [0.53, -0.02], [0.53, 0.04], [0.42, 0.1], [0.24, 0.14], [0.001, 0.15]], 8, Math.PI / 8).toNonIndexed(); shell.computeVertexNormals();
+    const frame = [];
+    for(let j = 0; j < 4; j++){ const a = Math.PI / 4 + j * Math.PI / 2, cx = Math.sin(a) * 0.82, cz = Math.cos(a) * 0.82;
+      frame.push(monAt(new THREE.BoxGeometry(0.07, 0.05, 0.42), Math.sin(a) * 0.6, 0.02, Math.cos(a) * 0.6, 0, a, 0));
+      frame.push(monAt(new THREE.TorusGeometry(0.2, 0.025, 6, 28), cx, 0.03, cz, Math.PI / 2, 0, 0));
+      frame.push(monAt(new THREE.CylinderGeometry(0.045, 0.06, 0.1, 10), cx, 0.0, cz)); }
+    frame.push(monAt(new THREE.CylinderGeometry(0.075, 0.09, 0.14, 14), 0, -0.02, 0.5, Math.PI / 2, 0, 0));   // the eye's housing
+    frame.push(monAt(new THREE.CylinderGeometry(0.012, 0.012, 0.42, 6), 0.12, -0.36, -0.08), monAt(new THREE.CylinderGeometry(0.012, 0.012, 0.3, 6), -0.12, -0.3, -0.1));   // two sensor whiskers below
+    frame.push(monAt(new THREE.CylinderGeometry(0.1, 0.16, 0.08, 8), 0, -0.2, 0));
+    monPart(K, 'shell', shell, shellM); monPart(K, 'frame', merge(frame), shellM);
+    monPart(K, 'dome', new THREE.SphereGeometry(0.21, 24, 10, 0, TAU, 0, Math.PI / 2).translate(0, 0.13, -0.04), domeM, 1, {cast:false});
+    monPart(K, 'rim', merge([new THREE.TorusGeometry(0.535, 0.022, 6, 64).rotateX(Math.PI / 2).translate(0, 0.01, 0), new THREE.TorusGeometry(0.3, 0.012, 6, 48).rotateX(Math.PI / 2).translate(0, -0.165, 0)]), neonM, 1, {cast:false});
+    monPart(K, 'lens', new THREE.SphereGeometry(0.06, 14, 10).scale(1, 1, 0.6).translate(0, -0.02, 0.575), lensM, 1, {cast:false});
+    monPart(K, 'rotor', merge([new THREE.BoxGeometry(0.36, 0.008, 0.045), new THREE.BoxGeometry(0.045, 0.008, 0.36)]), bladeM, 4);
+    monPart(K, 'blur', merge([0, 1, 2, 3].map(j => { const a = Math.PI / 4 + j * Math.PI / 2; return new THREE.CircleGeometry(0.19, 28).rotateX(-Math.PI / 2).translate(Math.sin(a) * 0.82, 0.075, Math.cos(a) * 0.82); })), blurM, 1, {cast:false, noAO:true, order:4});
+    const pinkC = fxC(0xff4fa3), cyanC = fxC(0x5ce1e6), hotC = fxC(0xffffff);
+    K.pose = (m, time) => {
+      const D = mon.def, S = D.size * m.sc, w = m.mode === 'wind' ? smooth(0, D.wind, m.wind) : 0;
+      const bob = Math.sin(m.t * 1.8 + m.ph) * 0.12, pitch = Math.min(0.32, m.speed * 0.06) - w * 0.08, roll = clamp(-(m.turn || 0) * 0.08, -0.35, 0.35) + (m.hit > 0 ? Math.sin(m.t * 60) * 0.15 : 0);
+      const R0 = mx(_k0, null, m.x, m.y + bob, m.z, pitch, m.yaw, roll, S), fl = 1 + m.flash * 1.6;
+      monPut(K, 'shell', 0, R0, fl); monPut(K, 'frame', 0, R0, fl); monPut(K, 'dome', 0, R0, fl); monPut(K, 'blur', 0, R0);
+      const pulse = 0.8 + 0.35 * Math.sin(m.t * 3 + m.ph) + (m.mode === 'chase' ? 0.4 : 0) + w * 1.5; monPut(K, 'rim', 0, R0, pulse + m.flash * 2);
+      monPut(K, 'lens', 0, R0, 1 + w * 3 + m.zap * 6);
+      for(let j = 0; j < 4; j++){ const a = Math.PI / 4 + j * Math.PI / 2; monPut(K, 'rotor', j, mx(_k1, R0, Math.sin(a) * 0.82, 0.075, Math.cos(a) * 0.82, 0, m.t * (j % 2 ? 31 : -29), 0)); }
+      wp(R0, 0, -0.02, 0.62); const ex = _kv.x, ey = _kv.y, ez = _kv.z;
+      fxDot(ex, ey, ez, (0.32 + w * 0.5) * S, w > 0.6 ? hotC : cyanC, 0.7 + w * 0.3);
+      for(let j = 0; j < 4; j++){ const a = Math.PI / 4 + j * Math.PI / 2; wp(R0, Math.sin(a) * 0.82, -0.05, Math.cos(a) * 0.82); fxDot(_kv.x, _kv.y, _kv.z, 0.4 * S, pinkC, 0.28); }
+      wp(R0, 0, -0.26, 0); fxDot(_kv.x, _kv.y, _kv.z, 0.5 * S, pinkC, 0.25 + 0.1 * Math.sin(m.t * 7));
+      // the lock (a faint line to the spot it will fire at) and the zap itself
+      if(w > 0 && mon.hostile) monBeam(ex, ey, ez, m.ax, m.ay, m.az, 0.015 + w * 0.02, 0.25 + w * 0.6);
+      if(m.zap > 0){ const k = m.zap / 0.22; monBeam(ex, ey, ez, m.ax, m.ay, m.az, 0.09 * k + 0.02, 1.4 * k + 0.2); fxDot(m.ax, m.ay, m.az, 0.9 * k, hotC, k); }
+    };
+    return K;
+  },
+  // Grove stalker: a lean four-legged hunter of the night woods: bark-plated hide, a ridge of pale thorns, swept-back horns, a long tail and moon-green eyes
+  stalker(){
+    const K = {parts:{}};
+    const bk = surface('bark'), hideM = std(0x6a7a68, {map:bk.map, normalMap:bk.normal, roughness:0.92, vertexColors:true}), boneM = std(0xd8cfb4, {roughness:0.55});
+    const eyeM = new THREE.MeshBasicMaterial({color:C(0xb8ffcf), toneMapped:false});
+    const uvs = (g, su, sv) => { const u = g.attributes.uv; for(let i = 0; i < u.count; i++) u.setXY(i, u.getX(i) * su, u.getY(i) * sv); return g; };
+    // vertex colours: darker on the back, a paler throat and belly
+    const shade = g => monPaint(g, (x, y, z, nx, ny) => { const k = smooth(0.4, -0.7, ny); return {r:0.34 + 0.24 * k, g:0.38 + 0.2 * k, b:0.32 + 0.14 * k}; });
+    const torso = shade(uvs(monLathe([[0.02, -0.78], [0.15, -0.7], [0.23, -0.48], [0.25, -0.18], [0.3, 0.12], [0.34, 0.38], [0.29, 0.6], [0.12, 0.76], [0.02, 0.8]], 28), 3, 2).rotateX(Math.PI / 2).scale(0.82, 1.08, 1));
+    const neck = shade(taperTube([[0, 0.12, 0.62], [0, 0.26, 0.86], [0, 0.32, 1.0]], 0.19, 0.13, 10, 12));
+    monPart(K, 'torso', merge([torso, neck]), hideM);
+    const spines = []; for(let i = 0; i < 11; i++){ const t = i / 10, z = 0.62 - t * 1.25, h = 0.26 - Math.abs(t - 0.35) * 0.22; spines.push(monAt(new THREE.ConeGeometry(0.035, h, 6), 0, 0.2 + Math.sin(t * Math.PI) * 0.12 + h * 0.35, z, -0.55, 0, 0)); }
+    monPart(K, 'spines', merge(spines), boneM);
+    const head = shade(uvs(monLathe([[0.02, -0.14], [0.13, -0.1], [0.15, 0.02], [0.12, 0.16], [0.075, 0.3], [0.03, 0.38], [0.01, 0.39]], 20), 2, 1).rotateX(Math.PI / 2).scale(1, 0.78, 1));
+    const jaw = shade(monLathe([[0.01, -0.08], [0.09, -0.04], [0.08, 0.12], [0.04, 0.26], [0.01, 0.3]], 14).rotateX(Math.PI / 2).scale(1, 0.45, 1).translate(0, -0.075, 0.02));
+    monPart(K, 'head', head, hideM); monPart(K, 'jaw', jaw, hideM);
+    const horn = taperTube([[0.07, 0.06, -0.04], [0.12, 0.18, -0.16], [0.13, 0.3, -0.36], [0.1, 0.36, -0.55]], 0.035, 0.004, 12, 8);
+    const fangs = [-1, 1].map(s => monAt(new THREE.ConeGeometry(0.014, 0.08, 5).rotateX(Math.PI), s * 0.045, -0.06, 0.28));
+    monPart(K, 'bone', merge([horn, mirrorX(horn)].concat(fangs)), boneM);
+    monPart(K, 'eyes', merge([1, -1].map(s => new THREE.SphereGeometry(0.026, 10, 8).scale(1, 0.7, 1).translate(s * 0.085, 0.045, 0.16))), eyeM, 1, {cast:false});
+    const upper = shade(taperTube([[0, 0, 0], [0, -0.26, 0.04], [0, -0.5, 0.02]], 0.1, 0.06, 8, 10)), lower = shade(taperTube([[0, 0, 0], [0, -0.25, -0.03], [0, -0.48, 0]], 0.06, 0.035, 8, 8));
+    const paw = merge([new THREE.SphereGeometry(0.06, 12, 8).scale(1, 0.5, 1.4).translate(0, -0.49, 0.03)].concat([-1, 0, 1].map(s => monAt(new THREE.ConeGeometry(0.012, 0.07, 5).rotateX(Math.PI / 2), s * 0.03, -0.5, 0.12))));
+    monPart(K, 'upper', upper, hideM, 4); monPart(K, 'lower', merge([lower, monTint(paw, 0x2a2a24)]), hideM, 4);
+    const tail1 = shade(taperTube([[0, 0, 0], [0, -0.08, -0.3], [0, -0.16, -0.6]], 0.075, 0.045, 10, 8)), tail2 = shade(taperTube([[0, 0, 0], [0, -0.04, -0.3], [0, 0.06, -0.6]], 0.045, 0.006, 10, 8));
+    monPart(K, 'tail1', tail1, hideM); monPart(K, 'tail2', tail2, hideM);
+    const eyeC = fxC(0x9dffb0);
+    const LEGS = [[0.17, 0.5, 0, 1], [-0.17, 0.5, Math.PI, 1], [0.16, -0.5, Math.PI, -1], [-0.16, -0.5, 0, -1]];   // x, z, gait phase, front (1) or back (-1)
+    K.pose = (m, time) => {
+      const D = mon.def, S = D.size * m.sc, w = m.mode === 'wind' ? smooth(0, D.wind, m.wind) : 0, rec = m.mode === 'recover' ? m.rt / 0.5 : 0, pounce = m.lunge > 0 ? 1 : 0;
+      const amp = clamp(m.speed / 4, 0, 1.1), ph = m.t * (2 + m.speed * 1.5) + m.ph;
+      const crouch = w * 0.24 - pounce * 0.12, bob = Math.abs(Math.sin(ph)) * 0.05 * amp;
+      const R0 = mx(_k0, null, m.x, m.y, m.z, 0, m.yaw, clamp(-(m.turn || 0) * 0.05, -0.2, 0.2), S), fl = 1 + m.flash * 1.6;
+      const B = mx(_k1, R0, 0, 0.95 - crouch + bob, 0, -0.05 + w * 0.1 - pounce * 0.2 + Math.sin(ph * 2) * 0.02 * amp, 0, 0);
+      monPut(K, 'torso', 0, B, fl); monPut(K, 'spines', 0, B, fl);
+      const look = (m.mode === 'chase' || m.mode === 'wind') ? clamp(lerpAngle(0, Math.atan2(p.x - m.x, p.z - m.z) - m.yaw, 1), -0.6, 0.6) : Math.sin(m.t * 0.5 + m.ph) * 0.3;
+      const Hd = mx(_k2, B, 0, 0.32, 1.0, 0.25 + w * 0.25 - pounce * 0.3 + Math.sin(m.t * 1.3) * 0.04, look, 0);
+      monPut(K, 'head', 0, Hd, fl); monPut(K, 'bone', 0, Hd, fl); monPut(K, 'eyes', 0, Hd, 1 + w * 2 + m.flash * 2 + (m.mode === 'chase' ? 0.5 : 0));
+      monPut(K, 'jaw', 0, mx(_k3, Hd, 0, 0, -0.04, 0.15 + w * 0.35 + pounce * 0.5 + (m.mode === 'chase' ? 0.12 : 0), 0, 0), fl);
+      [1, -1].forEach(s => { wp(Hd, s * 0.09, 0.05, 0.18); fxDot(_kv.x, _kv.y, _kv.z, 0.18 * S, eyeC, 0.65 + w * 0.35); });
+      LEGS.forEach((L, j) => { const s = Math.sin(ph + L[2]), c = Math.cos(ph + L[2]);
+        let hip = s * 0.5 * amp + (L[3] > 0 ? -pounce * 0.9 : pounce * 0.6) + (L[3] > 0 ? 0.05 : -0.3), knee = Math.max(0, c) * 0.7 * amp + (L[3] > 0 ? 0.1 : 0.55) + crouch * 1.4;
+        if(L[3] > 0) hip -= w * 0.15; else hip += w * 0.35;
+        const U = mx(_k4, B, L[0], -0.05, L[1], hip, 0, 0); monPut(K, 'upper', j, U, fl);
+        monPut(K, 'lower', j, mx(_k5, U, 0, -0.5, 0.02, knee - hip * 0.4, 0, 0), fl); });
+      const T1 = mx(_k4, B, 0, 0.1, -0.76, 0.35 + Math.sin(m.t * 2.2 + m.ph) * 0.12 - w * 0.4, Math.sin(m.t * 1.6 + m.ph) * 0.35 * (1 - w), 0); monPut(K, 'tail1', 0, T1, fl);
+      monPut(K, 'tail2', 0, mx(_k5, T1, 0, -0.16, -0.6, -0.25 + Math.sin(m.t * 2.6 + m.ph + 1) * 0.15, Math.sin(m.t * 2 + m.ph + 0.8) * 0.4, 0), fl);
+    };
+    return K;
+  },
+  // Sky harpy: a big pale raptor of the isles: pearl belly, slate-blue back, long scalloped wings with dark cyan-edged tips, a fan tail, a gold hooked beak and a crest of plumes
+  harpy(){
+    const K = {parts:{}};
+    const featherM = std(0xffffff, {vertexColors:true, roughness:0.75, side:THREE.DoubleSide}), bodyM = std(0xffffff, {vertexColors:true, roughness:0.7, map:detailTex});
+    const eyeM = new THREE.MeshBasicMaterial({color:C(0xffd166), toneMapped:false});
+    const belly = C(0xf2efe6), back = C(0x5f76a0), dark = C(0x24304a), edge = C(0x7fe6ee), gold = C(0xd9a640), mask = C(0xf8f6f0);
+    const bodyG = monPaint(monLathe([[0.01, -0.58], [0.1, -0.48], [0.2, -0.24], [0.25, 0.02], [0.22, 0.28], [0.13, 0.44], [0.02, 0.5]], 22).rotateX(Math.PI / 2), (x, y, z, nx, ny) => back.clone().lerp(belly, smooth(0.25, -0.45, ny)));
+    const legs = [-1, 1].map(s => monTint(merge([new THREE.CylinderGeometry(0.025, 0.02, 0.22, 6).rotateX(0.6).translate(s * 0.09, -0.24, -0.05)].concat([-1, 0, 1].map(k => monAt(new THREE.ConeGeometry(0.012, 0.09, 5).rotateX(1.9), s * 0.09 + k * 0.025, -0.34, 0.0)))), 0x8a6a2a));
+    monPart(K, 'body', merge([bodyG].concat(legs)), bodyM);
+    const headG = monPaint(new THREE.SphereGeometry(0.16, 20, 14).scale(0.95, 0.9, 1.1), (x, y, z) => z > 0.06 ? mask : back.clone().lerp(belly, smooth(0.05, -0.12, y)));
+    const beak = monTint(merge([new THREE.ConeGeometry(0.05, 0.2, 10).rotateX(Math.PI / 2).translate(0, -0.01, 0.24), new THREE.ConeGeometry(0.03, 0.08, 8).rotateX(Math.PI * 0.8).translate(0, -0.06, 0.32)]), 0xd9a640);
+    const crest = monPaint(merge([-0.05, 0, 0.05].map((s, i) => { const L = 0.42 - Math.abs(i - 1) * 0.08; return monAt(new THREE.ConeGeometry(0.03, L, 6).translate(0, L / 2, 0).scale(0.3, 1, 1).rotateX(-1.25), s, 0.1, -0.08, 0, s * 2, 0); })), (x, y, z) => back.clone().lerp(edge, smooth(-0.2, -0.45, z)));
+    monPart(K, 'head', merge([headG, beak, crest]), bodyM);
+    monPart(K, 'eyes', merge([1, -1].map(s => new THREE.SphereGeometry(0.024, 10, 8).translate(s * 0.095, 0.03, 0.11))), eyeM, 1, {cast:false});
+    // wings: a flat feathered outline (scalloped trailing edge, fingered primaries), cambered a little and coloured from the leading edge back
+    const wing = (lead, trail, span) => { const sh = new THREE.Shape(); lead.forEach((q, i) => i ? sh.lineTo(q[0], -q[1]) : sh.moveTo(q[0], -q[1])); trail.forEach(q => sh.lineTo(q[0], -q[1])); sh.closePath();
+      const g = new THREE.ShapeGeometry(sh, 6).rotateX(-Math.PI / 2), a = g.attributes.position;
+      for(let i = 0; i < a.count; i++){ const x = a.getX(i), z = a.getZ(i); a.setY(i, 0.05 * Math.sin(clamp((z + 0.5) / 0.65, 0, 1) * Math.PI) * (1 - 0.5 * x / span)); }
+      g.computeVertexNormals(); return monPaint(g, (x, y, z) => { const k = smooth(0.1, -0.35, z), tip = smooth(span * 0.55, span, x); return belly.clone().lerp(back, k * 0.7 + 0.3).lerp(dark, tip * 0.75 * smooth(-0.05, -0.3, z)).lerp(edge, tip * smooth(-0.28, -0.42, z) * 0.6); }); };
+    const inner = wing([[0, 0.14], [0.3, 0.17], [0.62, 0.15], [0.95, 0.11]], [[0.95, -0.3], [0.85, -0.38], [0.76, -0.33], [0.66, -0.42], [0.56, -0.37], [0.46, -0.45], [0.36, -0.4], [0.24, -0.47], [0.12, -0.42], [0, -0.38]], 0.95);
+    const outer = wing([[0, 0.11], [0.35, 0.08], [0.7, 0.02], [0.92, -0.04]], [[0.98, -0.1], [0.84, -0.13], [0.94, -0.2], [0.78, -0.21], [0.86, -0.29], [0.68, -0.28], [0.74, -0.36], [0.56, -0.33], [0.5, -0.38], [0.3, -0.33], [0.15, -0.32], [0, -0.3]], 0.98);
+    monPart(K, 'wingInR', inner, featherM); monPart(K, 'wingInL', mirrorX(inner), featherM); monPart(K, 'wingOutR', outer, featherM); monPart(K, 'wingOutL', mirrorX(outer), featherM);
+    const tsh = new THREE.Shape(); tsh.moveTo(-0.07, 0); [[-0.26, 0.5], [-0.17, 0.46], [-0.1, 0.56], [0, 0.5], [0.1, 0.56], [0.17, 0.46], [0.26, 0.5], [0.07, 0]].forEach(q => tsh.lineTo(q[0], q[1])); tsh.closePath();
+    monPart(K, 'tail', monPaint(new THREE.ShapeGeometry(tsh, 4).rotateX(-Math.PI / 2), (x, y, z) => back.clone().lerp(dark, smooth(0.25, 0.55, -z)).lerp(edge, smooth(0.45, 0.56, -z) * 0.5)), featherM);
+    const eyeC = fxC(0xffd166);
+    K.pose = (m, time) => {
+      const D = mon.def, S = D.size * m.sc, w = m.mode === 'wind' ? smooth(0, D.wind, m.wind) : 0;
+      const hard = m.mode === 'flee' || m.mode === 'chase' || m.vy > 0.6 || m.mode === 'dying', glide = !hard && Math.sin(m.t * 0.7 + m.ph) > 0.15;
+      m.fp = (m.fp || 0) + (glide ? 0.04 : hard ? 0.26 : 0.17); const f = m.fp, flap = glide ? 0.12 + Math.sin(m.t * 2 + m.ph) * 0.04 : Math.sin(f);
+      const bank = clamp(-(m.turn || 0) * 0.45, -0.7, 0.7), pitch = clamp(-m.vy * 0.06, -0.4, 0.4) + (w > 0 ? -0.3 * w : 0);
+      const R0 = mx(_k0, null, m.x, m.y + (glide ? 0 : -Math.sin(f) * 0.08), m.z, pitch, m.yaw, bank, S), fl = 1 + m.flash * 1.6;
+      monPut(K, 'body', 0, R0, fl);
+      const Hd = mx(_k1, R0, 0, 0.1, 0.56, -pitch * 0.6 + Math.sin(m.t * 1.1 + m.ph) * 0.08 + w * 0.3, Math.sin(m.t * 0.7 + m.ph) * 0.25, -bank * 0.5); monPut(K, 'head', 0, Hd, fl); monPut(K, 'eyes', 0, Hd, 1 + w + m.flash);
+      [1, -1].forEach(s => { wp(Hd, s * 0.1, 0.03, 0.12); fxDot(_kv.x, _kv.y, _kv.z, 0.08 * S, eyeC, 0.5); });
+      const inA = flap * 0.62 + 0.08 + (w > 0 ? 0.6 * w : 0), outA = (glide ? 0.05 : Math.sin(f - 0.7) * 0.5) + (w > 0 ? 0.4 * w : 0), sweep = w * 0.4 + (hard ? 0.1 : 0);
+      [1, -1].forEach(s => { const I = mx(_k2, R0, s * 0.12, 0.08, 0.12, 0, -s * sweep, s * inA); monPut(K, s > 0 ? 'wingInR' : 'wingInL', 0, I, fl);
+        monPut(K, s > 0 ? 'wingOutR' : 'wingOutL', 0, mx(_k3, I, s * 0.93, 0.0, 0.0, 0, -s * sweep * 0.8, s * outA), fl); });
+      monPut(K, 'tail', 0, mx(_k1, R0, 0, 0.02, -0.5, -0.1 + pitch * 0.3, bank * 0.4, 0, 1, 1, 1), fl);
+    };
+    return K;
+  }
+};
+
 /* ================= loop ================= */
 const _t0 = new V3(), _t1 = new V3();
 function camTarget(){
@@ -11657,7 +12292,7 @@ function update(dt, time){
   }
   if(moving) p.facing = lerpAngle(p.facing, Math.atan2(mx, mz), 1 - Math.exp(-dt * 12));
   me.g.position.set(p.x, p.y, p.z); me.g.rotation.y = p.facing;
-  animateAvatar(me, dt, p.speed, p.grounded, time);
+  animateAvatar(me, dt, p.speed, p.grounded, time); atkPose(dt);
   p.flameT -= dt; const fl = p.flameT > 0; me.flames.forEach(f => { f.visible = fl; }); if(fl && me.flames.length){ me.flames[0].scale.y = me.flames[2].scale.y = 0.7 + Math.random() * 0.6; }
   if(halo) halo.rotation.z += dt;
   }
@@ -11737,7 +12372,7 @@ function update(dt, time){
   }
   if(playing && p.grounded && p.speed > 0.6){ snd.stepT -= dt; if(snd.stepT <= 0){ sfx('step'); snd.stepT = p.speed > 7 ? 0.27 : 0.42; } } else snd.stepT = 0.1;
   shopProximity(); bikeProximity(); vendProximity(); deskProximity(); archiveUpdate(dt); hollowUpdate(dt, time); chimeUpdate(dt, time); ashUpdate(dt, time); starTick(dt, time); driftUpdate(dt, time); hallUpdate(dt, time); rallyTick(dt, time); trialUpdate(dt, time); qpTick(dt, time);
-  updatePickups(dt, time); hurtCool -= dt; simTime += dt; updateHazards(simTime); updateBurst(dt); checkBundles();
+  updatePickups(dt, time); monUpdate(dt, time); hurtCool -= dt; simTime += dt; updateHazards(simTime); updateBurst(dt); checkBundles();
   if(!WORLDS[state.world].rules.danger && !zeroing && state.hp < maxHp()){ state.hp = Math.min(maxHp(), state.hp + 12 * dt); hpHud(); }
   portalCool -= dt;
   if(playing && portalCool <= 0 && !traveling && !zeroing && !pocketIn()) for(const q of portals){ if(Math.hypot(p.x - q.x, p.z - q.z) < 1.6 && p.y - G(p.x, p.z) < 2){ travel(q.to); break; } }
@@ -13455,6 +14090,61 @@ Object.defineProperties(window.__hub, {
       if(!blocked(cx, cz, q.x, q.z) && !blocked(px, pz, q.x, q.z)){ pick = [px, pz, cy]; break; } if(!pick) pick = null; }
     if(!pick){ const a = q.yaw + 0.1, px = q.x + Math.sin(a) * d, pz = q.z + Math.cos(a) * d; pick = [px, pz, Math.atan2(px - q.x, pz - q.z) + 0.1]; }
     p.x = pick[0]; p.z = pick[1]; p.y = G(p.x, p.z); cam.yaw = pick[2]; p.facing = cam.yaw + Math.PI; cam.pitch = 0.24; cam.dist = cd; me.g.position.set(p.x, p.y, p.z); me.g.rotation.y = p.facing; snapCamera(); clipCamera(); return {x:p.x, z:p.z, portal:[q.x, q.z]}; }}
+});
+// Goal 16 test hooks: list, find, hit, kill, loot and frame the realm's monsters headless
+const monCanHunt = () => !!(mon && mon.hostile && playing && !zeroing && !traveling && !pocketIn() && !monInSafe(p.x, p.z, 0) && !driftSafe());
+function monSummary(m){ return {id:m.id, x:+m.x.toFixed(2), y:+m.y.toFixed(2), z:+m.z.toFixed(2), hp:m.hp, max:m.max, mode:m.mode, home:[+m.sp.x.toFixed(2), +m.sp.z.toFixed(2)], core:!!m.sp.core, dHome:+Math.hypot(m.x - m.sp.x, m.z - m.sp.z).toFixed(2), dPlayer:+Math.hypot(m.x - p.x, m.z - p.z).toFixed(2), safeClear:+Math.min(...mon.safe.map(s => Math.hypot(m.x - s.x, m.z - s.z) - s.r)).toFixed(2)}; }
+const monFind = i => !mon ? null : typeof i === 'string' ? mon.live.find(m => m.id === i) || null : mon.live[i == null ? 0 : i] || null;
+// stand d metres from core spawn i, on the side away from the nearest safe circle, so it can see you
+function monNearHook(i, d){
+  if(!mon) return null; const s = mon.core[i == null ? 0 : i]; if(!s) return null; d = d == null ? 9 : d;
+  let best = null, bd = 1e9; for(const q of mon.safe){ const e = Math.hypot(s.x - q.x, s.z - q.z) - q.r; if(e < bd){ bd = e; best = q; } }
+  const a = best ? Math.atan2(s.x - best.x, s.z - best.z) : Math.atan2(s.x, s.z); p.x = s.x + Math.sin(a) * d; p.z = s.z + Math.cos(a) * d; p.y = G(p.x, p.z); p.vy = 0; p.speed = 0;
+  if(mon.def.fly){ const g = G(p.x, p.z); if(!(g > -1000)){ const L = ENDLESS.sky.landAt ? ENDLESS.sky.landAt(p.x, p.z) : [p.x, p.z]; p.x = L[0]; p.z = L[1]; } p.y = groundAt(p.x, p.z, 1e3); }
+  cam.yaw = Math.atan2(p.x - s.x, p.z - s.z) + 0.3; p.facing = cam.yaw + Math.PI; me.g.position.set(p.x, p.y, p.z); snapCamera();
+  monRefresh(); const m = mon.live.find(x => x.sp === s); return m ? monSummary(m) : null;
+}
+// put live monster i right next to you (facing you) and let it strike once now, through the real strike code; reports what hurt() did
+function monStrikeHook(i){
+  const m = monFind(i); if(!m) return null; const a = Math.atan2(m.x - p.x, m.z - p.z);
+  m.x = p.x + Math.sin(a) * 1.2; m.z = p.z + Math.cos(a) * 1.2; if(!mon.def.fly) m.y = monFloor(m); else m.y = p.y + 1.4; m.ax = p.x; m.az = p.z; m.ay = pCenter();
+  const hp0 = state.hp, can = monCanHunt(); hurtCool = 0; const hit = monStrike(m, can); m.mode = 'recover'; m.rt = 0.5; m.cool = mon.def.cool;
+  return {realm:mon.key, danger:WORLDS[mon.key].rules.danger, hostile:mon.hostile, canHunt:can, inRange:hit, hp0, hp1:state.hp, dealt:hp0 - state.hp};
+}
+function monViewHook(i, o){
+  o = o || {}; const m = monFind(i); if(!m) return null; if(o.freeze !== false) mon.freeze = true;
+  const D = mon.def, d = o.d || (D.fly ? 6 : D.kind === 'drone' ? 4.5 : 4.2), a = m.yaw + (o.side == null ? 0.6 : o.side);
+  p.x = m.x + Math.sin(a) * d; p.z = m.z + Math.cos(a) * d; p.y = D.fly ? groundAt(p.x, p.z, 1e3) : G(p.x, p.z); if(!(p.y > -1000)) p.y = m.y - 2.5; p.vy = 0; p.speed = 0;
+  if(D.fly && mon.freeze){ m.y = p.y + 2.6; m.vy = 0; }   // a frozen flyer is brought down to eye level for the picture
+  if(o.third){   // third person: you and the monster, the camera behind your shoulder
+    cam.yaw = Math.atan2(p.x - m.x, p.z - m.z) - 0.42; cam.pitch = 0.1; cam.dist = 3.6; p.facing = Math.atan2(m.x - p.x, m.z - p.z); me.g.visible = true; cam.view = 0;
+  } else {   // first person, looking straight at it (your avatar hidden), as the camera views do
+    cam.view = 2; cam.dist = VIEWS[2].dist; me.g.visible = false; cam.yaw = Math.atan2(p.x - m.x, p.z - m.z); p.facing = cam.yaw + Math.PI;
+    const eye = p.y + 1.6, cy = monCenterY(m); cam.pitch = clamp(Math.atan2(eye - cy, d) + 0.02, -1.1, 1.2); }
+  me.g.position.set(p.x, p.y, p.z); me.g.rotation.y = p.facing; snapCamera(); clipCamera(); return monSummary(m);
+}
+function monSafeCheck(R){
+  if(!mon) return null; R = R == null ? 3 : R; const all = mon.core.slice(); let cells = 0;
+  if(endless && endless.builtin === mon.key){ const pcx = Math.floor(p.x / CHUNK), pcz = Math.floor(p.z / CHUNK); for(let dz = -R; dz <= R; dz++) for(let dx = -R; dx <= R; dx++){ cells++; monCellSpawns(pcx + dx, pcz + dz).forEach(s => all.push(s)); } }
+  const clear = s => Math.min(...mon.safe.map(q => Math.hypot(s.x - q.x, s.z - q.z) - q.r));
+  const live = mon.live.map(m => clear(m));
+  return {spawns:all.length, cells, minSpawnClear:+Math.min(...all.map(clear)).toFixed(2), patrol:mon.def.patrol, liveMinClear:live.length ? +Math.min(...live).toFixed(2) : null, safe:mon.safe.map(s => ({x:+s.x.toFixed(1), z:+s.z.toFixed(1), r:s.r, why:s.why}))};
+}
+Object.defineProperties(window.__hub, {
+  mon:{get:() => mon ? {realm:mon.key, kind:mon.def.kind, name:mon.def.name, hostile:mon.hostile, danger:WORLDS[mon.key].rules.danger, mode:atkMode(), live:mon.live.map(monSummary), core:mon.core.map(s => ({id:s.id, x:+s.x.toFixed(2), z:+s.z.toFixed(2)})), drops:mon.drops.map(d => ({id:d.id, x:+d.x.toFixed(2), y:+d.y.toFixed(2), z:+d.z.toFixed(2), credits:d.credits, item:d.item})), dead:[...mon.dead.keys()], last:mon.last || null, lastPick:mon.lastPick || null, freeze:mon.freeze, ms:+(mon.ms || 0).toFixed(3), maxMs:+(mon.maxMs || 0).toFixed(3), kills:JSON.parse(JSON.stringify(state.kills)), draws:mon.root.children.filter(o => o.isInstancedMesh && o.count > 0).length} : {realm:state.world, none:true, kills:JSON.parse(JSON.stringify(state.kills))}},
+  monTable:{value:() => WORLD_ORDER.concat(HUNT_WORLDS).map(k => ({realm:k, kind:MON[k] ? MON[k].kind : null, name:MON[k] ? MON[k].name : null, danger:WORLDS[k].rules.danger, hostile:monHostile(k)}))},
+  monNear:{value:(i, d) => monNearHook(i, d)},
+  monHit:{value:(i, n) => { const m = monFind(i); return m ? {dealt:monDamage(m, n == null ? 10 : n, 'test'), after:monSummary(m)} : null; }},
+  monKill:{value:i => { const m = monFind(i); if(!m) return null; monDamage(m, m.hp + 999, 'test'); return mon.last; }},
+  monAttack:{value:() => { atk.cool = 0; return monAttack(); }},
+  monStrike:{value:i => monStrikeHook(i)},
+  monView:{value:(i, o) => monViewHook(i, o)},
+  monViewEnd:{value:() => { if(mon) mon.freeze = false; cam.view = 0; cam.dist = VIEWS[0].dist; cam.pitch = VIEWS[0].pitch; me.g.visible = true; snapCamera(); return true; }},
+  monFreeze:{get:() => !!(mon && mon.freeze), set:v => { if(mon) mon.freeze = !!v; }},
+  monSafeCheck:{value:R => monSafeCheck(R)},
+  monRefresh:{value:() => { if(mon) monRefresh(); return mon ? mon.live.length : 0; }},
+  pickDrop:{value:i => { if(!mon) return null; const d = mon.drops[i == null ? 0 : i]; if(!d) return null; d.pop = 1; p.x = d.x; p.z = d.z; p.y = d.y; p.vy = 0; me.g.position.set(p.x, p.y, p.z); const c0 = state.credits; monDropsUpdate(0.016, 0); return {picked:mon.drops.indexOf(d) < 0, credits:state.credits - c0, item:d.item, inv:d.item ? state.inv[d.item] || 0 : null}; }},
+  monUpdate:{value:(dt) => monUpdate(dt == null ? 0.05 : dt, 0)}
 });
 cleanLocalsStore();
 Object.defineProperties(window.__hub, { cleanLocalsStore:{value:() => cleanLocalsStore()} });
