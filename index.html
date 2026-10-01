@@ -8398,6 +8398,7 @@ const ITEMS = {
   'moonwood-charm': {name:'Moonwood Charm', rarity:'uncommon', value:20, shape:'gem', col:0x9fd0ff, desc:'Carved from a fallen moonwood branch.'},
   'sky-feather':    {name:'Skyglass Feather', rarity:'uncommon', value:16, shape:'gem', col:0xbff4ff, desc:'Shed by something that never lands.'},
   'stormglass-idol':{name:'Stormglass Idol', rarity:'epic', value:120, shape:'gem', col:0x6a8cff, desc:'Old Sky Isles craft. Nobody knows who made it.'},
+  'honour-pin':     {name:'Honour Pin', rarity:'uncommon', value:12, shape:'gem', col:0xffd166, desc:'Pinned on in the Lesson Hall on Campus, for a lesson well learned.'},   // Goal 15: the Lesson Hall's first-clear prize
   // consumables (Goal 7), sold by the vending terminal in every realm (VEND). use() returns false when it would be wasted.
   'health-kit':     {name:'Health Kit', rarity:'common', value:6, shape:'chip', col:0xff5a6e, desc:'Restores 50 HP, up to your maximum.', use(){
     const m = maxHp(); if(zeroing || state.hp <= 0) return false;
@@ -11342,6 +11343,123 @@ QM.stones = {
 };
 QPORTALS.sky = {kind:'stones', name:'Cloudstep', x:-30, z:-3, face:[0, -14], credits:45, xp:90, item:'sky-feather', col:0x7fe8ff,
   tag:'Jump stone to stone high over the clouds, through all four wind rings, and land on the beacon stone. Space jumps; tap it again in the air to boost.'};
+
+/* ---- Campus: The Lesson Hall. A bright marble classroom hall with a slate board and three answer pads (A, B, C). Five questions from a pool
+   of plain general knowledge (and a little about Hub), written for children; stand on a pad (or press E on it) to answer. Two wrong answers
+   end the lesson; four right out of five is a pass. The questions and the order of the answers come from rng(attempt), never Math.random. ---- */
+const QUIZ = [
+  ['How many legs does a spider have?', '8', '6', '10'], ['What is 7 + 5?', '12', '11', '13'], ['Which of these is a mammal?', 'A whale', 'A shark', 'A trout'],
+  ['What does a plant need from the sun to grow?', 'Light', 'Sand', 'Noise'], ['How many minutes are there in one hour?', '60', '100', '30'],
+  ['Which shape has three sides?', 'A triangle', 'A square', 'A circle'], ['Water that freezes turns into...', 'Ice', 'Steam', 'Smoke'], ['What is half of 18?', '9', '8', '6'],
+  ['In Orbital Maths, what pulls a dropped ball back down?', 'Gravity', 'The wind', 'Magnets'], ['How many days are there in a week?', '7', '5', '10'],
+  ['Which of these animals can fly?', 'A bat', 'A mole', 'A frog'], ['What is 4 x 3?', '12', '7', '15'], ['Which realm of Hub has a zero-g dance club?', 'Neon Grid', 'Glass Dunes', 'Night Grove'],
+  ['Which of these is the biggest?', 'A mountain', 'A house', 'A tree'], ['What do bees make?', 'Honey', 'Milk', 'Wool']
+];
+const LESSON = {n:5, pads:[[-4.5, 3.2], [0, 3.2], [4.5, 3.2]], padR:1.2, hold:0.7, wait:1.8, maxWrong:2, limit:300, hw:9, z0:-11, z1:11, h:6, cols:[0xffc04d, 0x5ce1e6, 0xff6fa8], letters:['A', 'B', 'C']};
+QM.lesson = {
+  start:[0, -7.5, 0], ceil:LESSON.h, view:[0, -6.5, Math.PI + 0.12, 0.22, 7.5],
+  light:{sky:0xfff4e4, ground:0x9c8c74, i:1.05, fog:0xcfc6b8, fd:0.004},
+  init(att){ const q = rng(4400 + att * 17), idx = QUIZ.map((_, i) => i);
+    for(let i = idx.length - 1; i > 0; i--){ const j = Math.floor(q() * (i + 1)); const t = idx[i]; idx[i] = idx[j]; idx[j] = t; }
+    const qs = idx.slice(0, LESSON.n), order = qs.map(() => { const o = [0, 1, 2]; for(let i = 2; i > 0; i--){ const j = Math.floor(q() * (i + 1)); const t = o[i]; o[i] = o[j]; o[j] = t; } return o; });
+    return {kind:'lesson', state:'run', t:0, why:null, att, qs, order, qi:0, right:0, wrong:0, wait:0, hold:0, armed:false, pad:-1, last:null}; },
+  // which pad holds the right answer for the current question
+  correct(S){ return S.order[S.qi].indexOf(0); },
+  // pose: {x, z, e} or {answer:k} from a sim. Events: right:k, wrong:k, next, won, failed
+  step(S, pose, dt){
+    const ev = []; if(S.state !== 'run') return ev;
+    S.t += dt;
+    if(S.t > LESSON.limit){ S.state = 'failed'; S.why = 'the bell rang before the lesson was done'; ev.push('failed'); return ev; }
+    if(S.wait > 0){ S.wait -= dt; if(S.wait > 0) return ev;
+      if(S.wrong >= LESSON.maxWrong){ S.state = 'failed'; S.why = S.wrong + ' wrong answers'; ev.push('failed'); return ev; }
+      S.qi++; S.last = null; if(S.qi >= LESSON.n){ S.state = 'won'; ev.push('won'); return ev; } ev.push('next'); }
+    let pad = -1; if(pose.answer == null) LESSON.pads.forEach((P, k) => { if(Math.hypot(pose.x - P[0], pose.z - P[1]) < LESSON.padR) pad = k; });
+    S.pad = pad; if(pad < 0){ S.armed = true; S.hold = 0; }
+    let k = pose.answer != null ? pose.answer : -1;
+    if(k < 0 && pad >= 0 && (S.armed || pose.e)){ S.hold += dt; if(S.hold >= LESSON.hold || pose.e) k = pad; }
+    if(k >= 0){ const ok = S.order[S.qi][k] === 0; if(ok) S.right++; else S.wrong++; S.last = {k, ok}; ev.push((ok ? 'right:' : 'wrong:') + k); S.wait = LESSON.wait; S.armed = false; S.hold = 0; }
+    return ev;
+  },
+  sim(S, policy){
+    if(['win', 'lose', 'one-slip'].indexOf(policy) < 0) return {error:'unknown policy', policies:['win', 'lose', 'one-slip']};
+    const log = []; let n = 0;
+    for(let i = 0; i < 4000 && S.state === 'run'; i++){
+      if(S.wait <= 0){ const c = QM.lesson.correct(S), wrong = (c + 1) % 3, k = policy === 'win' ? c : policy === 'lose' ? wrong : (n === 2 ? wrong : c); n++; QM.lesson.step(S, {answer:k}, 0.1).forEach(e => log.push(e)); }
+      else QM.lesson.step(S, {x:0, z:-6}, 0.1).forEach(e => log.push(e));
+    }
+    return log;
+  },
+  summary(S){ return {right:S.right, wrong:S.wrong, asked:S.right + S.wrong, questions:S.qs.map(i => QUIZ[i][0])}; },
+  hud(S){ return '<b>The Lesson Hall</b> Question ' + Math.min(S.qi + 1, LESSON.n) + ' / ' + LESSON.n + ' · right ' + S.right + ' · wrong ' + S.wrong + ' of ' + LESSON.maxWrong + ' · stand on A, B or C to answer<span class="qpq">Q: leave</span>'; },
+  react(o, e, S){ if(e.indexOf('right:') === 0){ sfx('coin'); } else if(e.indexOf('wrong:') === 0){ if(snd.ctx && snd.on) try{ tone('triangle', 220, 180, 0.4, 0.04); }catch(err){} } o.boardKey = ''; },
+  build(o){
+    const A = o.A, g = o.g, Y = A.y, hw = LESSON.hw, z0 = LESSON.z0, z1 = LESSON.z1, H = LESSON.h, K = roomKit({cx:A.x, cz:A.z, sd:1, ry:a => a}, g), T = campusTextures();
+    const Ms = {floor:std(0xffffff, {map:T.floor.map, normalMap:T.floor.normal, roughnessMap:T.floor.rough, roughness:1}), wall:std(0xffffff, {map:T.wall.map, normalMap:T.wall.normal, roughnessMap:T.wall.rough, roughness:1}),
+      wood:std(0xffffff, {map:T.wood.map, normalMap:T.wood.normal, roughnessMap:T.wood.rough, roughness:1}), brass:phys(0xc9a24a, {metalness:0.9, roughness:0.3}), slate:std(0x1e2a24, {roughness:0.9}),
+      frame:std(0xf4efe6, {roughness:0.5}), lamp:glowM(0xfff2da, 2.0)};
+    K.box(Ms.floor, 6, -hw, hw, Y - 0.3, Y, z0, z1);
+    K.box(Ms.wall, 6, -hw - 0.4, -hw, Y, Y + H, z0 - 0.4, z1 + 0.4); K.box(Ms.wall, 6, hw, hw + 0.4, Y, Y + H, z0 - 0.4, z1 + 0.4);
+    K.box(Ms.wall, 6, -hw, hw, Y, Y + H, z1, z1 + 0.4); K.box(Ms.wall, 6, -hw, hw, Y, Y + H, z0 - 0.4, z0);
+    K.box(Ms.wood, 4, -hw - 0.4, hw + 0.4, Y + H, Y + H + 0.3, z0 - 0.4, z1 + 0.4);
+    // coffered ceiling: oak beams with a soft light panel in each bay
+    for(let x = -hw + 3; x < hw; x += 3) K.box(Ms.wood, 2, x - 0.12, x + 0.12, Y + H - 0.4, Y + H, z0, z1);
+    for(let z = z0 + 3.5; z < z1; z += 3.5) K.box(Ms.wood, 2, -hw, hw, Y + H - 0.4, Y + H, z - 0.12, z + 0.12);
+    for(let x = -hw + 1.5; x < hw; x += 3) for(let z = z0 + 1.75; z < z1; z += 3.5) K.box(Ms.lamp, 1, x - 0.8, x + 0.8, Y + H - 0.03, Y + H, z - 0.9, z + 0.9);
+    // tall windows down both long walls, painted with Campus's late-morning lawns and sky
+    const view = canvasTex(512, 1024, (x, w, h) => { const gr = x.createLinearGradient(0, 0, 0, h); gr.addColorStop(0, '#2c6fd6'); gr.addColorStop(0.62, '#d4e6f5'); gr.addColorStop(0.64, '#9fb487'); gr.addColorStop(1, '#5f8a3c'); x.fillStyle = gr; x.fillRect(0, 0, w, h);
+      x.fillStyle = 'rgba(255,255,255,0.75)'; [[0.3, 0.2, 90], [0.7, 0.32, 60]].forEach(([u, v, r]) => { for(let i = 0; i < 6; i++){ x.beginPath(); x.arc(w * u + (i - 2.5) * r * 0.5, h * v + Math.sin(i * 2) * 10, r * 0.45, 0, TAU); x.fill(); } });
+      x.fillStyle = '#e8e2d6'; x.fillRect(w * 0.15, h * 0.5, w * 0.3, h * 0.14); x.fillStyle = '#c9c1b3'; x.fillRect(w * 0.15, h * 0.48, w * 0.3, h * 0.03); });
+    [-1, 1].forEach(sd => { for(let z = z0 + 3.5; z < z1 - 1; z += 4.5){ const x = sd * (hw - 0.01);
+      K.panel(view, 1.6, 3.4, x - sd * 0.01, Y + 2.9, z, sd < 0 ? Math.PI / 2 : -Math.PI / 2, {emi:1.0});
+      K.box(Ms.frame, 1, x - 0.06, x + 0.06, Y + 1.1, Y + 1.2, z - 0.9, z + 0.9); K.box(Ms.frame, 1, x - 0.06, x + 0.06, Y + 4.6, Y + 4.7, z - 0.9, z + 0.9);
+      [-0.85, 0.85].forEach(d => K.box(Ms.frame, 1, x - 0.06, x + 0.06, Y + 1.1, Y + 4.7, z + d - 0.05, z + d + 0.05)); K.box(Ms.frame, 1, x - 0.05, x + 0.05, Y + 1.2, Y + 4.6, z - 0.03, z + 0.03); } });
+    // the slate board on the far wall, its oak frame and chalk ledge; the canvas is redrawn as the lesson goes on
+    const bc = document.createElement('canvas'); bc.width = 1024; bc.height = 440; const bt = new THREE.CanvasTexture(bc); bt.encoding = THREE.sRGBEncoding; bt.anisotropy = 8;
+    o.board = {c:bc, t:bt}; const bw = 8, bh = bw * 440 / 1024;
+    const bm = new THREE.Mesh(new THREE.PlaneGeometry(bw, bh), std(0xffffff, {map:bt, emissive:C(0xffffff), emissiveMap:bt, emissiveIntensity:0.25, roughness:0.85})); bm.position.set(A.x, Y + 3.0, A.z + z1 - 0.06); bm.rotation.y = Math.PI; g.add(bm);
+    K.box(Ms.wood, 1, -bw / 2 - 0.15, bw / 2 + 0.15, Y + 3.0 - bh / 2 - 0.15, Y + 3.0 + bh / 2 + 0.15, z1 - 0.05, z1); K.box(Ms.wood, 1, -bw / 2, bw / 2, Y + 3.0 - bh / 2 - 0.2, Y + 3.0 - bh / 2 - 0.12, z1 - 0.2, z1 - 0.05);
+    // the three answer pads, each with a lectern sign that shows its answer
+    o.pads = LESSON.pads.map(([px, pz], k) => { const col = LESSON.cols[k], x = A.x + px, z = A.z + pz;
+      const lt = canvasTex(256, 256, (x2, w) => { x2.clearRect(0, 0, w, w); x2.fillStyle = '#ffffff'; x2.font = '700 170px "Chakra Petch","Trebuchet MS",sans-serif'; x2.textAlign = 'center'; x2.textBaseline = 'middle'; x2.fillText(LESSON.letters[k], w / 2, w / 2 + 8); });
+      mk(new THREE.CylinderGeometry(LESSON.padR, LESSON.padR + 0.05, 0.05, 48), Ms.brass, x, Y + 0.025, z, g);
+      const dm = std(col, {emissive:C(col), emissiveIntensity:0.4, roughness:0.35}); const disc = mk(new THREE.CylinderGeometry(LESSON.padR - 0.12, LESSON.padR - 0.12, 0.06, 48), dm, x, Y + 0.03, z, g); disc.castShadow = false;
+      const let0 = mk(new THREE.PlaneGeometry(1.2, 1.2), new THREE.MeshBasicMaterial({map:lt, transparent:true, depthWrite:false, color:C(0x1a1a1a)}), x, Y + 0.065, z, g); let0.rotation.set(-Math.PI / 2, 0, Math.PI); let0.castShadow = false;
+      // the lectern behind the pad
+      mk(new THREE.BoxGeometry(0.1, 1.2, 0.1), Ms.wood, x, Y + 0.6, z + 1.55, g); mk(new THREE.BoxGeometry(1.0, 0.05, 0.5), Ms.wood, x, Y + 0.02, z + 1.55, g);
+      const sc = document.createElement('canvas'); sc.width = 512; sc.height = 192; const st = new THREE.CanvasTexture(sc); st.encoding = THREE.sRGBEncoding; st.anisotropy = 8;
+      const sm = mk(new THREE.BoxGeometry(1.7, 0.66, 0.06), [Ms.wood, Ms.wood, Ms.wood, Ms.wood, std(0xffffff, {map:st, emissive:C(0xffffff), emissiveMap:st, emissiveIntensity:0.35, roughness:0.7}), Ms.wood], x, Y + 1.45, z + 1.55, g); sm.rotation.x = -0.35; sm.rotation.y = Math.PI;
+      const gl = glow(col, 3, x, Y + 0.3, z, g, 0); colliders.push({x, z:z + 1.55, r:0.3, hollow:true});
+      return {dm, gl, sc, st, lvl:0}; });
+    // a few rows of student desks behind the start, for the room's sake (solid)
+    for(let r = 0; r < 2; r++) for(let c = -1; c <= 1; c += 2){ const x = c * 5.6, z = -4 - r * 3; K.box(Ms.wood, 2, x - 1.1, x + 1.1, Y + 0.72, Y + 0.78, z - 0.4, z + 0.4); [[-1, -1], [-1, 1], [1, -1], [1, 1]].forEach(([a, b]) => K.box(Ms.brass, 1, x + a * 1.0 - 0.03, x + a * 1.0 + 0.03, Y, Y + 0.72, z + b * 0.32 - 0.03, z + b * 0.32 + 0.03));
+      addBox(A.x + x, A.z + z, 1.1, 0.4, Y - 1, Y + 0.8, {hollow:true, full:true}); }
+    addBox(A.x - hw - 0.2, A.z, 0.2, (z1 - z0) / 2 + 0.4, Y - 1, Y + H + 1, {hollow:true}); addBox(A.x + hw + 0.2, A.z, 0.2, (z1 - z0) / 2 + 0.4, Y - 1, Y + H + 1, {hollow:true});
+    addBox(A.x, A.z + z1 + 0.2, hw + 0.4, 0.2, Y - 1, Y + H + 1, {hollow:true}); addBox(A.x, A.z + z0 - 0.2, hw + 0.4, 0.2, Y - 1, Y + H + 1, {hollow:true});
+    K.done();
+    qaExit(o, 0, z0 + 0.45, 0, {frame:Ms.wall, base:Ms.wall, tile:6});
+    o.boardKey = '';
+  },
+  reset(o){ o.boardKey = ''; },
+  visual(o, dt, time){ const S = o.S; if(!S) return;
+    const qn = Math.min(S.qi, LESSON.n - 1), Q = QUIZ[S.qs[qn]], ans = S.order[qn].map(i => Q[1 + i]);
+    const key = S.state + ':' + S.qi + ':' + (S.last ? S.last.k + (S.last.ok ? 'y' : 'n') : '-') + ':' + S.right + S.wrong;
+    if(key !== o.boardKey){ o.boardKey = key; const c = o.board.c, x = c.getContext('2d'), w = c.width, h = c.height;
+      x.fillStyle = '#22302a'; x.fillRect(0, 0, w, h); for(let i = 0; i < 1600; i++){ x.fillStyle = 'rgba(255,255,255,' + (0.015 + (i * 7919 % 13) / 600).toFixed(3) + ')'; x.fillRect((i * 9301 % w), (i * 4933 % h), 2, 1); }
+      x.fillStyle = '#f4f1e8'; x.textAlign = 'left'; x.font = '600 28px "Trebuchet MS",sans-serif'; x.globalAlpha = 0.75; x.fillText(S.state === 'won' ? 'Lesson complete' : S.state === 'failed' ? 'Lesson over' : 'Question ' + (qn + 1) + ' of ' + LESSON.n, 40, 52); x.fillText('Right ' + S.right + '   Wrong ' + S.wrong, w - 300, 52); x.globalAlpha = 1;
+      x.font = '700 50px "Trebuchet MS",sans-serif'; const words = (S.state === 'won' ? 'Well done! Four out of five is a pass.' : S.state === 'failed' ? 'Two wrong answers. Come back and try again!' : Q[0]).split(' '); let line = '', ly = 130;
+      words.forEach(wd => { if(x.measureText(line + wd).width > w - 80){ x.fillText(line, 40, ly); line = ''; ly += 60; } line += wd + ' '; }); x.fillText(line, 40, ly);
+      if(S.state === 'run'){ x.font = '600 40px "Trebuchet MS",sans-serif'; ans.forEach((a, k) => { x.fillStyle = '#' + new THREE.Color(LESSON.cols[k]).getHexString(); x.fillText(LESSON.letters[k] + '  ' + a, 40 + k * 330, 330); });
+        if(S.last){ x.fillStyle = S.last.ok ? '#9dff6a' : '#ffb0a0'; x.font = '700 38px "Trebuchet MS",sans-serif'; x.fillText(S.last.ok ? 'Right!' : 'Not quite: it was ' + LESSON.letters[QM.lesson.correct(S)] + ', ' + Q[1] + '.', 40, 400); } }
+      o.board.t.needsUpdate = true;
+      o.pads.forEach((P, k) => { const s = P.sc.getContext('2d'); s.fillStyle = '#f4efe6'; s.fillRect(0, 0, 512, 192); s.fillStyle = '#' + new THREE.Color(LESSON.cols[k]).getHexString(); s.fillRect(0, 0, 512, 14);
+        s.fillStyle = '#2a2a2a'; s.textAlign = 'center'; s.textBaseline = 'middle'; s.font = '700 56px "Trebuchet MS",sans-serif'; s.fillText(S.state === 'run' ? LESSON.letters[k] + ': ' + ans[k] : LESSON.letters[k], 256, 106); P.st.needsUpdate = true; }); }
+    o.pads.forEach((P, k) => { let want = S.pad === k ? 0.6 + 0.4 * clamp(S.hold / LESSON.hold, 0, 1) : 0.15;
+      if(S.last && S.last.k === k) want = S.last.ok ? 1 : 0.5 + 0.5 * Math.sin(time * 30);
+      P.lvl += (want - P.lvl) * (1 - Math.exp(-dt * 12)); P.dm.emissiveIntensity = 0.3 + 1.8 * P.lvl; P.gl.material.opacity = 0.5 * P.lvl; });
+  }
+};
+QPORTALS.campus = {kind:'lesson', name:'The Lesson Hall', x:-19, z:-15, face:[0, -10], credits:30, xp:70, item:'honour-pin', col:0xffe08a,
+  tag:'Five questions on the board. Stand on pad A, B or C to answer (or press E on it). Four right is a pass; two wrong and the lesson ends.'};
 
 /* ================= Goal 13: the Cyan Shard, the wind chimes on Sky Isles' highest isle =================
    The clue (HUNT_CLUES.cyan, the Ledger's third riddle, the music box in Archive room 6): seven tubes numbered from the longest, which sings lowest;
