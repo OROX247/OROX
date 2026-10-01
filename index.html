@@ -8559,7 +8559,13 @@ const ITEMS = {
   'sea-glass':      {name:'Sea Glass', rarity:'common', value:6, shape:'gem', col:0x8fd8c8, desc:'A pebble of green glass, rubbed soft by the sea. Nobody on Saltlark remembers the bottle.'},
   'tidebell-token': {name:'Tidebell Token', rarity:'common', value:5, shape:'coil', col:0xf2c45a, desc:'A brass token from the Tidebell beach bar. Good for one pineapple fizz.'},
   'lighthouse-lens':{name:'Lighthouse Lens Chip', rarity:'uncommon', value:17, shape:'chip', col:0xfff0c8, desc:'A chip of the lighthouse\'s old lens. It still throws a little rainbow at the gold hour, which is always.'},
-  'snorkel-badge':  {name:'Glowwater Swim Badge', rarity:'uncommon', value:20, shape:'gem', col:0x5fd8e8, desc:'Pinned on by the lifeguard after the Glowwater Ring Swim: "swam every ring, in order, in time".'}
+  'snorkel-badge':  {name:'Glowwater Swim Badge', rarity:'uncommon', value:20, shape:'gem', col:0x5fd8e8, desc:'Pinned on by the lifeguard after the Glowwater Ring Swim: "swam every ring, in order, in time".'},
+  // Goal 20 part 4: Fennick Bay. Pickups round the town and the Lamplighter's Round's first-clear prize; added last so every earlier id keeps its place
+  'sea-coal':       {name:'Sea Coal', rarity:'common', value:4, shape:'gem', col:0x3a3a40, desc:'A lump of coal washed up on the shingle below the sea wall. The fishmonger swears it burns blue.'},
+  'ferry-ticket':   {name:'Night Ferry Ticket', rarity:'common', value:5, shape:'chip', col:0xe8d8a8, desc:'A punched card ticket for the night ferry across Fennick Bay. Return, no date on it.'},
+  'saltbox-token':  {name:'Saltbox Token', rarity:'common', value:5, shape:'coil', col:0xd8b860, desc:'A brass token from the Saltbox Arcade on the pier. Good for one game of anything.'},
+  'tide-table':     {name:'Old Tide Table', rarity:'uncommon', value:15, shape:'chip', col:0xd8d0b8, desc:'A folded tide table for Fennick Bay, soft with handling. Every page says the same thing: low water.'},
+  'lamplighter-key':{name:'Lamplighter\'s Key', rarity:'uncommon', value:20, shape:'coil', col:0xffc070, desc:'A brass lamp key on a ribbon, for lighting every lantern on Lantern Row before the tide turned.'}
 };
 // fixed, seeded pickups per realm (placed by addPickups with their own rng, so nothing else moves)
 const LOOT = {
@@ -8567,7 +8573,8 @@ const LOOT = {
   grove:['glowcap', 'glowcap', 'moonwood-charm'], sky:['sky-feather', 'sky-feather', 'stormglass-idol'],
   warfront:['match-token', 'banner-scrap', 'signal-lens'],
   lampblack:['tram-token', 'matchbook', 'late-edition', 'neon-tube'],
-  saltlark:['wishing-shell', 'sea-glass', 'tidebell-token', 'lighthouse-lens']
+  saltlark:['wishing-shell', 'sea-glass', 'tidebell-token', 'lighthouse-lens'],
+  fennick:['sea-coal', 'ferry-ticket', 'saltbox-token', 'tide-table']
 };
 function cleanInv(o){ const out = {}; for(const id in o) if(ITEMS[id]){ const n = Math.floor(num(o[id], 0)); if(n > 0) out[id] = ITEMS[id].rarity === 'artifact' ? 1 : Math.min(n, 999); } return out; }
 state.inv = cleanInv(state.inv);
@@ -8878,7 +8885,8 @@ const VEND = [{id:'health-kit', price:15}, {id:'fuel-cell', price:10}];
 // Hub: beside the spawn point (0, 14). Other realms: beside the arrival point in front of the Hub portal (0, -21.5).
 const VENDOR_SPOTS = {
   hub:[[-5.5, 10.5], [-5, 18], [5, 18], [-3.5, 8]],
-  other:[[-5, -17.5], [5, -17.5], [-6.5, -14.5], [6.5, -14.5], [-3.5, -13.5], [3.5, -13.5], [-8, -21], [8, -21]]
+  other:[[-5, -17.5], [5, -17.5], [-6.5, -14.5], [6.5, -14.5], [-3.5, -13.5], [3.5, -13.5], [-8, -21], [8, -21]],
+  fennick:[[23.5, 26.2, 0], [16.5, 26.2, 0], [-17, 26.2, 0], [30, 26.2, 0]]   // Fennick Bay: the barrow outside Gannet Stores on Harbour Street, facing the harbour (the third number is its heading)
 };
 const VENDOR_LOOK = {
   hub:  {body:() => std(0x23252e, {metalness:0.85, roughness:0.35}), trim:() => phys(0xe9e5dc, {roughness:0.3}), acc:0x5ce1e6, bg:'#07142a', shape:'box', top:'ring'},
@@ -8892,7 +8900,9 @@ const VENDOR_LOOK = {
   // Lampblack: a cast-iron street box, bottle green with brass trim and a warm lamp on top
   lampblack:{body:() => std(0x1f2a24, {map:detailTex, normalMap:detailNormal, normalScale:new V2(0.4, 0.4), metalness:0.5, roughness:0.42}), trim:() => std(0xb89a5a, {metalness:1, roughness:0.3}), acc:0xffc98a, bg:'#0e0c0a', shape:'box', top:'dome'},
   // Saltlark Isle: a beach kiosk, painted mint boards with white trim under a striped awning
-  saltlark:{body:() => std(0x9fd8c4, {map:slTex().boards, roughness:0.8}), trim:() => std(0xf4f1ea, {roughness:0.5}), acc:0x5fd8e8, bg:'#0a2a33', shape:'box', top:'awning'}
+  saltlark:{body:() => std(0x9fd8c4, {map:slTex().boards, roughness:0.8}), trim:() => std(0xf4f1ea, {roughness:0.5}), acc:0x5fd8e8, bg:'#0a2a33', shape:'box', top:'awning'},
+  // Fennick Bay: a corner-shop barrow, bottle green with cream trim, two big wheels and a striped awning
+  fennick:{body:() => std(0x2f5a3a, {map:detailTex, normalMap:detailNormal, normalScale:new V2(0.3, 0.3), roughness:0.6}), trim:() => std(0xe2d6b4, {roughness:0.55}), acc:0xffc070, bg:'#1a1208', shape:'barrow', top:'awning'}
 };
 const vendorsSeen = {};
 function vendorSpot(key){
@@ -8925,10 +8935,17 @@ function vendScreen(L){
 function addVendor(key){
   const L = VENDOR_LOOK[key]; if(!L) return;
   const {s, ax, az} = vendorSpot(key), [x, z] = s;
-  const g = new THREE.Group(); g.position.set(x, G(x, z), z); g.rotation.y = Math.atan2(ax - x, az - z); world.add(g);
+  const g = new THREE.Group(); g.position.set(x, G(x, z), z); g.rotation.y = s[2] != null ? s[2] : Math.atan2(ax - x, az - z); world.add(g);   // a spot may carry its own heading (Fennick Bay's barrow faces the harbour)
   const body = L.body(), trim = L.trim();
   let front = 0.41;
   if(L.shape === 'box'){ mk(new THREE.BoxGeometry(1.1, 2.4, 0.8), body, 0, 0.9, 0, g); mk(new THREE.BoxGeometry(1.24, 0.1, 0.94), trim, 0, 2.14, 0, g); mk(new THREE.BoxGeometry(1.2, 0.14, 0.9), trim, 0, -0.2, 0, g); }
+  else if(L.shape === 'barrow'){ mk(new THREE.BoxGeometry(1.4, 0.36, 0.85), body, 0, 0.62, 0, g); mk(new THREE.BoxGeometry(1.5, 0.05, 0.95), trim, 0, 0.82, 0, g);   // Fennick Bay: the corner shop's barrow
+    const wheel = std(0x3a2a1a, {map:detailTex, roughness:0.8}); [-0.78, 0.78].forEach(wx => { mk(new THREE.CylinderGeometry(0.4, 0.4, 0.06, 24), wheel, wx, 0.42, 0.05, g).rotation.z = Math.PI / 2; mk(new THREE.TorusGeometry(0.4, 0.025, 6, 24), trim, wx * 1.02, 0.42, 0.05, g).rotation.y = Math.PI / 2; });
+    [-0.55, 0.55].forEach(wx => { mk(new THREE.BoxGeometry(0.05, 0.42, 0.05), trim, wx, 0.21, -0.36, g); mk(new THREE.BoxGeometry(0.05, 0.05, 0.75), trim, wx * 0.6, 0.66, -0.78, g); });
+    [-0.68, 0.68].forEach(wx => mk(new THREE.BoxGeometry(0.06, 2.0, 0.06), trim, wx, 1.6, 0.36, g));
+    const crate = std(0x9a7448, {map:detailTex, roughness:0.85}), fruit = [0xd8402a, 0xe8b830, 0x6aa040, 0xe87830]; [[-0.42, -0.1], [0.05, -0.12], [0.45, -0.08]].forEach(([cx, cz], i) => { mk(new THREE.BoxGeometry(0.4, 0.14, 0.42), crate, cx, 0.92, cz, g);
+      for(let k = 0; k < 6; k++) mk(new THREE.SphereGeometry(0.055, 10, 8), std(fruit[(i + k) % 4], {roughness:0.5}), cx - 0.12 + (k % 3) * 0.12, 1.03, cz - 0.08 + Math.floor(k / 3) * 0.15, g).castShadow = false; });
+    front = 0.41; }
   else if(L.shape === 'stump'){ const sg = new THREE.CylinderGeometry(0.62, 0.78, 2.4, 14, 3); displace(sg, 0.04, 3); mk(sg, body, 0, 0.9, 0, g); mk(new THREE.TorusGeometry(0.72, 0.12, 8, 20), trim, 0, 0.05, 0, g).rotation.x = Math.PI / 2; front = 0.68; }
   else { mk(new THREE.CylinderGeometry(0.55, 0.72, 2.4, 32), body, 0, 0.9, 0, g); mk(new THREE.CylinderGeometry(0.66, 0.66, 0.08, 32), trim, 0, 2.12, 0, g); mk(new THREE.TorusGeometry(0.72, 0.05, 8, 40), trim, 0, 0.1, 0, g).rotation.x = Math.PI / 2; front = 0.66; }
   // screen, bezel and dispense slot on the front (+z faces the arrival point)
@@ -9909,7 +9926,8 @@ const AI_PROMPTS = {
   sky:'Photorealistic real-life drone video. A lush green floating island high above a sea of white clouds on a bright morning: soft grass with wildflowers, round leafy trees, grey rocks, small floating islands with rocky undersides, clear blue sky. True to life.',
   warfront:'Photorealistic real-life video. A vast muddy battlefield under a dramatic stormy sky at dusk: zigzag trenches lined with timber planks and sandbags, shell craters with rain puddles, loose wire on wooden posts, a ruined round stone keep with a broken crown inside crumbling walls, shattered stone towers on the horizon, rust-red and teal banners on poles, low golden sunlight breaking under heavy slate clouds, soft flashes of light inside the clouds. True to life. No people, no weapons.',
   saltlark:'Photorealistic real-life video. A tropical holiday island in warm late-afternoon golden light: fine white sand, a wide shelf of clear turquoise shallows over sand with rippling caustics, leaning coconut palms, a weathered wooden boardwalk with a row of pastel beach huts, a thatched beach bar, striped umbrellas, a long wooden pier on piles out to a white lighthouse with red bands, a waterfall into a rocky cove pool, white sailing boats offshore, gulls, gentle surf foam on the shore. True to life. No people, no logos, no readable brand names.',
-  lampblack:'Photorealistic real-life video. A rain-soaked city street at night, nearly black and white with a few colours: wet asphalt mirroring street lamps and neon signs, puddles with rain rings, old brick and pale limestone buildings with a few lit windows and iron fire escapes, an elevated railway on riveted steel columns crossing the street, steam rising from a grate, a red neon sign over a jazz club marquee of bulbs, a tall teal vertical hotel sign, heavy rain, low clouds glowing with city light. True to life. No logos, no readable brand names.'
+  lampblack:'Photorealistic real-life video. A rain-soaked city street at night, nearly black and white with a few colours: wet asphalt mirroring street lamps and neon signs, puddles with rain rings, old brick and pale limestone buildings with a few lit windows and iron fire escapes, an elevated railway on riveted steel columns crossing the street, steam rising from a grate, a red neon sign over a jazz club marquee of bulbs, a tall teal vertical hotel sign, heavy rain, low clouds glowing with city light. True to life. No logos, no readable brand names.',
+  fennick:'Photorealistic real-life video. A small old harbour town at a misty dusk with the tide out: a steep cobbled street of red-brick terraced houses with warm lit windows and iron lanterns on brackets, slate roofs and smoking chimneys, a stone quay and harbour walls, small wooden fishing boats lying tilted on wet glistening mud, a stone ferry slip, an old pier with a little arcade lit with bulbs, a white lighthouse with a red band across the bay, gulls, a soft violet and peach sky. True to life. No people, no logos, no readable brand names.'
 };
 const AI_KEY = 'hub-decart-key', aiVid = $('#aiVideo');
 const ai = {on:false, busy:false, rt:null, ctx:null, stream:null, w:1280, h:704, fps:25, last:0};
@@ -10040,7 +10058,8 @@ const PHOTO_SLOTS = {
   sky:   { ground:[0x6aa444, 'bright green meadow grass with tiny white and yellow wildflowers'], rock:[0x7a6f66, 'brown weathered cliff rock with cracks'] },
   campus:{ ground:[0x5a8a36, 'freshly mown green lawn grass'], plaza:[0xcfc7b8, 'light warm grey granite paving slabs in a running bond, a clean campus walkway'] },
   warfront:{ ground:[0x4a3a2c, 'churned dark brown mud with small stones and dried puddle marks'], rock:[0x6f6a64, 'dark grey weathered rock with cracks'] },
-  saltlark:{ ground:[0xeee3cc, 'fine pale white beach sand, dry, smooth with tiny shell fragments'], rock:[0x9a8e80, 'light grey-brown weathered coastal rock'] }
+  saltlark:{ ground:[0xeee3cc, 'fine pale white beach sand, dry, smooth with tiny shell fragments'], rock:[0x9a8e80, 'light grey-brown weathered coastal rock'] },
+  fennick:{ ground:[0x5a5048, 'wet grey-brown estuary mud at low tide with small pools and ripples'], rock:[0x6a655e, 'grey weathered granite with lichen'] }
 };
 const TEX_SUFFIX = '. Photographed straight down from above as a flat surface filling the whole frame, soft even daylight, no shadows, no horizon, no objects, photorealistic seamless texture, sharp natural detail.';
 const idb = (() => {
@@ -10140,7 +10159,9 @@ const PH_WANT = {
   'warfront:ground':{want:['mud','muddy','dirt','soil','ground'], avoid:['grass','snow','sand','tiles','brick','leaves','moss','flowers','road','asphalt']},
   'warfront:rock':{want:['rock','stone','boulder','cliff'], avoid:['wall','brick','moss','sand','floor','tiles','snow']},
   'saltlark:ground':{want:['sand','beach','white sand'], avoid:['rock','wet','stones','grass','pebbles','gravel','desert','dune','red','mud']},
-  'saltlark:rock':{want:['rock','cliff','boulder','coast'], avoid:['wall','brick','moss','sand','floor','tiles','snow','lava']}
+  'saltlark:rock':{want:['rock','cliff','boulder','coast'], avoid:['wall','brick','moss','sand','floor','tiles','snow','lava']},
+  'fennick:ground':{want:['mud','wet','estuary','silt'], avoid:['sand','grass','snow','brick','tiles','floor','lava','desert','dune','rock','cracked']},
+  'fennick:rock':{want:['rock','granite','cliff','boulder'], avoid:['wall','brick','moss','sand','floor','tiles','snow','lava']}
 };
 let phIndex = null;
 async function phAssets(){
@@ -10445,6 +10466,7 @@ function ambience(key){
   else if(key === 'campus'){ wind(240, 0.16, 0.07, 0.4); chirps(); }
   else if(key === 'warfront'){ wind(340, 0.34, 0.12, 0.6); wind(120, 0.18, 0.05, 0.4); booms(); }
   else if(key === 'lampblack'){ lbRainSound(); wind(140, 0.14, 0.03, 0.5); lbTraffic(); }
+  else if(key === 'fennick'){ fbSeaSound(); wind(260, 0.15, 0.06, 0.5); fbGulls(); fbHorn(); }   // "Low Tide" from the music box in No. 9 is played by fbUpdate, louder by the house
   else if(key === 'saltlark'){ slSurfSound(); wind(700, 0.1, 0.09, 0.6); slGulls(); }   // the Tidebell's steel drums are their own bus (slDrums), louder by the bar   // the jazz from The Low Hour is its own bus (lbJazz), louder by the club
   else wind(300, 0.3, 0.1, 0.5);
 }
@@ -10488,6 +10510,7 @@ function sfx(name){
       case 'zap': tone('sawtooth', 1900, 180, 0.22, 0.06); noiseHit(4200, 1, 0.16, 0.07); break;
       case 'step': { if(w === 'saltlark' && slDepth() > 0.08){ noiseHit(900, 0.7, 0.16, 0.06, t, 2600); noiseHit(3400, 1.5, 0.09, 0.025, t + 0.03); break; }   // a splash
         if(w === 'saltlark'){ noiseHit(520, 0.6, 0.09, 0.05); break; }   // soft sand
+        if(w === 'fennick'){ if(p.y < 0.4 && !(qa && qa.inside)){ noiseHit(380, 0.8, 0.12, 0.05, t, 220); break; } noiseHit(2300, 1.4, 0.04, 0.045); noiseHit(800, 1.0, 0.05, 0.03, t + 0.01); break; }   // mud, or setts and flags
         if(w === 'lampblack'){ noiseHit(1300, 1.1, 0.07, 0.05); noiseHit(3600, 2.2, 0.035, 0.022, t + 0.012); break; }   // a wet step
         const soft = w === 'dunes' || w === 'sky' || w === 'grove' || w === 'campus' || w === 'warfront'; noiseHit(soft ? 340 : w === 'grid' ? 2100 : 800, soft ? 0.7 : 2.5, soft ? 0.07 : 0.045, soft ? 0.045 : 0.035); break; }
     }
@@ -13804,7 +13827,13 @@ const LP_TRADES = {
     ['hotel manager', 'I run Hotel Saltlark up on the rise. Every room has a sea view and a sunset that never quite finishes.'], ['lighthouse keeper', 'I keep the lamp at the end of the pier lit. There are no rocks out there. I just like the light.']],
   lampblack:[['newspaper seller', 'I sell the Evening Wire from the kiosk on Vesper Square. The late edition is always the wetter one.'], ['jazz pianist', 'I play the late set at The Low Hour. One key sticks, so I play round it. Nobody has noticed in nine years.'],
     ['night cab driver', 'I drive a cab all night. The fares are short and the stories are long.'], ['tailor', 'I press suits at Abernathy\'s. Rain is good for business: everybody needs a hem taken up.'],
-    ['detective\'s secretary', 'I type the reports for E. Vanterpool, upstairs over the square. Most cases are lost gloves. Some are not.'], ['lamplighter', 'I wipe the rain off the lamp glass, one street at a time. The city is very long.']]
+    ['detective\'s secretary', 'I type the reports for E. Vanterpool, upstairs over the square. Most cases are lost gloves. Some are not.'], ['lamplighter', 'I wipe the rain off the lamp glass, one street at a time. The city is very long.']],
+  fennick:[['ferry hand', 'I work the ropes on the night ferry. Young Lyle used to wave a torch from the harbour wall until his dad\'s boat came round the Ness.'],
+    ['arcade owner', 'I keep the Saltbox Arcade on the pier. Young Lyle\'s racing game went in the corner cabinet one August, and the queue went halfway down the pier.'],
+    ['laundrette owner', 'I run Bright Suds. Two young ones rented the rooms upstairs once, Lyle and a friend who could draw anything. The floor hummed when the dryers ran and they never minded.'],
+    ['fishmonger', 'I sell the morning catch on Harbour Street. Lyle\'s mother bought two kippers every Friday, and he carried them home up the Row like treasure.'],
+    ['postwoman', 'I carry the post up Lantern Row every morning. No. 9 always had a parcel of paper for young Lyle. Maps, mostly. Maps of our street.'],
+    ['retired lighthouse keeper', 'I kept the light on the Ness for forty years. On a clear night I could see the lamp in the window of No. 9 from up there.']]
 };
 const LP_TEMPERS = {
   cheerful:{base:2, first:'Oh, hello! A new face!', word:'cheerful and quick to laugh'}, gruff:{base:-1, first:'Hm. Not seen you round here.', word:'gruff but fair'},
@@ -13845,14 +13874,15 @@ const LP_REALM_FACTS = {
   sky:'Sky Isles: floating islands joined by jumps and boosts; seven wind chimes hang on the highest isle; wild sky harpies wheel round the isles.',
   warfront:'Warfront: a battlefield planet where the war is a game, the Long Match between the Ember Pact (rust banners, a white flame) and the Tidewall Company (teal banners, three waves); trenches, wire and shell holes, the Old Bastion (a ruined keep you climb by the stair round its outside), clockwork sentries that still patrol, the Signal Run quest portal, and nobody is hurt for real: you zero out and walk back in.',
   saltlark:'Saltlark Isle: a holiday island held for ever at the golden hour, where nothing can hurt you; white beaches and a wide shelf of turquoise shallows you can wade (past the shelf you float and swim), a pastel boardwalk with eight beach huts, the Tidebell beach bar (a steel-drum band loop, the pineapple fizz), striped umbrellas, a pier out to the white-and-red lighthouse, a lagoon you can wade in the west, a waterfall into a rocky cove pool on the eastern headland, Hotel Saltlark on the rise, hammocks between palms, crabs, gulls and fish in the shallows, sailing boats offshore; the Glowwater Ring Swim is the quest portal by the boardwalk.',
-  lampblack:'Lampblack: a rain-soaked city held at night for ever, where nothing can hurt you; the El and its night tram over Vesper Street station, the Hotel Vesperine, The Low Hour jazz club (the Late Lamps Trio play "Rain on Vesper"), the Kettle & Crow diner, Abernathy the tailor, the Evening Wire kiosk and E. Vanterpool\'s inquiry office over Vesper Square; pigeons on the ledges, cats in the alleys, steam from the grates; The Low Hour Case is the quest portal by the club door.'
+  lampblack:'Lampblack: a rain-soaked city held at night for ever, where nothing can hurt you; the El and its night tram over Vesper Street station, the Hotel Vesperine, The Low Hour jazz club (the Late Lamps Trio play "Rain on Vesper"), the Kettle & Crow diner, Abernathy the tailor, the Evening Wire kiosk and E. Vanterpool\'s inquiry office over Vesper Square; pigeons on the ledges, cats in the alleys, steam from the grates; The Low Hour Case is the quest portal by the club door.',
+  fennick:'Fennick Bay: the Architect Lyle Ashcombe\'s home town as he remembered it, held for ever at a misty dusk with the tide out, where nothing can hurt you; Lantern Row runs down the hill from the square to Harbour Street; No. 9 (the Ashcombes\' house) always has a lamp lit in its front window; Bright Suds laundrette (the two rooms above it were the first office), the post office, the fishmonger, Gannet Stores and its barrow, the chandlery, the Pellows\' garage on the square; the harbour with its boats lying on the mud, the ferry slip, the night ferry\'s lights out on the bay, the pier and the Saltbox Arcade (where Comet Rally first had a cabinet), the lighthouse on the Ness. The locals remember young Lyle warmly, but they know nothing of the Ledger\'s riddles or the Hunt\'s answers and say so; the Lamplighter\'s Round is the quest portal on Harbour Street.'
 };
 function strHash(t){ let h = 2166136261; t = String(t); for(let i = 0; i < t.length; i++) h = Math.imul(h ^ t.charCodeAt(i), 16777619); return h >>> 0; }
 const localId = nn => nn.home + ':' + nn.name;
 function personaOf(nn){
   if(nn.persona) return nn.persona;
   const id = localId(nn), q = rng(strHash('living-local:' + id)), pick = a => a[Math.floor(q() * a.length)];
-  const tr = pick(LP_TRADES[nn.home] || LP_TRADES.hub), tk = Object.keys(LP_TEMPERS), temper = pick(tk), want = pick(LP_WANTS), secret = pick(LP_SECRETS), style = pick(LP_STYLES);
+  const tr = fbTrade(nn, pick(LP_TRADES[nn.home] || LP_TRADES.hub)), tk = Object.keys(LP_TEMPERS), temper = pick(tk), want = pick(LP_WANTS), secret = pick(LP_SECRETS), style = pick(LP_STYLES);
   return (nn.persona = {id, name:nn.name, home:nn.home, homeName:WORLDS[nn.home].name, trade:tr[0], tradeLine:tr[1], temper, temperWord:LP_TEMPERS[temper].word, want:want[0], wantLine:want[1], secret, style:style.id, styleWord:style.d, tail:style.tail});
 }
 // the memory store: one slot per player name
@@ -14248,7 +14278,9 @@ const QUEST_LANDMARKS = {
   chimes:{realm:'sky', name:'the wind chimes on the highest isle of Sky Isles', at:() => chimes ? {x:chimes.x, z:chimes.z, r:5} : null},
   bastion:{realm:'warfront', name:'the top of the Old Bastion on Warfront', at:() => ({x:WAR.keep.x, z:WAR.keep.z, r:WAR.keep.r - 0.3})},   // inside the keep's footprint is only reachable on top of it
   lighthouse:{realm:'saltlark', name:'the lighthouse at the end of the pier on Saltlark Isle', at:() => ({x:SLK.head.x, z:SLK.head.z, r:SLK.head.r})},
-  vesperine:{realm:'lampblack', name:'the front steps of the Hotel Vesperine in Lampblack', at:() => ({x:(LB.steps.x0 + LB.steps.x1) / 2, z:(LB.steps.z0 + LB.steps.z1) / 2, r:3})}
+  vesperine:{realm:'lampblack', name:'the front steps of the Hotel Vesperine in Lampblack', at:() => ({x:(LB.steps.x0 + LB.steps.x1) / 2, z:(LB.steps.z0 + LB.steps.z1) / 2, r:3})},
+  'no-nine':{realm:'fennick', name:'No. 9 Lantern Row in Fennick Bay', at:() => ({x:-2.4, z:-2.6, r:3})},
+  saltbox:{realm:'fennick', name:'the Saltbox Arcade on the pier at Fennick Bay', at:() => ({x:52, z:113, r:7})}
 };
 const QUEST_MAX = 3, QUEST_CREDITS = [10, 60];
 const bringIds = () => Object.keys(ITEMS).filter(id => ['artifact', 'epic'].indexOf(ITEMS[id].rarity) < 0 && id !== 'dreamglass');
@@ -17660,7 +17692,7 @@ function fbHouse(B, F, q){
   const fl = F.floor, st = F.st || 2, D = F.D || 7, a0 = F.a0, a1 = F.a1, wd = a1 - a0, eave = fl + 0.25 + st * 2.75, base = F.base != null ? F.base : fl - 1.4, rh = Math.min(3.2, D * 0.42);
   const wall = F.mat === 'brick' ? B.brick : (B.render[F.mat] || (B.render[F.mat] = []));
   wall.push(box(a0, a1, -D, 0, base, eave));
-  { const b = box(a0, a1, -D, 0, base, eave); addBox((b[0] + b[1]) / 2, (b[4] + b[5]) / 2, (b[1] - b[0]) / 2, (b[5] - b[4]) / 2, base - 3, eave + rh); }
+  { const b = box(a0, a1, -D, 0, base, eave); addBox((b[0] + b[1]) / 2, (b[4] + b[5]) / 2, (b[1] - b[0]) / 2, (b[5] - b[4]) / 2, -20, eave + rh); }   // from far below: freeSpot and the locals' wander only see boxes that start under 2 m
   // the roof: two slate slopes with eaves front and back; gables at both ends in the wall's own material (they show where the terrace steps)
   { const oF = 0.3, oB = -D - 0.3, oM = -D / 2, y0 = eave - 0.12, y1 = eave + rh, e0 = a0 - 0.04, e1 = a1 + 0.04;
     const P = (a, o, y) => { const [x, z] = W(a, o); return new V3(x, y, z); };
@@ -17763,7 +17795,7 @@ function fbSquare(B, q){
   B.iron.push([x1 - 0.55, x1 - 0.5, y + 0.92, y + 1.5, z1 - 1.6, z1 - 1.55], [x1 - 0.7, x1 - 0.5, y + 1.48, y + 1.52, z1 - 1.6, z1 - 1.55]); B.flame.push(new THREE.CylinderGeometry(0.06, 0.12, 0.12, 12, 1, true).translate(x1 - 0.72, y + 1.43, z1 - 1.57));
   B.glows.push([x1 - 0.72, y + 1.35, z1 - 1.57, 2.4, 0xffd090, 0.6], [x1 - 0.8, y + 0.95, z1 - 1.8, 3.4, 0xffb060, 0.25]);
   const sg = new THREE.PlaneGeometry(5.4, 0.62); fbRowUV(sg, 6); sg.rotateY(-Math.PI / 2); sg.translate(x0 - 0.03, y + 2.55, (z0 + z1) / 2); B.sign.push(sg);
-  aabb(x0, x1, y - 2, y + h, z0, z0 + 0.25); aabb(x0, x1, y - 2, y + h, z1 - 0.25, z1); aabb(x1 - 0.25, x1, y - 2, y + h, z0, z1); aabb(x1 - 1.0, x1 - 0.25, y - 2, y + 0.95, z0 + 0.6, z1 - 0.6, {full:true, cam:false});
+  aabb(x0, x1, -20, y + h, z0, z0 + 0.25); aabb(x0, x1, -20, y + h, z1 - 0.25, z1); aabb(x1 - 0.25, x1, -20, y + h, z0, z1); aabb(x1 - 1.0, x1 - 0.25, -20, y + 0.95, z0 + 0.6, z1 - 0.6, {full:true, cam:false});
   fb.garage = {x:x1 - 1.3, z:(z0 + z1) / 2, y};
 }
 // terraces stepping up the hill either side of the Row, facing the harbour over Harbour Street's roofs
@@ -17902,7 +17934,7 @@ function fbNo9(B){
   const glassM = std(0xdfeef0, {roughness:0.04, metalness:0.1, transparent:true, opacity:0.18, depthWrite:false});
   const gl = merge([new THREE.PlaneGeometry(1.94, top - sill).rotateY(Math.PI / 2).translate(X + bo - 0.01, (sill + top) / 2, zw), new THREE.PlaneGeometry(bo, top - sill).translate(X + bo / 2, (sill + top) / 2, z1 - 0.02), new THREE.PlaneGeometry(bo, top - sill).rotateY(Math.PI).translate(X + bo / 2, (sill + top) / 2, z0 + 0.02)]);
   const gm = mk(gl, glassM, 0, 0, 0); gm.renderOrder = 2; gm.castShadow = false; gm.userData.noAO = true;
-  aabb(X, X + bo + 0.05, F.base - 2, top + 0.2, z0, z1);
+  aabb(X, X + bo + 0.05, -20, top + 0.2, z0, z1);
   // the lantern, the same one the Archive keeps: an iron base, four posts, the flame, a cap and its ring
   const lx = X + 0.22, lz = zw + 0.35; B.ironG.push(new THREE.CylinderGeometry(0.075, 0.085, 0.03, 20).translate(lx, sill + 0.045, lz), new THREE.CylinderGeometry(0.02, 0.07, 0.05, 20).translate(lx, sill + 0.265, lz), new THREE.TorusGeometry(0.06, 0.006, 6, 24, Math.PI).rotateY(0.3).translate(lx, sill + 0.29, lz));
   [0, 1, 2, 3].forEach(k => B.ironG.push(new THREE.CylinderGeometry(0.004, 0.004, 0.19, 5).translate(lx + Math.cos(k * TAU / 4 + 0.7) * 0.07, sill + 0.15, lz + Math.sin(k * TAU / 4 + 0.7) * 0.07)));
@@ -17991,6 +18023,7 @@ function fbUpdate(dt, time){
   if(fb.flash){ const f = fb.flash, b = f.userData.base, ca = Math.atan2(camera.position.x - b.x, camera.position.z - b.z), k = Math.pow(Math.max(0, Math.cos(2 * (time * 0.25 - ca))), 30); f.material.opacity = 0.15 + 0.85 * k; f.scale.setScalar(10 + 26 * k); }
   if(fb.ferry){ const F = FB.ferry, L = F.x1 - F.x0, ph = (time * F.v) % (2 * L), out = ph < L, x = out ? F.x0 + ph : F.x1 - (ph - L);
     fb.ferry.position.x = x; fb.ferry.rotation.y = out ? Math.PI / 2 : -Math.PI / 2; fb.ferry.position.y = FB.sea - 0.6 + Math.sin(time * 0.7) * 0.06; fb.ferry.rotation.z = Math.sin(time * 0.5) * 0.015; }
+  fbMusicBox(dt);
   if(fbSmokeMat){ const hgt = renderer.getDrawingBufferSize(_cellV2).y; fbSmokeMat.uniforms.scale.value = hgt / (2 * Math.tan(camera.fov * Math.PI / 360)); }
 }
 /* ---- no boundaries (Goal 8a rule): past the core the coast goes on for ever in both directions, the flats and the sea to the north and the moor to
@@ -18014,6 +18047,43 @@ ENDLESS.fennick = {
     {name:'near', r:1, build(c, k){ cellWeeds(c, 34, [0x6a5a4a, 0x7a6a3a, 0x5a6a3a, 0x8a6a5a], (x, z) => hf(x, z) > 2.4); }}
   ]
 };
+// Living Locals: Fennick Bay's six locals each keep a different trade (the ferry hand, the arcade owner, the laundrette owner, the fishmonger, the
+// postwoman, the retired lighthouse keeper), in the order they were placed, so nobody in a town this small has the same job; other realms pick as before
+function fbTrade(nn, picked){ if(nn.home !== 'fennick') return picked; const i = npcs.filter(n => n.home === 'fennick').indexOf(nn), L = LP_TRADES.fennick; return i >= 0 ? L[i % L.length] : picked; }
+/* ---- Fennick Bay's sound: the sea at low water (far off, a slow hush over the flats, a small wave now and then on the shingle), gulls, the night
+   ferry's horn out on the bay, and "Low Tide" from a music box in No. 9 (the Archive's tune: LOW_TIDE_HZ in the order of HUNT_CLUES.cyan), louder
+   by the house. Every chance comes from its own rng. ---- */
+const fbSndR = rng(9601);
+function fbSeaSound(){
+  const c = snd.ctx, src = c.createBufferSource(); src.buffer = bufs().brownBuf; src.loop = true;
+  const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 420; const g = c.createGain(); g.gain.value = 0.09;
+  const lfo = c.createOscillator(), lg = c.createGain(); lfo.frequency.value = 0.07; lg.gain.value = 0.05; lfo.connect(lg); lg.connect(g.gain);
+  src.connect(lp); lp.connect(g); g.connect(snd.amb); src.start(); lfo.start(); snd.nodes.push(src, lfo, g);
+  const wave = () => { if(state.world !== 'fennick' || !snd.ctx) return; const t = c.currentTime; try{ noiseHit(500 + fbSndR() * 300, 0.5, 2.4, 0.02 + fbSndR() * 0.015, t, 1600, snd.amb); }catch(e){}
+    snd.timers.push(setTimeout(wave, 7000 + fbSndR() * 7000)); };
+  snd.timers.push(setTimeout(wave, 2000));
+}
+function fbGulls(){
+  const one = () => { if(state.world !== 'fennick' || !snd.ctx) return; const t = snd.ctx.currentTime, n = 1 + Math.floor(fbSndR() * 3), f = 1400 + fbSndR() * 500, g = 0.006 + fbSndR() * 0.008;
+    try{ for(let i = 0; i < n; i++){ const t0 = t + i * (0.3 + fbSndR() * 0.12); tone('sawtooth', f * 1.15, f * 0.7, 0.34, g, t0, snd.amb); tone('sine', f * 2.2, f * 1.4, 0.3, g * 0.6, t0, snd.amb); } }catch(e){}
+    snd.timers.push(setTimeout(one, 5000 + fbSndR() * 11000)); };
+  snd.timers.push(setTimeout(one, 3000));
+}
+// the ferry's horn: two long low notes across the water, now and then
+function fbHorn(){
+  const one = () => { if(state.world !== 'fennick' || !snd.ctx) return; const t = snd.ctx.currentTime;
+    try{ [[0, 2.4], [2.9, 1.6]].forEach(([d, L]) => { tone('sawtooth', 98, 97, L, 0.006, t + d, snd.amb); tone('sine', 98, 97, L, 0.03, t + d, snd.amb); tone('sine', 147, 146, L, 0.012, t + d, snd.amb); }); }catch(e){}
+    snd.timers.push(setTimeout(one, 30000 + fbSndR() * 40000)); };
+  snd.timers.push(setTimeout(one, 9000 + fbSndR() * 9000));
+}
+// "Low Tide" from the music box in No. 9: once every eleven seconds or so, louder the nearer you are (out of earshot past 30 m)
+function fbMusicBox(dt){
+  if(!snd.ctx || !snd.on || !fb.lantern || (qa && qa.inside) || traveling) return;
+  fb.boxT = (fb.boxT == null ? 1 : fb.boxT) - dt; if(fb.boxT > 0) return; fb.boxT = 11;
+  const d = Math.hypot(p.x - fb.lantern.x, p.z - fb.lantern.z), k = 1 - smooth(4, 30, d); if(k <= 0.01) return;
+  const t = snd.ctx.currentTime + 0.1; fb.boxPlays = (fb.boxPlays || 0) + 1;
+  HUNT_CLUES.cyan.order.forEach((n, i) => { const f = LOW_TIDE_HZ[n - 1]; tone('sine', f, f, 1.2, 0.03 * k, t + i * 0.62, snd.amb); tone('triangle', f * 2, f * 2, 0.4, 0.007 * k, t + i * 0.62, snd.amb); });
+}
 })();
 </script>
 </body>
