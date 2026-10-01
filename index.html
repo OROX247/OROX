@@ -12099,9 +12099,9 @@ const LP_WANTS = [
   ['to save five hundred credits', 'Five hundred credits. Then I am buying something completely silly.']
 ];
 const LP_SECRETS = [
-  'once fell asleep in The Drift and woke up floating near the ceiling', 'cannot actually read the Ledger\'s handwriting and only pretends', 'has never once left their home realm',
-  'is a little afraid of portals and shuts their eyes going through', 'keeps a Glass Bead from their very first day in Hub', 'once lost a Comet Rally to a comet going backwards',
-  'writes riddles on scraps and hides them under benches', 'thinks the grey Meridian Units must be lonely', 'hums Low Tide without knowing where they learned it',
+  'once fell asleep in The Drift and woke up floating near the ceiling', 'cannot actually read the Ledger\'s handwriting', 'has never once left their home realm',
+  'is a little afraid of portals', 'keeps a Glass Bead from their very first day in Hub', 'once lost a Comet Rally to a comet going backwards',
+  'writes little riddles for strangers to find under the benches', 'thinks the grey Meridian Units must be lonely', 'hums Low Tide without knowing where the tune came from',
   'has saved every Dock Token since the Spaceport opened'
 ];
 const LP_STYLES = [
@@ -12167,6 +12167,9 @@ function knownDeeds(nn){ const P = lp(), D = deedsNow(), byId = {}; D.forEach(d 
 function remember(m, field, text, max){ text = String(text || '').trim().slice(0, 120); if(!text) return; m[field].push(text); if(m[field].length > max) m[field].splice(0, m[field].length - max); }
 // a line in the local's own voice: the style's tail on persona lines only, so greetings stay short
 const styled = (P, t) => t + (P.tail || '');
+// a persona phrase written about the local ('has never once left their home realm') turned to 'I' or 'you'
+const LP_VERBS = {is:['am', 'are'], has:['have', 'have'], keeps:['keep', 'keep'], writes:['write', 'write'], thinks:['think', 'think'], hums:['hum', 'hum'], cannot:['cannot', 'cannot'], once:['once', 'once']};
+const personSecret = (t, you) => t.replace(/^(\w+)/, w => LP_VERBS[w] ? LP_VERBS[w][you ? 1 : 0] : w).replace(/\btheir\b/g, you ? 'your' : 'my');
 const aAn = w => (/^[aeiou]/i.test(w) ? 'an ' : 'a ') + w;
 // the greeting when you walk up (or open a conversation): by name, by mood, with any deed they have heard of and not yet mentioned
 function localGreeting(nn, opts){
@@ -12200,7 +12203,7 @@ function localOffline(nn, text){
   else if(/\b(thanks|thank you|cheers|ta)\b/.test(t)){ out.say = 'Any time, ' + who + '.'; out.mood_delta = 1; out.emote = 'nod'; }
   else if(/\b(stupid|hate you|ugly|shut up|idiot|boring|loser|dumb)\b/.test(t)){ out.say = 'Well. That was not very kind, ' + who + '.'; out.mood_delta = -2; out.emote = 'sad'; }
   else if(/\b(quest|job|task|favou?r|help you|need (anything|help)|work for|errand|mission)\b/.test(t)){ const q = localQuestOffer(nn); if(q && q.offer){ out.say = q.say; out.quest = q.offer; out.emote = 'think'; } else { out.say = q ? q.say : 'Nothing right now, ' + who + '. Ask me again another day.'; out.emote = 'shrug'; } }
-  else if(/\b(secret|tell me something|confess)\b/.test(t)){ out.say = m.mood >= 5 ? 'Promise not to tell? I ' + P.secret.replace(/^(is|has|keeps|writes|thinks|hums|once|cannot)\b/, w => ({is:'am', has:'have', keeps:'keep', writes:'write', thinks:'think', hums:'hum', once:'once', cannot:'cannot'})[w]) + '.' : 'A secret? Maybe when I know you better, ' + who + '.'; out.emote = m.mood >= 5 ? 'laugh' : 'shrug'; if(m.mood >= 5) out.remember = 'I told them my secret'; }
+  else if(/\b(secret|tell me something|confess)\b/.test(t)){ out.say = m.mood >= 5 ? 'Promise not to tell? I ' + personSecret(P.secret, false) + '.' : 'A secret? Maybe when I know you better, ' + who + '.'; out.emote = m.mood >= 5 ? 'laugh' : 'shrug'; if(m.mood >= 5) out.remember = 'I told them my secret'; }
   else if(/\b(who are you|your name|what do you do|job is|your work|what are you)\b/.test(t)){ out.say = 'I am ' + P.name + ', ' + aAn(P.trade) + ' here in ' + P.homeName + '. ' + styled(P, P.tradeLine); out.emote = 'bow'; }
   else if(/\b(want|dream|wish|hope|goal)\b/.test(t)){ out.say = styled(P, P.wantLine); out.emote = 'think'; }
   else if(/\b(how are you|how'?s it going|you ok|feeling)\b/.test(t)){ out.say = (m.mood >= 2 ? 'Better now you are here, ' + who + '. ' : m.mood <= -2 ? 'I have been better. ' : 'Not bad, not bad. ') + P.wantLine; out.emote = 'nod'; }
@@ -12222,17 +12225,13 @@ function applyLocalReply(nn, rep, text, source){
   const cut = (s, n) => { s = String(s || '').replace(/\s+/g, ' ').trim(); return s.length > n ? s.slice(0, n - 1) + '…' : s; };
   if(String(text || '').trim()) remember(m, 'said', 'You: ' + cut(text, 70) + ' / Me: ' + cut(rep.say, 70), 6);
   if(rep.remember) remember(m, 'notes', rep.remember, 8);
+  if(!nn.metNow){ nn.metNow = true; m.met++; }
   m.last = Date.now(); saveLocals();
   nn.lastSay = rep.say; nn.sayT = 9; if(rep.emote && rep.emote !== 'none') localEmote(nn, rep.emote);
   return {name:P.name, say:rep.say, mood_delta:clamp(Math.round(num(rep.mood_delta, 0)), -3, 3), emote:rep.emote || 'none', remember:rep.remember || '', quest:rep.quest || null, source, mood:m.mood, feeling:moodWord(m.mood)};
 }
 function localEmote(nn, kind){ if(NPC_EMOTES.indexOf(kind) < 0 || kind === 'none') return; nn.gest = {kind, t:0, dur:kind === 'wave' || kind === 'cheer' ? 2.2 : 1.8}; }
 const npcAI = {why:'', path:'', busy:false};
-async function localTalk(nn, text){
-  text = String(text || '').trim().replace(/\s+/g, ' ').slice(0, 200);
-  const rep = localOffline(nn, text); npcAI.path = 'offline'; npcAI.why = 'no AI';
-  return applyLocalReply(nn, rep, text, 'offline');
-}
 Object.defineProperties(window.__hub, {
   // Living Locals: persona, memory and mood of every living local in this realm (idx is the index into npcs, for talkTo)
   locals:{get:() => npcs.map((nn, idx) => ({nn, idx})).filter(o => living(o.nn)).map(({nn, idx}) => { const P = personaOf(nn), m = memOf(nn);
@@ -12243,7 +12242,7 @@ Object.defineProperties(window.__hub, {
   localsNotice:{value:() => localsNotice()},
   localGreeting:{value:i => living(npcs[i]) ? localGreeting(npcs[i]) : null},
   talkTo:{value:(i, text) => living(npcs[i]) ? localTalk(npcs[i], text) : Promise.resolve(null)},
-  npcWhy:{get:() => ({path:npcAI.path, why:npcAI.why})}
+  npcWhy:{get:() => ({path:npcAI.path, why:npcAI.why, quest:npcAI.questWhy || ''})}
 });
 // Living Locals: the conversation panel (side card, the world keeps drawing), speech bubbles over heads, and the gestures
 const talkEl = $('#talk'), bubblesEl = $('#bubbles');
@@ -12337,6 +12336,127 @@ Object.defineProperties(window.__hub, {
   talkSay:{value:text => talkSubmit(text)}, talkView:{value:i => talkView(i)},
   talk:{get:() => ({open:!talkEl.classList.contains('hidden'), with:talk.nn ? talk.nn.name : null, turns:talk.turns.slice(), offer:talk.offer, log:[...$('#talkLog').children].map(d => d.textContent)})},
   localNear:{get:() => localNear ? localNear.name : null}
+});
+// the reply contract: the model fills this JSON; the game checks every field and only ever uses what passes
+const NPC_REPLY_SCHEMA = {type:'object', additionalProperties:false, required:['say', 'mood_delta', 'emote', 'remember'],
+  properties:{
+    say:{type:'string', description:'what you say out loud: 1 to 3 short sentences, in character, suitable for all ages'},
+    mood_delta:{type:'integer', description:'how the player\'s message changed your feeling toward them, from -3 to 3; 0 for most messages'},
+    emote:{type:'string', enum:NPC_EMOTES, description:'the gesture you make while saying it'},
+    remember:{type:'string', description:'one short note (under 15 words) worth remembering about the player from this exchange, or an empty string; never personal real-world details'},
+    quest:{type:'object', additionalProperties:false, required:['type', 'param'], description:'optional: a favour you ask, only when the player asks for work or it fits naturally; only from the templates',
+      properties:{type:{type:'string', enum:['bring', 'visit', 'rally', 'chart', 'coin']}, param:{type:'string', description:'bring: an item id; visit: a landmark id or realm id; rally: a score; chart: a sector number; coin: a realm id'}}}
+  }};
+const NPC_EXAMPLES = [
+  ['hello!', {say:'Oh, hello again, Robin! The beacons are humming in tune today, for once.', mood_delta:1, emote:'wave', remember:''}],
+  ['got any work for me?', {say:'Funny you ask. I dropped my last Glass Bead in a storm. Bring me one and I will make it worth your while.', mood_delta:0, emote:'think', remember:'Robin offered to help me', quest:{type:'bring', param:'glass-bead'}}]
+];
+const npcAIcfg = {testResponse:null, lastRequest:null, timeoutMs:15000, gapMs:2000, cap:40, calls:0, lastT:0, rested:false};
+const LP_BANNED = /\b(oasis|halliday|anorak|parzival|art3mis|aech|sixers?|innovative online|ready player)\b/i;
+const LP_ASKS = /\b(what('?s| is) your (real |full |last )?(name|address|age|phone|number|school|email|password|birthday)|where do you (really )?live|how old are you|what school|send (me )?(a )?(photo|picture|selfie)|your (phone|email|home address|password|surname)|meet (me )?in real life|real[- ]life name)\b/i;
+// a reply from any brain must pass this, or the offline brain answers instead
+function validLocalReply(o){
+  if(!o || typeof o !== 'object' || Array.isArray(o)) return {ok:false, why:'not an object'};
+  let say = typeof o.say === 'string' ? o.say.replace(/\s+/g, ' ').trim() : '';
+  if(!say) return {ok:false, why:'no say'};
+  if(say.length > 400) return {ok:false, why:'too long'};
+  if(LP_BANNED.test(say) || /https?:|www\.|\.com\b/i.test(say)) return {ok:false, why:'outside names'};
+  if(LP_ASKS.test(say)) return {ok:false, why:'asks for personal information'};
+  const sents = say.match(/[^.!?…]+[.!?…]+["')\]]*|[^.!?…]+$/g) || [say]; if(sents.length > 3) say = sents.slice(0, 3).join('').trim();
+  let md = typeof o.mood_delta === 'number' && isFinite(o.mood_delta) ? Math.round(o.mood_delta) : 0; md = clamp(md, -3, 3);
+  const emote = NPC_EMOTES.indexOf(o.emote) >= 0 ? o.emote : 'none';
+  let rem = typeof o.remember === 'string' ? o.remember.replace(/\s+/g, ' ').trim().slice(0, 120) : '';
+  if(rem && (LP_PRIVATE.test(rem) || /\d{4,}|@/.test(rem) || LP_BANNED.test(rem))) rem = '';
+  return {ok:true, rep:{say, mood_delta:md, emote, remember:rem, quest:o.quest && typeof o.quest === 'object' ? {type:String(o.quest.type || ''), param:String(o.quest.param == null ? '' : o.quest.param).slice(0, 40)} : null}};
+}
+// what the local knows: persona, memory, the place, the player's deeds, gossip, quests; compact
+function localSystem(nn){
+  const P = personaOf(nn), m = memOf(nn), who = pname(), here = state.world, near = npcs.filter(o => o !== nn && Math.hypot(o.x - nn.x, o.z - nn.z) < 14).map(o => o.name).slice(0, 4);
+  const deeds = knownDeeds(nn).map(d => '- ' + d.text).join('\n') || '- nothing you have heard of yet';
+  const qs = lp().quests, mine = qs.filter(q => q.giver === P.id), act = mine.find(q => q.state === 'active');
+  return 'You are ' + P.name + ', a local in Hub, a game universe with its own invented culture. Stay in character as this game character at all times.\n' +
+    'PERSONA: ' + aAn(P.trade) + ' who lives in ' + P.homeName + '. Temperament: ' + P.temperWord + '. You want ' + P.want.replace(/\btheir\b/g, 'your') + '. Secret (only share it if you are fond of the player and they ask): you ' + personSecret(P.secret, true) + '. Speaking style: ' + P.styleWord + '.\n' +
+    'WHERE: ' + (LP_REALM_FACTS[here] || WORLDS[here].name) + (near.length ? ' Locals nearby: ' + near.join(', ') + '.' : '') + '\n' +
+    'THE PLAYER: their avatar name is ' + who + '. You have met them ' + m.met + (m.met === 1 ? ' time' : ' times') + ' and you feel ' + moodWord(m.mood) + ' (mood ' + m.mood + ' on -10..10).\n' +
+    'What you remember about them: ' + (m.notes.slice(-5).join('; ') || 'nothing yet') + '.\nRecent talk: ' + (m.said.slice(-3).join(' | ') || 'none') + '.\n' +
+    (m.promises.length ? 'Promises: ' + m.promises.slice(-3).join('; ') + '.\n' : '') + (m.thanks.length ? 'Favours they did you: ' + m.thanks.slice(-3).join('; ') + '.\n' : '') +
+    'DEEDS of theirs you have heard about (react to these by name when it fits):\n' + deeds + '\n' +
+    'FAVOURS: ' + (act ? 'you already asked them to ' + act.text + '; do not offer another, ask how it is going.' : 'you may offer one favour as "quest" only if they ask for work or it fits. Templates and allowed params:\n' + questMenu(nn)) + '\n' +
+    'The game pays any reward; never promise items, credits or shards yourself and never name a number of credits.\n' +
+    'RULES: Reply in 1 to 3 short sentences. Stay in Hub\'s world. Never say or imply you are a real person or an AI; you are ' + P.name + '. Keep everything suitable for all ages. ' +
+    'Never ask for personal information (real name, age, address, school, phone, email, photos) and if the player offers any, tell them kindly to keep it private. ' +
+    'If they raise a real-world harmful or upsetting topic, politely decline in character and steer back to Hub; if they seem sad or unsafe, gently tell them to talk to a grown-up they trust. ' +
+    'Never mention real-world brands, people, films, games, songs or places. Never solve the Hunt\'s riddles outright.\n' +
+    'Reply only with JSON matching this schema: ' + JSON.stringify(NPC_REPLY_SCHEMA) + '\n' +
+    'Examples (another local):\n' + NPC_EXAMPLES.map(e => 'Player: ' + e[0] + '\nReply: ' + JSON.stringify(e[1])).join('\n');
+}
+// the player's words are cleaned before they leave the device: nothing that looks like an email or a phone number goes out
+const scrubText = t => String(t || '').replace(/[\w.+-]+@[\w-]+\.[\w.]+/g, '[private]').replace(/\+?\d[\d\s().-]{6,}\d/g, '[private]');
+const sleepMs = ms => new Promise(r => setTimeout(r, ms));
+async function localAsk(nn, text){
+  // returns {ok, rep, source, why}; never throws
+  const test = npcAIcfg.testResponse, C = npcAIcfg;
+  const path = test != null ? 'test' : (dreamer.sample && !dreamer.failed) ? 'sample' : dreamer.key ? 'key' : null;
+  if(!path) return {ok:false, why:'no AI'};
+  if(C.calls >= C.cap) return {ok:false, why:'rest', rest:true};
+  const hist = (talk.nn === nn ? talk.turns : []).slice(-6).filter((t, i, a) => !(i === 0 && t.role === 'assistant'));
+  const messages = hist.map(t => ({role:t.role, content:String(t.content).slice(0, 300)}));
+  if(messages.length && messages[messages.length - 1].role === 'user') messages.pop();
+  messages.push({role:'user', content:scrubText(text) || '(walks up and says nothing)'});
+  const system = localSystem(nn);
+  const body = {model:NPC_MODEL, max_tokens:400, system, messages, output_config:{effort:'low', format:{type:'json_schema', schema:NPC_REPLY_SCHEMA}}, fallbacks:'default'};
+  const headers = {'content-type':'application/json', 'x-api-key':dreamer.key || 'test', 'anthropic-version':'2023-06-01', 'anthropic-dangerous-direct-browser-access':'true', 'anthropic-beta':'server-side-fallback-2026-07-01'};
+  const wait = C.gapMs - (performance.now() - C.lastT); if(wait > 0) await sleepMs(wait);
+  C.calls++; C.lastT = performance.now();
+  C.lastRequest = path === 'sample' ? {path, modelTier:'quick', prompt:system + '\n\n' + messages.map(x => (x.role === 'user' ? 'Player: ' : 'You: ') + x.content).join('\n')}
+    : {path, url:'https://api.anthropic.com/v1/messages', headers:Object.assign({}, headers, {'x-api-key':'(hidden)'}), body:JSON.parse(JSON.stringify(body))};
+  const ctl = new AbortController(); let timer = null, j;
+  try{
+    const call = async () => {
+      if(path === 'test'){ if(test === 'hang') return new Promise(() => {}); if(test && test.__status) throw {code:'http_' + test.__status};
+        const t = JSON.parse(JSON.stringify(test)); return t && t.say !== undefined && !t.content ? {stop_reason:'end_turn', content:[{type:'text', text:JSON.stringify(t)}]} : t; }
+      if(path === 'sample'){ const o = await dreamer.sample.json(C.lastRequest.prompt + '\nReply now with only the JSON object.', {modelTier:'quick', cache:false}); return {stop_reason:'end_turn', content:[{type:'text', text:JSON.stringify(o)}]}; }
+      const r = await fetch('https://api.anthropic.com/v1/messages', {method:'POST', headers, body:JSON.stringify(body), signal:ctl.signal});
+      if(!r.ok) throw {code:'http_' + r.status}; return r.json();
+    };
+    j = await Promise.race([call(), new Promise((res, rej) => { timer = setTimeout(() => { ctl.abort(); rej({code:'timeout'}); }, C.timeoutMs); })]);
+  }catch(e){ const code = (e && (e.code || e.name)) || 'network';
+    if(path === 'sample' && (code === 'not_granted' || code === 'sampling_disabled' || code === 'not_declared' || code === 'capability_disabled')) dreamer.failed = true;
+    return {ok:false, why:code === 'AbortError' ? 'timeout' : code}; }
+  finally{ clearTimeout(timer); }
+  if(!j || typeof j !== 'object') return {ok:false, why:'empty reply'};
+  if(j.stop_reason !== 'end_turn') return {ok:false, why:j.stop_reason === 'refusal' ? 'refusal' : 'stop_reason ' + j.stop_reason};
+  const txt = (Array.isArray(j.content) ? j.content : []).filter(c => c && c.type === 'text').map(c => c.text || '').join('').trim();
+  let o = null; try{ o = JSON.parse(txt); }catch(e){ return {ok:false, why:'invalid JSON'}; }
+  const v = validLocalReply(o); if(!v.ok) return {ok:false, why:v.why};
+  return {ok:true, rep:v.rep, source:'claude', why:'ok'};
+}
+async function localTalk(nn, text){
+  text = String(text || '').trim().replace(/\s+/g, ' ').slice(0, 200);
+  if(npcAI.busy) return null; npcAI.busy = true;
+  try{
+    localsNotice();
+    let a = await localAsk(nn, text), rep, source;
+    if(a.ok){ rep = a.rep; source = 'claude'; }
+    else if(a.rest && !npcAIcfg.rested){ npcAIcfg.rested = true; rep = {say:'I need a rest, ' + pname() + '. My head is full of words. Talk to me again in a little while?', mood_delta:0, emote:'sad', remember:'', quest:null}; source = 'offline'; }
+    else { rep = localOffline(nn, text); source = 'offline'; }
+    npcAI.path = source; npcAI.why = a.why;
+    // a quest from any brain goes through the game's own templates and checks; anything else is dropped
+    let offer = null; if(rep.quest){ offer = makeQuestOffer(nn, rep.quest); if(!offer) npcAI.questWhy = 'dropped: ' + questWhy; else npcAI.questWhy = 'ok'; }
+    const r = applyLocalReply(nn, rep, text, source); r.offer = offer; r.quest = offer ? {type:offer.type, param:offer.param} : null; r.why = a.why; r.rest = !!a.rest;
+    return r;
+  }finally{ npcAI.busy = false; }
+}
+let questWhy = '';
+function questMenu(nn){ return '(none yet)'; }
+function makeQuestOffer(nn, q){ questWhy = 'quests come in a later step'; return null; }
+Object.defineProperties(window.__hub, {
+  NPC_MODEL:{value:NPC_MODEL}, NPC_REPLY_SCHEMA:{value:NPC_REPLY_SCHEMA}, localSystem:{value:i => living(npcs[i]) ? localSystem(npcs[i]) : null},
+  // a canned API reply instead of the network: a Messages API response, a bare {say, ...} object, 'hang', or {__status:n}
+  npcTestResponse:{get:() => npcAIcfg.testResponse, set:v => { npcAIcfg.testResponse = v == null ? null : v; }},
+  npcLastRequest:{get:() => npcAIcfg.lastRequest && JSON.parse(JSON.stringify(npcAIcfg.lastRequest))},
+  npcLimits:{get:() => ({gapMs:npcAIcfg.gapMs, cap:npcAIcfg.cap, calls:npcAIcfg.calls, timeoutMs:npcAIcfg.timeoutMs, busy:npcAI.busy, rested:npcAIcfg.rested}),
+    set:v => { v = v || {}; if(v.gapMs != null) npcAIcfg.gapMs = Math.max(0, +v.gapMs); if(v.cap != null) npcAIcfg.cap = Math.max(0, +v.cap); if(v.calls != null) npcAIcfg.calls = Math.max(0, +v.calls); if(v.timeoutMs != null) npcAIcfg.timeoutMs = Math.max(50, +v.timeoutMs); if(v.rested != null) npcAIcfg.rested = !!v.rested; }}
 });
 })();
 </script>
