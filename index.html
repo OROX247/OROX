@@ -12326,9 +12326,27 @@ function npcGesture(nn, dt){
   else if(g.kind === 'sad'){ a.spine.rotation.x += 0.22 * w; a.head.rotation.x += 0.35 * w; }
 }
 // once a frame, after the NPC loop: the local you are talking to stands still and faces you
-let questT = 0;
+let questT = 0, lifeT = 0;
+// small life, driven by the game (no AI calls): a local who likes you waves when you come near; two locals lingering together chat, and
+// what they say is the realm's talk or gossip about you. Only bubbles, a turn of the head and a gesture: paths and looks are untouched.
+const lifeRnd = rng(4747);   // its own generator: the NPCs' wander (Math.random) sees exactly the same sequence as before
+function localsLife(){
+  const Pl = lp(), who = pname(), shown = npcs.filter(o => o.sayT > 0).length, metAny = Object.keys(Pl.locals).length > 0;
+  for(const nn of npcs){
+    if(!living(nn) || nn === talk.nn && !talkEl.classList.contains('hidden')) continue;
+    nn.lifeCool = (nn.lifeCool || 0) - 1; if(nn.lifeCool > 0) continue;
+    const d = Math.hypot(nn.x - p.x, nn.z - p.z), m = Pl.locals[localId(nn)];
+    if(m && m.mood >= 4 && d < 10 && d > 2.5 && playing){ nn.lifeCool = 60; nn.facing = Math.atan2(p.x - nn.x, p.z - nn.z); localEmote(nn, 'wave'); nn.lastSay = m.mood >= 6 ? 'Hey, ' + who + '! Over here!' : 'Hi, ' + who + '!'; nn.sayT = 3.5; continue; }
+    if(!metAny || d > 24 || shown >= 2 || !(nn.wait > 1.5) || lifeRnd() > 0.12) continue;
+    const o = npcs.find(x => x !== nn && living(x) && x.wait > 1 && Math.hypot(x.x - nn.x, x.z - nn.z) < 3.2); if(!o) continue;
+    const known = knownDeeds(nn), P = personaOf(nn), pool = (LINES[nn.home] || []).concat([P.wantLine]);
+    nn.lastSay = known.length && lifeRnd() < 0.5 ? 'Did you hear? ' + who + ' ' + known[Math.floor(lifeRnd() * known.length)].text + '.' : pool[Math.floor(lifeRnd() * pool.length)];
+    nn.sayT = 5; nn.lifeCool = 25; o.lifeCool = Math.max(o.lifeCool || 0, 12); localEmote(o, lifeRnd() < 0.5 ? 'nod' : 'laugh'); return;
+  }
+}
 function localsTick(dt){
   localsProximity();
+  if((lifeT += dt) > 1){ lifeT = 0; localsLife(); }
   if((questT += dt) > 1){ questT = 0; if(lp().quests.some(q => q.state === 'active')) completeQuestCheck(); questHud(); }
   const nn = talk.nn; if(nn && !talkEl.classList.contains('hidden')){ if(npcs.indexOf(nn) < 0){ closeTalk(); talk.nn = null; return; } nn.wait = Math.max(nn.wait, 0.5); nn.facing = lerpAngle(nn.facing, Math.atan2(p.x - nn.x, p.z - nn.z), 1 - Math.exp(-dt * 6)); }
 }
