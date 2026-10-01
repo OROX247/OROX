@@ -16803,8 +16803,8 @@ function slTex(){
       for(let i = 0; i < 1800; i++){ x.fillStyle = 'rgba(90,80,70,' + (q() * 0.06).toFixed(3) + ')'; x.fillRect(q() * w, q() * h, 2, 2); } }),
     // a palm frond on a transparent card: a midrib up the middle (v), long tapering leaflets swept towards the tip on both sides
     frond:canvasTex(256, 512, (x, w, h) => { const q = rng(8031); x.clearRect(0, 0, w, h); x.lineCap = 'round';
-      for(let i = 0; i < 62; i++){ const t = 0.04 + i / 62 * 0.94, y = h - t * h, L = (0.25 + 0.75 * Math.sin(Math.PI * Math.min(1, t * 1.1))) * w * 0.47, sd = i % 2 ? 1 : -1, v = Math.round(150 + q() * 100), droop = 0.25 + q() * 0.25;
-        x.strokeStyle = 'rgb(' + Math.round(v * 0.86) + ',' + v + ',' + Math.round(v * 0.62) + ')'; x.lineWidth = 3.2 + (1 - t) * 3;
+      for(let i = 0; i < 84; i++){ const t = 0.04 + i / 84 * 0.94, y = h - t * h, L = (0.25 + 0.75 * Math.sin(Math.PI * Math.min(1, t * 1.1))) * w * 0.47, sd = i % 2 ? 1 : -1, v = Math.round(150 + q() * 100), droop = 0.25 + q() * 0.25;
+        x.strokeStyle = 'rgb(' + Math.round(v * 0.86) + ',' + v + ',' + Math.round(v * 0.62) + ')'; x.lineWidth = 5.5 + (1 - t) * 4;   // wide, close leaflets: the far mip levels keep enough alpha to stay a crown
         x.beginPath(); x.moveTo(w / 2, y); x.quadraticCurveTo(w / 2 + sd * L * 0.5, y - L * 0.3, w / 2 + sd * L, y - L * droop - L * 0.35); x.stroke(); }
       x.strokeStyle = 'rgb(205,200,160)'; x.lineWidth = 5; x.beginPath(); x.moveTo(w / 2, h); x.lineTo(w / 2, 4); x.stroke(); }),
     // the lighthouse: white with two red bands, a door, small windows up the stair
@@ -16857,7 +16857,7 @@ function slBedMaterial(mat){
 function slSea(){
   const w = makeWater(new THREE.CircleGeometry(950, 96), {color:0x1d7f86, distortion:1.1, size:9, alpha:0.36});
   if(!w){ const m = new THREE.Mesh(new THREE.CircleGeometry(950, 96), std(0x1d7f86, {roughness:0.05, metalness:0.1, normalMap:waterNormal, transparent:true, opacity:0.55})); m.rotation.x = -Math.PI / 2; m.position.y = SLK.sea; world.add(m); return m; }
-  w.material.fragmentShader = w.material.fragmentShader.replace('gl_FragColor = vec4( outgoingLight, alpha );',
+  w.material.fragmentShader = w.material.fragmentShader.replace('float rf0 = 0.3;', 'float rf0 = 0.06;').replace('gl_FragColor = vec4( outgoingLight, alpha );',
     'float fr = clamp( ( reflectance - rf0 ) / ( 1.0 - rf0 ), 0.0, 1.0 ); gl_FragColor = vec4( outgoingLight, mix( alpha, 0.97, pow( fr, 0.55 ) ) );');
   w.material.needsUpdate = true; w.material.transparent = true; w.material.polygonOffset = true; w.material.polygonOffsetFactor = -2; w.material.polygonOffsetUnits = -4; w.receiveShadow = true;   // the sea wins where it meets the sand (no z-fighting along the shore)
   w.position.y = SLK.sea; w.name = 'slSea'; world.add(w); return w;
@@ -16900,7 +16900,7 @@ function slPalmMaterials(){
   if(slPalmMats) return slPalmMats;
   const bk = surface('bark'), T = slTex();
   const trunk = shareMat(std(0xbcb2a2, {map:bk.map, normalMap:bk.normal, normalScale:new V2(1, 1), roughness:0.95}));
-  const leaf = shareMat(std(0xffffff, {vertexColors:true, roughness:0.75, map:T.frond, alphaTest:0.45, side:THREE.DoubleSide}));
+  const leaf = shareMat(std(0xffffff, {vertexColors:true, roughness:0.75, map:T.frond, alphaTest:0.4, side:THREE.DoubleSide}));
   leaf.onBeforeCompile = sh => {
     sh.uniforms.time = uTime;
     sh.fragmentShader = sh.fragmentShader.replace('#include <normal_fragment_begin>', 'float faceDirection = gl_FrontFacing ? 1.0 : - 1.0; vec3 normal = normalize( mix( vNormal, vec3( 0.0, 1.0, 0.0 ), 0.3 ) ); vec3 geometryNormal = normal;');
@@ -16908,7 +16908,7 @@ function slPalmMaterials(){
       '#include <begin_vertex>\n vec4 lip = instanceMatrix[3]; float tip = uv.y * uv.y; float lw = sin(time * 1.6 + lip.x * 0.37 + lip.z * 0.29 + position.x * 0.6) * 0.16 * tip;\n transformed.x += lw; transformed.z += lw * 0.7; transformed.y += sin(time * 2.3 + lip.z * 0.5 + position.z) * 0.08 * tip;');
   };
   leaf.customProgramCacheKey = () => 'palmleaf';
-  const depth = new THREE.MeshDepthMaterial({depthPacking:THREE.RGBADepthPacking, map:T.frond, alphaTest:0.45});
+  const depth = new THREE.MeshDepthMaterial({depthPacking:THREE.RGBADepthPacking, map:T.frond, alphaTest:0.4});
   return (slPalmMats = {trunk, leaf, depth});
 }
 // plant palms from a list of {x, z, v (shape), s (scale), yaw (the way it leans)}; fronds tinted from a fixed palette by their own rng
@@ -17151,7 +17151,6 @@ function slShells(q, area){
 }
 
 HEIGHTS.saltlark = (n, pf) => slHeights(n);   // no portal pad: the arrival ground is level beach anyway, and pf would sink it to the sea
-function slLife(){}
 function slUpdate(dt, time){
   if(!sl || state.world !== 'saltlark'){ if(slD.bus) slDrums(false); return; }
   { const d = Math.hypot(p.x - SLK.bar.x, p.z - SLK.bar.z), near = d < 120 && !(qa && qa.inside);   // the Tidebell's band: louder and brighter by the bar, muffled down the beach
@@ -17160,6 +17159,7 @@ function slUpdate(dt, time){
   if(sl.flash){ const f = sl.flash, b = f.userData.base, ca = Math.atan2(camera.position.x - b.x, camera.position.z - b.z), k = Math.pow(Math.max(0, Math.cos(2 * (time * 0.33 - ca))), 40); f.material.opacity = 0.35 + 0.6 * k; f.scale.setScalar(6 + 30 * k); }   // two beams, opposite
   if(sl.foam) sl.foam.material.opacity = 0.55 + 0.2 * Math.sin(time * 3.1);
   if(slMistMat){ const hgt = renderer.getDrawingBufferSize(_cellV2).y; slMistMat.uniforms.scale.value = hgt / (2 * Math.tan(camera.fov * Math.PI / 360)); }
+  slLifeUpdate(dt, time);
 }
 // the camera never dips under the sea (you swim with your head out of the water)
 function slCam(){ if(!sl || state.world !== 'saltlark') return; const top = qa && qa.inside ? (qa.M.water != null ? qa.A.y + qa.M.water + 0.3 : -1e9) : pocketIn() ? -1e9 : SLK.sea + 0.3; if(camera.position.y < top) camera.position.y = top; }
@@ -17255,6 +17255,78 @@ function slDrumNote(i, t, bus){
     noiseHit(7000, 2, 0.05, s === 0 || s === 3 || s === 6 ? 0.016 : 0.009, t, null, bus);   // the shaker
     (half ? P.tune2 : P.tune).forEach(([at, semi]) => { if(at === st) slPan(523.25 * Math.pow(2, semi / 12), t, 0.035, 0.7, bus); });
   }catch(e){}
+}
+/* ---- life on an isle where nothing hurts you: crabs on the wet sand (they scuttle sideways and stop), fish in the shallows and the lagoon (schools that
+   drift away from you), gulls over the bay and the headland, sailing boats going round offshore, and rings on the water round you as you wade.
+   Positions are functions of the game's clock and fixed seeds (never Math.random), so the life is the same on every visit. ---- */
+function slCrabGeo(){
+  const parts = [], body = new THREE.SphereGeometry(0.11, 14, 8); body.scale(1.25, 0.5, 0.9); body.translate(0, 0.06, 0); parts.push(body);
+  [-1, 1].forEach(sd => { parts.push(new THREE.SphereGeometry(0.045, 8, 6).scale(1.2, 0.7, 1).translate(sd * 0.12, 0.07, 0.11), new THREE.BoxGeometry(0.02, 0.02, 0.07).rotateY(sd * 0.5).translate(sd * 0.09, 0.06, 0.08));
+    for(let k = 0; k < 3; k++){ const l = new THREE.BoxGeometry(0.11, 0.014, 0.014); l.rotateZ(sd * -0.6); l.translate(sd * 0.15, 0.035, -0.05 + k * 0.045); parts.push(l); }
+    parts.push(new THREE.CylinderGeometry(0.008, 0.008, 0.05, 4).translate(sd * 0.03, 0.11, 0.07), new THREE.SphereGeometry(0.012, 6, 4).translate(sd * 0.03, 0.14, 0.07)); });
+  return merge(parts);
+}
+function slFishGeo(){
+  const body = new THREE.SphereGeometry(0.1, 12, 8); body.scale(0.42, 0.55, 1.3); const tail = new THREE.ConeGeometry(0.07, 0.12, 4); tail.rotateX(-Math.PI / 2); tail.scale(0.25, 1, 1); tail.translate(0, 0, -0.17);
+  return merge([body, tail]);
+}
+function slBoat(hex, q){
+  const g = new THREE.Group(), T = slTex(), hull = std(0xf4f1ea, {roughness:0.4, metalness:0.05}), wood = std(0x9a7448, {map:detailTex, roughness:0.7});
+  // the hull: a box pulled into a V below and a pointed, rising bow at +z
+  const h = new THREE.BoxGeometry(1.8, 0.75, 5.0, 4, 3, 12), a = h.attributes.position;
+  for(let i = 0; i < a.count; i++){ const x = a.getX(i), y = a.getY(i), z = a.getZ(i), taper = z > 0 ? 1 - 0.94 * Math.pow(z / 2.5, 1.6) : 1 - 0.18 * Math.pow(-z / 2.5, 2), v = 0.4 + 0.6 * (y + 0.375) / 0.75;
+    a.setXYZ(i, x * taper * v, y + (z > 0 ? 0.2 * Math.pow(z / 2.5, 2) : 0), z); }
+  h.computeVertexNormals(); const hm = new THREE.Mesh(h, hull); hm.position.y = 0.12; g.add(hm);
+  const deck = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.05, 3.6), wood); deck.position.set(0, 0.5, -0.5); g.add(deck);
+  const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.07, 7.2, 8), wood); mast.position.set(0, 4.1, 0.4); g.add(mast);
+  const tri = pts => { const s = new THREE.BufferGeometry(); s.setFromPoints(pts); s.setAttribute('uv', new THREE.Float32BufferAttribute([0, 0, 1, 0, 0, 1], 2)); s.computeVertexNormals(); return s; };
+  g.add(new THREE.Mesh(tri([new V3(0, 0.85, 0.3), new V3(0, 0.85, -2.9), new V3(0, 7.4, 0.35)]), std(hex, {map:T.stripe, roughness:0.85, side:THREE.DoubleSide})));
+  g.add(new THREE.Mesh(tri([new V3(0, 0.62, 2.5), new V3(0, 0.62, 0.55), new V3(0, 6.2, 0.45)]), std(0xf6f2ea, {roughness:0.85, side:THREE.DoubleSide})));
+  g.traverse(o => { if(o.isMesh){ o.castShadow = true; o.userData.noAO = true; } });
+  return g;
+}
+function slLife(){
+  const L = sl.life = {crabs:[], fish:[], boats:[], schools:[]}, q = rng(8701);
+  addFlock('gull', 9, {rng:rng(8711), x:-8, z:34}); addFlock('gull', 6, {rng:rng(8712), x:46, z:-70});
+  // crabs: on the wet sand of the main beach, each with its own stretch of shore
+  for(let t = 0; t < 400 && L.crabs.length < 14; t++){ const a = q() * TAU, d = SLK.M.r * (0.86 + q() * 0.22), x = SLK.M.x + Math.cos(a) * d, z = SLK.M.z + Math.sin(a) * d, h = hf(x, z), ph = q(), yaw = q() * TAU;
+    if(h < 0.03 || h > 0.6 || (x > SLK.pier.x0 - 2 && x < SLK.pier.x1 + 2 && z > -8) || L.crabs.some(c => Math.hypot(c.x - x, c.z - z) < 4)) continue; L.crabs.push({x, z, ph, yaw}); }
+  const cm = new THREE.InstancedMesh(slCrabGeo(), std(0xffffff, {roughness:0.55}), L.crabs.length); cm.frustumCulled = false; cm.castShadow = true; cm.userData.noAO = true;
+  L.crabs.forEach((c, i) => { const k = C(i % 3 ? 0xd8603a : 0xe88a4a); cm.setColorAt(i, k); }); if(cm.instanceColor) cm.instanceColor.needsUpdate = true; world.add(cm); L.crabMesh = cm; sl.skip.push(cm);
+  // fish: schools in the shallows and the lagoon; each school drifts away from you and comes back
+  const homes = [[-9, 26], [13, 31], [31, 21], [-36, 30], [2, 44], [SLK.lagoon.x, SLK.lagoon.z], [SLK.lagoon.x + 5, SLK.lagoon.z - 4], [-50, 18]], fq = rng(8721);
+  homes.forEach(([x, z], s) => { if(hf(x, z) > -0.4) return; const n = 5 + Math.floor(fq() * 4), sc = {hx:x, hz:z, x, z, r:1.6 + fq() * 1.8, w:(0.35 + fq() * 0.3) * (fq() < 0.5 ? -1 : 1), y:Math.max(hf(x, z) + 0.22, -0.42)};
+    L.schools.push(sc); for(let i = 0; i < n; i++) L.fish.push({s:sc, a:fq() * TAU, ro:(fq() - 0.5) * 1.2, yo:(fq() - 0.5) * 0.12, k:1.3 + fq() * 0.7, ph:fq() * TAU}); });
+  const fmesh = new THREE.InstancedMesh(slFishGeo(), std(0xffffff, {roughness:0.35, metalness:0.2}), L.fish.length); fmesh.frustumCulled = false; fmesh.castShadow = false; fmesh.userData.noAO = true;
+  const fc = [0x34587a, 0xe0b02a, 0x4a7088, 0x283c52]; L.fish.forEach((f, i) => fmesh.setColorAt(i, C(fc[(i * 7 + (f.s.hx | 0)) & 3])));
+  if(fmesh.instanceColor) fmesh.instanceColor.needsUpdate = true; world.add(fmesh); L.fishMesh = fmesh; sl.skip.push(fmesh);
+  // sailing boats going round offshore
+  [[60, 170, 70, 0xf27a6a], [-130, 150, 50, 0x5fb8d8], [160, 70, 45, 0xf2c45a], [-40, 280, 95, 0x8fd8b0]].forEach(([cx, cz, r, hex], i) => {
+    const g = slBoat(hex, q); world.add(g); sl.skip.push(g); L.boats.push({g, cx, cz, r, w:(0.022 + q() * 0.02) * (i % 2 ? -1 : 1), a:q() * TAU, ph:q() * TAU}); });
+  // the rings you make on the water
+  const rm = new THREE.Mesh(new THREE.RingGeometry(0.5, 0.78, 40), new THREE.MeshBasicMaterial({color:C(0xffffff), transparent:true, opacity:0, depthWrite:false, toneMapped:false}));
+  rm.rotation.x = -Math.PI / 2; rm.userData.noAO = true; rm.renderOrder = 3; world.add(rm); L.ripple = rm; sl.skip.push(rm);
+}
+const _slO = new THREE.Object3D();
+function slLifeUpdate(dt, time){
+  const L = sl.life; if(!L) return;
+  // crabs: scuttle sideways for a beat, stop, scuttle back, stop (a pure function of the clock)
+  if(L.crabMesh){ L.crabs.forEach((c, i) => { const u = (time * 0.11 + c.ph) % 1, k = u < 0.3 ? smooth(0, 0.3, u) : u < 0.5 ? 1 : u < 0.8 ? 1 - smooth(0.5, 0.8, u) : 0, off = (k - 0.5) * 2.6, moving = (u < 0.3 || (u > 0.5 && u < 0.8));
+      const x = c.x + Math.cos(c.yaw) * off, z = c.z - Math.sin(c.yaw) * off; _slO.position.set(x, G(x, z) + (moving ? Math.abs(Math.sin(time * 22 + i)) * 0.012 : 0), z); _slO.rotation.set(0, c.yaw + (moving ? Math.sin(time * 18 + i) * 0.06 : 0), 0); _slO.scale.setScalar(1.6); _slO.updateMatrix(); L.crabMesh.setMatrixAt(i, _slO.matrix); });
+    L.crabMesh.instanceMatrix.needsUpdate = true; }
+  // fish: schools circle; a school drifts away when you come within 5 m and swims home when you leave
+  if(L.fishMesh){ L.schools.forEach(s => { const dx = s.x - p.x, dz = s.z - p.z, d = Math.hypot(dx, dz), inWater = !pocketIn();
+      if(inWater && d < 5 && d > 0.01){ const nx = s.x + dx / d * dt * 2.4, nz = s.z + dz / d * dt * 2.4; if(hf(nx, nz) < -0.35){ s.x = nx; s.z = nz; } }
+      else { s.x += (s.hx - s.x) * dt * 0.2; s.z += (s.hz - s.z) * dt * 0.2; } s.y = Math.max(hf(s.x, s.z) + 0.22, -0.42); });
+    L.fish.forEach((f, i) => { const S = f.s, a = f.a + time * S.w * f.k + Math.sin(time * 0.7 + f.ph) * 0.2, rr = S.r + f.ro, x = S.x + Math.cos(a) * rr, z = S.z + Math.sin(a) * rr;
+      _slO.position.set(x, S.y + f.yo + Math.sin(time * 1.3 + f.ph) * 0.04, z); _slO.rotation.set(0, Math.atan2(-Math.sin(a) * Math.sign(S.w), Math.cos(a) * Math.sign(S.w)) + Math.sin(time * 9 + f.ph) * 0.12, 0); _slO.scale.setScalar(f.k); _slO.updateMatrix(); L.fishMesh.setMatrixAt(i, _slO.matrix); });
+    L.fishMesh.instanceMatrix.needsUpdate = true; }
+  // boats: round and round offshore, rocking on the swell
+  L.boats.forEach(b => { b.a += dt * b.w; const x = b.cx + Math.cos(b.a) * b.r, z = b.cz + Math.sin(b.a) * b.r; b.g.position.set(x, SLK.sea + Math.sin(time * 0.9 + b.ph) * 0.12, z);
+    b.g.rotation.set(Math.sin(time * 0.7 + b.ph) * 0.03, Math.atan2(-Math.sin(b.a) * Math.sign(b.w), Math.cos(b.a) * Math.sign(b.w)), -0.12 * Math.sign(b.w) + Math.sin(time * 1.1 + b.ph) * 0.05); });
+  // rings round you as you wade or swim
+  if(L.ripple){ const d = slDepth(), lvl = qa && qa.inside ? (qa.M.water != null ? qa.A.y + qa.M.water : null) : SLK.sea, on = d > 0.08 && lvl != null;
+    L.ripple.visible = on; if(on){ const k = (time * (0.8 + p.speed * 0.25)) % 1; L.ripple.position.set(p.x, lvl + 0.02, p.z); L.ripple.scale.setScalar(0.8 + k * 1.6); L.ripple.material.opacity = (1 - k) * (0.25 + Math.min(0.45, p.speed * 0.12)); } }
 }
 })();
 </script>
