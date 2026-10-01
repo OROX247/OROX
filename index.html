@@ -223,6 +223,12 @@ button.inv-row{ cursor:pointer; } button.inv-row:hover{ background:rgba(255,255,
 .ico.gem{ clip-path:polygon(50% 0,92% 38%,50% 100%,8% 38%); } .ico.orb{ border-radius:50%; } .ico.chip{ clip-path:polygon(18% 0,82% 0,100% 18%,100% 82%,82% 100%,18% 100%,0 82%,0 18%); }
 .ico.coil{ border-radius:50%; background:none; box-shadow:inset 0 0 0 6px var(--c), 0 0 0 1px rgba(255,255,255,.3); }
 #shopList[hidden], #sellList[hidden]{ display:none; }
+/* Goal 21: the Den's catalogue and the decorating bar */
+#denList{ display:grid; gap:5px; max-height:54vh; overflow:auto; padding-right:4px; } #denList .inv-row[disabled]{ opacity:.5; cursor:default; }
+#denBar{ position:fixed; left:50%; transform:translateX(-50%); bottom:calc(env(safe-area-inset-bottom,0px) + 64px); z-index:7; width:min(660px,94vw); padding:10px 14px; display:grid; gap:8px; }
+#denBar.hidden{ display:none; } #denBar b{ color:var(--gold); } #denBar .ok{ color:#9dff6a; } #denBar .no{ color:#ff9a8a; } #denBar small{ display:block; color:#c7c1ea; font-size:12px; margin-top:2px; }
+.denBtns{ display:flex; gap:6px; flex-wrap:wrap; } .denBtns button{ flex:1; min-width:68px; padding:8px; border:1.5px solid var(--edge); background:rgba(255,255,255,.06); color:var(--ink); font:600 14px 'Chakra Petch','Trebuchet MS',sans-serif; cursor:pointer; } .denBtns button[disabled]{ opacity:.4; cursor:default; }
+@media (pointer:coarse){ #denBar{ bottom:calc(env(safe-area-inset-bottom,0px) + 200px); } }
 .inv-empty{ color:#b9b2e0; font-size:14.5px; padding:14px 4px; }
 #board{ margin:0; padding:0; list-style:none; counter-reset:r; font-size:14.5px; }
 #board li{ counter-increment:r; display:flex; gap:10px; padding:6px 0; border-bottom:1px solid rgba(255,255,255,.08); }
@@ -432,6 +438,16 @@ body.bcast #hud, body.bcast #corner, body.bcast #roomCard, body.bcast #toast{ vi
     <button class="ghost" id="vendClose">Close</button>
   </div>
 </div>
+<div id="denShop" class="overlay hidden" role="dialog" aria-labelledby="denTitle">
+  <div class="card">
+    <h2 id="denTitle">Den catalogue</h2>
+    <div class="tabs" role="tablist"><button id="denTabBuy" class="sel" role="tab" aria-selected="true">Buy</button><button id="denTabStore" role="tab" aria-selected="false">Storage</button></div>
+    <p class="lede">Decor for your Den, delivered to your storage. Place, move and turn it with P (or Decorate). You have <b id="denCredits">0</b> credits.</p>
+    <div id="denList"></div>
+    <button class="ghost" id="denClose">Close</button>
+  </div>
+</div>
+<div id="denBar" class="panel hidden" aria-live="polite"><div id="denBarText"></div><div class="denBtns"><button id="denStorage">Storage</button><button id="denTurn">Turn</button><button id="denPlace">Place</button><button id="denStoreBtn">Store</button><button id="denCancel">Cancel</button><button id="denDone">Done</button></div></div>
 <div id="inv" class="overlay hidden" role="dialog" aria-labelledby="invTitle">
   <div class="card">
     <h2 id="invTitle">Inventory</h2>
@@ -13929,6 +13945,7 @@ function deedsNow(){
   ART_ORDER.forEach(id => { if(state.art.won[id]) out.push({id:'artifact:' + id, big:true, realm:ART[id].realm, text:'won ' + ITEMS[id].name + ', the only one in Hub', line:ART[id].gossip}); });   // Goal 17: every artifact is big news
   if(state.art.spent['second-breath']) out.push({id:'artifact:breath-spent', big:true, realm:state.art.spent['second-breath'].realm || 'hub', text:'zeroed out and came straight back, because The Second Breath broke instead', line:'You zeroed out and The Second Breath broke instead of you? Then there are none left anywhere. Use your new life well.'});
   if(done >= 1){ const last = P.quests.filter(q => q.state === 'done').slice(-1)[0]; out.push({id:'helper', big:false, realm:last.realm, text:'has helped ' + done + (done === 1 ? ' local' : ' locals') + ' with a favour', line:'People say you help folks out. That is rarer than shards.'}); }
+  denDeeds(out);   // Goal 21: the Den (decorating, a fish tank, a record player)
   return out;
 }
 // gossip: a new deed is heard of by the locals of the realm where it happened; big deeds, and everything on the Spaceport (the crossroads), everywhere
@@ -18434,11 +18451,11 @@ function denEnter(){
   traveling = true; fadeEl.classList.add('on'); sfx('warp');
   setTimeout(() => { try{
     if(!denRT || state.world !== 'hub') return;
-    if(!denRT.room) denRT.room = denBuildRoom();
+    if(!denRT.room) noRandom(() => { denRT.room = denBuildRoom(); });
     denRT.inside = true; denRT.room.g.visible = true; denRT.inT = 0; p.zeroG = false; p.vx = p.vy = p.vz = 0; p.speed = 0;
     const [x, z] = denW(DEN.arrive[0], DEN.arrive[1]); p.x = x; p.z = z; p.y = DEN.y; p.facing = -Math.PI / 2;
     cam.yaw = Math.PI / 2 + 0.25; cam.pitch = Math.min(Math.max(cam.pitch, 0.12), 0.26); cam.dist = Math.min(cam.dist, 3.4);
-    if(typeof denLayout === 'function') denLayout();
+    denLayout(); denShowcase();
     snapCamera(); clipCamera(); if(camHid){ cam.yaw += 0.6; snapCamera(); clipCamera(); }
     renderer.shadowMap.needsUpdate = true;
     toast('Your Den. E at the terminal for the catalogue, P to decorate, the lift door to leave.', 4200);
@@ -18450,7 +18467,7 @@ function denLeave(){
   traveling = true; fadeEl.classList.add('on'); sfx('warp');
   setTimeout(() => { try{
     if(!denRT) return;
-    if(typeof denDecorate === 'function') denDecorate(false);
+    denDecorate(false);
     if(denRT.music) denMusic(false);
     denRT.inside = false; if(denRT.room) denRT.room.g.visible = false;
     const L = denRT.lift; if(L && state.world === 'hub'){ const d = L.D / 2 + 2.2; p.x = L.x + d * L.s; p.z = L.z + d * L.c; p.y = G(p.x, p.z); p.vx = p.vy = p.vz = 0; p.speed = 0; p.facing = L.yaw; cam.yaw = L.yaw + Math.PI; L.armed = false; snapCamera(); clipCamera(); }
@@ -18465,15 +18482,15 @@ function denNearNow(){
   const lx = p.x - DEN.x, lz = p.z - DEN.z;
   if(Math.hypot(lx - DEN.term.x, lz - DEN.term.z) < 1.7) return 'term';
   if(lx > DEN.hw - 1.6 && Math.abs(lz - DEN.door.z) < 1.1) return 'door';
-  if(typeof denRecordNear === 'function' && denRecordNear()) return 'record';
+  if(denRecordNear()) return 'record';
   return null;
 }
 function denShowBtn(k){ const b = document.getElementById('denBtn'); if(!b) return; const t = k === 'lift' ? 'Den' : k === 'term' ? 'Catalogue' : k === 'door' ? 'Leave' : k === 'record' ? (denRT && denRT.music ? 'Stop' : 'Play') : denInside() ? 'Decorate' : '';
   b.style.display = t ? '' : 'none'; if(t && b.textContent !== t) b.textContent = t; }
 function denAct(k){
   k = k || denNear; if(k === 'lift') return denEnter(); if(k === 'door') return denLeave();
-  if(k === 'term' && typeof denOpenShop === 'function') return denOpenShop();
-  if(k === 'record' && typeof denMusic === 'function') return denMusic(!(denRT && denRT.music));
+  if(k === 'term') return denOpenShop();
+  if(k === 'record') return denMusic(!(denRT && denRT.music));
   return false;
 }
 function denUpdate(dt, time){
@@ -18483,8 +18500,8 @@ function denUpdate(dt, time){
     denRT.inT += dt;
     const top = DEN.y + DEN.h - 1.95; if(p.y > top){ p.y = top; if(p.vy > 0) p.vy = 0; }
     const lx = p.x - DEN.x, lz = p.z - DEN.z;
-    if(denRT.inT > 1.2 && playing && !traveling && lx > DEN.hw - 0.75 && Math.abs(lz - DEN.door.z) < DEN.door.w / 2 && !denRT.mode) denLeave();   // walk into the lift door to leave
-    if(typeof denAnimate === 'function') denAnimate(dt, time);
+    if(denRT.inT > 1.2 && playing && !traveling && lx > DEN.hw - 0.75 && Math.abs(lz - DEN.door.z) < DEN.door.w / 2) denLeave();   // walk into the lift door to leave
+    denAnimate(dt, time); denModeTick();
   } else if(L && playing && !traveling && !zeroing && !pocketIn() && !bike.riding && state.world === 'hub'){
     const q = denLiftLocal(p.x, p.z); if(Math.hypot(q[0], q[1]) > 2.6) L.armed = true;
     if(L.armed && Math.abs(q[0]) < 0.75 && q[1] < 0.75 && q[1] > -0.2 && Math.abs(p.y - L.y) < 1.2) denEnter();   // step up to the doors and they take you
@@ -18492,13 +18509,595 @@ function denUpdate(dt, time){
   const k = denNearNow(); if(k !== denNear){ denNear = k; if(k === 'lift' && playing) toast('The Den: your private loft. Step up to the doors, press E or tap Den.', 2600); }
   denShowBtn(denNear);
 }
+/* ---- the decor catalogue (data). kind: 'rug' (lies flat; furniture may stand on it), 'floor' (solid, you walk round it), 'wall' (hangs on the
+   back, west or east wall). w x d are grid cells of DEN.cell (0.5 m) at rotation 0 (for wall pieces: across x up); h is the height in metres,
+   max how many one Den can hold. Prices are whole credits. Every name, picture and tune is Hub's own. ---- */
+var DECOR = {
+  'rug-ember':{name:'Ember weave rug', price:30, kind:'rug', w:6, d:4, h:0, max:2, desc:'A thick wool rug in ember reds and gold, woven on Glass Dunes.'},
+  'rug-tide':{name:'Tidewater round rug', price:24, kind:'rug', w:4, d:4, h:0, max:2, desc:'A round rag rug in sea blues, from a stall on Saltlark Isle.'},
+  'lamp-arc':{name:'Brass arc lamp', price:35, kind:'floor', w:2, d:2, h:2.1, max:3, desc:'A heavy brass arc that leans a warm light over a chair.'},
+  'lamp-lantern':{name:'Paper lantern lamp', price:18, kind:'floor', w:1, d:1, h:1.6, max:4, desc:'A paper lantern on a slim stand, the colour of a Lampblack window.'},
+  'plant-fern':{name:'Potted cloudfern', price:15, kind:'floor', w:1, d:1, h:0.9, max:4, desc:'A soft fern in a glazed pot. Thrives on window light and neglect.'},
+  'plant-fig':{name:'Lantern fig', price:40, kind:'floor', w:2, d:2, h:2.3, max:2, desc:'A small indoor tree in a wooden tub, grown from a Night Grove cutting.'},
+  'sofa':{name:'Hangar sofa', price:60, kind:'floor', w:5, d:2, h:0.9, max:2, desc:'A deep three-seater in worn tan leather, made from an old shuttle bench.'},
+  'armchair':{name:'Reading chair', price:35, kind:'floor', w:2, d:2, h:1.0, max:2, desc:'A wingback in bottle-green cord for long evenings with the Ledger.'},
+  'bookcase':{name:'Tall bookcase', price:45, kind:'floor', w:3, d:1, h:2.1, max:3, desc:'Oak shelves, already full of Hub paperbacks and travel guides.'},
+  'workbench':{name:'Work-and-play bench', price:50, kind:'floor', w:4, d:2, h:1.4, max:1, desc:'A bench with a vice, a desk lamp and a little screen that runs the arcade attract loops.'},
+  'fish-tank':{name:'Glowfin tank', price:80, kind:'floor', w:3, d:1, h:1.45, max:1, desc:'A lit tank of glowfins, small fish that shine like portal light. They need no feeding.'},
+  'record-player':{name:'Record player', price:55, kind:'floor', w:2, d:1, h:1.0, max:1, desc:'A walnut cabinet and a turntable. It plays "Loft Lights", an original Hub record. E by it to play.'},
+  'bike-model':{name:'Model hoverbike', price:40, kind:'floor', w:2, d:1, h:1.1, max:1, desc:'A one-to-eight scale hoverbike on a plinth, every fin painted by hand.'},
+  'star-globe':{name:'Star globe', price:65, kind:'floor', w:1, d:1, h:1.3, max:1, desc:'A smoked glass globe of Hub\'s 27 sectors on a brass stand. It turns by itself.'},
+  'poster-rally':{name:'Comet Rally poster', price:12, kind:'wall', w:2, d:3, h:0, max:2, desc:'The arcade poster for Comet Rally: three laps round the ring, comets for cars.'},
+  'poster-starling':{name:'Starling poster', price:12, kind:'wall', w:2, d:3, h:0, max:2, desc:'The poster for Starling: one screen, one ship, and the birds come down in waves of eleven.'}
+};
+var DECOR_IDS = Object.keys(DECOR), DEN_KEY = 'hub-den-v1';
+var DEN_NX = 28, DEN_NZ = 20, DEN_NV = 8, DEN_WALLS = {back:DEN_NX, west:DEN_NZ, east:DEN_NZ};
+// cells kept clear: the walk from the lift door to where you arrive, the terminal, the showcase (floor [i0, i1) x [j0, j1); walls [u0, u1) x [v0, v1))
+var DEN_RES = {floor:[[18, 28, 11, 15, 'the walk from the lift'], [25, 28, 3, 7, 'the catalogue terminal'], [2, 12, 18, 20, 'the showcase']],
+  wall:{east:[[11, 15, 0, 6, 'the lift door'], [3, 7, 0, 5, 'the catalogue terminal']], back:[[2, 12, 0, 6, 'the showcase']], west:[]}};
+// an entry's cells: floor and rugs {i0, j0, i1, j1}; wall pieces {wall, u0, v0, u1, v1}
+function denFoot(e){
+  const D = DECOR[e.id]; if(!D) return null;
+  if(D.kind === 'wall'){ const sw = e.r & 1, w = sw ? D.d : D.w, h = sw ? D.w : D.d; return {wall:e.wall, u0:e.a, v0:e.b, u1:e.a + w, v1:e.b + h}; }
+  const sw = e.r & 1, w = sw ? D.d : D.w, d = sw ? D.w : D.d; return {i0:e.a, j0:e.b, i1:e.a + w, j1:e.b + d};
+}
+const denHit = (a0, a1, b0, b1, c0, c1, d0, d1) => a0 < a1 && c0 < c1 && a0 < b1 && b0 < a1 && c0 < d1 && d0 < c1;
+// a tall floor piece standing against a wall covers that wall's cells below its height
+function denWallShadow(e){
+  const D = DECOR[e.id]; if(!D || D.kind !== 'floor' || !(D.h > 0)) return []; const f = denFoot(e), v1 = Math.min(DEN_NV, Math.ceil(D.h / DEN.cell)), out = [];
+  if(f.j1 === DEN_NZ) out.push({wall:'back', u0:f.i0, u1:f.i1, v0:0, v1});
+  if(f.i0 === 0) out.push({wall:'west', u0:f.j0, u1:f.j1, v0:0, v1});
+  if(f.i1 === DEN_NX) out.push({wall:'east', u0:f.j0, u1:f.j1, v0:0, v1});
+  return out;
+}
+function denOwned(id){ return denStore && denStore.own[id] || 0; }
+function denPlacedN(id, list, skip){ let n = 0; (list || denStore.placed).forEach((e, i) => { if(i !== skip && e.id === id) n++; }); return n; }
+function denStored(id){ return Math.max(0, denOwned(id) - denPlacedN(id)); }
+/* The placement rule: the only test for buying-then-placing, moving, turning, the ghost's colour and the cleaning of a saved Den.
+   list is the placed list, skip the index of the entry being moved (or -1), o.player the avatar's room position to keep clear. */
+function denCheck(list, e, skip, o){
+  o = o || {}; const D = e && DECOR[e.id];
+  if(!D) return {ok:false, why:'That is not something from the catalogue.'};
+  const isInt = v => Number.isInteger(v);
+  if(!isInt(e.a) || !isInt(e.b) || !isInt(e.r)) return {ok:false, why:'Off the grid.'};
+  if(D.kind === 'wall'){ if(!DEN_WALLS[e.wall]) return {ok:false, why:'Posters hang on the back, west or east wall.'}; if(e.r < 0 || e.r > 1) return {ok:false, why:'Off the grid.'}; }
+  else if(e.r < 0 || e.r > 3 || e.wall) return {ok:false, why:'Off the grid.'};
+  const own = o.own || denStore.own;
+  if(denPlacedN(e.id, list, skip) + 1 > (own[e.id] || 0)) return {ok:false, why:'You have no ' + D.name + ' in storage. Buy one at the terminal.'};
+  const f = denFoot(e);
+  if(D.kind === 'wall'){
+    if(f.u0 < 0 || f.v0 < 0 || f.u1 > DEN_WALLS[e.wall] || f.v1 > DEN_NV) return {ok:false, why:'It does not fit on the wall there.'};
+    for(const q of DEN_RES.wall[e.wall]) if(denHit(f.u0, f.u1, q[0], q[1], f.v0, f.v1, q[2], q[3])) return {ok:false, why:'That would cover ' + q[4] + '.'};
+    for(let i = 0; i < list.length; i++){ if(i === skip) continue; const x = list[i], X = DECOR[x.id]; if(!X) continue;
+      if(X.kind === 'wall'){ const g = denFoot(x); if(g.wall === e.wall && denHit(f.u0, f.u1, g.u0, g.u1, f.v0, f.v1, g.v0, g.v1)) return {ok:false, why:'Something already hangs there.'}; }
+      else for(const s of denWallShadow(x)) if(s.wall === e.wall && denHit(f.u0, f.u1, s.u0, s.u1, f.v0, f.v1, s.v0, s.v1)) return {ok:false, why:'The ' + X.name + ' stands in front of that bit of wall.'}; }
+    return {ok:true};
+  }
+  if(f.i0 < 0 || f.j0 < 0 || f.i1 > DEN_NX || f.j1 > DEN_NZ) return {ok:false, why:'It does not fit inside the walls there.'};
+  for(const q of DEN_RES.floor) if(denHit(f.i0, f.i1, q[0], q[1], f.j0, f.j1, q[2], q[3])) return {ok:false, why:'Keep ' + q[4] + ' clear.'};
+  for(let i = 0; i < list.length; i++){ if(i === skip) continue; const x = list[i], X = DECOR[x.id]; if(!X) continue;
+    if(X.kind === 'wall'){ if(D.kind === 'floor') for(const s of denWallShadow(e)){ const g = denFoot(x); if(g.wall === s.wall && denHit(s.u0, s.u1, g.u0, g.u1, s.v0, s.v1, g.v0, g.v1)) return {ok:false, why:'The ' + X.name + ' hangs on the wall there.'}; } continue; }
+    if((X.kind === 'rug') !== (D.kind === 'rug')) continue;   // furniture may stand on a rug
+    const g = denFoot(x); if(denHit(f.i0, f.i1, g.i0, g.i1, f.j0, f.j1, g.j0, g.j1)) return {ok:false, why:'It would overlap the ' + X.name + '.'}; }
+  if(D.kind === 'floor' && o.player){ const c = DEN.cell, x0 = -DEN.hw + f.i0 * c - 0.35, x1 = -DEN.hw + f.i1 * c + 0.35, z0 = -DEN.hd + f.j0 * c - 0.35, z1 = -DEN.hd + f.j1 * c + 0.35;
+    if(o.player[0] > x0 && o.player[0] < x1 && o.player[1] > z0 && o.player[1] < z1) return {ok:false, why:'You are standing there. Step aside first.'}; }
+  return {ok:true};
+}
+// the saved Den: owned counts per catalogue id and the placed list. Cleaned at load: unknown ids, bad numbers, counts over the item's
+// limit, pieces you do not own, off-grid, overlapping or on reserved cells are all dropped (each piece is put back through denCheck)
+function denClean(o){
+  const out = {own:{}, placed:[]}; if(!o || typeof o !== 'object' || Array.isArray(o)) return out;
+  const own = o.own && typeof o.own === 'object' && !Array.isArray(o.own) ? o.own : {};
+  DECOR_IDS.forEach(id => { const n = Math.floor(num(own[id], 0)); if(n > 0) out.own[id] = Math.min(n, DECOR[id].max); });
+  (Array.isArray(o.placed) ? o.placed.slice(0, 64) : []).forEach(q => {
+    if(!q || typeof q !== 'object' || !DECOR[q.id]) return;
+    const e = {id:String(q.id), a:q.a, b:q.b, r:q.r == null ? 0 : q.r}; if(DECOR[e.id].kind === 'wall') e.wall = String(q.wall);
+    if(denCheck(out.placed, e, -1, {own:out.own}).ok) out.placed.push(e);
+  });
+  return out;
+}
+var denStore = (() => { try{ return denClean(JSON.parse(lsGet(DEN_KEY) || '{}')); }catch(e){ return denClean(null); } })();
+function denSave(){ try{ localStorage.setItem(DEN_KEY, JSON.stringify({v:1, own:denStore.own, placed:denStore.placed.map(e => e.wall ? {id:e.id, wall:e.wall, a:e.a, b:e.b, r:e.r} : {id:e.id, a:e.a, b:e.b, r:e.r})})); }catch(e){} }
+// buying: whole credits from state.credits, one at a time, never past the item's limit
+function denBuy(id){
+  const D = DECOR[id]; if(!D) return {ok:false, why:'Not in the catalogue.'};
+  if(denOwned(id) >= D.max){ const why = 'You already have ' + D.max + ' ' + D.name + (D.max > 1 ? 's' : '') + ', all a Den can hold.'; toast(why, 2600); return {ok:false, why}; }
+  if(state.credits < D.price){ const why = 'Not enough credits: the ' + D.name + ' is ₵' + D.price + '.'; toast(why, 2600); return {ok:false, why}; }
+  state.credits -= D.price; denStore.own[id] = denOwned(id) + 1; denSave(); persist(); refreshHud(); sfx('buy');
+  toast('Bought: ' + D.name + ' for ₵' + D.price + '. It is in your storage: Place it from the Storage tab or press P.', 3200);
+  if(denShopEl && !denShopEl.classList.contains('hidden')) denRenderShop();
+  return {ok:true, credits:state.credits, owned:denOwned(id), stored:denStored(id)};
+}
+// changing the layout: every change goes through denCheck, saves, and rebuilds what is drawn
+function denPlayerAt(){ return denInside() ? [p.x - DEN.x, p.z - DEN.z] : null; }
+function denPlace(e){ e = Object.assign({r:0}, e); const c = denCheck(denStore.placed, e, -1, {player:denPlayerAt()}); if(!c.ok) return c;
+  const q = {id:e.id, a:e.a, b:e.b, r:e.r}; if(DECOR[e.id].kind === 'wall') q.wall = e.wall; denStore.placed.push(q); denSave(); denLayout(); localsNotice(); return {ok:true, index:denStore.placed.length - 1}; }
+function denMove(i, e){ const old = denStore.placed[i]; if(!old) return {ok:false, why:'Nothing there.'};
+  const q = Object.assign({id:old.id, a:old.a, b:old.b, r:old.r, wall:old.wall}, e, {id:old.id}); if(DECOR[q.id].kind !== 'wall') delete q.wall;
+  const c = denCheck(denStore.placed, q, i, {player:denPlayerAt()}); if(!c.ok) return c;
+  old.a = q.a; old.b = q.b; old.r = q.r; if(q.wall) old.wall = q.wall; denSave(); denLayout(); return {ok:true, index:i}; }
+function denRotate(i){ const e = denStore.placed[i]; if(!e) return {ok:false, why:'Nothing there.'}; return denMove(i, {r:(e.r + 1) % (DECOR[e.id].kind === 'wall' ? 2 : 4)}); }
+function denRemove(i){ const e = denStore.placed[i]; if(!e) return {ok:false, why:'Nothing there.'}; denStore.placed.splice(i, 1); denSave(); denLayout(); return {ok:true, id:e.id, stored:denStored(e.id)}; }
+function denListNow(){ return denStore.placed.map((e, i) => Object.assign({i, name:DECOR[e.id].name, kind:DECOR[e.id].kind}, e, {foot:denFoot(e)})); }
+
+/* ---- the catalogue terminal: Buy and Storage tabs (Outfitters-style rows) ---- */
+var denShopEl = document.getElementById('denShop'), denTab = 'buy';
+function denRenderShop(){
+  document.getElementById('denCredits').textContent = state.credits;
+  ['buy', 'store'].forEach(t => { const b = document.getElementById(t === 'buy' ? 'denTabBuy' : 'denTabStore'); b.classList.toggle('sel', denTab === t); b.setAttribute('aria-selected', denTab === t ? 'true' : 'false'); });
+  const list = document.getElementById('denList'); list.innerHTML = '';
+  const ids = denTab === 'buy' ? DECOR_IDS : DECOR_IDS.filter(id => denOwned(id) > 0);
+  if(!ids.length){ list.innerHTML = '<p class="lede">Nothing in storage yet. Buy something on the Buy tab.</p>'; return; }
+  ids.forEach(id => { const D = DECOR[id], own = denOwned(id), st = denStored(id), b = document.createElement('button'); b.className = 'inv-row'; b.dataset.id = id;
+    const ico = '<i class="ico ' + (D.kind === 'wall' ? 'chip' : D.kind === 'rug' ? 'coil' : 'gem') + '" style="--c:' + denIcoCol(id) + '"></i>';
+    if(denTab === 'buy'){ const full = own >= D.max;
+      b.innerHTML = ico + '<span class="nm">' + esc(D.name) + (own ? ' <span class="rar">owned ' + own + ' of ' + D.max + '</span>' : '') + '<small>' + esc(D.desc) + '</small></span><span class="val">' + (full ? 'Full' : 'Buy <b>₵ ' + D.price + '</b>') + '</span>';
+      if(full) b.disabled = true; b.addEventListener('click', () => denBuy(id)); }
+    else { b.innerHTML = ico + '<span class="nm">' + esc(D.name) + ' <span class="rar">' + st + ' in storage · ' + (own - st) + ' placed</span><small>' + esc(D.kind === 'wall' ? 'Hangs on the back, west or east wall.' : D.kind === 'rug' ? 'Lies on the floor; furniture can stand on it.' : 'Stands on the floor.') + '</small></span><span class="val">' + (st ? 'Place' : 'All placed') + '</span>';
+      if(!st) b.disabled = true; b.addEventListener('click', () => { denCloseShop(); denDecorate(true); denPick(id); }); }
+    list.appendChild(b); });
+}
+function denIcoCol(id){ const k = {rug:'#e0703a', floor:'#d9a95a', wall:'#7fd0ff'}; return id === 'fish-tank' ? '#5ce1e6' : id === 'plant-fern' || id === 'plant-fig' ? '#7fbf5a' : k[DECOR[id].kind]; }
+function denOpenShop(tab){ if(zeroing) return false; denTab = tab || denTab; denRenderShop(); denShopEl.classList.remove('hidden'); setPaused(true); const f = denShopEl.querySelector('button'); if(f) f.focus(); return true; }
+function denCloseShop(){ denShopEl.classList.add('hidden'); setPaused(false); }
+document.getElementById('denClose').addEventListener('click', denCloseShop);
+document.getElementById('denTabBuy').addEventListener('click', () => { denTab = 'buy'; denRenderShop(); });
+document.getElementById('denTabStore').addEventListener('click', () => { denTab = 'store'; denRenderShop(); });
+/* ---- how each piece is drawn: a group in its own frame (origin at the middle of its footprint on the floor, front towards +z;
+   wall pieces: origin at the middle of the picture on the wall, facing +z). Painted textures are made once per session (archTex);
+   shapes are drawn from their own rng seeds, so a piece looks the same every time. ---- */
+function denArt(key, w, h, draw){ return archTex('den:' + key, w, h, draw); }
+var DEN_ART = {
+  ember:() => denArt('ember', 1024, 683, (x, w, h) => { const q = rng(2111);
+    x.fillStyle = '#6e1f16'; x.fillRect(0, 0, w, h);
+    const band = (m, c) => { x.strokeStyle = c; x.lineWidth = m[1]; x.strokeRect(m[0], m[0], w - 2 * m[0], h - 2 * m[0]); };
+    band([22, 26], '#d9a24a'); band([52, 10], '#f1dfb8'); band([74, 22], '#3b1410'); band([98, 6], '#d9a24a');
+    for(let i = 0; i < 9; i++) for(let j = 0; j < 5; j++){ const cx = 170 + i * 85, cy = 170 + j * 86, s = 30 + (i + j) % 2 * 8;
+      x.fillStyle = (i + j) % 2 ? '#c4552c' : '#e0a14a'; x.beginPath(); x.moveTo(cx, cy - s); x.lineTo(cx + s, cy); x.lineTo(cx, cy + s); x.lineTo(cx - s, cy); x.fill();
+      x.fillStyle = '#3b1410'; x.beginPath(); x.moveTo(cx, cy - s * 0.4); x.lineTo(cx + s * 0.4, cy); x.lineTo(cx, cy + s * 0.4); x.lineTo(cx - s * 0.4, cy); x.fill(); }
+    for(let i = 0; i < 26000; i++){ x.fillStyle = 'rgba(' + (q() < 0.5 ? '255,220,180' : '20,6,4') + ',' + (0.05 + q() * 0.08).toFixed(3) + ')'; x.fillRect(q() * w, q() * h, 2, 1 + q() * 3); } }),
+  tide:() => denArt('tide', 512, 512, (x, w, h) => { const q = rng(2113), cols = ['#1d4f73', '#2f7fa3', '#9fd3e0', '#e8efe6', '#235d86', '#5aa9c4', '#163c5a'];
+    x.fillStyle = '#163c5a'; x.fillRect(0, 0, w, h);
+    for(let r = 250, k = 0; r > 4; r -= 9 + (k % 3) * 2, k++){ x.strokeStyle = cols[k % cols.length]; x.lineWidth = 9 + (k % 3) * 2; x.beginPath(); x.arc(w / 2, h / 2, r - 4, 0, TAU); x.stroke(); }
+    for(let i = 0; i < 9000; i++){ x.fillStyle = 'rgba(' + (q() < 0.5 ? '255,255,255' : '0,10,20') + ',' + (0.05 + q() * 0.07).toFixed(3) + ')'; x.fillRect(q() * w, q() * h, 1 + q() * 2, 1 + q() * 2); } }),
+  rally:() => denArt('rally', 512, 768, (x, w, h) => { const q = rng(2117);
+    const g = x.createLinearGradient(0, 0, 0, h); g.addColorStop(0, '#0b0820'); g.addColorStop(0.6, '#1b1240'); g.addColorStop(1, '#3a1430'); x.fillStyle = g; x.fillRect(0, 0, w, h);
+    for(let i = 0; i < 140; i++){ x.fillStyle = 'rgba(255,250,235,' + (0.3 + q() * 0.6).toFixed(2) + ')'; x.fillRect(q() * w, q() * h * 0.7, 1.5, 1.5); }
+    x.save(); x.translate(w / 2, h * 0.5); x.scale(1, 0.42); x.strokeStyle = '#ffb347'; x.lineWidth = 16; x.beginPath(); x.arc(0, 0, 190, 0, TAU); x.stroke(); x.strokeStyle = '#3a2a5a'; x.lineWidth = 4; x.beginPath(); x.arc(0, 0, 150, 0, TAU); x.stroke(); x.restore();
+    [[0.25, 0.42, '#5ce1e6'], [0.7, 0.58, '#ff6aa8'], [0.52, 0.34, '#ffe08a']].forEach((c, i) => { const cx = w * c[0], cy = h * c[1], tl = x.createLinearGradient(cx - 150, cy + 30, cx, cy); tl.addColorStop(0, 'rgba(0,0,0,0)'); tl.addColorStop(1, c[2]);
+      x.strokeStyle = tl; x.lineWidth = 12; x.lineCap = 'round'; x.beginPath(); x.moveTo(cx - 150, cy + 30 - i * 8); x.lineTo(cx, cy); x.stroke(); x.fillStyle = '#fff'; x.beginPath(); x.arc(cx, cy, 11, 0, TAU); x.fill(); });
+    x.textAlign = 'center'; x.fillStyle = '#ffd166'; x.font = 'italic 800 92px "Chakra Petch","Trebuchet MS",sans-serif'; x.fillText('COMET', w / 2, 140); x.fillText('RALLY', w / 2, 230);
+    x.fillStyle = '#f3f0ff'; x.font = '600 26px "Chakra Petch","Trebuchet MS",sans-serif'; x.fillText('THREE LAPS ROUND THE RING', w / 2, h - 120); x.fillStyle = '#5ce1e6'; x.fillText('ONE CREDIT · ONE CABINET', w / 2, h - 80);
+    x.strokeStyle = '#ffd166'; x.lineWidth = 6; x.strokeRect(14, 14, w - 28, h - 28); }),
+  starling:() => denArt('starling', 512, 768, (x, w, h) => { const q = rng(2119);
+    const g = x.createLinearGradient(0, 0, 0, h); g.addColorStop(0, '#f2c46a'); g.addColorStop(0.55, '#e0704a'); g.addColorStop(1, '#3a1d3e'); x.fillStyle = g; x.fillRect(0, 0, w, h);
+    x.fillStyle = 'rgba(255,240,200,0.8)'; x.beginPath(); x.arc(w * 0.5, h * 0.5, 120, 0, TAU); x.fill();
+    const bird = (cx, cy, s) => { x.beginPath(); x.moveTo(cx - s, cy - s * 0.3); x.quadraticCurveTo(cx - s * 0.4, cy - s * 0.5, cx, cy); x.quadraticCurveTo(cx + s * 0.4, cy - s * 0.5, cx + s, cy - s * 0.3); x.quadraticCurveTo(cx + s * 0.4, cy - s * 0.1, cx, cy + s * 0.18); x.quadraticCurveTo(cx - s * 0.4, cy - s * 0.1, cx - s, cy - s * 0.3); x.fill(); };
+    x.fillStyle = '#1b1024'; for(let row = 0; row < 3; row++) for(let i = 0; i < 11; i++) bird(60 + i * 39 + (row % 2) * 18, 260 + row * 62 + Math.sin(i * 0.9 + row) * 10, 15 - row * 2);
+    x.fillStyle = '#1b1024'; x.beginPath(); x.moveTo(w / 2, h - 210); x.lineTo(w / 2 + 34, h - 150); x.lineTo(w / 2, h - 165); x.lineTo(w / 2 - 34, h - 150); x.fill();
+    x.fillStyle = '#fff2c8'; x.fillRect(w / 2 - 2, h - 290, 4, 60);
+    x.textAlign = 'center'; x.fillStyle = '#1b1024'; x.font = '800 96px ' + SERIF; x.fillText('Starling', w / 2, 130);
+    x.fillStyle = '#fff2c8'; x.font = 'italic 26px ' + SERIF; x.fillText('one screen, one ship,', w / 2, h - 90); x.fillText('and the birds come down in waves of eleven', w / 2, h - 56);
+    x.strokeStyle = '#1b1024'; x.lineWidth = 5; x.strokeRect(12, 12, w - 24, h - 24); }),
+  label:() => denArt('label', 256, 256, (x, w, h) => { x.fillStyle = '#111'; x.fillRect(0, 0, w, h); x.fillStyle = '#d9a24a'; x.beginPath(); x.arc(128, 128, 70, 0, TAU); x.fill();
+    x.fillStyle = '#3b1410'; x.textAlign = 'center'; x.font = '700 22px ' + SERIF; x.fillText('LOFT', 128, 112); x.fillText('LIGHTS', 128, 138); x.font = '14px ' + SERIF; x.fillText('Hub Records', 128, 162);
+    x.fillStyle = '#111'; x.beginPath(); x.arc(128, 128, 6, 0, TAU); x.fill(); }),
+  attract:() => denArt('attract', 256, 192, (x, w, h) => { x.fillStyle = '#06061a'; x.fillRect(0, 0, w, h); x.save(); x.translate(w / 2, h / 2 + 8); x.scale(1, 0.55); x.strokeStyle = '#ffb347'; x.lineWidth = 6; x.beginPath(); x.arc(0, 0, 80, 0, TAU); x.stroke(); x.restore();
+    x.fillStyle = '#5ce1e6'; x.fillRect(150, 120, 8, 8); x.fillStyle = '#ff6aa8'; x.fillRect(90, 70, 8, 8); x.fillStyle = '#ffd166'; x.textAlign = 'center'; x.font = '700 22px "Chakra Petch","Trebuchet MS",sans-serif'; x.fillText('COMET RALLY', w / 2, 30);
+    x.fillStyle = '#f3f0ff'; x.font = '600 13px "Chakra Petch","Trebuchet MS",sans-serif'; x.fillText('INSERT CREDIT', w / 2, h - 12); })
+};
+// one material set per room build (disposed with the world); the leaf material is the trees' alpha-tested cards
+function denItemMats(){
+  const R = denRT.room; if(R.IM) return R.IM; const T = denTextures(), lt = leafTexture('leaf');
+  R.IM = {
+    oak:std(0xffffff, {map:T.oak.map, normalMap:T.oak.normal, roughnessMap:T.oak.rough, roughness:1}), walnut:std(0x5a3622, {roughness:0.45}), darkwood:std(0x3a2418, {roughness:0.55}),
+    leather:std(0x8a5532, {roughness:0.55}), cord:std(0x2f4f3a, {roughness:0.92}), cushion:std(0x9c6a42, {roughness:0.6}), brass:std(0xc0904a, {metalness:0.85, roughness:0.28}),
+    steel:std(0x3a3d44, {metalness:0.7, roughness:0.4}), black:std(0x141416, {roughness:0.3, metalness:0.2}), vinyl:std(0x0c0c0e, {roughness:0.22, metalness:0.1}),
+    paper:std(0xffe2b0, {emissive:C(0xffb860), emissiveIntensity:1.35, roughness:0.8}), bulb:glowM(0xffd9a0, 2.6), glazeTeal:std(0x2f6f6a, {roughness:0.25}), terracotta:std(0x9a5838, {roughness:0.85}), soil:std(0x2c2018, {roughness:1}),
+    books:std(0xffffff, {vertexColors:true, roughness:0.75}), sand:std(0xcdb48a, {roughness:1}), fabric:std(0x1a1a1e, {roughness:1}),
+    glass:new THREE.MeshStandardMaterial({color:C(0xd8f0ff), roughness:0.05, transparent:true, opacity:0.16, depthWrite:false}),
+    water:new THREE.MeshStandardMaterial({color:C(0x2f8fa0), emissive:C(0x0c4a58), emissiveIntensity:0.9, roughness:0.2, transparent:true, opacity:0.32, depthWrite:false}),
+    weed:std(0x3f8a4a, {roughness:0.7}), tankLight:glowM(0xbff4ff, 2.0), paint:std(0xc8402e, {roughness:0.35, metalness:0.3}), cream:std(0xefe2c4, {roughness:0.4}), thrust:glowM(0x5ce1e6, 2.2),
+    globe:std(0x0e1626, {roughness:0.12, metalness:0.3, transparent:true, opacity:0.82}),
+    leaf:std(0x7aa858, {vertexColors:true, roughness:0.8, map:lt, alphaTest:0.5, side:THREE.DoubleSide}), leafDepth:new THREE.MeshDepthMaterial({depthPacking:THREE.RGBADepthPacking, map:lt, alphaTest:0.5}),
+    screen:std(0xffffff, {map:DEN_ART.attract(), emissive:C(0xffffff), emissiveMap:DEN_ART.attract(), emissiveIntensity:0.9, roughness:0.3}),
+    label:std(0xffffff, {map:DEN_ART.label(), roughness:0.3}), ember:std(0xffffff, {map:DEN_ART.ember(), roughness:0.95}), tide:std(0xffffff, {map:DEN_ART.tide(), roughness:0.95}),
+    rally:std(0xffffff, {map:DEN_ART.rally(), roughness:0.55}), starling:std(0xffffff, {map:DEN_ART.starling(), roughness:0.55})
+  };
+  return R.IM;
+}
+// little helpers in a piece's own frame
+function dBox(g, m, w, h, d, x, y, z){ return mk(new THREE.BoxGeometry(w, h, d), m, x, y + h / 2, z, g); }
+function dCyl(g, m, r0, r1, h, x, y, z, seg){ return mk(new THREE.CylinderGeometry(r0, r1, h, seg || 24), m, x, y + h / 2, z, g); }
+function dLeaves(g, M, seed, blobs, n, size){ const q = rng(seed), cards = [];
+  for(let i = 0; i < n; i++){ const b = blobs[i % blobs.length], th = q() * TAU, ph = Math.acos(2 * q() - 1), rr = b[3] * Math.cbrt(q()), nx = Math.sin(ph) * Math.cos(th), ny = Math.cos(ph) * 0.8 + 0.3, nz = Math.sin(ph) * Math.sin(th);
+    cards.push({x:b[0] + nx * rr, y:b[1] + Math.cos(ph) * rr * 0.8, z:b[2] + nz * rr, nx, ny, nz, s:size * (0.7 + q() * 0.6), rot:q() * TAU, c:0.75 + q() * 0.4}); }
+  const m = mk(cardsGeo(cards), M.leaf, 0, 0, 0, g); m.customDepthMaterial = M.leafDepth; m.userData.noAO = true; return m; }
+function dFern(g, M, seed, y0, n){ const q = rng(seed), cards = [];
+  for(let i = 0; i < n; i++){ const a = i / n * TAU + q() * 0.4, len = 0.35 + q() * 0.25, lift = 0.5 + q() * 0.5;
+    for(let k = 1; k <= 4; k++){ const t = k / 4, r = len * t, y = y0 + Math.sin(t * Math.PI * 0.8) * lift * len * 0.9 - t * t * 0.08;
+      cards.push({x:Math.cos(a) * r, y, z:Math.sin(a) * r, nx:Math.cos(a) * 0.4, ny:1, nz:Math.sin(a) * 0.4, s:0.2 * (1.1 - t * 0.4) * (0.85 + q() * 0.3), rot:a + q(), c:0.7 + q() * 0.4}); } }
+  const m = mk(cardsGeo(cards), M.leaf, 0, 0, 0, g); m.customDepthMaterial = M.leafDepth; m.userData.noAO = true; return m; }
+var DEN_BUILD = {
+  'rug-ember':(g, M) => { const m = dBox(g, M.ember, 2.9, 0.018, 1.9, 0, 0, 0); m.castShadow = false; },
+  'rug-tide':(g, M) => { const m = dCyl(g, M.tide, 0.98, 0.98, 0.018, 0, 0, 0, 64); m.castShadow = false; },
+  'lamp-arc':(g, M) => { dCyl(g, M.black, 0.2, 0.23, 0.06, 0, 0, -0.32); dCyl(g, M.brass, 0.018, 0.022, 1.3, 0, 0.06, -0.32, 12);
+    const cv = new THREE.QuadraticBezierCurve3(new V3(0, 1.34, -0.32), new V3(0, 2.25, -0.2), new V3(0, 1.8, 0.3)); mk(new THREE.TubeGeometry(cv, 32, 0.016, 10, false), M.brass, 0, 0, 0, g);
+    const sh = mk(new THREE.LatheGeometry([new V2(0.02, 0.2), new V2(0.09, 0.18), new V2(0.2, 0.04), new V2(0.22, 0)], 32), M.brass, 0, 1.58, 0.3, g); sh.material = M.brass;
+    mk(new THREE.SphereGeometry(0.06, 16, 12), M.bulb, 0, 1.62, 0.3, g).castShadow = false; glow(0xffc983, 1.0, 0, 1.6, 0.3, g, 0.5); denPool(g, 0, 0, 0.3, 2.2, 0.24);
+    return {lamp:true}; },
+  'lamp-lantern':(g, M) => { dCyl(g, M.darkwood, 0.11, 0.13, 0.04, 0, 0, 0); dCyl(g, M.darkwood, 0.012, 0.012, 1.2, 0, 0.04, 0, 8);
+    const s = mk(new THREE.SphereGeometry(0.19, 28, 20), M.paper, 0, 1.36, 0, g); s.scale.set(1, 1.25, 1); s.castShadow = false;
+    [-0.12, 0, 0.12].forEach(y => { const t = mk(new THREE.TorusGeometry(Math.sqrt(1 - (y / 0.24) ** 2) * 0.19 + 0.003, 0.004, 6, 40), M.darkwood, 0, 1.36 + y, 0, g); t.rotation.x = Math.PI / 2; t.castShadow = false; });
+    glow(0xffb860, 1.3, 0, 1.36, 0, g, 0.55); denPool(g, 0, 0, 0, 1.9, 0.2); return {lamp:true}; },
+  'plant-fern':(g, M) => { mk(new THREE.LatheGeometry([new V2(0.001, 0), new V2(0.12, 0), new V2(0.15, 0.04), new V2(0.17, 0.3), new V2(0.18, 0.32), new V2(0.16, 0.32)], 32), M.glazeTeal, 0, 0, 0, g);
+    dCyl(g, M.soil, 0.16, 0.16, 0.02, 0, 0.28, 0); dFern(g, M, 2131, 0.3, 14); },
+  'plant-fig':(g, M) => { dCyl(g, M.walnut, 0.34, 0.28, 0.42, 0, 0, 0, 8); dCyl(g, M.soil, 0.31, 0.31, 0.02, 0, 0.4, 0, 8);
+    const tr = new THREE.CylinderGeometry(0.035, 0.06, 1.4, 9, 5); tr.translate(0, 0.7, 0); { const ps = tr.attributes.position; for(let i = 0; i < ps.count; i++){ const y = ps.getY(i); ps.setX(i, ps.getX(i) + Math.sin(y * 2.1) * 0.05); } tr.computeVertexNormals(); }
+    mk(tr, M.darkwood, 0, 0.42, 0, g); dLeaves(g, M, 2137, [[0.05, 1.75, 0, 0.32], [-0.2, 1.95, 0.1, 0.3], [0.22, 2.0, -0.1, 0.28], [0, 2.15, 0.05, 0.25]], 110, 0.22); },
+  'sofa':(g, M) => { [-1.1, 1.1].forEach(x => [-0.35, 0.35].forEach(z => dCyl(g, M.darkwood, 0.03, 0.025, 0.12, x, 0, z, 10)));
+    dBox(g, M.leather, 2.4, 0.3, 0.9, 0, 0.12, 0); [-0.78, 0, 0.78].forEach(x => { dBox(g, M.cushion, 0.76, 0.15, 0.66, x, 0.42, 0.08); const b = dBox(g, M.cushion, 0.76, 0.48, 0.18, x, 0.42, -0.3); b.rotation.x = -0.14; });
+    dBox(g, M.leather, 2.4, 0.42, 0.16, 0, 0.42, -0.37); [-1.12, 1.12].forEach(x => { dBox(g, M.leather, 0.18, 0.3, 0.86, x, 0.42, 0.02); const a = mk(new THREE.CylinderGeometry(0.1, 0.1, 0.86, 16), M.leather, x, 0.72, 0.02, g); a.rotation.x = Math.PI / 2; }); },
+  'armchair':(g, M) => { [-0.35, 0.35].forEach(x => [-0.32, 0.32].forEach(z => dCyl(g, M.darkwood, 0.025, 0.02, 0.14, x, 0, z, 10)));
+    dBox(g, M.cord, 0.86, 0.3, 0.82, 0, 0.14, 0); dBox(g, M.cord, 0.6, 0.14, 0.62, 0, 0.44, 0.08); dBox(g, M.cord, 0.86, 0.6, 0.18, 0, 0.44, -0.33);
+    [-0.37, 0.37].forEach(x => { dBox(g, M.cord, 0.13, 0.26, 0.78, x, 0.44, 0.02); dBox(g, M.cord, 0.16, 0.42, 0.24, x * 1.02, 0.6, -0.28); }); },
+  'bookcase':(g, M) => { const W = 1.44, D = 0.4, H = 2.08, z0 = 0.04, t = 0.035, parts = [[-W / 2, -W / 2 + t, 0, H, -D / 2, D / 2], [W / 2 - t, W / 2, 0, H, -D / 2, D / 2], [-W / 2, W / 2, H - t, H, -D / 2, D / 2], [-W / 2, W / 2, 0, 0.08, -D / 2, D / 2], [-W / 2, W / 2, 0, H, -D / 2, -D / 2 + 0.015]];
+    const sh = [0.08, 0.52, 0.96, 1.4, 1.82]; sh.slice(1).forEach(y => parts.push([-W / 2, W / 2, y - t, y, -D / 2, D / 2])); mk(boxGeo(parts.map(b => [b[0], b[1], b[2], b[3], b[4] + z0, b[5] + z0]), 1.6), M.oak, 0, 0, 0, g);
+    const q = rng(2141), geos = [], cols = [0x7a2a22, 0x2a4a6a, 0x3a5a2a, 0xc8a050, 0x5a2a4a, 0xd8c8a0, 0x203040, 0x8a5a2a, 0x2f6f6a];
+    sh.slice(0, 4).forEach((y, k) => { let x = -W / 2 + t + 0.01; while(x < W / 2 - t - 0.06){ const bw = 0.025 + q() * 0.035, bh = 0.24 + q() * 0.14, bd = 0.22 + q() * 0.08, lean = q() < 0.06 && x > -0.4 ? 0.25 : 0;
+      if(q() < 0.08){ x += 0.05 + q() * 0.1; continue; } const b = new THREE.BoxGeometry(bw, bh, bd); if(lean) b.rotateZ(lean); b.translate(x + bw / 2, y + bh / 2 + 0.001, z0 + D / 2 - bd / 2 - 0.02);
+      const c = C(cols[Math.floor(q() * cols.length)]).multiplyScalar(0.75 + q() * 0.4), n = b.attributes.position.count, ca = new Float32Array(n * 3); for(let i = 0; i < n; i++){ ca[i * 3] = c.r; ca[i * 3 + 1] = c.g; ca[i * 3 + 2] = c.b; } b.setAttribute('color', new THREE.BufferAttribute(ca, 3)); geos.push(b); x += bw + 0.002; } });
+    mk(merge(geos), M.books, 0, 0, 0, g); },
+  'workbench':(g, M) => { [-0.92, 0.92].forEach(x => [-0.38, 0.38].forEach(z => dBox(g, M.steel, 0.05, 0.88, 0.05, x, 0, z))); dBox(g, M.oak, 1.96, 0.06, 0.9, 0, 0.88, 0); dBox(g, M.darkwood, 1.86, 0.03, 0.8, 0, 0.22, 0);
+    dBox(g, M.steel, 0.16, 0.12, 0.2, 0.86, 0.94, 0.3); dBox(g, M.steel, 0.04, 0.06, 0.3, 0.86, 1.0, 0.3);
+    const mon = dBox(g, M.black, 0.5, 0.36, 0.05, -0.35, 1.06, -0.25); mon.rotation.x = -0.08; dBox(g, M.black, 0.08, 0.12, 0.08, -0.35, 0.94, -0.27);
+    const sc = mk(new THREE.PlaneGeometry(0.44, 0.31), M.screen, -0.35, 1.24, -0.22, g); sc.rotation.x = -0.08; sc.castShadow = false;
+    dBox(g, M.black, 0.42, 0.02, 0.14, -0.35, 0.94, 0.08); dBox(g, M.steel, 0.24, 0.015, 0.035, 0.35, 0.94, 0.12); dBox(g, M.steel, 0.035, 0.015, 0.16, 0.48, 0.94, 0.05);
+    dCyl(g, M.steel, 0.07, 0.08, 0.03, 0.55, 0.94, -0.28); const arm = new THREE.CatmullRomCurve3([new V3(0.55, 0.97, -0.28), new V3(0.55, 1.35, -0.3), new V3(0.42, 1.42, -0.12)]); mk(new THREE.TubeGeometry(arm, 16, 0.012, 8, false), M.steel, 0, 0, 0, g);
+    const hd = mk(new THREE.ConeGeometry(0.07, 0.12, 20, 1, true), M.steel, 0.4, 1.38, -0.1, g); hd.rotation.z = 0.5; mk(new THREE.SphereGeometry(0.03, 12, 8), M.bulb, 0.4, 1.35, -0.1, g).castShadow = false; glow(0xffd9a0, 0.6, 0.4, 1.33, -0.1, g, 0.5); denPool(g, 0.35, 0.94 - 0.0, -0.05, 0.9, 0.18);
+    return {lamp:true}; },
+  'fish-tank':(g, M) => { dBox(g, M.darkwood, 1.46, 0.74, 0.5, 0, 0, 0); dBox(g, M.sand, 1.36, 0.06, 0.4, 0, 0.76, 0);
+    const wtr = dBox(g, M.water, 1.36, 0.5, 0.4, 0, 0.82, 0); wtr.castShadow = false; wtr.renderOrder = 2; const gl = dBox(g, M.glass, 1.42, 0.6, 0.46, 0, 0.75, 0); gl.castShadow = false; gl.renderOrder = 3;
+    dBox(g, M.black, 1.46, 0.08, 0.5, 0, 1.36, 0); const lt = mk(new THREE.PlaneGeometry(1.3, 0.05), M.tankLight, 0, 1.355, 0.1, g); lt.rotation.x = Math.PI / 2; lt.castShadow = false;
+    const q = rng(2143); for(let i = 0; i < 9; i++){ const h = 0.2 + q() * 0.25, w = mk(new THREE.ConeGeometry(0.02, h, 6), M.weed, -0.6 + q() * 1.2, 0.82 + h / 2, -0.12 + q() * 0.18, g); w.rotation.z = (q() - 0.5) * 0.3; w.castShadow = false; }
+    const fg = new THREE.SphereGeometry(0.035, 14, 10); fg.scale(1.6, 0.8, 0.55); const tail = new THREE.ConeGeometry(0.03, 0.05, 8); tail.rotateZ(Math.PI / 2); tail.translate(-0.07, 0, 0); const fish = merge([fg, tail]);
+    const fishes = []; [0x5ce1e6, 0xffc04d, 0xff6aa8, 0x9dff6a, 0x5ce1e6, 0xffc04d, 0xb48cff].forEach((c, i) => { const f = mk(fish.clone(), glowM(c, 1.4), 0, 0, 0, g); f.castShadow = false; fishes.push({m:f, a:i * 0.9, sp:0.35 + q() * 0.3, r:0.35 + q() * 0.25, y:0.95 + q() * 0.3, ph:q() * TAU}); });
+    fish.dispose(); glow(0x7fe0ff, 1.4, 0, 1.05, 0.15, g, 0.18); return {fish:fishes}; },
+  'record-player':(g, M) => { [-0.4, 0.4].forEach(x => [-0.18, 0.18].forEach(z => dCyl(g, M.darkwood, 0.02, 0.015, 0.2, x, 0, z, 8)));
+    dBox(g, M.walnut, 0.96, 0.6, 0.46, 0, 0.2, 0); [-0.24, 0.24].forEach(x => { const s = mk(new THREE.CircleGeometry(0.13, 32), M.fabric, x, 0.5, 0.232, g); s.castShadow = false; });
+    dBox(g, M.darkwood, 0.62, 0.06, 0.42, 0.12, 0.8, 0); const pl = dCyl(g, M.steel, 0.16, 0.16, 0.02, 0.06, 0.86, 0, 40); const rec = mk(new THREE.CylinderGeometry(0.15, 0.15, 0.004, 48), M.vinyl, 0, 0.014, 0, pl);
+    const lb = mk(new THREE.CircleGeometry(0.05, 24), M.label, 0, 0.0165, 0, pl); lb.rotation.x = -Math.PI / 2; lb.castShadow = false;
+    dCyl(g, M.steel, 0.02, 0.02, 0.05, 0.36, 0.86, -0.14, 12); const arm = dBox(g, M.steel, 0.012, 0.012, 0.24, 0.3, 0.9, -0.04); arm.rotation.y = 0.35;
+    dBox(g, M.walnut, 0.3, 0.28, 0.42, -0.31, 0.8, 0); return {platter:pl, record:true}; },
+  'bike-model':(g, M) => { dBox(g, M.black, 0.9, 0.62, 0.42, 0, 0, 0); dBox(g, M.brass, 0.3, 0.05, 0.005, 0, 0.3, 0.212);
+    const b = new THREE.Group(); b.position.set(0, 0.86, 0); b.rotation.set(0.04, 0.5, 0.06); g.add(b);
+    const hull = mk(capsule(0.08, 0.06, 0.42, 8), M.paint, 0, 0, 0, b); hull.rotation.z = Math.PI / 2;
+    mk(new THREE.BoxGeometry(0.2, 0.05, 0.14), M.cream, 0.02, 0.08, 0, b); [-1, 1].forEach(k => { const f = mk(new THREE.BoxGeometry(0.16, 0.012, 0.12), M.paint, -0.2, 0.0, k * 0.1, b); f.rotation.x = k * 0.3; });
+    [-1, 1].forEach(k => { mk(new THREE.CylinderGeometry(0.03, 0.035, 0.08, 14), M.steel, -0.28, -0.02, k * 0.05, b).rotation.z = Math.PI / 2; mk(new THREE.CircleGeometry(0.025, 14), M.thrust, -0.321, -0.02, k * 0.05, b).rotation.y = -Math.PI / 2; });
+    dCyl(g, M.brass, 0.012, 0.012, 0.2, 0, 0.62, 0, 8); glow(0x5ce1e6, 0.35, -0.2, 0.86, -0.12, g, 0.4); },
+  'star-globe':(g, M) => { [0, 1, 2].forEach(k => { const a = k / 3 * TAU, l = mk(new THREE.CylinderGeometry(0.012, 0.016, 0.82, 8), M.brass, Math.sin(a) * 0.1, 0.4, Math.cos(a) * 0.1, g); l.rotation.set(Math.cos(a) * 0.25, 0, -Math.sin(a) * 0.25); });
+    dCyl(g, M.brass, 0.03, 0.05, 0.08, 0, 0.78, 0, 16); const pv = new THREE.Group(); pv.position.set(0, 1.08, 0); pv.rotation.z = 0.41; g.add(pv);
+    mk(new THREE.SphereGeometry(0.22, 40, 28), M.globe, 0, 0, 0, pv); const ring = mk(new THREE.TorusGeometry(0.245, 0.008, 8, 64), M.brass, 0, 0, 0, pv); ring.rotation.y = Math.PI / 2;
+    const q = rng(2147), pos = [], col = [], cc = new THREE.Color(); for(let s = 0; s < 27; s++){ const th = q() * TAU, ph = Math.acos(2 * q() - 1), n = 8 + Math.floor(q() * 10);
+      for(let i = 0; i < n; i++){ const t2 = th + (q() - 0.5) * 0.3, p2 = ph + (q() - 0.5) * 0.3, r = 0.205; pos.push(r * Math.sin(p2) * Math.cos(t2), r * Math.cos(p2), r * Math.sin(p2) * Math.sin(t2)); cc.setHSL(s === 0 ? 0.12 : 0.55 + q() * 0.15, 0.6, 0.75); col.push(cc.r, cc.g, cc.b); } }
+    const pg = new THREE.BufferGeometry(); pg.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); pg.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+    const pts = new THREE.Points(pg, new THREE.PointsMaterial({size:0.012, vertexColors:true, transparent:true, opacity:0.95, blending:THREE.AdditiveBlending, depthWrite:false})); pv.add(pts);
+    glow(0x9fd8ff, 0.7, 0, 1.08, 0, g, 0.2); return {globe:pv}; },
+  'poster-rally':(g, M) => { denFramed(g, M, M.rally, 0.96, 1.44); },
+  'poster-starling':(g, M) => { denFramed(g, M, M.starling, 0.96, 1.44); }
+};
+function denFramed(g, M, art, w, h){ const p = mk(new THREE.PlaneGeometry(w, h), art, 0, 0, 0.022, g); p.castShadow = false;
+  const t = 0.03, d = 0.03; [[0, h / 2 + t / 2, w + 2 * t, t], [0, -h / 2 - t / 2, w + 2 * t, t], [w / 2 + t / 2, 0, t, h], [-w / 2 - t / 2, 0, t, h]].forEach(f => mk(new THREE.BoxGeometry(f[2], f[3], d), M.black, f[0], f[1], d / 2, g)); }
+// where an entry stands in the world (also used for the ghost)
+function denPose(o, e){
+  const D = DECOR[e.id], f = denFoot(e), c = DEN.cell;
+  if(D.kind === 'wall'){ const u = (f.u0 + f.u1) / 2 * c, y = DEN.y + (f.v0 + f.v1) / 2 * c;
+    if(e.wall === 'back') { o.position.set(DEN.x - DEN.hw + u, y, DEN.z + DEN.hd - 0.005); o.rotation.set(0, Math.PI, 0); }
+    else if(e.wall === 'west') { o.position.set(DEN.x - DEN.hw + 0.005, y, DEN.z - DEN.hd + u); o.rotation.set(0, Math.PI / 2, 0); }
+    else { o.position.set(DEN.x + DEN.hw - 0.005, y, DEN.z - DEN.hd + u); o.rotation.set(0, -Math.PI / 2, 0); }
+    if(o.children[0]) o.children[0].rotation.z = e.r ? Math.PI / 2 : 0; return o; }
+  o.position.set(DEN.x - DEN.hw + (f.i0 + f.i1) / 2 * c, DEN.y, DEN.z - DEN.hd + (f.j0 + f.j1) / 2 * c); o.rotation.set(0, e.r * Math.PI / 2 + Math.PI, 0); return o;
+}
+// one piece: an outer group placed by denPose, an inner one holding the shapes (wall pieces turn the inner one for landscape)
+function denMakePiece(id, M){ const o = new THREE.Group(), g = new THREE.Group(); o.add(g); const info = DEN_BUILD[id](g, M) || {}; o.userData.den = info; o.userData.id = id; return o; }
+// draw the placed list: build what is new, drop what was removed, place everything, and give the floor pieces their solid boxes
+function denLayout(){
+  const R = denRT && denRT.room; if(!R) return;
+  const M = denItemMats(); R.drawn = R.drawn || new Map();
+  for(const [e, o] of R.drawn) if(denStore.placed.indexOf(e) < 0){ R.g.remove(o); disposeTree(o); R.drawn.delete(e); }
+  noRandom(() => denStore.placed.forEach(e => { let o = R.drawn.get(e); if(!o){ o = denMakePiece(e.id, M); R.g.add(o); R.drawn.set(e, o); } denPose(o, e); }));
+  for(let i = boxes.length - 1; i >= 0; i--) if(boxes[i].denItem) boxes.splice(i, 1);
+  const c = DEN.cell;
+  denStore.placed.forEach(e => { const D = DECOR[e.id]; if(D.kind !== 'floor') return; const f = denFoot(e);
+    aabb(DEN.x - DEN.hw + f.i0 * c, DEN.x - DEN.hw + f.i1 * c, DEN.y - 0.5, DEN.y + Math.max(0.6, D.h), DEN.z - DEN.hd + f.j0 * c, DEN.z - DEN.hd + f.j1 * c, {hollow:true, den:true, denItem:true, cam:false}); });
+  R.anim = []; for(const [e, o] of R.drawn){ const u = o.userData.den; if(u.fish || u.platter || u.globe) R.anim.push(Object.assign({o, e}, u)); }
+  renderer.shadowMap.needsUpdate = true;
+}
+// the fish swim, the globe turns, the record spins while it plays
+function denAnimate(dt, time){
+  const R = denRT.room; if(!R || !R.anim) return;
+  for(const a of R.anim){
+    if(a.fish) a.fish.forEach((f, i) => { f.a += dt * f.sp; const x = Math.cos(f.a + f.ph) * f.r * 1.4, z = Math.sin(f.a * 1.3 + f.ph) * 0.1; f.m.position.set(x, f.y + Math.sin(time * 0.9 + i) * 0.04, z);
+      const dx = -Math.sin(f.a + f.ph) * f.r * 1.4, dz = Math.cos(f.a * 1.3 + f.ph) * 0.13; f.m.rotation.y = Math.atan2(-dz, dx); });
+    if(a.globe) a.globe.rotation.y += dt * 0.15;
+    if(a.platter && denRT.music) a.platter.rotation.y -= dt * 3.49;   // 33 and a third turns a minute
+  }
+}
+// the record player within reach
+function denRecordNear(){ const R = denRT && denRT.room; if(!R || !R.anim) return null; for(const a of R.anim) if(a.record){ const w = a.o.position; if(Math.hypot(p.x - w.x, p.z - w.z) < 1.8) return a; } return null; }
+/* ---- "Loft Lights": an original slow loop for the record player (Web Audio, no files): a four-chord progression on soft electric
+   piano, a walking bass and a little brushed hi-hat, with vinyl crackle. Scheduled a bar ahead; stops when you leave or press E again. ---- */
+var DEN_SONG = {bpm:76, chords:[[220, 261.63, 329.63, 392], [174.61, 220, 261.63, 329.63], [196, 246.94, 293.66, 349.23], [164.81, 207.65, 246.94, 329.63]], bass:[110, 87.31, 98, 82.41],
+  melody:[[659.25, 0, 1], [587.33, 1, 0.5], [523.25, 1.5, 1.5], [440, 4, 1], [523.25, 5, 1], [587.33, 6, 2], [493.88, 8, 1.5], [523.25, 9.5, 0.5], [587.33, 10, 2], [659.25, 12, 1], [523.25, 13, 1], [493.88, 14, 2]]};
+function denMusic(on){
+  if(!denRT) return false;
+  if(!on){ if(denRT.music){ clearTimeout(denRT.music.timer); const m = denRT.music; try{ m.bus.gain.setTargetAtTime(0.0001, snd.ctx.currentTime, 0.2); setTimeout(() => { try{ m.bus.disconnect(); }catch(e){} }, 900); }catch(e){} denRT.music = null; } return true; }
+  if(denRT.music) return true;
+  if(!denRecordNear() && on !== 'force') return false;
+  const M = denRT.music = {bar:0, timer:0, bus:null, t:0};
+  if(snd.ctx){ M.bus = snd.ctx.createGain(); M.bus.gain.value = 0.9; M.bus.connect(snd.master); M.t = snd.ctx.currentTime + 0.2; }
+  const beat = 60 / DEN_SONG.bpm, bar = beat * 4;
+  const sched = () => { if(denRT.music !== M) return;
+    if(M.bus){ const c = snd.ctx; while(M.t < c.currentTime + bar * 1.5){ const k = M.bar % 4, t0 = M.t;
+      DEN_SONG.chords[k].forEach((f, i) => { tone('triangle', f, f, bar * 0.9, 0.018, t0 + i * 0.02, M.bus); tone('sine', f * 2, f * 2, beat * 1.2, 0.006, t0 + beat * 2 + i * 0.02, M.bus); });
+      [0, 2].forEach(b => tone('sine', DEN_SONG.bass[k], DEN_SONG.bass[k] * 0.98, beat * 1.6, 0.05, t0 + b * beat, M.bus)); tone('sine', DEN_SONG.bass[k] * 1.5, DEN_SONG.bass[k] * 1.5, beat * 0.8, 0.03, t0 + 3 * beat, M.bus);
+      DEN_SONG.melody.forEach(n => { const st = n[1] - (M.bar % 4) * 4; if(st >= 0 && st < 4) tone('sine', n[0], n[0], n[2] * beat, 0.022, t0 + st * beat, M.bus); });
+      for(let h = 0; h < 8; h++) tone('square', 6000 + (h % 2) * 900, 5000, 0.03, h % 2 ? 0.0025 : 0.004, t0 + h * beat / 2, M.bus);
+      for(let cr = 0; cr < 6; cr++) tone('square', 2400 + cr * 517 % 1800, 900, 0.008, 0.002, t0 + ((cr * 0.37 + M.bar * 0.11) % 1) * bar, M.bus);
+      M.t += bar; M.bar++; } }
+    else M.bar++;
+    M.timer = setTimeout(sched, 400); };
+  sched(); toast('"Loft Lights" on the record player. E again to lift the needle.', 2600); return true;
+}
+/* ---- decorating: P (or the Decorate button) in the Den. Pick a piece from storage (the terminal's Storage tab or the bar's Storage button)
+   or click a placed piece to pick it up. A ghost shows where it will go: green fits, red does not (the bar says why). Mouse: the ghost follows
+   the pointer, click places, the wheel or R turns. Keys: arrows move a cell (floor: relative to the camera; walls: along and up), Tab moves a
+   poster to the next wall, Enter places, Delete puts it back in storage, Esc cancels. Touch: tap where it should go, then Place. ---- */
+var denBarEl = document.getElementById('denBar'), denRay = new THREE.Raycaster(), denGhostM = null;
+function denDecorate(on){
+  if(!denRT) return false;
+  if(!on){ if(denRT.mode){ denDrop(); denRT.mode = null; } denBarEl.classList.add('hidden'); return false; }
+  if(!denInside() || traveling) return false;
+  if(!denRT.mode){ denRT.mode = {hold:null}; toast('Decorating: click a piece to move it, or pick one from Storage. P or Done when finished.', 3600); }
+  denBar(); denBarEl.classList.remove('hidden'); return true;
+}
+function denGhostMats(){ if(!denGhostM) denGhostM = {ok:new THREE.MeshBasicMaterial({color:C(0x7dffa0), transparent:true, opacity:0.4, depthWrite:false}), bad:new THREE.MeshBasicMaterial({color:C(0xff5a5a), transparent:true, opacity:0.4, depthWrite:false}),
+  okF:new THREE.MeshBasicMaterial({color:C(0x7dffa0), transparent:true, opacity:0.22, depthWrite:false, side:THREE.DoubleSide}), badF:new THREE.MeshBasicMaterial({color:C(0xff5a5a), transparent:true, opacity:0.22, depthWrite:false, side:THREE.DoubleSide})}; return denGhostM; }
+// a ghost: the piece itself in see-through green or red, plus its footprint on the floor or the wall
+function denMakeGhost(id){
+  const R = denRT.room, G0 = denGhostMats(); let o;
+  noRandom(() => { o = denMakePiece(id, denItemMats()); o.traverse(m => { if(m.isSprite || m.isPoints || (m.isMesh && m.material && m.material.blending === THREE.AdditiveBlending)) m.visible = false; else if(m.isMesh){ m.material = G0.ok; m.castShadow = false; m.receiveShadow = false; m.renderOrder = 4; } });
+    const D = DECOR[id], c = DEN.cell, fp = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), G0.okF); fp.renderOrder = 4; fp.name = 'foot';
+    if(D.kind === 'wall'){ fp.scale.set(D.w * c, D.d * c, 1); fp.position.z = 0.012; o.children[0].add(fp); } else { fp.rotation.x = -Math.PI / 2; fp.position.y = 0.03; fp.scale.set(D.w * c, D.d * c, 1); o.children[0].add(fp); } });
+  o.userData.ghost = true; R.g.add(o); return o;
+}
+// where a new piece first appears: just in front of you (floor) or on the wall you face
+function denStartSpot(id){
+  const D = DECOR[id], c = DEN.cell, lx = p.x - DEN.x + Math.sin(p.facing) * 1.6, lz = p.z - DEN.z + Math.cos(p.facing) * 1.6;
+  if(D.kind === 'wall'){ const f = [Math.sin(p.facing), Math.cos(p.facing)], wall = Math.abs(f[0]) > Math.abs(f[1]) ? (f[0] < 0 ? 'west' : 'east') : 'back';
+    const u = wall === 'back' ? (p.x - DEN.x + DEN.hw) / c : (p.z - DEN.z + DEN.hd) / c; return denSnapWall(id, wall, u, 3.2, 0); }
+  return denSnapFloor(id, lx, lz, 0);
+}
+function denSnapFloor(id, lx, lz, r){ const D = DECOR[id], c = DEN.cell, w = r & 1 ? D.d : D.w, d = r & 1 ? D.w : D.d;
+  return {id, r, a:clamp(Math.round((lx + DEN.hw) / c - w / 2), 0, DEN_NX - w), b:clamp(Math.round((lz + DEN.hd) / c - d / 2), 0, DEN_NZ - d)}; }
+function denSnapWall(id, wall, u, y, r){ const D = DECOR[id], c = DEN.cell, w = r ? D.d : D.w, h = r ? D.w : D.d;
+  return {id, r, wall, a:clamp(Math.round(u - w / 2), 0, DEN_WALLS[wall] - w), b:clamp(Math.round(y / c - h / 2), 0, DEN_NV - h)}; }
+function denPick(id){
+  if(!denRT || !denInside() || !DECOR[id]) return {ok:false, why:'Go up to your Den first.'};
+  if(denStored(id) < 1){ const why = 'No ' + DECOR[id].name + ' in storage.'; toast(why, 2400); return {ok:false, why}; }
+  if(!denRT.mode) denDecorate(true); denDrop();
+  denRT.mode.hold = {id, idx:-1, e:denStartSpot(id), ghost:denMakeGhost(id)}; denGhost(); denBar(); return {ok:true, hold:denHeld()};
+}
+function denGrab(i){
+  const e = denStore.placed[i]; if(!e || !denRT || !denInside()) return {ok:false, why:'Nothing there.'};
+  if(!denRT.mode) denDecorate(true); denDrop();
+  const o = denRT.room.drawn && denRT.room.drawn.get(e); if(o) o.visible = false;
+  denRT.mode.hold = {id:e.id, idx:i, e:{id:e.id, a:e.a, b:e.b, r:e.r, wall:e.wall}, ghost:denMakeGhost(e.id), real:o}; if(!e.wall) delete denRT.mode.hold.e.wall; denGhost(); denBar(); return {ok:true, hold:denHeld()};
+}
+function denDrop(){ const M = denRT && denRT.mode; if(!M || !M.hold) return; const H = M.hold; if(H.ghost){ denRT.room.g.remove(H.ghost); H.ghost.traverse(m => { if(m.geometry) m.geometry.dispose(); }); } if(H.real) H.real.visible = true; M.hold = null; denBar(); }
+// the held piece's state through the real rule
+function denHeld(){ const H = denRT && denRT.mode && denRT.mode.hold; if(!H) return null; const c = denCheck(denStore.placed, H.e, H.idx, {player:denPlayerAt()}); return {id:H.id, idx:H.idx, e:Object.assign({}, H.e), ok:c.ok, why:c.why || ''}; }
+function denGhost(){ const H = denRT.mode && denRT.mode.hold; if(!H) return; denPose(H.ghost, H.e); const ok = denCheck(denStore.placed, H.e, H.idx, {player:denPlayerAt()}).ok, G0 = denGhostMats();
+  H.ghost.traverse(m => { if(m.isMesh && m.visible) m.material = m.name === 'foot' ? (ok ? G0.okF : G0.badF) : (ok ? G0.ok : G0.bad); }); H.ok = ok; denBar(); }
+function denNudge(dx, dz){ const H = denRT.mode && denRT.mode.hold; if(!H) return; const D = DECOR[H.id];
+  if(D.kind === 'wall'){ const w = DEN_WALLS[H.e.wall], hw = H.e.r ? D.d : D.w, hh = H.e.r ? D.w : D.d, s = H.e.wall === 'east' ? 1 : -1; H.e.a = clamp(H.e.a + dx * s, 0, w - hw); H.e.b = clamp(H.e.b + dz, 0, DEN_NV - hh); }
+  else { const fx = -Math.sin(cam.yaw), fz = -Math.cos(cam.yaw), ax = Math.abs(fx) > Math.abs(fz), f = ax ? [Math.sign(fx), 0] : [0, Math.sign(fz)], rgt = [-f[1], f[0]];
+    const mx = f[0] * dz + rgt[0] * dx, mz = f[1] * dz + rgt[1] * dx, w = H.e.r & 1 ? D.d : D.w, d = H.e.r & 1 ? D.w : D.d; H.e.a = clamp(H.e.a + mx, 0, DEN_NX - w); H.e.b = clamp(H.e.b + mz, 0, DEN_NZ - d); }
+  denGhost(); }
+function denTurn(){ const H = denRT.mode && denRT.mode.hold; if(!H) return; const D = DECOR[H.id];
+  if(D.kind === 'wall'){ const c = H.e.a + (H.e.r ? D.d : D.w) / 2, y = (H.e.b + (H.e.r ? D.w : D.d) / 2) * DEN.cell; H.e = denSnapWall(H.id, H.e.wall, c, y, H.e.r ? 0 : 1); }
+  else { const f = denFoot(H.e), cx = -DEN.hw + (f.i0 + f.i1) / 2 * DEN.cell, cz = -DEN.hd + (f.j0 + f.j1) / 2 * DEN.cell; H.e = denSnapFloor(H.id, cx, cz, (H.e.r + 1) % 4); }
+  denGhost(); }
+function denNextWall(){ const H = denRT.mode && denRT.mode.hold; if(!H || DECOR[H.id].kind !== 'wall') return; const order = ['back', 'east', 'west'], nw = order[(order.indexOf(H.e.wall) + 1) % 3];
+  H.e = denSnapWall(H.id, nw, DEN_WALLS[nw] / 2, (H.e.b + 1.5) * DEN.cell, H.e.r); denGhost(); }
+// set the ghost from a screen point (mouse move, tap): the floor plane for floor pieces, the nearest wall for posters
+function denAim(cx, cy){
+  const H = denRT && denRT.mode && denRT.mode.hold; if(!H) return false; const rc = canvas.getBoundingClientRect(), D = DECOR[H.id];
+  camera.updateMatrixWorld(); denRay.setFromCamera(new V2((cx - rc.left) / rc.width * 2 - 1, -((cy - rc.top) / rc.height) * 2 + 1), camera); const o = denRay.ray.origin, d = denRay.ray.direction;
+  if(D.kind !== 'wall'){ if(d.y > -1e-4) return false; const t = (DEN.y - o.y) / d.y; H.e = denSnapFloor(H.id, o.x + d.x * t - DEN.x, o.z + d.z * t - DEN.z, H.e.r); denGhost(); return true; }
+  let best = null; const tryWall = (wall, axis, val, along) => { const dv = axis === 'x' ? d.x : d.z; if(Math.abs(dv) < 1e-4) return; const t = (val - (axis === 'x' ? o.x : o.z)) / dv; if(t <= 0) return;
+    const hx = o.x + d.x * t, hy = o.y + d.y * t, hz = o.z + d.z * t, u = along === 'x' ? (hx - DEN.x + DEN.hw) / DEN.cell : (hz - DEN.z + DEN.hd) / DEN.cell;
+    if(u < -1 || u > DEN_WALLS[wall] + 1 || hy < DEN.y - 0.5 || hy > DEN.y + DEN.h) return; if(!best || t < best.t) best = {t, wall, u, y:hy - DEN.y}; };
+  tryWall('back', 'z', DEN.z + DEN.hd, 'x'); tryWall('west', 'x', DEN.x - DEN.hw, 'z'); tryWall('east', 'x', DEN.x + DEN.hw, 'z');
+  if(!best) return false; H.e = denSnapWall(H.id, best.wall, best.u, best.y, H.e.r); denGhost(); return true;
+}
+// put the held piece down (a new one from storage, or a moved one), through the rule
+function denCommit(){
+  const H = denRT && denRT.mode && denRT.mode.hold; if(!H) return {ok:false, why:'Nothing in hand.'};
+  const res = H.idx >= 0 ? denMove(H.idx, H.e) : denPlace(H.e);
+  if(!res.ok){ toast(res.why, 2200); sfx('ui'); return res; }
+  sfx('buy'); const e = denStore.placed[res.index]; denDrop(); if(e){ const o = denRT.room.drawn.get(e); if(o) o.visible = true; }
+  return res;
+}
+function denStoreHeld(){ const H = denRT && denRT.mode && denRT.mode.hold; if(!H) return {ok:false}; if(H.idx < 0){ denDrop(); return {ok:true, cancelled:true}; } const i = H.idx; denDrop(); const r = denRemove(i); if(r.ok){ toast(DECOR[r.id].name + ' back in storage.', 1800); sfx('ui'); } return r; }
+// clicking a placed piece picks it up
+function denPieceAt(cx, cy){
+  const R = denRT && denRT.room; if(!R || !R.drawn) return -1; const rc = canvas.getBoundingClientRect(); camera.updateMatrixWorld();
+  denRay.setFromCamera(new V2((cx - rc.left) / rc.width * 2 - 1, -((cy - rc.top) / rc.height) * 2 + 1), camera); denRay.layers.enableAll();
+  const objs = []; for(const [e, o] of R.drawn) if(o.visible) objs.push(o); const hit = denRay.intersectObjects(objs, true).find(h => h.object.isMesh && h.object.visible);
+  if(!hit) return -1; let o = hit.object; while(o && !(o.userData && o.userData.id)) o = o.parent; for(const [e, q] of R.drawn) if(q === o) return denStore.placed.indexOf(e); return -1;
+}
+function denBar(){
+  if(!denRT || !denRT.mode) return; const H = denRT.mode.hold, t = document.getElementById('denBarText');
+  t.innerHTML = H ? '<b>' + esc(DECOR[H.id].name) + '</b> ' + (H.ok ? '<span class="ok">fits here</span>' : '<span class="no">' + esc(denCheck(denStore.placed, H.e, H.idx, {player:denPlayerAt()}).why || '') + '</span>') + '<small>' + (COARSE ? 'Tap where it goes · Turn · Place' : 'Mouse or arrows to move · R or wheel turns' + (DECOR[H.id].kind === 'wall' ? ' · Tab: next wall' : '') + ' · click or Enter places · Del stores · Esc cancels') + '</small>'
+    : '<b>Decorating</b> <small>' + (COARSE ? 'Tap a piece to move it, or open Storage.' : 'Click a piece to pick it up, or open Storage (' + denStore.placed.length + ' placed). P or Done when finished.') + '</small>';
+  ['denTurn', 'denPlace', 'denStoreBtn', 'denCancel'].forEach(id => { document.getElementById(id).style.display = H ? '' : 'none'; });
+  document.getElementById('denStorage').style.display = H ? 'none' : ''; document.getElementById('denPlace').disabled = !(H && H.ok);
+}
+document.getElementById('denStorage').addEventListener('click', () => denOpenShop('store'));
+document.getElementById('denTurn').addEventListener('click', () => denTurn());
+document.getElementById('denPlace').addEventListener('click', () => denCommit());
+document.getElementById('denStoreBtn').addEventListener('click', () => denStoreHeld());
+document.getElementById('denCancel').addEventListener('click', () => denDrop());
+document.getElementById('denDone').addEventListener('click', () => denDecorate(false));
+{ let down = null;
+  canvas.addEventListener('pointerdown', e => { down = {x:e.clientX, y:e.clientY, t:performance.now()}; });
+  canvas.addEventListener('pointermove', e => { if(denRT && denRT.mode && denRT.mode.hold && e.pointerType === 'mouse' && !e.buttons) denAim(e.clientX, e.clientY); });
+  canvas.addEventListener('pointerup', e => { const d = down; down = null; if(!d || !denRT || !denRT.mode || Math.hypot(e.clientX - d.x, e.clientY - d.y) > 6 || performance.now() - d.t > 500) return;
+    const M = denRT.mode; if(M.hold){ if(e.pointerType === 'mouse'){ denAim(e.clientX, e.clientY); denCommit(); } else denAim(e.clientX, e.clientY); return; }
+    const i = denPieceAt(e.clientX, e.clientY); if(i >= 0) denGrab(i); });
+  canvas.addEventListener('wheel', e => { if(denRT && denRT.mode && denRT.mode.hold){ denTurn(); e.stopImmediatePropagation(); e.preventDefault(); } }, {passive:false, capture:true}); }
+// the keys while the catalogue is open or a piece is held (called from the main keydown before the usual keys)
 function denKey(e){
   if(!denRT) return false;
-  if(e.code === 'KeyP' && denInside()){ e.preventDefault(); if(!e.repeat && typeof denDecorate === 'function') denDecorate(!denRT.mode); return true; }
+  if(!denShopEl.classList.contains('hidden')){ if(e.code === 'Escape' || (e.code === 'KeyE' && !e.repeat)){ e.preventDefault(); denCloseShop(); } return true; }
+  if(!denInside()) return false;
+  const M = denRT.mode;
+  if(e.code === 'KeyP'){ e.preventDefault(); if(!e.repeat) denDecorate(!M); return true; }
+  if(!M) return false;
+  const H = M.hold;
+  if(e.code === 'Escape'){ e.preventDefault(); if(H) denDrop(); else denDecorate(false); return true; }
+  if(!H) return false;
+  const k = e.code;
+  if(k === 'ArrowUp' || k === 'ArrowDown' || k === 'ArrowLeft' || k === 'ArrowRight'){ e.preventDefault(); const dx = k === 'ArrowRight' ? 1 : k === 'ArrowLeft' ? -1 : 0, dz = k === 'ArrowUp' ? 1 : k === 'ArrowDown' ? -1 : 0; denNudge(dx, dz); return true; }
+  if(k === 'KeyR'){ e.preventDefault(); if(!e.repeat) denTurn(); return true; }
+  if(k === 'Tab'){ e.preventDefault(); denNextWall(); return true; }
+  if(k === 'Enter' || k === 'NumpadEnter'){ e.preventDefault(); if(!e.repeat) denCommit(); return true; }
+  if(k === 'Delete' || k === 'Backspace'){ e.preventDefault(); if(!e.repeat) denStoreHeld(); return true; }
   return false;
 }
-document.getElementById('denBtn').addEventListener('click', () => { if(denNear) denAct(); else if(denInside() && typeof denDecorate === 'function') denDecorate(!denRT.mode); });
-denBooted = true; if(state.world === 'hub' && world) denOnBuild('hub');
+// the ghost follows the player's position check (a piece that would land on you turns red)
+function denModeTick(){ const H = denRT && denRT.mode && denRT.mode.hold; if(!H) return; const ok = denCheck(denStore.placed, H.e, H.idx, {player:denPlayerAt()}).ok; if(ok !== H.ok) denGhost(); }
+
+/* ---- the showcase: a walnut cabinet on the back wall that shows your record of play by itself. Everything in it is a display copy built
+   from saved state (shards, the Seed, artifacts won, quest ribbons, planets charted); nothing is ever given or put in the bag. ---- */
+var DEN_SHARDS = [['dunes', 0xffb347, 'Amber Shard'], ['grid', 0xff5fa2, 'Rose Shard'], ['sky', 0x5ce1e6, 'Cyan Shard']];
+function denRecord(){
+  const art = ART_ORDER.filter(id => state.art && state.art.won && state.art.won[id]), rib = QP_ORDER.filter(k => state.qp[k] && state.qp[k].wins > 0), pl = Object.keys((explorer && explorer.planets) || {});
+  return {shards:DEN_SHARDS.filter(s => state.shards.has(s[0])).map(s => s[0]), seed:!!(state.hunt && state.hunt.won), artifacts:art, spent:!!(state.art && state.art.spent && state.art.spent['second-breath']), ribbons:rib, planets:pl.length, planetIds:pl.slice(0, 9)};
+}
+function denShowcaseShell(R){
+  const g = new THREE.Group(); g.name = 'denShowcase'; R.g.add(g); const M = R.M, X = DEN.x - 3.5, Z = DEN.z + DEN.hd, W = 4.8, D = 0.45, H = 2.75, wal = std(0x4a2c1c, {roughness:0.5}), vel = std(0x1c1426, {roughness:1}), led = glowM(0xfff0d0, 1.6);
+  R.showM = {wal, vel, led};
+  const parts = [[-W / 2, -W / 2 + 0.06, 0, H], [W / 2 - 0.06, W / 2, 0, H], [-W / 2, W / 2, H - 0.08, H], [-W / 2, W / 2, 0, 0.9]];
+  mk(boxGeo(parts.map(b => [X + b[0], X + b[1], DEN.y + b[2], DEN.y + b[3], Z - D, Z - 0.02]), 2), wal, 0, 0, 0, g);
+  mk(new THREE.BoxGeometry(W - 0.12, H - 0.98, 0.02), vel, X, DEN.y + 0.9 + (H - 0.98) / 2, Z - 0.03, g);
+  [-1, 1].forEach(k => dBox(g, wal, W / 2 - 0.1, 0.78, 0.02, X + k * (W / 4 - 0.01), DEN.y + 0.06, Z - D - 0.005));
+  [-1, 1].forEach(k => dBox(g, M.brass, 0.03, 0.18, 0.03, X + k * 0.12, DEN.y + 0.4, Z - D - 0.02));
+  [1.55, 2.2].forEach(y => dBox(g, wal, W - 0.12, 0.04, D - 0.04, X, DEN.y + y, Z - D / 2 - 0.02));
+  [1.53, 2.18, 2.66].forEach(y => { const l = mk(new THREE.BoxGeometry(W - 0.2, 0.012, 0.02), led, X, DEN.y + y - 0.012, Z - D + 0.05, g); l.castShadow = false; });
+  [1.3, 1.95, 2.55].forEach(y => glow(0xfff0d0, 2.4, X, DEN.y + y, Z - 0.2, g, 0.08));
+  R.boxes.push(aabb(X - W / 2, X + W / 2, DEN.y - 0.5, DEN.y + H, Z - D, Z, {hollow:true, den:true, cam:false}));
+  R.show = {g, X, Z, D, items:new THREE.Group()}; g.add(R.show.items);
+}
+function denShowcase(){
+  const R = denRT && denRT.room; if(!R) return denRecord(); if(!R.show) noRandom(() => denShowcaseShell(R));
+  const S = R.show, rec = denRecord(), M = denItemMats(); S.items.children.slice().forEach(o => { S.items.remove(o); disposeTree(o); });
+  const Y = DEN.y, zc = S.Z - S.D / 2 - 0.02, out = {shards:0, seed:0, artifacts:0, ribbons:0, planets:0, stands:0};
+  noRandom(() => {
+    const SG = S.items, stand = (x, y) => { dCyl(SG, M.brass, 0.05, 0.06, 0.04, x, y, zc, 20); out.stands++; };
+    // top shelf: the three shards either side of the Seed
+    DEN_SHARDS.forEach((s, i) => { const x = S.X + [-1.7, -1.05, 1.05][i], y = Y + 2.22; stand(x, y);
+      if(rec.shards.indexOf(s[0]) >= 0){ const c = mk(new THREE.OctahedronGeometry(0.1, 0), std(s[1], {emissive:C(s[1]), emissiveIntensity:1.2, roughness:0.15, metalness:0.2}), x, y + 0.2, zc, SG); c.scale.set(0.7, 1.5, 0.7); c.rotation.y = 0.4; glow(s[1], 0.7, x, y + 0.2, zc + 0.05, SG, 0.45); out.shards++; } });
+    { const x = S.X + 0.15, y = Y + 2.22; dCyl(SG, M.darkwood, 0.11, 0.13, 0.08, x, y, zc, 24); if(rec.seed){ const sd = mk(new THREE.SphereGeometry(0.09, 28, 20), std(0xc8ff9a, {emissive:C(0x9dff6a), emissiveIntensity:1.6, roughness:0.2}), x, y + 0.2, zc, SG); sd.scale.set(0.8, 1.2, 0.8); glow(0xb8ff8a, 1.0, x, y + 0.2, zc + 0.05, SG, 0.55); out.seed = 1; } }
+    // middle shelf: the artifacts you have won, as display copies
+    ART_ORDER.forEach((id, i) => { const x = S.X - 1.8 + i * 0.9, y = Y + 1.57, col = ITEMS[id].col; stand(x, y); if(rec.artifacts.indexOf(id) < 0) return; out.artifacts++;
+      const em = std(col, {emissive:C(col), emissiveIntensity:0.7, roughness:0.25, metalness:0.3});
+      if(id === 'bell-jar'){ dCyl(SG, M.darkwood, 0.09, 0.09, 0.02, x, y + 0.04, zc, 24); const j = mk(new THREE.SphereGeometry(0.085, 24, 14, 0, TAU, 0, Math.PI / 2), M.glass, x, y + 0.06, zc, SG); j.scale.y = 1.6; j.castShadow = false; }
+      else if(id === 'tide-shell'){ const s = mk(new THREE.ConeGeometry(0.06, 0.2, 20, 6), em, x, y + 0.14, zc, SG); s.rotation.z = 1.2; const ps = s.geometry.attributes.position; for(let k = 0; k < ps.count; k++){ const yy = ps.getY(k), a = (yy + 0.1) * 25; ps.setX(k, ps.getX(k) * (1 + 0.15 * Math.sin(a))); } s.geometry.computeVertexNormals(); }
+      else if(id === 'window-lamp'){ dBox(SG, M.black, 0.1, 0.02, 0.1, x, y + 0.04, zc); const l = dBox(SG, std(0xffd9a0, {emissive:C(0xffc070), emissiveIntensity:1.4}), 0.07, 0.12, 0.07, x, y + 0.06, zc); l.castShadow = false; dBox(SG, M.black, 0.1, 0.02, 0.1, x, y + 0.18, zc); glow(0xffc070, 0.6, x, y + 0.12, zc + 0.04, SG, 0.5); }
+      else if(id === 'mara-compass'){ const c = dCyl(SG, M.brass, 0.08, 0.08, 0.025, x, y + 0.04, zc, 32); c.rotation.x = 1.1; c.position.y += 0.06; }
+      else { const o = mk(new THREE.SphereGeometry(0.075, 28, 20), std(col, {emissive:C(col), emissiveIntensity:rec.spent ? 0.1 : 1.0, roughness:0.1, transparent:true, opacity:rec.spent ? 0.5 : 0.85}), x, y + 0.12, zc, SG); o.castShadow = false; glow(col, 0.5, x, y + 0.12, zc + 0.04, SG, rec.spent ? 0.1 : 0.4); } });
+    // lower shelf: a rosette for every quest portal cleared, and the planets you have charted
+    rec.ribbons.forEach((k, i) => { const x = S.X - 2.15 + i * 0.27, y = Y + 1.2, col = (QPORTALS[k] && QPORTALS[k].col) || 0xffd166, rm = std(col, {roughness:0.6});
+      const ro = mk(new THREE.CylinderGeometry(0.075, 0.075, 0.015, 24), rm, x, y + 0.1, zc + 0.12, SG); ro.rotation.x = Math.PI / 2 - 0.15; mk(new THREE.CylinderGeometry(0.04, 0.04, 0.02, 20), M.brass, x, y + 0.1, zc + 0.13, SG).rotation.x = Math.PI / 2 - 0.15;
+      [-1, 1].forEach(s => { const t = dBox(SG, rm, 0.035, 0.12, 0.006, x + s * 0.025, y - 0.03, zc + 0.12); t.rotation.z = s * 0.2; }); out.ribbons++; });
+    dBox(SG, M.darkwood, 1.1, 0.03, 0.2, S.X + 1.6, Y + 0.9, zc);
+    rec.planetIds.forEach((id, i) => { const h = strHash('planet:' + id), c = new THREE.Color().setHSL((h % 1000) / 1000, 0.45, 0.5), x = S.X + 1.15 + (i % 5) * 0.22, y = Y + 0.98 + Math.floor(i / 5) * 0.2;
+      const pm = mk(new THREE.SphereGeometry(0.055, 24, 16), std(c.getHex(), {roughness:0.7}), x, y + 0.06, zc + (i >= 5 ? 0.06 : -0.04), SG); out.planets++; });
+    // the brass plaque on the base: the record in words
+    const tex = canvasTex(1024, 256, (x, w, h) => { const g2 = x.createLinearGradient(0, 0, 0, h); g2.addColorStop(0, '#d9b06a'); g2.addColorStop(1, '#a8803e'); x.fillStyle = g2; x.fillRect(0, 0, w, h);
+      x.strokeStyle = '#5a3e18'; x.lineWidth = 6; x.strokeRect(8, 8, w - 16, h - 16); x.fillStyle = '#3a2610'; x.textAlign = 'center'; x.font = '700 50px ' + SERIF; x.fillText('RECORD OF PLAY', w / 2, 70);
+      x.font = '34px ' + SERIF; x.fillText('Shards ' + rec.shards.length + ' of 3   ·   The Seed: ' + (rec.seed ? 'won' : 'not yet') + '   ·   Artifacts ' + rec.artifacts.length + ' of ' + ART_ORDER.length, w / 2, 140);
+      x.fillText('Quest ribbons ' + rec.ribbons.length + ' of ' + QP_ORDER.length + '   ·   Planets charted ' + rec.planets, w / 2, 196); });
+    const pq = mk(new THREE.PlaneGeometry(1.6, 0.4), std(0xffffff, {map:tex, metalness:0.6, roughness:0.35}), S.X, Y + 0.62, S.Z - S.D - 0.012, SG); pq.rotation.y = Math.PI; pq.castShadow = false;
+  });
+  renderer.shadowMap.needsUpdate = true;
+  return Object.assign(rec, {shown:out});
+}
+
+/* ---- Living Locals: the Den as a deed (heard on the Spaceport), with a fish tank and a record player as their own bits of gossip ---- */
+function denDeeds(out){
+  if(!denBooted || !denStore) return; const n = denStore.placed.length, has = id => denStore.placed.some(e => e.id === id);
+  if(n >= 3) out.push({id:'den', big:false, realm:'hub', text:'has done up a Den in the lofts above the Spaceport, with ' + n + ' pieces in it', line:has('fish-tank') ? 'I hear you\'ve got a fish tank up there in your Den. Glowfins? Do they have names?' : 'Somebody said you have done up one of the lofts above the plaza. A proper Den, rugs and all!'});
+  if(has('fish-tank')) out.push({id:'den:tank', big:false, realm:'hub', text:'keeps a tank of glowfins in their Den', line:'I hear you\'ve got a fish tank up there. The glowfins light up the whole loft at night, they say.'});
+  if(has('record-player')) out.push({id:'den:record', big:false, realm:'hub', text:'plays records in their Den above the plaza', line:'Was that your record player last night? A slow tune drifting down from the lofts. Lovely.'});
+}
+document.getElementById('denBtn').addEventListener('click', () => { if(denNear) denAct(); else if(denInside()) denDecorate(!denRT.mode); });
+denBooted = true; if(state.world === 'hub' && world) denOnBuild('hub');   // the first Spaceport was built at load, before this section
+/* ---- test hooks (Goal 21): window.__hub.den ---- */
+function denWait(f, ms){ return new Promise(res => { const t0 = performance.now(), k = () => { if(f() || performance.now() - t0 > (ms || 30000)) res(f()); else setTimeout(k, 60); }; k(); }); }
+Object.defineProperties(window.__hub, {
+  den:{value:{
+    // into the Den by the plaza lift (travels to the Spaceport first if needed) and out by the lift door
+    enter:async () => { if(state.world !== 'hub'){ travel('hub'); await denWait(() => state.world === 'hub' && !traveling && denRT && denRT.lift); }
+      if(!denInside()){ const L = denRT.lift; p.x = L.x + (L.D / 2 + 0.5) * L.s; p.z = L.z + (L.D / 2 + 0.5) * L.c; p.y = G(p.x, p.z); denEnter(); await denWait(() => denInside() && !traveling); }
+      return {inside:denInside(), at:[+(p.x - DEN.x).toFixed(2), +(p.y - DEN.y).toFixed(2), +(p.z - DEN.z).toFixed(2)], pocket:pocketIn()}; },
+    leave:async () => { if(denInside()){ denLeave(); await denWait(() => !denInside() && !traveling); } const L = denRT && denRT.lift;
+      return {inside:denInside(), world:state.world, pocket:pocketIn(), at:[+p.x.toFixed(2), +p.z.toFixed(2)], fromLift:L ? +Math.hypot(p.x - L.x, p.z - L.z).toFixed(2) : null}; },
+    // walk through the real update() into the lift (from 3 m out) or into the lift door (from the middle of the room); the loop is stopped meanwhile
+    walkIn:async () => { const L = denRT.lift; renderer.setAnimationLoop(null); p.x = L.x + (L.D / 2 + 3) * L.s; p.z = L.z + (L.D / 2 + 3) * L.c; p.y = G(p.x, p.z); L.armed = true; cam.yaw = L.yaw; keys.KeyW = true;
+      let n = 0; for(; n < 200 && !traveling && !denInside(); n++) update(0.05, simTime); keys.KeyW = false; renderer.setAnimationLoop(frame); await denWait(() => denInside() && !traveling); return {steps:n, inside:denInside()}; },
+    walkOut:async () => { if(!denInside()) return {error:'enter first'}; renderer.setAnimationLoop(null); p.x = DEN.x + 3; p.z = DEN.z + DEN.door.z; p.y = DEN.y; cam.yaw = -Math.PI / 2; denRT.inT = 2; keys.KeyW = true;
+      let n = 0; for(; n < 200 && !traveling && denInside(); n++) update(0.05, simTime); keys.KeyW = false; renderer.setAnimationLoop(frame); await denWait(() => !denInside() && !traveling); return {steps:n, inside:denInside(), world:state.world}; },
+    // walk inside the Den through the real update(): from local (x0, z0) towards (x1, z1); returns where you stopped
+    walk:(x0, z0, x1, z1, n) => { if(!denInside()) return {error:'enter first'}; renderer.setAnimationLoop(null); p.x = DEN.x + x0; p.z = DEN.z + z0; p.y = DEN.y; p.vy = 0;
+      const want = Math.atan2(x1 - x0, z1 - z0); cam.yaw = want + Math.PI; keys.KeyW = true; for(let i = 0; i < (n || 120); i++){ update(0.05, simTime); if(Math.hypot(p.x - DEN.x - x1, p.z - DEN.z - z1) < 0.2) break; }
+      keys.KeyW = false; renderer.setAnimationLoop(frame); return {at:[+(p.x - DEN.x).toFixed(2), +(p.z - DEN.z).toFixed(2)], y:+(p.y - DEN.y).toFixed(3), inside:denInside()}; },
+    catalogue:() => DECOR_IDS.map(id => { const D = DECOR[id]; return {id, name:D.name, price:D.price, kind:D.kind, cells:[D.w, D.d], h:D.h, max:D.max, owned:denOwned(id), stored:denStored(id), desc:D.desc}; }),
+    buy:id => denBuy(id),
+    // a placement as data: floor/rug {a: column 0..27 from the west wall, b: row 0..19 from the window, r: quarter turns}; wall {wall:'back'|'west'|'east', a: along, b: up, r: 0 upright, 1 sideways}
+    check:(id, w) => denCheck(denStore.placed, Object.assign({id, r:0}, w), -1, {player:denPlayerAt()}),
+    place:(id, w) => denPlace(Object.assign({id}, w)),
+    move:(i, w) => denMove(i, w), rotate:i => denRotate(i), remove:i => denRemove(i),
+    list:() => denListNow(),
+    saved:() => { try{ return JSON.parse(lsGet(DEN_KEY) || 'null'); }catch(e){ return 'unreadable'; } },
+    clean:o => denClean(o),
+    showcase:() => denShowcase(),
+    // the decorating mode as a player uses it: pick from storage or grab a placed piece, nudge, turn, commit, store
+    decorate:on => denDecorate(on !== false), pick:id => denPick(id), grab:i => denGrab(i), held:() => denHeld(),
+    nudge:(dx, dz) => { denNudge(dx, dz); return denHeld(); }, turn:() => { denTurn(); return denHeld(); }, commit:() => denCommit(), storeHeld:() => denStoreHeld(), cancel:() => { denDrop(); return denHeld(); },
+    aimAt:(lx, lz) => { const H = denRT && denRT.mode && denRT.mode.hold; if(!H) return null; camera.updateMatrixWorld(); const v = new V3(DEN.x + lx, DEN.y, DEN.z + lz).project(camera), rc = canvas.getBoundingClientRect();
+      const sx = rc.left + (v.x + 1) / 2 * rc.width, sy = rc.top + (1 - v.y) / 2 * rc.height; denAim(sx, sy); return Object.assign({screen:[Math.round(sx), Math.round(sy)]}, denHeld()); },
+    music:on => denMusic(on === false ? false : 'force'),
+    get state(){ return {booted:denBooted, world:state.world, lift:denRT && denRT.lift ? {x:denRT.lift.x, z:denRT.lift.z, y:+denRT.lift.y.toFixed(2)} : null, room:!!(denRT && denRT.room), inside:denInside(), pocket:pocketIn(),
+      near:denNear, decorating:!!(denRT && denRT.mode), held:denHeld(), credits:state.credits, own:Object.assign({}, denStore.own), placed:denStore.placed.length, music:!!(denRT && denRT.music),
+      boxes:boxes.filter(b => b.denItem).length, tagHidden:!!(me.tag && !me.tag.visible), drawn:denRT && denRT.room && denRT.room.drawn ? denRT.room.drawn.size : 0}; },
+    deeds:() => deedsNow().filter(d => d.id.indexOf('den') === 0).map(d => ({id:d.id, text:d.text, line:d.line})),
+    // frame one screenshot: 'room' (from the window corner over the furniture), 'window' (out over the Spaceport), 'showcase', 'lift' (the plaza)
+    view:what => { what = what || 'room'; let px, pz, tx, tz, pitch = 0.16, dist = 3.6;
+      if(what === 'lift'){ if(denInside() || state.world !== 'hub') return {error:'be on the plaza'}; const L = denRT.lift; px = L.x + 7 * L.s + 2.5 * L.c; pz = L.z + 7 * L.c - 2.5 * L.s; p.x = px; p.z = pz; p.y = G(px, pz); tx = L.x; tz = L.z; pitch = 0.12; dist = 5; }
+      else { if(!denInside()) return {error:'enter the Den first'};
+        if(what === 'window'){ px = 1.5; pz = -1.2; tx = -6; tz = -12; pitch = 0.04; dist = 3.2; }
+        else if(what === 'showcase'){ px = -3.5; pz = 2.6; tx = -3.5; tz = 6; pitch = 0.1; dist = 2.6; }
+        else { px = 3.2; pz = 1.5; tx = -6; tz = 0.6; pitch = 0.22; dist = 3.4; }   // from the walk by the lift (always clear) across the room
+        p.x = DEN.x + px; p.z = DEN.z + pz; p.y = DEN.y; tx += DEN.x; tz += DEN.z; }
+      cam.yaw = Math.atan2(p.x - tx, p.z - tz) + 0.12; p.facing = cam.yaw + Math.PI; cam.pitch = pitch; cam.dist = dist; cam.view = 0;
+      me.g.position.set(p.x, p.y, p.z); me.g.rotation.y = p.facing; update(0, simTime); snapCamera(); clipCamera(); renderer.shadowMap.needsUpdate = true; return {what, x:+p.x.toFixed(2), z:+p.z.toFixed(2)}; },
+    // every other realm built once in this page with its coreSum (the full before/after uses the placement dump)
+    others:() => { const out = {}; for(const k of WORLD_ORDER){ try{ buildWorld(k); out[k] = {core:coreSum().world, coins:coins.length, npcs:npcs.length, lift:!!(denRT && denRT.lift)}; }catch(e){ out[k] = 'THROW ' + e.message; } } buildWorld('hub'); return out; }
+  }}
+});
 })();
 </script>
 </body>
