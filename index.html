@@ -7926,7 +7926,7 @@ function zeroOut(why){
   sfx('zero');
   if(zeroing) return;
   if(trySecondBreath(why)) return;
-  zeroing = true; localsZeroed();   // Living Locals: the locals count zero-outs and gossip about them
+  zeroing = true; localsZeroed(); qpZeroed();   // a zero-out inside a quest arena counts as a try, like a quit   // Living Locals: the locals count zero-outs and gossip about them
   const where = state.world, y = pocketIn() ? pocketFloor(p.x, p.z) : groundAt(p.x, p.z, p.y);
   const b = {id:++bundleSeq, world:where, x:p.x, y, z:p.z, credits:state.credits, items:takeCarried(), why:why || ''};
   const empty = !b.credits && !b.items.length;
@@ -10813,6 +10813,8 @@ function qpLeave(why){
   } finally { fadeEl.classList.remove('on'); traveling = false; } }, 500);
   return true;
 }
+// zeroing out inside an arena: scored as a quit (a try, no reward); the respawn travel takes you out
+function qpZeroed(){ if(qa && qa.inside && qa.S && qa.S.state === 'run'){ qa.S.state = 'quit'; qa.S.why = 'zeroed out'; return qpResult(qa.key, qa.S, 'played'); } return null; }
 function qpQuit(){ if(!qa || !qa.inside || traveling) return false; if(qa.S && qa.S.state === 'run'){ qa.S.state = 'quit'; qa.S.why = 'quit'; qpResult(qa.key, qa.S, 'played'); } return qpLeave('quit'); }
 function qaBuild(q){
   const M = QM[q.d.kind], A = {x:QP_ARENA.x, z:QP_ARENA.z, y:M.y != null ? M.y : QP_ARENA.y};
@@ -13179,9 +13181,9 @@ const LP_ASKS = /\b(what('?s| is) your (real |full |last )?(name|address|age|pho
 const LP_ASKS2 = new RegExp('\\b(' + [
   'where (do |did )?you (really |actually )?(live|stay|go to school)', 'where you (really |actually )?(live|stay|go to school)', 'where(\'?s| is) your (home|house|flat|street|town|school)', 'where your (home|house|school) is',
   '(what|which) (school|class|year|grade|town|city|street|country|neighbou?rhood) (do |are )?you', '(what|which) (school|town|city|street) you',
-  'your (real |actual |full |home |own |school |e-?mail |phone |mobile |cell )*(address|age|birthday|birth ?date|surname|last name|full name|real name|school|phone|mobile|cell|number|e-?mail|password|postcode|zip)',
+  'your (real |actual |full |home |own |school |e-?mail |phone |mobile |cell )*(address|age|birthday|birth ?date|surname|last name|full name|real name|school|phone|mobile|cell|number|e-?mail|password|postcode|zip|street|house|home(?! (realm|world|planet|base|isle))|town|city)',
   'how old (are )?you( are)?', '(photo|picture|pic|selfie|snap|video)s? of you(rself)?', '(send|share|post|show|upload|text|dm|give) (me |us )?(a |an |your )?(photo|picture|pic|selfie|snap|video|number|phone|e-?mail|address)',
-  'meet (up|me|us|in person|irl|outside|for real)', 'meet(ing)? up', 'come (and )?(find|visit|see) (me|you) (at|in)', 'text me', 'e-?mail me', 'add me on'
+  'meet (up|me|us|in person|irl|outside|for real)', 'meet(ing)? up', 'meet (me |us )?(at|by|near|outside) ', 'come (and )?(find|visit|see) (me|you) (at|in)', 'text me', 'e-?mail me', 'add me on'
 ].join('|') + ')\\b', 'i');
 const lpAsks = s => LP_ASKS.test(s) || LP_ASKS2.test(s);
 // a reply from any brain must pass this, or the offline brain answers instead
@@ -13445,7 +13447,14 @@ Object.defineProperties(window.__hub, {
   questGoto:{value:(lx, lz, yaw) => { if(!qa || !qa.inside) return null; p.x = qa.A.x + lx; p.z = qa.A.z + lz; p.y = pocketFloor(p.x, p.z); p.vy = 0; p.speed = 0; if(yaw != null){ cam.yaw = yaw; p.facing = yaw + Math.PI; } snapCamera(); clipCamera(); return {x:p.x, y:p.y, z:p.z}; }},
   // frame a screenshot: 'portal' (this realm's doorway from in front) or 'arena' (inside, a wide view of the mission)
   viewQuest:{value:what => { if(what === 'arena'){ if(!qa || !qa.inside) return null; const v = qa.M.view || [0, -6, 0, 0.35, 7]; p.x = qa.A.x + v[0]; p.z = qa.A.z + v[1]; p.y = pocketFloor(p.x, p.z); cam.yaw = v[2]; p.facing = v[2] + Math.PI; cam.pitch = v[3]; cam.dist = v[4]; me.g.position.set(p.x, p.y, p.z); snapCamera(); clipCamera(); return {x:p.x, z:p.z}; }
-    const q = qpList[0]; if(!q) return null; const d = 8, a = q.yaw + 0.35; p.x = q.x + Math.sin(a) * d; p.z = q.z + Math.cos(a) * d; p.y = G(p.x, p.z); cam.yaw = Math.atan2(p.x - q.x, p.z - q.z) + 0.25; p.facing = cam.yaw + Math.PI; cam.pitch = 0.12; cam.dist = 5.5; me.g.position.set(p.x, p.y, p.z); me.g.rotation.y = p.facing; snapCamera(); clipCamera(); return {x:p.x, z:p.z, portal:[q.x, q.z]}; }}
+    const q = qpList[0]; if(!q) return null; const d = 12, cd = 7;
+    // a clear line of sight: try a few angles round the doorway and take the first where nothing solid stands between the camera, you and the doorway
+    const segD = (ax, az, bx, bz, cx, cz) => { const vx = bx - ax, vz = bz - az, L = vx * vx + vz * vz || 1, t = clamp(((cx - ax) * vx + (cz - az) * vz) / L, 0, 1); return Math.hypot(ax + vx * t - cx, az + vz * t - cz); };
+    const blocked = (ax, az, bx, bz) => colliders.some(c => !c.hollow && Math.hypot(c.x - q.x, c.z - q.z) > 2.2 && segD(ax, az, bx, bz, c.x, c.z) < c.r + 0.7) || portals.some(o => segD(ax, az, bx, bz, o.x, o.z) < 3) || boxes.some(b => !b.hollow && b.y0 < 4 && [0, 0.25, 0.5, 0.75, 1].some(t => boxOut(ax + (bx - ax) * t, az + (bz - az) * t, b, 0.5)));
+    let pick = null; for(const off of [0.1, -0.3, 0.4, -0.6, 0.7, -0.9, 1.0]){ const a = q.yaw + off, px = q.x + Math.sin(a) * d, pz = q.z + Math.cos(a) * d, cy = Math.atan2(px - q.x, pz - q.z) + 0.1, cx = px + Math.sin(cy) * cd, cz = pz + Math.cos(cy) * cd;
+      if(!blocked(cx, cz, q.x, q.z) && !blocked(px, pz, q.x, q.z)){ pick = [px, pz, cy]; break; } if(!pick) pick = null; }
+    if(!pick){ const a = q.yaw + 0.1, px = q.x + Math.sin(a) * d, pz = q.z + Math.cos(a) * d; pick = [px, pz, Math.atan2(px - q.x, pz - q.z) + 0.1]; }
+    p.x = pick[0]; p.z = pick[1]; p.y = G(p.x, p.z); cam.yaw = pick[2]; p.facing = cam.yaw + Math.PI; cam.pitch = 0.24; cam.dist = cd; me.g.position.set(p.x, p.y, p.z); me.g.rotation.y = p.facing; snapCamera(); clipCamera(); return {x:p.x, z:p.z, portal:[q.x, q.z]}; }}
 });
 cleanLocalsStore();
 Object.defineProperties(window.__hub, { cleanLocalsStore:{value:() => cleanLocalsStore()} });
