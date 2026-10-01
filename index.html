@@ -12041,7 +12041,7 @@ const MON_KITS = {
     const K = {parts:{}};
     const sandM = std(0xd8b07a, {transparent:true, opacity:0.34, depthWrite:false, roughness:1, metalness:0, emissive:C(0x4a2a0a), emissiveIntensity:0.5, map:detailTex, envMapIntensity:0.2});
     const veilM = std(0xe6c48c, {transparent:true, opacity:0.6, depthWrite:false, roughness:1, emissive:C(0x5a3410), emissiveIntensity:0.45, side:THREE.DoubleSide, map:detailTex});
-    const coreM = std(0x8a5424, {transparent:true, opacity:0.62, depthWrite:false, roughness:1, emissive:C(0xb35a10), emissiveIntensity:0.9});
+    const coreM = new THREE.MeshBasicMaterial({color:C(0xff8a2a), transparent:true, opacity:0.5, depthWrite:false, blending:THREE.AdditiveBlending, toneMapped:false});   // an ember heart that glows through the sand
     const hoodM = std(0xdcb57e, {roughness:1, side:THREE.DoubleSide, map:detailTex, normalMap:detailNormal}), faceM = std(0x0e0603, {roughness:1});
     // a ragged hem: the lower edge of a lathe pulled down in tatters
     const tatter = (g, below, amt) => { const a = g.attributes.position; for(let i = 0; i < a.count; i++){ const y = a.getY(i); if(y > below) continue; const an = Math.atan2(a.getX(i), a.getZ(i)), k = smooth(below, below - 0.25, y); a.setY(i, y - amt * k * (0.55 + 0.45 * Math.sin(an * 7) * Math.sin(an * 3 + 1))); } g.computeVertexNormals(); return g; };
@@ -14127,14 +14127,14 @@ function monStrikeHook(i){
 }
 function monViewHook(i, o){
   o = o || {}; const m = monFind(i); if(!m) return null; if(o.freeze !== false) mon.freeze = true; m.sc = 1;
-  const D = mon.def, d = o.d || (D.fly ? 6 : D.kind === 'drone' ? 4.5 : 4.2), a = m.yaw + (o.side == null ? 0.6 : o.side);
+  const D = mon.def, d = o.d || (D.fly ? 5 : D.kind === 'drone' ? 4.5 : 4.6), a = m.yaw + (o.side == null ? 0.6 : o.side);
   p.x = m.x + Math.sin(a) * d; p.z = m.z + Math.cos(a) * d; p.y = D.fly ? groundAt(p.x, p.z, 1e3) : G(p.x, p.z); if(!(p.y > -1000)) p.y = m.y - 2.5; p.vy = 0; p.speed = 0;
   if(D.fly && mon.freeze){ m.y = p.y + 2.6; m.vy = 0; }   // a frozen flyer is brought down to eye level for the picture
   if(o.third){   // third person: you and the monster, the camera behind your shoulder
     cam.yaw = Math.atan2(p.x - m.x, p.z - m.z) - 0.42; cam.pitch = 0.1; cam.dist = 3.6; p.facing = Math.atan2(m.x - p.x, m.z - p.z); me.g.visible = true; cam.view = 0;
   } else {   // first person, looking straight at it (your avatar hidden), as the camera views do
     cam.view = 2; cam.dist = VIEWS[2].dist; me.g.visible = false; cam.yaw = Math.atan2(p.x - m.x, p.z - m.z); p.facing = cam.yaw + Math.PI;
-    const eye = p.y + 1.6, cy = monCenterY(m); cam.pitch = clamp(Math.atan2(eye - cy, d) + 0.02, -1.1, 1.2); }
+    const eye = p.y + 1.6, cy = monCenterY(m); cam.pitch = clamp(Math.atan2(eye - cy, d) - (o.lift == null ? 0.2 : o.lift), -1.1, 1.2); }   // looking a little above it puts it below the button bar on small screens
   me.g.position.set(p.x, p.y, p.z); me.g.rotation.y = p.facing; snapCamera(); clipCamera(); return monSummary(m);
 }
 function monSafeCheck(R){
