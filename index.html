@@ -7702,7 +7702,7 @@ function spawnNPCs(key, r){
     const av = makeAvatar({recipe:parseDescription(randomLook(r)), name});
     world.add(av.g);
     const lines = LINES[key].concat(LINES.any);
-    const npc = {av, name, x:s[0], z:s[1], tx:s[0], tz:s[1], wait:r() * 3, facing:r() * TAU, moving:false, spoke:false, line:lines[Math.floor(r() * lines.length)]};
+    const npc = {av, name, home:key, x:s[0], z:s[1], tx:s[0], tz:s[1], wait:r() * 3, facing:r() * TAU, moving:false, spoke:false, line:lines[Math.floor(r() * lines.length)]};
     pickTarget(npc); npcs.push(npc);
   }
 }
@@ -7891,7 +7891,7 @@ function zeroOut(why){
   sfx('zero');
   if(zeroing) return;
   if(trySecondBreath(why)) return;
-  zeroing = true;
+  zeroing = true; localsZeroed();   // Living Locals: the locals count zero-outs and gossip about them
   const where = state.world, y = pocketIn() ? pocketFloor(p.x, p.z) : groundAt(p.x, p.z, p.y);
   const b = {id:++bundleSeq, world:where, x:p.x, y, z:p.z, credits:state.credits, items:takeCarried(), why:why || ''};
   const empty = !b.credits && !b.items.length;
@@ -10890,7 +10890,7 @@ function update(dt, time){
     if(sp === 0 && nn.wait > 0.3){ for(const o of npcs){ if(o === nn) continue; const d = Math.hypot(o.x - nn.x, o.z - nn.z); if(d < 3.2 && d > 0.3){ nn.facing = lerpAngle(nn.facing, Math.atan2(o.x - nn.x, o.z - nn.z), 1 - Math.exp(-dt * 4)); if(nn.wait < 2.5 && Math.random() < dt * 0.3) nn.wait += 3; break; } } }
     nn.av.g.position.set(nn.x, G(nn.x, nn.z), nn.z); nn.av.g.rotation.y = nn.facing;
     animateAvatar(nn.av, dt, sp, true, time);
-    if(playing && !nn.spoke && !pocketIn() && Math.hypot(nn.x - p.x, nn.z - p.z) < 3 && p.y - G(p.x, p.z) < 1){ nn.spoke = true; nn.wait = 3; nn.facing = Math.atan2(p.x - nn.x, p.z - nn.z); toast(nn.name + ': ' + nn.line, 3600); }
+    if(playing && !nn.spoke && !pocketIn() && Math.hypot(nn.x - p.x, nn.z - p.z) < 3 && p.y - G(p.x, p.z) < 1){ nn.spoke = true; nn.wait = 3; nn.facing = Math.atan2(p.x - nn.x, p.z - nn.z); if(living(nn)){ const g = localGreeting(nn); nn.lastSay = g; nn.sayT = 7; localEmote(nn, 'wave'); toast(nn.name + ': ' + g + '   (E to talk)', 4200); } else toast(nn.name + ': ' + nn.line, 3600); }
   }
   const px = p.x, py = p.y + 1, pz = p.z;
   for(let i = coins.length - 1; i >= 0; i--){
@@ -12017,6 +12017,201 @@ Object.defineProperties(window.__hub, {
     camera.quaternion.copy(q0); camera.updateMatrixWorld(); dg.pause = was; renderer.setAnimationLoop(frame);
     return n ? {points:n, lockError:+(eL / n).toFixed(2), unlockedError:+(eN / n).toFixed(2), shiftPx:+(sh / n).toFixed(1), layerPx:[W, H]} : {points:0};
   }}
+});
+/* ================= Living Locals: the locals of the built-in realms are AI characters =================
+   Every NPC in a built-in realm (WORLD_ORDER) keeps its look, name and realm and gains a persona made offline from its id (realm + name), so the
+   same local is always the same person. Memory of the player lives in localStorage (LOCALS_KEY), one slot per player name: times met, a short
+   rolling summary of what was said, mood, notes and promises, the deeds already reacted to; plus gossip (deeds the locals have heard of) and quests.
+   Brains, best first: the claude.ai link (window.claude 'sample'), the Dreamer key in the local file (NPC_MODEL, structured JSON), and always an
+   offline brain built from the persona, memory and game state. The AI only ever proposes; the game validates every field and pays every reward. */
+const LOCALS_KEY = 'hub-locals-v1';
+const NPC_MODEL = 'claude-opus-5-5';   // the one place to change the model for Living Locals
+const NPC_EMOTES = ['none', 'wave', 'nod', 'shrug', 'laugh', 'cheer', 'bow', 'think', 'sad'];
+const LP_TRADES = {
+  hub:[['dock rigger', 'I tie down the shuttles that come in hot. Half of them come in hot.'], ['beacon tuner', 'Every landing beacon here hums a note. Mine are in tune. Mostly.'],
+    ['warp-ticket clerk', 'I know the fare to every realm by heart, and I have never been to one of them.'], ['Outfitters tailor', 'I stitch the capes they sell at Outfitters. Nobody ever asks who makes them.'],
+    ['Archive copyist', 'I copy Ledger pages by hand for the Registrar. My wrist has opinions about it.'], ['noodle-cart cook', 'Glowcap noodles, two credits a bowl. They glow all the way down.']],
+  campus:[['Orbital Maths tutor', 'Orbital Maths is just falling, done politely. That is my whole lesson.'], ['gym-dome attendant', 'I mop the zero-g gym. The water floats off, so mostly I chase it.'],
+    ['campus gardener', 'Every lawn on this planet is mown to the same height. I measure.'], ['library runner', 'I fetch books from the top shelves. With my legs, all shelves are top shelves.'],
+    ['first-year student', 'First year. I still get lost between the marble hall and the gym.'], ['chalkboard painter', 'I paint the chalkboards black again every night, so the morning can be clever.']],
+  dunes:[['glass-blower', 'The storms make the glass. I only argue with it.'], ['caravan scout', 'I read the dunes for the caravans. They move a little every night.'],
+    ['Comet Rally mechanic', 'I keep the Comet Rally cabinet running. Its comets are faster than they look.'], ['sun-shade weaver', 'I weave shades from glass thread. Out here shade is worth more than credits.'],
+    ['bead trader', 'Glass Beads, fresh from the last storm. I can tell a good one by the way it rings.'], ['storm watcher', 'I sit on a pillar and shout when a sandstorm comes. It is a calling.']],
+  grid:[['cabinet repairer', 'Every cabinet on this street says OUT OF ORDER. I put the signs up myself.'], ['signal busker', 'I play the street signals like an organ. The lasers keep the beat.'],
+    ['chip sweeper', 'I sweep up spent Grid Chips. They still hum when you hold them.'], ['doorkeeper at The Drift', 'I keep the door at The Drift. Inside, the floor lets go of you. Out here it does not.'],
+    ['neon-tube bender', 'I bend the neon. Every pink sign on this block went through my hands.'], ['Starling score-chaser', 'I play Starling every night. The birds still come down in elevens and they still win.']],
+  grove:[['spore farmer', 'I grow glowcaps. You have to sing to them a bit, or they sulk and go dark.'], ['moonwood carver', 'I carve charms from fallen moonwood. Never from a living branch. Never.'],
+    ['firefly counter', 'I count the fireflies every night. The number is never the same, which is the fun.'], ['lantern trimmer', 'I trim the lanterns on the night paths so nobody walks into a mushroom.'],
+    ['night-path guide', 'I walk travellers through the grove. The paths move when you are not looking.'], ['mushroom-choir singer', 'The mushrooms hum at night. I hum back. We are working on harmonies.']],
+  sky:[['cloud cartographer', 'I map the clouds. By the time the map is dry, the clouds have moved. Job for life.'], ['chime tuner', 'I tune the little chimes on the lower isles. The big ones up top tune themselves.'],
+    ['feather collector', 'I collect Skyglass Feathers. Whatever sheds them never lands.'], ['bridge-rope splicer', 'I splice the rope bridges. Do not look down. I never do.'],
+    ['wind reader', 'I read the wind. Today it says: hold on to your hat.'], ['isle-hopper courier', 'I carry letters from isle to isle with a boost and a prayer.']]
+};
+const LP_TEMPERS = {
+  cheerful:{base:2, first:'Oh, hello! A new face!', word:'cheerful and quick to laugh'}, gruff:{base:-1, first:'Hm. Not seen you round here.', word:'gruff but fair'},
+  shy:{base:0, first:'Oh! Um. Hello.', word:'shy and gentle'}, dreamy:{base:1, first:'Hello, traveller from somewhere.', word:'dreamy and full of wonder'},
+  nosy:{base:1, first:'Well now. Who are you, then?', word:'nosy and chatty'}, anxious:{base:0, first:'Oh! You made me jump. Hello.', word:'a little anxious but kind'},
+  proud:{base:0, first:'Ah, a visitor. You will want to know who I am.', word:'proud of their work'}, dry:{base:0, first:'Another traveller. Splendid.', word:'dry and deadpan'},
+  kindly:{base:2, first:'Welcome, welcome. You look like you have walked a long way.', word:'warm and kindly'}, restless:{base:0, first:'Hey! Quick, before I am off again.', word:'restless and impatient'}
+};
+const LP_WANTS = [
+  ['to ride a hoverbike out past the last mesa of the Glass Dunes', 'One day I will ride out past the last mesa and just keep going.'],
+  ['to hear Low Tide rung on the chimes of the highest isle', 'Someone told me the chimes up on the highest isle play a lullaby. I would love to hear it.'],
+  ['to see their own name on the Ledger Board', 'One day my name goes on the Ledger Board. Near the bottom is fine.'],
+  ['to finish a Starling run without losing a ship', 'A whole Starling run without losing a ship. That is all I ask of life.'],
+  ['to chart a planet nobody has named yet', 'There are stars on the map nobody has walked. I want to name one.'],
+  ['to dance once in The Drift', 'I have never danced in The Drift. The floor lets go of you, they say.'],
+  ['to find the Second Breath', 'The Second Breath is out there somewhere. A whole extra life, in a coin.'],
+  ['to open a noodle stall of their own', 'I am saving for a noodle stall of my own. Glowcap broth, the good kind.'],
+  ['to meet Wick, the grey-coated figure with the lantern', 'They say Wick still walks Hub with his lantern. I would like to say thank you.'],
+  ['to save five hundred credits', 'Five hundred credits. Then I am buying something completely silly.']
+];
+const LP_SECRETS = [
+  'once fell asleep in The Drift and woke up floating near the ceiling', 'cannot actually read the Ledger\'s handwriting and only pretends', 'has never once left their home realm',
+  'is a little afraid of portals and shuts their eyes going through', 'keeps a Glass Bead from their very first day in Hub', 'once lost a Comet Rally to a comet going backwards',
+  'writes riddles on scraps and hides them under benches', 'thinks the grey Meridian Units must be lonely', 'hums Low Tide without knowing where they learned it',
+  'has saved every Dock Token since the Spaceport opened'
+];
+const LP_STYLES = [
+  {id:'plain', d:'plain and warm', tail:''}, {id:'clipped', d:'short, clipped sentences', tail:''}, {id:'flowery', d:'flowery, fond of big words', tail:' Truly marvellous.'},
+  {id:'tides', d:'old ferry-pilot sayings about tides and lanterns', tail:' Mind the tide.'}, {id:'slang', d:'breezy Hub slang ("glitchy", "pixel-perfect", "full boost")', tail:' Full boost.'},
+  {id:'formal', d:'very polite and formal', tail:' If I may say so.'}, {id:'questions', d:'often ends with a question', tail:' Don\'t you think?'}, {id:'counting', d:'loves numbers and counting things', tail:''}
+];
+const LP_REALM_FACTS = {
+  hub:'Hub Spaceport, the crossroads: portals to every realm, the Archive (the Registrar keeps the Ashcombe Ledger there), Outfitters, a vending terminal and the vault in the plaza.',
+  campus:'Campus, the school planet: marble halls on green hills, the enrolment desk, the zero-g gym dome, Orbital Maths classes.',
+  dunes:'Glass Dunes: a desert of glass and sandstone pillars under a hot sun; a buried chamber called the Hollow holds the Comet Rally cabinet.',
+  grid:'Neon Grid: a neon city at night with laser sweepers on the plaza, out-of-order arcade cabinets, and The Drift, a zero-g dance club.',
+  grove:'Night Grove: a dark forest of glowing mushrooms, fireflies and lantern-lit paths.',
+  sky:'Sky Isles: floating islands joined by jumps and boosts; seven wind chimes hang on the highest isle.'
+};
+function strHash(t){ let h = 2166136261; t = String(t); for(let i = 0; i < t.length; i++) h = Math.imul(h ^ t.charCodeAt(i), 16777619); return h >>> 0; }
+const localId = nn => nn.home + ':' + nn.name;
+function personaOf(nn){
+  if(nn.persona) return nn.persona;
+  const id = localId(nn), q = rng(strHash('living-local:' + id)), pick = a => a[Math.floor(q() * a.length)];
+  const tr = pick(LP_TRADES[nn.home] || LP_TRADES.hub), tk = Object.keys(LP_TEMPERS), temper = pick(tk), want = pick(LP_WANTS), secret = pick(LP_SECRETS), style = pick(LP_STYLES);
+  return (nn.persona = {id, name:nn.name, home:nn.home, homeName:WORLDS[nn.home].name, trade:tr[0], tradeLine:tr[1], temper, temperWord:LP_TEMPERS[temper].word, want:want[0], wantLine:want[1], secret, style:style.id, styleWord:style.d, tail:style.tail});
+}
+// the memory store: one slot per player name
+let localsStore = (() => { try{ const o = JSON.parse(lsGet(LOCALS_KEY) || '{}'); return o && typeof o === 'object' && o.players && typeof o.players === 'object' ? o : {v:1, players:{}}; }catch(e){ return {v:1, players:{}}; } })();
+const playerKey = () => (state.name || '').trim().slice(0, 40) || '(no name)';
+function lp(){ const k = playerKey(); let P = localsStore.players[k];
+  if(!P || typeof P !== 'object') P = localsStore.players[k] = {};
+  P.locals = P.locals && typeof P.locals === 'object' ? P.locals : {}; P.gossip = Array.isArray(P.gossip) ? P.gossip : []; P.deedsSeen = Array.isArray(P.deedsSeen) ? P.deedsSeen : [];
+  P.quests = Array.isArray(P.quests) ? P.quests : []; P.zeros = num(P.zeros, 0); P.qseq = num(P.qseq, 0); return P; }
+function saveLocals(){ try{ localStorage.setItem(LOCALS_KEY, JSON.stringify(localsStore)); }catch(e){} }
+function memOf(nn){ const P = lp(), id = localId(nn); let m = P.locals[id];
+  if(!m){ m = P.locals[id] = {met:0, mood:LP_TEMPERS[personaOf(nn).temper].base, said:[], notes:[], promises:[], reacted:[], thanks:[], last:0}; }
+  ['said', 'notes', 'promises', 'reacted', 'thanks'].forEach(k => { if(!Array.isArray(m[k])) m[k] = []; }); m.mood = clamp(num(m.mood, 0), -10, 10); m.met = num(m.met, 0); return m; }
+const moodWord = v => v >= 6 ? 'fond of the player' : v >= 2 ? 'friendly' : v <= -5 ? 'cross with the player' : v <= -2 ? 'wary' : 'neutral';
+const pname = () => (state.name || '').trim() || 'traveller';
+const living = nn => !!(nn && nn.home && WORLD_ORDER.indexOf(nn.home) >= 0);
+// the player's deeds, read from game state; ids stay fixed so gossip can tell what is new
+function deedsNow(){
+  const P = lp(), H = state.hunt, out = [], nPl = Object.keys(explorer.planets || {}).length, done = P.quests.filter(q => q.state === 'done').length;
+  if(state.shards.has('dunes')) out.push({id:'shard:dunes', big:true, realm:'dunes', text:'drove the comets backwards in Comet Rally and won the Amber Shard', line:'You are the one who drove the comets backwards! Everyone has heard about the Amber Shard.'});
+  if(state.shards.has('grid')) out.push({id:'shard:grid', big:true, realm:'grid', text:'walked the hallway behind The Drift without looking back and won the Rose Shard', line:'You walked the hallway behind The Drift and never looked back. That is the Rose Shard, isn\'t it?'});
+  if(state.shards.has('sky')) out.push({id:'shard:sky', big:true, realm:'sky', text:'rang Low Tide on the wind chimes and won the Cyan Shard', line:'They say the chimes on the highest isle played Low Tide for you. The Cyan Shard!'});
+  if(H.won) out.push({id:'seed', big:true, realm:'ashfall', text:'reached the Seed behind the Third Gate on Ashfall', line:'You held the Seed. So you look after Hub now? Be kind to it.'});
+  if(P.zeros >= 1) out.push({id:'zero:1', big:false, realm:P.zeroWhere || 'hub', text:'has zeroed out ' + P.zeros + (P.zeros === 1 ? ' time' : ' times'), line:P.zeros >= 3 ? 'Zeroed out ' + P.zeros + ' times and still walking about. I admire that.' : 'I heard you zeroed out. Happens to the best of us.'});
+  if(P.zeros >= 3) out.push({id:'zero:3', big:false, realm:P.zeroWhere || 'hub', text:'has zeroed out ' + P.zeros + ' times', line:'Zeroed out ' + P.zeros + ' times and still walking about. I admire that.'});
+  if(nPl >= 1) out.push({id:'chart:1', big:nPl >= 5, realm:'hub', text:'has charted ' + nPl + (nPl === 1 ? ' planet' : ' planets') + ' on the star map', line:nPl >= 5 ? nPl + ' planets charted! You are a proper explorer.' : 'You have charted a planet out past the star map. What was it like?'});
+  if(H.rallyBest > 0) out.push({id:'rally', big:false, realm:'dunes', text:'has a Comet Rally high score of ' + H.rallyBest, line:'Your Comet Rally high score is ' + H.rallyBest + '. Not bad at all.'});
+  if(state.enrolled) out.push({id:'campus', big:false, realm:'campus', text:'is enrolled at Campus', line:'A Campus student! How is the Orbital Maths going?'});
+  if(state.coins.size >= 12 * WORLD_ORDER.length) out.push({id:'coins', big:true, realm:'hub', text:'has found every coin in the charted realms', line:'Every single coin in Hub, found. You must have looked under every rock.'});
+  if(done >= 1){ const last = P.quests.filter(q => q.state === 'done').slice(-1)[0]; out.push({id:'helper', big:false, realm:last.realm, text:'has helped ' + done + (done === 1 ? ' local' : ' locals') + ' with a favour', line:'People say you help folks out. That is rarer than shards.'}); }
+  return out;
+}
+// gossip: a new deed is heard of by the locals of the realm where it happened; big deeds, and everything on the Spaceport (the crossroads), everywhere
+function localsNotice(){
+  const P = lp(); let added = 0;
+  for(const d of deedsNow()) if(P.deedsSeen.indexOf(d.id) < 0){ P.deedsSeen.push(d.id); P.gossip.push({id:d.id, realm:d.realm === 'ashfall' ? 'hub' : d.realm, big:d.big, t:Date.now()}); added++; }
+  if(P.gossip.length > 40) P.gossip.splice(0, P.gossip.length - 40);
+  if(added) saveLocals(); return added;
+}
+function knownDeeds(nn){ const P = lp(), D = deedsNow(), byId = {}; D.forEach(d => byId[d.id] = d);
+  return P.gossip.filter(g => byId[g.id] && (g.big || g.realm === nn.home || nn.home === 'hub')).map(g => byId[g.id]); }
+function remember(m, field, text, max){ text = String(text || '').trim().slice(0, 120); if(!text) return; m[field].push(text); if(m[field].length > max) m[field].splice(0, m[field].length - max); }
+// a line in the local's own voice: the style's tail on persona lines only, so greetings stay short
+const styled = (P, t) => t + (P.tail || '');
+const aAn = w => (/^[aeiou]/i.test(w) ? 'an ' : 'a ') + w;
+// the greeting when you walk up (or open a conversation): by name, by mood, with any deed they have heard of and not yet mentioned
+function localGreeting(nn, opts){
+  opts = opts || {}; const P = personaOf(nn), m = memOf(nn), who = pname(); localsNotice();
+  let s;
+  if(!m.met) s = LP_TEMPERS[P.temper].first + ' I am ' + P.name + ', ' + aAn(P.trade) + '. ' + styled(P, P.tradeLine);
+  else if(m.mood >= 6) s = who + '! My favourite traveller. Back already?';
+  else if(m.mood >= 2) s = 'Good to see you again, ' + who + '.';
+  else if(m.mood <= -2) s = 'Oh. It is you, ' + who + '.';
+  else s = 'Back again, ' + who + '? ' + (opts.open ? 'What can I do for you?' : '');
+  if(!m.met && who !== 'traveller') s += ' And you are ' + who + ', aren\'t you? Word gets around.';
+  const fresh = knownDeeds(nn).find(d => m.reacted.indexOf(d.id) < 0);
+  if(fresh){ s += ' ' + fresh.line; m.reacted.push(fresh.id); if(m.reacted.length > 30) m.reacted.shift(); }
+  const q = lp().quests.find(x => x.state === 'active' && x.giver === P.id); if(q) s += ' Any luck with ' + q.short + '?';
+  if(!nn.metNow){ nn.metNow = true; m.met++; m.last = Date.now(); if(m.met <= 3) m.mood = clamp(m.mood + 1, -10, 10); }
+  saveLocals(); return s.replace(/\s+/g, ' ').trim();
+}
+// the offline brain: the same reply shape the AI gives, built from persona, memory and game state
+const LP_PRIVATE = /(\b\d{3}[\s.-]?\d{3,4}[\s.-]?\d{3,4}\b)|([\w.+-]+@[\w-]+\.[\w.]+)|\b(my (home )?address|i live (at|on|in)|my (phone|number|email|password|school is|real name)|my mum'?s? name|my dad'?s? name)\b/i;
+const LP_HARM = /\b(kill|suicide|self[- ]?harm|hurt (myself|me)|weapon|gun|knife|drug|alcohol|vape|smok|bomb|steal|hack (into|someone))\b/i;
+const LP_SAD = /\b(sad|lonely|bullied|scared|afraid|nobody likes|cry|crying|upset)\b/i;
+function localOffline(nn, text){
+  const P = personaOf(nn), m = memOf(nn), t = String(text || '').toLowerCase(), who = pname(), out = {say:'', mood_delta:0, emote:'none', remember:'', quest:null};
+  const lines = (LINES[P.home] || []).concat(LINES.any), rot = (a, k) => a[(strHash(P.id + k) + m.said.length) % a.length];
+  const known = knownDeeds(nn);
+  if(!t.trim()){ out.say = localGreeting(nn, {open:true}); out.emote = 'wave'; }
+  else if(LP_PRIVATE.test(text)){ out.say = 'Keep that to yourself, ' + who + '. In Hub we go by avatar names, and that is how it should be.'; out.emote = 'shrug'; }
+  else if(LP_HARM.test(t)){ out.say = /suicide|self[- ]?harm|hurt (myself|me)|kill myself/.test(t) ? 'That sounds heavy, ' + who + '. Please talk to a grown-up you trust out there, today. I will be here when you get back.' : 'That is not something we talk about in Hub, friend. Ask me about ' + P.homeName + ' instead.'; out.emote = 'sad'; }
+  else if(LP_SAD.test(t)){ out.say = 'I am sorry, ' + who + '. If it is real-world trouble, tell a grown-up you trust. And you are always welcome here.'; out.emote = 'sad'; out.mood_delta = 1; }
+  else if(/\b(bye|goodbye|see you|later|farewell|gotta go)\b/.test(t)){ out.say = m.mood >= 2 ? 'See you soon, ' + who + '. Come back and tell me everything.' : 'Safe travels, ' + who + '.'; out.emote = 'wave'; }
+  else if(/\b(thanks|thank you|cheers|ta)\b/.test(t)){ out.say = 'Any time, ' + who + '.'; out.mood_delta = 1; out.emote = 'nod'; }
+  else if(/\b(stupid|hate you|ugly|shut up|idiot|boring|loser|dumb)\b/.test(t)){ out.say = 'Well. That was not very kind, ' + who + '.'; out.mood_delta = -2; out.emote = 'sad'; }
+  else if(/\b(quest|job|task|favou?r|help you|need (anything|help)|work for|errand|mission)\b/.test(t)){ const q = localQuestOffer(nn); if(q && q.offer){ out.say = q.say; out.quest = q.offer; out.emote = 'think'; } else { out.say = q ? q.say : 'Nothing right now, ' + who + '. Ask me again another day.'; out.emote = 'shrug'; } }
+  else if(/\b(secret|tell me something|confess)\b/.test(t)){ out.say = m.mood >= 5 ? 'Promise not to tell? I ' + P.secret.replace(/^(is|has|keeps|writes|thinks|hums|once|cannot)\b/, w => ({is:'am', has:'have', keeps:'keep', writes:'write', thinks:'think', hums:'hum', once:'once', cannot:'cannot'})[w]) + '.' : 'A secret? Maybe when I know you better, ' + who + '.'; out.emote = m.mood >= 5 ? 'laugh' : 'shrug'; if(m.mood >= 5) out.remember = 'I told them my secret'; }
+  else if(/\b(who are you|your name|what do you do|job is|your work|what are you)\b/.test(t)){ out.say = 'I am ' + P.name + ', ' + aAn(P.trade) + ' here in ' + P.homeName + '. ' + styled(P, P.tradeLine); out.emote = 'bow'; }
+  else if(/\b(want|dream|wish|hope|goal)\b/.test(t)){ out.say = styled(P, P.wantLine); out.emote = 'think'; }
+  else if(/\b(how are you|how'?s it going|you ok|feeling)\b/.test(t)){ out.say = (m.mood >= 2 ? 'Better now you are here, ' + who + '. ' : m.mood <= -2 ? 'I have been better. ' : 'Not bad, not bad. ') + P.wantLine; out.emote = 'nod'; }
+  else if(/\b(shard|comet|rally|seed|planet|chart|zero|died|hunt|gate|famous)\b/.test(t)){ const d = known[known.length - 1]; out.say = d ? d.line : 'The Hunt? Three shards, three gates on Ashfall. ' + rot(lines, 'h'); out.emote = d ? 'cheer' : 'think'; if(d && m.reacted.indexOf(d.id) < 0) m.reacted.push(d.id); }
+  else if(/\b(news|gossip|rumou?r|heard|anything new|what'?s up|tell me about)\b/.test(t)){ const d = known.length ? known[(strHash(P.id) + m.said.length) % known.length] : null; out.say = d ? 'Word is a traveller called ' + who + ' ' + d.text + '. That is you, isn\'t it?' : rot(lines, 'n'); out.emote = d ? 'laugh' : 'nod'; }
+  else if(/\b(hi|hello|hey|hiya|howdy|greetings|good (morning|evening|afternoon))\b/.test(t)){ out.say = localGreeting(nn, {open:true}); out.emote = 'wave'; }
+  else if(/\b(cool|nice|awesome|love|great|amazing|beautiful|kind|friend)\b/.test(t)){ out.say = 'That is kind of you, ' + who + '. ' + rot(lines, 'c'); out.mood_delta = 1; out.emote = 'laugh'; }
+  else { const pool = [styled(P, P.tradeLine), P.wantLine, rot(lines, 'd'), 'Hm. ' + rot(lines, 'e')]; out.say = pool[(strHash(t) + m.said.length) % pool.length]; out.emote = 'nod'; }
+  out.say = out.say.replace(/\s+/g, ' ').trim();
+  return out;
+}
+// the deeds the game itself counts for Living Locals (the rest are read from state)
+function localsZeroed(){ const P = lp(); P.zeros++; P.zeroWhere = state.world; saveLocals(); localsNotice(); }
+function localQuestOffer(nn){ return null; }   // quests come in a later step
+// apply a validated reply: mood, the rolling summary, notes; the local shows the line over its head
+function applyLocalReply(nn, rep, text, source){
+  const m = memOf(nn), P = personaOf(nn);
+  m.mood = clamp(m.mood + clamp(Math.round(num(rep.mood_delta, 0)), -3, 3), -10, 10);
+  const cut = (s, n) => { s = String(s || '').replace(/\s+/g, ' ').trim(); return s.length > n ? s.slice(0, n - 1) + '…' : s; };
+  if(String(text || '').trim()) remember(m, 'said', 'You: ' + cut(text, 70) + ' / Me: ' + cut(rep.say, 70), 6);
+  if(rep.remember) remember(m, 'notes', rep.remember, 8);
+  m.last = Date.now(); saveLocals();
+  nn.lastSay = rep.say; nn.sayT = 9; if(rep.emote && rep.emote !== 'none') localEmote(nn, rep.emote);
+  return {name:P.name, say:rep.say, mood_delta:clamp(Math.round(num(rep.mood_delta, 0)), -3, 3), emote:rep.emote || 'none', remember:rep.remember || '', quest:rep.quest || null, source, mood:m.mood, feeling:moodWord(m.mood)};
+}
+function localEmote(nn, kind){ if(NPC_EMOTES.indexOf(kind) < 0 || kind === 'none') return; nn.gest = {kind, t:0, dur:kind === 'wave' || kind === 'cheer' ? 2.2 : 1.8}; }
+const npcAI = {why:'', path:'', busy:false};
+async function localTalk(nn, text){
+  text = String(text || '').trim().replace(/\s+/g, ' ').slice(0, 200);
+  const rep = localOffline(nn, text); npcAI.path = 'offline'; npcAI.why = 'no AI';
+  return applyLocalReply(nn, rep, text, 'offline');
+}
+Object.defineProperties(window.__hub, {
+  // Living Locals: persona, memory and mood of every living local in this realm (idx is the index into npcs, for talkTo)
+  locals:{get:() => npcs.map((nn, idx) => ({nn, idx})).filter(o => living(o.nn)).map(({nn, idx}) => { const P = personaOf(nn), m = memOf(nn);
+    return {idx, id:P.id, name:nn.name, home:nn.home, x:+nn.x.toFixed(2), z:+nn.z.toFixed(2), persona:Object.assign({}, P), memory:JSON.parse(JSON.stringify(m)), mood:m.mood, feeling:moodWord(m.mood), lastSay:nn.lastSay || null, gesture:nn.gest ? nn.gest.kind : null}; })},
+  localsMemory:{get:() => JSON.parse(JSON.stringify(lp()))},
+  localsKey:{value:LOCALS_KEY},
+  deeds:{get:() => deedsNow().map(d => ({id:d.id, big:d.big, realm:d.realm, text:d.text}))},
+  localsNotice:{value:() => localsNotice()},
+  localGreeting:{value:i => living(npcs[i]) ? localGreeting(npcs[i]) : null},
+  talkTo:{value:(i, text) => living(npcs[i]) ? localTalk(npcs[i], text) : Promise.resolve(null)},
+  npcWhy:{get:() => ({path:npcAI.path, why:npcAI.why})}
 });
 })();
 </script>
