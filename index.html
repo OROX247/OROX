@@ -11069,7 +11069,7 @@ function qpResult(key, S, how){
     let item = null; if(first && d.item && ITEMS[d.item]){ giveItem(d.item, 1, true); item = d.item; if(typeof invRefresh === 'function') invRefresh(); }
     reward(r.xp, r.credits); sfx('win'); pay = {credits:r.credits, xp:r.xp, item, first};
     toast('Quest complete: ' + d.name + (first ? '' : ' (replay)') + '.   +₵' + r.credits + ' +' + r.xp + ' XP' + (item ? ' + ' + ITEMS[item].name : ''), 5200);
-  } else if(S.state === 'failed'){ sfx('hit'); toast('Quest failed: ' + (S.why || d.name) + '. No reward this time. The doorway is open whenever you want to try again.', 4800); }
+  } else if(S.state === 'failed'){ sfx('hit'); toast('Quest failed: ' + (S.why || d.name) + (/[.!?]$/.test(S.why || d.name) ? '' : '.') + ' No reward this time. The doorway is open whenever you want to try again.', 4800); }
   persist();
   const out = {realm:key, kind:d.kind, name:d.name, how, result:S.state, why:S.why || null, t:+(S.t || 0).toFixed(1), pay, wins:rec.wins, tries:rec.tries, best:rec.best};
   qpLast = out; qpList.forEach(q => { if(q.key === key) qpLabels(q); });
@@ -16372,6 +16372,7 @@ function lbEl(B, xa, xb){
   [-3.45, 3.15].forEach(z => lbBox(B.steel, xa, xb, 5.95, 7.05, z, z + 0.3, 2));
   [-1.95, -1.25, 1.25, 1.95].forEach(z => lbBox(B.steel, xa, xb, 6.55, 7.0, z - 0.12, z + 0.12, 2));
   for(let x = Math.ceil(xa / 0.75) * 0.75; x < xb; x += 0.75) lbBox(B.wood, x - 0.12, x + 0.12, 7.0, 7.14, -2.9, 2.9, 1);
+  for(let x = xa + 0.75; x < xb; x += 1.5){ const pl = {x, z:0, r:3.45, top:7.14, bottom:6.2, el:true}; if(buildParent) platforms.push(pl); else coreSolids.push({kind:'plat', p:pl}); }   // the deck is solid (the core's after its coins and locals are placed)
   [-2.32, -0.88, 0.88, 2.32].forEach(z => lbBox(B.iron, xa, xb, 7.14, 7.27, z - 0.04, z + 0.04, 1));
   // the girders' rivet lines and stiffeners every 3 m, seen from the street
   for(let x = Math.ceil(xa / 3) * 3; x < xb; x += 3) [-3.5, 3.45].forEach(z => lbBox(B.steel, x - 0.06, x + 0.06, 5.95, 7.05, z, z + 0.05, 1));
@@ -16396,6 +16397,8 @@ function lbCore(K){
     [13, 18.8, 24.6].forEach(x => lbBox(B.steel, x - 0.1, x + 0.1, fy, fy + 3, 6.55, 6.75, 2));
     lbBox(B.steel, W.x0 - 0.2, W.x1 + 0.2, fy + 3, fy + 3.2, 3.9, 7.1, 2); for(let x = 13; x < 25.5; x += 2.2) lbBox(lit, x, x + 1.2, fy + 2.96, fy + 3.0, 5.0, 5.3);
     lbBox(B.iron, W.x0, W.x1, fy + 1.0, fy + 1.05, 6.95, 7.0); lbBox(B.iron, W.x0 - 0.05, W.x0, fy + 1.0, fy + 1.05, W.z0, W.z1); for(let x = W.x0; x <= W.x1; x += 1.2) lbBox(B.iron, x - 0.025, x + 0.025, fy, fy + 1.0, 6.95, 7.0);
+    lbBox(B.iron, W.x0, W.x1, fy + 1.0, fy + 1.05, W.z0, W.z0 + 0.05); for(let x = W.x0; x <= W.x1; x += 1.2) lbBox(B.iron, x - 0.025, x + 0.025, fy, fy + 1.0, W.z0, W.z0 + 0.05);   // the south edge has the same rail and stop as the north
+    addBox((W.x0 + W.x1) / 2, W.z0 + 0.025, (W.x1 - W.x0) / 2, 0.06, fy - 0.1, fy + 1.2, {cam:false});
     addBox((W.x0 + W.x1) / 2, 6.975, (W.x1 - W.x0) / 2, 0.06, fy - 0.1, fy + 1.2, {cam:false}); addBox(W.x0 - 0.03, (W.z0 + W.z1) / 2, 0.06, (W.z1 - W.z0) / 2, fy - 0.1, fy + 1.2, {cam:false});
     for(let x = W.x0 + 1.3; x <= W.x1 - 0.6 + 1e-6; x += 0.9) platforms.push({x, z:(W.z0 + W.z1) / 2, r:(W.z1 - W.z0) / 2, top:fy, bottom:fy - 0.5});
     B.signs.push({text:'VESPER ST', col:0xffe6c0, x:18.8, y:fy + 2.55, z:3.75, nx:0, nz:-1, h:0.5}); B.signs.push({text:'VESPER ST', col:0xffe6c0, x:18.8, y:fy + 2.55, z:6.85, nx:0, nz:1, h:0.5});
@@ -16534,7 +16537,7 @@ Object.defineProperties(window.__hub, {
       hubPortal:LATE_PORTALS.hub.filter(q => q.to === 'lampblack').map(q => ({x:q.x, z:q.z, built:state.world === 'hub' ? portals.some(o => o.to === q.to && o.late) : null})),
       here, look:here ? {sky:hexStr(W.sky.top), horizon:hexStr(W.sky.horizon), fog:W.fog, exposure:W.exposure, rain:!!(weatherFx && weatherFx.kind === 'rain'), mirror:!!(lb && lb.mirror && lb.mirror.isWater), mirrorShader:!!(lb && lb.mirror && lb.mirror.material === lbKitCache.road)} : null,
       core:here ? {coins:coins.length, coinIds:coins.map(c => c.id), npcs:npcs.map(n => ({name:n.name, living:living(n), trade:personaOf(n).trade})), pickups:pickups.map(q => q.id), vendor:vendor ? {x:vendor.x, z:vendor.z} : null,
-        returnPortal:portals.filter(q => q.to === 'hub').map(q => ({x:q.x, z:q.z})), blocks:16, stationPlatforms:platforms.length, colliders:colliders.length, boxes:boxes.length, steam:lb.vents.length, coreSum:coreSum()} : null,
+        returnPortal:portals.filter(q => q.to === 'hub').map(q => ({x:q.x, z:q.z})), blocks:16, stationPlatforms:platforms.filter(s => !s.el).length, elDeck:platforms.filter(s => s.el).length, colliders:colliders.length, boxes:boxes.length, steam:lb.vents.length, coreSum:coreSum()} : null,
       life:here ? {trams:lb.trams.map(t => ({x:+t.g.position.x.toFixed(1), z:t.z, dir:t.dir})), cats:lb.cats.map(c => ({mode:c.mode, x:+c.g.position.x.toFixed(1), z:+c.g.position.z.toFixed(1)})), pigeonFlocks:flyers.filter(f => f.kind === 'pigeon').length} : null,
       monster:MON.lampblack ? MON.lampblack.kind : null, danger:W.rules.danger,
       quest:D ? {kind:D.kind, name:D.name, x:D.x, z:D.z, credits:D.credits, xp:D.xp, item:D.item, built:here ? qpList.some(q => q.key === 'lampblack') : null, inQpOrder:QP_ORDER.indexOf('lampblack') >= 0, record:state.qp.lampblack || null,
@@ -16624,6 +16627,7 @@ function lbJazzNote(i, t, bus){
    block is built on. ---- */
 ENDLESS.lampblack = {
   core:LB.core, home:R + 12, noRecenter:true, dreamOdds:1e-9, dreamR:1,
+  solid(c){ if(c.kind === 'plat') platforms.push(c.p); },   // the core's El deck
   words:'an endless rain-soaked city at night: brick and limestone blocks, lit windows, neon signs, fire escapes, wet streets that mirror the lamps',
   dream:{kinds:['tower'], surface:'rock', time:'night'},
   kit(){ return lbKit(); },
