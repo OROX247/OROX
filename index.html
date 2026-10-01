@@ -10954,7 +10954,7 @@ function vrUpdate(dt){
   if(Math.abs(turn) > 0.7 && vr.snapCool <= 0){ vr.rig.rotation.y -= Math.sign(turn) * Math.PI / 6; vr.snapCool = 0.3; }
   if(Math.abs(turn) < 0.4) vr.snapCool = Math.min(vr.snapCool, 0);
 }
-function interactKey(){ if(qa && qa.inside){ qa.eDown = true; return; } if(bike.riding) dismountBike(); else if(bike.near) mountBike(); else if(shopNear) openShop(); else if(vendNear) openVendor(); else if(deskNear) enroll(); else if(forgeNear) openForge(); else if(archNear) archiveAct(); else if(hollowNear) hollowAct(); else if(chimeNear != null) strikeChime(chimeNear + 1, 'key'); else if(ashNear) ashAct(); else if(qpNear) qpEnter(qpNear); else if(localNear) openTalk(localNear); }
+function interactKey(){ if(qa && qa.inside){ qa.eDown = true; return; } if(bike.riding) dismountBike(); else if(bike.near) mountBike(); else if(shopNear) openShop(); else if(vendNear) openVendor(); else if(deskNear) enroll(); else if(forgeNear) openForge(); else if(archNear) archiveAct(); else if(hollowNear) hollowAct(); else if(chimeNear != null) strikeChime(chimeNear + 1, 'key'); else if(ashNear) ashAct(); else if(fbNear) fbAct(); else if(qpNear) qpEnter(qpNear); else if(localNear) openTalk(localNear); }
 vrSetup();
 
 /* ================= Goal 15: quest portals (blueprint 7) =================
@@ -18018,7 +18018,8 @@ BUILD.fennick = (r, n) => {
 };
 HEIGHTS.fennick = (n, pf) => fbHeights(n);   // no portal pad: the square is level already
 function fbUpdate(dt, time){
-  if(!fb || state.world !== 'fennick') return;
+  if(!fb || state.world !== 'fennick'){ if(fbNear){ fbNear = null; $('#archBtn').style.display = 'none'; } return; }
+  fbMemTick(); fbCabTick(dt, time);
   if(fb.sea){ fb.sea.position.x = Math.round(p.x / 48) * 48; fb.sea.position.z = Math.round(p.z / 48) * 48; }
   if(fb.flash){ const f = fb.flash, b = f.userData.base, ca = Math.atan2(camera.position.x - b.x, camera.position.z - b.z), k = Math.pow(Math.max(0, Math.cos(2 * (time * 0.25 - ca))), 30); f.material.opacity = 0.15 + 0.85 * k; f.scale.setScalar(10 + 26 * k); }
   if(fb.ferry){ const F = FB.ferry, L = F.x1 - F.x0, ph = (time * F.v) % (2 * L), out = ph < L, x = out ? F.x0 + ph : F.x1 - (ph - L);
@@ -18083,6 +18084,53 @@ function fbMusicBox(dt){
   const d = Math.hypot(p.x - fb.lantern.x, p.z - fb.lantern.z), k = 1 - smooth(4, 30, d); if(k <= 0.01) return;
   const t = snd.ctx.currentTime + 0.1; fb.boxPlays = (fb.boxPlays || 0) + 1;
   HUNT_CLUES.cyan.order.forEach((n, i) => { const f = LOW_TIDE_HZ[n - 1]; tone('sine', f, f, 1.2, 0.03 * k, t + i * 0.62, snd.amb); tone('triangle', f * 2, f * 2, 0.4, 0.007 * k, t + i * 0.62, snd.amb); });
+}
+/* ---- memories (the Hunt tie-in, optional): six places in the town that echo the Archive's rooms. E (or Look) shows what is there; finding one
+   counts it in Fennick Bay's own little log (hub-fennick-v1), and all six give a few XP once. They never give a shard, open a gate or say anything the
+   Archive and the Ledger do not already say. ---- */
+const FB_MEMS = [
+  {id:'jar', room:0, name:'The jar on the step', at:() => fb.jar && {x:fb.jar.x + 0.5, z:fb.jar.z, r:1.7},
+   text:'A jam jar on the step of No. 9, a few coins in the bottom and a folded note in his mother\'s hand: "For the milk." Somebody has kept the street exactly as he drew it on the backs of old tide tables.'},
+  {id:'bench', room:1, name:'The Pellows\' bench', at:() => fb.garage && {x:fb.garage.x - 0.6, z:fb.garage.z, r:2.0},
+   text:'The Pellows\' garage, door up and the bench lamp on. It smells of engine oil. A secondhand computer waits on the bench under a corner of dust sheet, the way it waited for a boy with a summer of paper-round money.'},
+  {id:'cabinet', room:1, name:'The corner cabinet', at:() => { const c = fb.cabs.find(o => o.game === 'rally'); return c && {x:c.x, z:c.z, r:1.5}; },
+   text:'The corner cabinet in the Saltbox Arcade: Comet Rally, on its attract screen. A card is taped inside the coin door: "by L. Ashcombe, aged 14." The owner says the queue went halfway down the pier that August.'},
+  {id:'clock', room:2, name:'The window over Bright Suds', at:() => fb.suds && {x:FB.hw + 2.2, z:FB.foot + 1.2, r:2.0},
+   text:'Bright Suds, warm and humming. Up in the window of the two rooms above the laundrette, past two desks and one kettle, a wall clock has stopped, and nobody has wound it since.'},
+  {id:'starling', room:3, name:'The newest cabinet', at:() => { const c = fb.cabs.find(o => o.game === 'starling'); return c && {x:c.x, z:c.z, r:1.5}; },
+   text:'A Starling cabinet, newer than everything else in the Saltbox. On its side, in marker: "For M." Somebody wheeled it all the way down the pier long after the rest.'},
+  {id:'lamp', room:5, name:'The lamp in the window', at:() => fb.lantern && {x:fb.lantern.x + 1.0, z:fb.lantern.z, r:1.8},
+   text:'The lantern in the front window of No. 9, lit so the night ferry can find the house from the water. Somewhere inside, a music box is playing his mother\'s song.'}
+];
+const FB_KEY = 'hub-fennick-v1';
+let fbMem = (() => { try{ const o = JSON.parse(lsGet(FB_KEY) || '{}'); return {found:Array.isArray(o.found) ? o.found.filter((id, i, a) => FB_MEMS.some(m => m.id === id) && a.indexOf(id) === i) : [], all:!!o.all}; }catch(e){ return {found:[], all:false}; } })();
+const fbMemSave = () => { try{ localStorage.setItem(FB_KEY, JSON.stringify(fbMem)); }catch(e){} };
+let fbNear = null;
+function fbMemNear(){
+  if(!fb || state.world !== 'fennick' || (qa && qa.inside) || pocketIn() || traveling) return null;
+  let best = null, bd = 1e9; for(const m of FB_MEMS){ const a = m.at(); if(!a) continue; const d = Math.hypot(p.x - a.x, p.z - a.z); if(d < a.r && d < bd){ bd = d; best = m; } } return best;
+}
+function fbMemTick(){
+  const m = fbMemNear(); if(m === fbNear) return; fbNear = m; const b = $('#archBtn');
+  if(m){ b.textContent = 'Look'; b.style.display = ''; if(playing) toast(m.name + '. E or tap Look.', 2600); } else if(state.world === 'fennick' || b.textContent === 'Look') b.style.display = 'none';
+}
+function fbAct(id){
+  const m = id ? FB_MEMS.find(o => o.id === id) : fbNear; if(!m) return null;
+  const R = ARCHIVE_ROOMS[m.room], first = fbMem.found.indexOf(m.id) < 0; if(first){ fbMem.found.push(m.id); fbMemSave(); }
+  $('#memoRoom').textContent = 'Fennick Bay · an echo of the Archive\'s Room ' + (m.room + 1) + ', ' + R.title; $('#memoTitle').textContent = m.name; $('#memoText').textContent = m.text;
+  const all = fbMem.found.length === FB_MEMS.length && !fbMem.all; if(all){ fbMem.all = true; fbMemSave(); }
+  $('#memoNote').textContent = fbMem.found.length + ' of ' + FB_MEMS.length + ' memories of Fennick Bay found.' + (all ? ' You have walked the whole of his memory of the town.' : '');
+  if(!id){ memoEl.classList.remove('hidden'); setPaused(true); $('#memoClose').focus(); }
+  if(first) reward(all ? 45 : 5, 0); else sfx('ui');
+  if(m.id === 'lamp') playLowTide();
+  return {id:m.id, room:m.room, name:m.name, text:m.text, first, found:fbMem.found.length, all};
+}
+$('#archBtn').addEventListener('click', () => { if(state.world === 'fennick' && fbNear) fbAct(); });
+// the two cabinets with Hub's own games play their attract screens while you are near the arcade (eight frames a second, drawn by the games' own code)
+function fbCabTick(dt, time){
+  if(!fb.cabs.length || (qa && qa.inside)) return; const A = FB.arcade; if(Math.hypot(p.x - (A.x0 + A.x1) / 2, p.z - (A.z0 + A.z1) / 2) > 34) return;
+  fb.cabT = (fb.cabT || 0) - dt; if(fb.cabT > 0) return; fb.cabT = 1 / 8;
+  fb.cabs.forEach(c => { if(!c.cv) return; (c.game === 'rally' ? drawRally : drawStarling)(c.cv, null, time); c.tex.needsUpdate = true; });
 }
 })();
 </script>
