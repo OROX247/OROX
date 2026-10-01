@@ -11681,29 +11681,30 @@ function monPut(K, name, j, M, bright){ const P = K.parts[name]; if(!P) return; 
 
 // ---- the glow layer: eyes, sand, thrusters, sparks and bolts in one Points draw ----
 const MON_FX = 1200;
-function monFxMake(){
+function monFxMake(dust){
   const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(MON_FX * 3), 3)); geo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(MON_FX * 3), 3));
   geo.setAttribute('size', new THREE.BufferAttribute(new Float32Array(MON_FX), 1)); geo.setAttribute('op', new THREE.BufferAttribute(new Float32Array(MON_FX), 1));
-  const mat = new THREE.ShaderMaterial({uniforms:{map:{value:glowTex}, scale:{value:600}}, transparent:true, depthWrite:false, blending:THREE.AdditiveBlending, vertexColors:true,
+  const mat = new THREE.ShaderMaterial({uniforms:{map:{value:glowTex}, scale:{value:600}}, transparent:true, depthWrite:false, blending:dust ? THREE.NormalBlending : THREE.AdditiveBlending, vertexColors:true,
     vertexShader:'attribute float size; attribute float op; varying vec3 vC; varying float vO; uniform float scale; void main(){ vC = color; vO = op; vec4 mv = modelViewMatrix * vec4(position, 1.0); gl_PointSize = min(size * scale / max(-mv.z, 0.05), 300.0); gl_Position = projectionMatrix * mv; }',
     fragmentShader:'uniform sampler2D map; varying vec3 vC; varying float vO; void main(){ vec4 t = texture2D(map, gl_PointCoord); gl_FragColor = vec4(vC * t.rgb, t.a * vO); }'});
-  const pts = new THREE.Points(geo, mat); pts.frustumCulled = false; pts.layers.set(1); pts.renderOrder = 5; pts.name = 'mon:fx'; geo.setDrawRange(0, 0); mon.root.add(pts);
+  const pts = new THREE.Points(geo, mat); pts.frustumCulled = false; pts.layers.set(1); pts.renderOrder = dust ? 4 : 5; pts.name = dust ? 'mon:dust' : 'mon:fx'; geo.setDrawRange(0, 0); mon.root.add(pts);
   return {pts, geo, n:0, parts:[]};
 }
-function fxDot(x, y, z, size, col, op){ const F = mon.fx; if(F.n >= MON_FX) return; const i = F.n++, g = F.geo.attributes; g.position.array[i * 3] = x; g.position.array[i * 3 + 1] = y; g.position.array[i * 3 + 2] = z;
+// glows add light (eyes, sparks, bolts); dust is painted over (sand grains, feathers, smoke), so it shows against a bright desert
+function fxDot(x, y, z, size, col, op, dust){ const F = dust ? mon.dust : mon.fx; if(F.n >= MON_FX) return; const i = F.n++, g = F.geo.attributes; g.position.array[i * 3] = x; g.position.array[i * 3 + 1] = y; g.position.array[i * 3 + 2] = z;
   g.color.array[i * 3] = col.r; g.color.array[i * 3 + 1] = col.g; g.color.array[i * 3 + 2] = col.b; g.size.array[i] = size; g.op.array[i] = op; }
 // a short-lived particle: drifts, falls (grav), fades
-function fxBurst(x, y, z, n, col, o){ if(!mon) return; o = o || {}; const F = mon.fx, c = C(col);
+function fxBurst(x, y, z, n, col, o){ if(!mon) return; o = o || {}; const F = o.dust ? mon.dust : mon.fx, c = C(col);
   for(let i = 0; i < n && F.parts.length < 500; i++){ const a = fxR() * TAU, u = fxR() * 2 - 1, s = (o.speed || 3) * (0.4 + fxR() * 0.8), h = Math.sqrt(1 - u * u);
     F.parts.push({x, y, z, vx:Math.cos(a) * h * s, vy:u * s * (o.flat ? 0.3 : 1) + (o.up || 0), vz:Math.sin(a) * h * s, life:(o.life || 0.6) * (0.6 + fxR() * 0.6), t:0, size:(o.size || 0.12) * (0.6 + fxR() * 0.8), c, op:o.op || 0.9, grav:o.grav == null ? 4 : o.grav, drag:o.drag || 1.5}); } }
 function fxFlush(dt){
-  const F = mon.fx;
-  for(let i = F.parts.length - 1; i >= 0; i--){ const q = F.parts[i]; q.t += dt; if(q.t >= q.life){ F.parts.splice(i, 1); continue; }
-    const k = Math.exp(-dt * q.drag); q.vx *= k; q.vz *= k; q.vy = q.vy * k - q.grav * dt; q.x += q.vx * dt; q.y += q.vy * dt; q.z += q.vz * dt;
-    fxDot(q.x, q.y, q.z, q.size, q.c, q.op * (1 - q.t / q.life)); }
-  const g = F.geo.attributes; F.geo.setDrawRange(0, F.n); ['position', 'color', 'size', 'op'].forEach(k => { g[k].needsUpdate = true; g[k].updateRange.count = -1; });
-  F.n = 0;
-  const hgt = renderer.getDrawingBufferSize(_cellV2).y; F.pts.material.uniforms.scale.value = hgt / (2 * Math.tan(camera.fov * Math.PI / 360));
+  const hgt = renderer.getDrawingBufferSize(_cellV2).y, sc = hgt / (2 * Math.tan(camera.fov * Math.PI / 360));
+  [mon.fx, mon.dust].forEach((F, d) => {
+    for(let i = F.parts.length - 1; i >= 0; i--){ const q = F.parts[i]; q.t += dt; if(q.t >= q.life){ F.parts.splice(i, 1); continue; }
+      const k = Math.exp(-dt * q.drag); q.vx *= k; q.vz *= k; q.vy = q.vy * k - q.grav * dt; q.x += q.vx * dt; q.y += q.vy * dt; q.z += q.vz * dt;
+      fxDot(q.x, q.y, q.z, q.size, q.c, q.op * (1 - q.t / q.life), d === 1); }
+    const g = F.geo.attributes; F.geo.setDrawRange(0, F.n); ['position', 'color', 'size', 'op'].forEach(k => { g[k].needsUpdate = true; g[k].updateRange.count = -1; });
+    F.n = 0; F.pts.material.uniforms.scale.value = sc; });
 }
 // beams: a drone's zap and its aiming line (one instanced core and one sheath)
 function monBeamMake(){
@@ -11763,7 +11764,7 @@ function monBuild0(key){
   const root = new THREE.Group(); root.name = 'monsters'; world.add(root);
   mon = {key, def:D, hostile:monHostile(key), root, kit:null, safe:[], core:[], cells:new Map(), live:[], dead:new Map(), drops:[], refreshT:0, focus:null, focusT:0, told:false, freeze:false, slots:0};
   mon.safe = monSafeList(key); mon.core = monCoreSpawns(key, D);
-  mon.fx = monFxMake(); mon.beam = monBeamMake();
+  mon.fx = monFxMake(); mon.dust = monFxMake(true); mon.beam = monBeamMake();
   mon.dropG = {coin:new THREE.CylinderGeometry(0.16, 0.16, 0.04, 24), gem:new THREE.OctahedronGeometry(0.2, 0), orb:new THREE.IcosahedronGeometry(0.15, 3), chip:new THREE.BoxGeometry(0.3, 0.06, 0.22), coil:new THREE.TorusGeometry(0.14, 0.05, 12, 32)};
   mon.dropG.coin.rotateX(Math.PI / 2); mon.dropG.gem.scale(0.8, 1.4, 0.8); mon.goldM = std(0xffc94d, {metalness:1, roughness:0.22, emissive:C(0x8a5a00), emissiveIntensity:0.6});
   mon.ring = new THREE.Mesh(new THREE.RingGeometry(0.82, 1, 72), new THREE.MeshBasicMaterial({color:C(0xcfe4ff), transparent:true, opacity:0, depthWrite:false, blending:THREE.AdditiveBlending, toneMapped:false, side:THREE.DoubleSide}));
@@ -11889,8 +11890,8 @@ function monDamage(m, n, why){
 function monDie(m){
   const M = mon, D = M.def; m.mode = 'dying'; m.die = 0; M.dead.set(m.id, simTime + (m.sp.core ? MON_RESPAWN : MON_CELL_RESPAWN));
   sfx('mdie'); const cy = monCenterY(m);
-  const burst = {wraith:[[0xe8c48a, 60, {speed:4, size:0.12, life:1.1, grav:5, drag:1}], [0xffb347, 18, {speed:2, size:0.2, life:0.7, grav:0}]], drone:[[0xff4fa3, 30, {speed:6, size:0.12, life:0.6, grav:6}], [0x5ce1e6, 16, {speed:4, size:0.16, life:0.5}], [0xffe6f4, 10, {speed:2, size:0.35, life:0.25, grav:0}]],
-    stalker:[[0x9dffb0, 30, {speed:3, size:0.14, life:1, grav:-0.5, drag:2}], [0x2c3a2c, 30, {speed:3, size:0.1, life:0.8, grav:3, op:0.5}]], harpy:[[0xf4f8ff, 40, {speed:3, size:0.16, life:1.6, grav:0.6, drag:2.5}], [0xbff4ff, 12, {speed:2, size:0.2, life:0.6, grav:0}]]}[D.kind];
+  const burst = {wraith:[[0xb08850, 70, {speed:4, size:0.1, life:1.2, grav:5, drag:1, dust:true}], [0xe0c494, 14, {speed:1.5, size:0.7, life:1.4, grav:-0.3, op:0.3, dust:true}], [0xffb347, 18, {speed:2, size:0.2, life:0.7, grav:0}]], drone:[[0xff4fa3, 30, {speed:6, size:0.12, life:0.6, grav:6}], [0x5ce1e6, 16, {speed:4, size:0.16, life:0.5}], [0xffe6f4, 10, {speed:2, size:0.35, life:0.25, grav:0}]],
+    stalker:[[0x9dffb0, 30, {speed:3, size:0.14, life:1, grav:-0.5, drag:2}], [0x2c3a2c, 30, {speed:3, size:0.1, life:0.8, grav:3, op:0.5}]], harpy:[[0xf4f8ff, 40, {speed:3, size:0.16, life:1.8, grav:0.6, drag:2.5, dust:true}], [0xbff4ff, 12, {speed:2, size:0.2, life:0.6, grav:0}]]}[D.kind];
   burst.forEach(b => fxBurst(m.x, cy, m.z, b[1], b[0], b[2]));
   // the count, the deed and the reward (XP now, credits and loot from the drop)
   const K = state.kills; K.n++; K.by[M.key] = monKills(M.key) + 1; if(!K.first) K.first = {realm:M.key, t:Date.now()};
@@ -12038,10 +12039,10 @@ const MON_KITS = {
   // Sand wraith: the Hollow's wraith grown tall for the open dunes: a column of blown sand round an ember core, a crusted hood with amber eyes, two sleeves of sand ending in glass claws
   wraith(){
     const K = {parts:{}};
-    const sandM = std(0xd8b07a, {transparent:true, opacity:0.42, depthWrite:false, roughness:1, emissive:C(0x4a2a0a), emissiveIntensity:0.55, map:detailTex});
+    const sandM = std(0xd8b07a, {transparent:true, opacity:0.34, depthWrite:false, roughness:1, metalness:0, emissive:C(0x4a2a0a), emissiveIntensity:0.5, map:detailTex, envMapIntensity:0.2});
     const veilM = std(0xe6c48c, {transparent:true, opacity:0.6, depthWrite:false, roughness:1, emissive:C(0x5a3410), emissiveIntensity:0.45, side:THREE.DoubleSide, map:detailTex});
     const coreM = std(0x8a5424, {transparent:true, opacity:0.62, depthWrite:false, roughness:1, emissive:C(0xb35a10), emissiveIntensity:0.9});
-    const hoodM = std(0xc89e68, {roughness:1, side:THREE.DoubleSide, map:detailTex, normalMap:detailNormal}), faceM = std(0x0e0603, {roughness:1});
+    const hoodM = std(0xdcb57e, {roughness:1, side:THREE.DoubleSide, map:detailTex, normalMap:detailNormal}), faceM = std(0x0e0603, {roughness:1});
     // a ragged hem: the lower edge of a lathe pulled down in tatters
     const tatter = (g, below, amt) => { const a = g.attributes.position; for(let i = 0; i < a.count; i++){ const y = a.getY(i); if(y > below) continue; const an = Math.atan2(a.getX(i), a.getZ(i)), k = smooth(below, below - 0.25, y); a.setY(i, y - amt * k * (0.55 + 0.45 * Math.sin(an * 7) * Math.sin(an * 3 + 1))); } g.computeVertexNormals(); return g; };
     const eyeM = new THREE.MeshBasicMaterial({color:C(0xffc46a), toneMapped:false});
@@ -12050,14 +12051,14 @@ const MON_KITS = {
     monPart(K, 'core', monSwirl(monLathe([[0.02, 0.48], [0.1, 0.58], [0.19, 0.8], [0.21, 0.98], [0.13, 1.14], [0.02, 1.2]], 24), 0.08), coreM, 1, {cast:false, noAO:true, order:2});
     monPart(K, 'body', monSwirl(monLathe([[0.05, -0.02], [0.13, 0.08], [0.1, 0.28], [0.16, 0.5], [0.28, 0.74], [0.4, 0.96], [0.43, 1.1], [0.34, 1.22], [0.18, 1.3], [0.03, 1.33]], 44), 0.16), sandM, 1, {cast:false, noAO:true, order:3});
     monPart(K, 'mantle', tatter(monLathe([[0.2, 1.3], [0.36, 1.2], [0.45, 1.06], [0.48, 0.88], [0.46, 0.66], [0.44, 0.56]], 40, 0.55, TAU - 1.1), 0.75, 0.3), veilM, 1, {cast:true, order:4});
-    monPart(K, 'hood', monLathe([[0.01, 1.76], [0.07, 1.7], [0.18, 1.58], [0.27, 1.44], [0.32, 1.3], [0.33, 1.17], [0.3, 1.08]], 36, 0.8, TAU - 1.6), hoodM);
+    monPart(K, 'hood', tatter(monLathe([[0.01, 1.66], [0.1, 1.64], [0.2, 1.57], [0.28, 1.46], [0.33, 1.32], [0.35, 1.18], [0.34, 1.04], [0.31, 0.96]], 40, 0.75, TAU - 1.5), 1.08, 0.12), hoodM);
     monPart(K, 'face', new THREE.SphereGeometry(0.22, 20, 14).scale(1, 1.2, 0.6).translate(0, 1.33, 0.05), faceM, 1, {cast:false});
     monPart(K, 'eyes', merge([new THREE.SphereGeometry(0.04, 12, 8).scale(1.3, 0.75, 1).translate(0.09, 1.36, 0.17), new THREE.SphereGeometry(0.04, 12, 8).scale(1.3, 0.75, 1).translate(-0.09, 1.36, 0.17)]), eyeM, 1, {cast:false});
     const arm = taperTube([[0, 0, 0], [0.07, -0.22, 0.08], [0.11, -0.5, 0.2], [0.09, -0.76, 0.32]], 0.11, 0.035, 16, 10);
     const claw = merge([-0.35, 0, 0.35].map((s, i) => monAt(new THREE.ConeGeometry(0.026, 0.3, 6).rotateX(Math.PI).translate(0, -0.13, 0), 0.09 + s * 0.07, -0.74, 0.32 + (i === 1 ? 0.03 : 0), 0.45, 0, s)));
     monPart(K, 'armR', arm, veilM, 1, {cast:true, order:4}); monPart(K, 'armL', mirrorX(arm), veilM, 1, {cast:true, order:4});
     monPart(K, 'clawR', claw, clawM, 1, {cast:false}); monPart(K, 'clawL', mirrorX(claw), clawM, 1, {cast:false});
-    const eyeC = fxC(0xffa040), sandC = fxC(0xe8c48a);
+    const eyeC = fxC(0xffa040), grainC = fxC(0xfff0c8), dustC = fxC(0xd6b88a);
     K.pose = (m, time) => {
       const D = mon.def, S = D.size * m.sc, w = m.mode === 'wind' ? smooth(0, D.wind, m.wind) : 0, rec = m.mode === 'recover' ? m.rt / 0.5 : 0;
       const bob = Math.sin(m.t * 2.1 + m.ph) * 0.08, lean = Math.min(0.22, m.speed * 0.045) - w * 0.12 + (m.mode === 'recover' ? 0.25 * Math.sin(Math.PI * (1 - rec)) : 0);
@@ -12072,9 +12073,10 @@ const MON_KITS = {
       const AL = mx(_k3, R0, -0.4, 1.12, 0.03, ax - sway * 0.8, 0, -0.32 + 0.1 * sway - w * 0.25); monPut(K, 'armL', 0, AL, fl); monPut(K, 'clawL', 0, AL, 1 + w);
       [0.09, -0.09].forEach(ex => { wp(H, ex, 1.36, 0.2); fxDot(_kv.x, _kv.y, _kv.z, 0.3 * S, eyeC, Math.min(1, 0.35 * eb)); });
       // the sand that makes it: grains spiral up the column and drift off the top
-      for(let i = 0; i < 34; i++){ const a = i * 2.39996 + m.t * (1.5 + (i % 3) * 0.45), h = frac(i * 0.37 + m.t * 0.16), rr = (0.3 + 0.32 * frac(i * 0.618)) * (1 + w * 0.35) * (1 - h * 0.35);
-        fxDot(m.x + Math.cos(a) * rr * S, m.y + (h * 1.35 - 0.02) * S, m.z + Math.sin(a) * rr * S, 0.07 * S, sandC, 0.32 * (1 - h * 0.6) * m.sc); }
-      if(m.speed > 1.2 && fxR() < 0.2) fxBurst(m.x, m.y + 0.15, m.z, 1, 0xd8b07a, {speed:0.8, size:0.25, life:0.9, grav:-0.2, op:0.25, drag:0.5});
+      for(let i = 0; i < 70; i++){ const a = i * 2.39996 + m.t * (1.6 + (i % 4) * 0.5), h = frac(i * 0.37 + m.t * (0.12 + (i % 3) * 0.05)), rr = (0.12 + 0.3 * h + 0.22 * frac(i * 0.618)) * (1 + w * 0.35);
+        fxDot(m.x + Math.cos(a) * rr * S, m.y + (h * 1.3 - 0.02) * S, m.z + Math.sin(a) * rr * S, (0.08 + 0.07 * frac(i * 0.29)) * S, grainC, 0.85 * Math.sin(Math.PI * h) * m.sc, true); }
+      for(let i = 0; i < 10; i++){ const a = i * 0.628 + m.t * 0.9, h = frac(i * 0.21 + m.t * 0.25); fxDot(m.x + Math.cos(a) * (0.25 + h * 0.5) * S, m.y + h * 0.5 * S, m.z + Math.sin(a) * (0.25 + h * 0.5) * S, (0.7 + h * 0.9) * S, dustC, 0.2 * (1 - h) * m.sc, true); }
+      if(m.speed > 1.2 && fxR() < 0.25) fxBurst(m.x, m.y + 0.15, m.z, 1, 0xc8a070, {speed:0.8, size:0.45, life:1.1, grav:-0.2, op:0.22, drag:0.5, dust:true});
     };
     return K;
   },
@@ -14114,7 +14116,7 @@ function monNearHook(i, d){
   const a = best ? Math.atan2(s.x - best.x, s.z - best.z) : Math.atan2(s.x, s.z); p.x = s.x + Math.sin(a) * d; p.z = s.z + Math.cos(a) * d; p.y = G(p.x, p.z); p.vy = 0; p.speed = 0;
   if(mon.def.fly){ const g = G(p.x, p.z); if(!(g > -1000)){ const L = ENDLESS.sky.landAt ? ENDLESS.sky.landAt(p.x, p.z) : [p.x, p.z]; p.x = L[0]; p.z = L[1]; } p.y = groundAt(p.x, p.z, 1e3); }
   cam.yaw = Math.atan2(p.x - s.x, p.z - s.z) + 0.3; p.facing = cam.yaw + Math.PI; me.g.position.set(p.x, p.y, p.z); snapCamera();
-  monRefresh(); const m = mon.live.find(x => x.sp === s); return m ? monSummary(m) : null;
+  monRefresh(); const m = mon.live.find(x => x.sp === s); if(m) m.sc = 1; return m ? monSummary(m) : null;   // full size at once (it grows in over 0.6 s in play)
 }
 // put live monster i right next to you (facing you) and let it strike once now, through the real strike code; reports what hurt() did
 function monStrikeHook(i){
@@ -14124,7 +14126,7 @@ function monStrikeHook(i){
   return {realm:mon.key, danger:WORLDS[mon.key].rules.danger, hostile:mon.hostile, canHunt:can, inRange:hit, hp0, hp1:state.hp, dealt:hp0 - state.hp};
 }
 function monViewHook(i, o){
-  o = o || {}; const m = monFind(i); if(!m) return null; if(o.freeze !== false) mon.freeze = true;
+  o = o || {}; const m = monFind(i); if(!m) return null; if(o.freeze !== false) mon.freeze = true; m.sc = 1;
   const D = mon.def, d = o.d || (D.fly ? 6 : D.kind === 'drone' ? 4.5 : 4.2), a = m.yaw + (o.side == null ? 0.6 : o.side);
   p.x = m.x + Math.sin(a) * d; p.z = m.z + Math.cos(a) * d; p.y = D.fly ? groundAt(p.x, p.z, 1e3) : G(p.x, p.z); if(!(p.y > -1000)) p.y = m.y - 2.5; p.vy = 0; p.speed = 0;
   if(D.fly && mon.freeze){ m.y = p.y + 2.6; m.vy = 0; }   // a frozen flyer is brought down to eye level for the picture
