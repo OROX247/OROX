@@ -115,6 +115,7 @@ html,body{ height:100%; margin:0; overflow:hidden; background:#07061a; color:var
 .reg-ask{ display:flex; gap:8px; }
 #regQ{ flex:1; min-width:0; padding:9px 12px; font:15px 'Chakra Petch','Trebuchet MS',sans-serif; color:#f3f0ff; background:rgba(255,255,255,.07); border:1.5px solid rgba(255,255,255,.2); border-radius:0; user-select:text; -webkit-user-select:text; }
 #regQ:focus{ outline:none; border-color:var(--cyan); }
+#qpPanel{ font-size:13px; color:#fff4dc; } #qpPanel b{ color:var(--gold); letter-spacing:.06em; text-transform:uppercase; font-size:12px; margin-right:6px; } #qpPanel .qpq{ margin-left:8px; opacity:.6; font-size:11px; }
 #questPanel{ font-size:13px; max-width:320px; display:grid; gap:3px; } #questPanel b{ font-size:12px; letter-spacing:.08em; text-transform:uppercase; color:var(--gold); } #questPanel .qr{ color:var(--gold); font-weight:700; }
 /* Living Locals: the conversation card sits at the side so the local and its speech bubble stay in view */
 #talk{ position:fixed; right:12px; bottom:calc(env(safe-area-inset-bottom,0px) + 16px); width:min(390px,calc(100vw - 24px)); z-index:10; padding:14px 16px 12px; }
@@ -285,11 +286,12 @@ body.bcast #hud, body.bcast #corner, body.bcast #roomCard, body.bcast #toast{ vi
   <div class="panel" id="worldName">Hub Spaceport</div>
   <div class="panel" id="questPanel" style="display:none"></div>
   <div class="panel" id="trialPanel" style="display:none;color:var(--gold);font-weight:700">Ring 1 / 8 · 0.0s</div>
+  <div class="panel" id="qpPanel" style="display:none"></div>
 </div>
 
 <div id="corner">
   <canvas id="minimap" aria-label="Minimap"></canvas>
-  <div class="btns"><button class="hbtn" id="aiBtn" title="AI reality mode (R)">AI</button><button class="hbtn" id="lookBtn" title="Realm look (L)">Look</button><button class="hbtn" id="forgeBtn" title="Worldsmith: describe a realm (F)">Forge</button><button class="hbtn" id="rideBtn" style="display:none">Ride</button><button class="hbtn" id="sndBtn" title="Sound on/off (N)">Sound</button><button class="hbtn" id="shopBtn" style="display:none">Shop</button><button class="hbtn" id="vendBtn" style="display:none">Vend</button><button class="hbtn" id="enrolBtn" style="display:none">Enrol</button><button class="hbtn" id="archBtn" style="display:none">Inspect</button><button class="hbtn" id="hollowBtn" style="display:none">Knock</button><button class="hbtn" id="chimeBtn" style="display:none">Strike</button><button class="hbtn" id="ashBtn" style="display:none">Recite</button><button class="hbtn" id="talkBtn" style="display:none" title="Talk (E)">Talk</button><button class="hbtn" id="invBtn" title="Inventory (I)">Bag</button><button class="hbtn" id="mapBtn">Warp</button><button class="hbtn" id="helpBtn" aria-label="Avatar and controls">?</button></div>
+  <div class="btns"><button class="hbtn" id="aiBtn" title="AI reality mode (R)">AI</button><button class="hbtn" id="lookBtn" title="Realm look (L)">Look</button><button class="hbtn" id="forgeBtn" title="Worldsmith: describe a realm (F)">Forge</button><button class="hbtn" id="rideBtn" style="display:none">Ride</button><button class="hbtn" id="sndBtn" title="Sound on/off (N)">Sound</button><button class="hbtn" id="shopBtn" style="display:none">Shop</button><button class="hbtn" id="vendBtn" style="display:none">Vend</button><button class="hbtn" id="enrolBtn" style="display:none">Enrol</button><button class="hbtn" id="archBtn" style="display:none">Inspect</button><button class="hbtn" id="hollowBtn" style="display:none">Knock</button><button class="hbtn" id="chimeBtn" style="display:none">Strike</button><button class="hbtn" id="ashBtn" style="display:none">Recite</button><button class="hbtn" id="qpBtn" style="display:none" title="Quest portal (E); Q leaves">Quest</button><button class="hbtn" id="talkBtn" style="display:none" title="Talk (E)">Talk</button><button class="hbtn" id="invBtn" title="Inventory (I)">Bag</button><button class="hbtn" id="mapBtn">Warp</button><button class="hbtn" id="helpBtn" aria-label="Avatar and controls">?</button></div>
 </div>
 
 <div id="intro" class="overlay" role="dialog" aria-labelledby="introTitle">
@@ -2941,13 +2943,14 @@ const state = {
   fuel: Math.min(100, Math.max(0, num(sv.fuel, 100))),  // the hoverbike tank, 0-100 (FUEL_MAX), shared by the bike in every realm
   enrolled: !!sv.enrolled,                               // enrolled at Campus (Goal 8): warps to and from Campus cost nothing
   archive: {ledger:!!(sv.archive && sv.archive.ledger), rooms:new Set(arr(sv.archive && sv.archive.rooms).filter(n => n >= 0 && n < 6)), found:new Set(arr(sv.archive && sv.archive.found).filter(n => n >= 0 && n < 6)), broadcast:!!(sv.archive && sv.archive.broadcast)},   // Goal 9 (+ Goal 10: the Broadcast seen): the Ledger taken, rooms visited, hidden details found
+  qp: (sv.qp && typeof sv.qp === 'object' && !Array.isArray(sv.qp)) ? sv.qp : {},   // Goal 15: quest portal wins, tries, best time per realm (cleaned by qpClean)
   hunt: {door:!!(sv.hunt && sv.hunt.door), rallyBest:num(sv.hunt && sv.hunt.rallyBest, 0), rallyPlays:num(sv.hunt && sv.hunt.rallyPlays, 0), hoard:!!(sv.hunt && sv.hunt.hoard), rose:!!(sv.hunt && sv.hunt.rose), roseTries:num(sv.hunt && sv.hunt.roseTries, 0), cyan:!!(sv.hunt && sv.hunt.cyan),
     gates:[0, 1, 2].map(i => !!(sv.hunt && Array.isArray(sv.hunt.gates) && sv.hunt.gates[i])), won:!!(sv.hunt && sv.hunt.won), starBest:num(sv.hunt && sv.hunt.starBest, 0), g1Tries:num(sv.hunt && sv.hunt.g1Tries, 0), starPlays:num(sv.hunt && sv.hunt.starPlays, 0), g3Tries:num(sv.hunt && sv.hunt.g3Tries, 0)}   // Goal 14: the three gates opened, the Seed won, the Starling high score, tries   // Goal 11: the Hollow's door opened, the Comet Rally high score and plays, the hoard chest taken (+ Goal 12: rose, roseTries; Goal 13: cyan, the chimes sung)
 };
 // state.recipe is filled in once the recipe schema below is defined (see loadRecipe)
 function persist(){
   try{ localStorage.setItem(SAVE_KEY, JSON.stringify({coins:[...state.coins], shards:[...state.shards], visited:[...state.visited],
-    name:state.name, color:state.color, visor:state.visor, xp:state.xp, credits:state.credits, won:state.won, look:state.look, lookSeed:state.lookSeed, lookPath:state.lookPath, recipe:state.recipe, owned:[...state.owned], mute:state.mute, best:state.best, inv:state.inv, picked:[...state.picked], fuel:Math.round(state.fuel * 10) / 10, enrolled:state.enrolled, archive:{ledger:state.archive.ledger, rooms:[...state.archive.rooms], found:[...state.archive.found], broadcast:state.archive.broadcast}, hunt:state.hunt})); }catch(e){}
+    name:state.name, color:state.color, visor:state.visor, xp:state.xp, credits:state.credits, won:state.won, look:state.look, lookSeed:state.lookSeed, lookPath:state.lookPath, recipe:state.recipe, owned:[...state.owned], mute:state.mute, best:state.best, inv:state.inv, picked:[...state.picked], fuel:Math.round(state.fuel * 10) / 10, enrolled:state.enrolled, archive:{ledger:state.archive.ledger, rooms:[...state.archive.rooms], found:[...state.archive.found], broadcast:state.archive.broadcast}, hunt:state.hunt, qp:state.qp})); }catch(e){}
 }
 function rng(seed){ return function(){ seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
 function makeNoise(seed){
@@ -6949,7 +6952,7 @@ function updateEndless(dt, time){
   if(!endless) return;
   if(endless.builtin) updateBuiltin();
   else { endless.lastMove += dt; if(endless.lastMove > 0.35){ endless.lastMove = 0; const t = performance.now(); updateChunks(false); if(endless.rec.planet){ const ms = performance.now() - t; endless.chunkMs = ms; endless.chunkMax = Math.max(endless.chunkMax || 0, ms); } } if(endless.rec.planet) planetStream(endless); }
-  for(const ch of endless.chunks.values()){ const d = ch.dream; if(d && !d.found && d.x != null && Math.hypot(p.x - d.x, p.z - d.z) < 26 && playing){ d.found = true; endless.log.push({name:d.name, lore:d.lore, from:d.from}); if(endless.rl){ endless.rl.log = endless.log.slice(-60); saveRealms(); } if(endless.builtin) saveDreams(); if(endless.rec.planet){ saveDreams(); planetLandmark(d); } toast(d.name + ' — ' + d.lore, 6500); sfx('shard'); reward(15, 3); } }
+  for(const ch of endless.chunks.values()){ const d = ch.dream; if(d && !d.found && d.x != null && Math.hypot(p.x - d.x, p.z - d.z) < 26 && playing && !pocketIn()){ d.found = true; endless.log.push({name:d.name, lore:d.lore, from:d.from}); if(endless.rl){ endless.rl.log = endless.log.slice(-60); saveRealms(); } if(endless.builtin) saveDreams(); if(endless.rec.planet){ saveDreams(); planetLandmark(d); } toast(d.name + ' — ' + d.lore, 6500); sfx('shard'); reward(15, 3); } }
 }
 
 /* ================= no boundaries (Goal 8a): the built-in realms go on past their hand-made cores =================
@@ -7169,6 +7172,7 @@ function coreSum(detail){
   if(fireflies) world.traverse(o => { if(o.isPoints && o.geometry === fireflies.geo) skip.add(o); });
   if(shardObj) [shardObj.m, shardObj.beam, shardObj.l, shardObj.gl].forEach(o => { if(o) skip.add(o); });
   if(chimes){ skip.add(chimes.g); if(chimes.shard){ skip.add(chimes.shard.m); skip.add(chimes.shard.gl); } }   // the chimes sway in the wind
+  qpList.forEach(q => skip.add(q.g)); if(qa) skip.add(qa.g);   // Goal 15: the quest portal and its arena are added after the core
   if(trial.pad) skip.add(trial.pad); trial.rings.forEach(rg => { if(rg.g) skip.add(rg.g); if(rg.m) skip.add(rg.m); });
   if(detail){ const list = []; sumObject(world, skip, list); return list; }
   return {world:sumObject(world, skip), terrain:mainTerrain ? hashNums(2166136261, mainTerrain.geometry.attributes.position.array, 7).toString(16) : null, centre:mainTerrain ? [mainTerrain.userData.terrain.cx, mainTerrain.userData.terrain.cz] : null};
@@ -7780,7 +7784,7 @@ function buildWorld(key){
   const W = WORLDS[key]; state.world = key; gravK = W.gravity || 1; if(explorer.dirty) saveExplorer();
   world = new THREE.Group(); scene.add(world);
   if(camHid){ camHid = false; if(!zeroing) me.g.visible = true; }
-  grassMeshes = []; lods = []; slotMats = {}; mainTerrain = null; coreSolids = []; coreFollow = []; boxes = []; desk = null; gym = null; floaters = []; p.zeroG = false; colliders = []; platforms = []; coins = []; portals = []; spinners = []; npcs = []; shardObj = null; vault = null; gridSun = null; fireflies = null; shopKiosk = null; forgeStand = null; vendor = null; archive = null; archRoom = -1; hollow = null; drift = null; corr = null; ash = null; if(chimes && chimes.play) chimeWin(true); chimes = null; if(rally.open) closeRally(); rally.tex = null; rally.cab = null; rally.trophy = null; hazards = []; burst = null; pickups = []; bike.g = null; bike.riding = false; bike.near = false; engineStop(); $('#rideBtn').style.display = 'none'; trial.active = false; trial.rings = []; trial.pad = null; trial.padPos = null; $('#trialPanel').style.display = 'none';
+  grassMeshes = []; lods = []; slotMats = {}; mainTerrain = null; coreSolids = []; coreFollow = []; boxes = []; desk = null; gym = null; floaters = []; p.zeroG = false; colliders = []; platforms = []; coins = []; portals = []; spinners = []; npcs = []; shardObj = null; vault = null; gridSun = null; fireflies = null; shopKiosk = null; forgeStand = null; vendor = null; archive = null; archRoom = -1; hollow = null; drift = null; corr = null; ash = null; qa = null; qpList = []; qpNear = null; $('#qpPanel').style.display = 'none'; if(chimes && chimes.play) chimeWin(true); chimes = null; if(rally.open) closeRally(); rally.tex = null; rally.cab = null; rally.trophy = null; hazards = []; burst = null; pickups = []; bike.g = null; bike.riding = false; bike.near = false; engineStop(); $('#rideBtn').style.display = 'none'; trial.active = false; trial.rings = []; trial.pad = null; trial.padPos = null; $('#trialPanel').style.display = 'none';
   const r = rng(W.seed), noise = makeNoise(W.seed * 7 + 1);
   waterBody = null; if(weatherFx){ scene.remove(weatherFx.pts); weatherFx.geo.dispose(); weatherFx.pts.material.dispose(); weatherFx = null; } clearSkyProps(); flyers = []; ships = []; endless = null; buildParent = null; chunkAt = null; waterMeshes.forEach(w => { if(w.renderTarget) w.renderTarget.dispose(); }); waterMeshes = [];
   applyLook(W);
@@ -7813,6 +7817,7 @@ function buildWorld(key){
   if(key === 'grid') buildDrift();   // Goal 12: The Drift goes up after everything is placed; it draws only from its own rng
   if(key === 'sky') buildChimes();   // Goal 13: the wind chimes on the highest isle go up after everything is placed; they draw no rng
   if(key === 'hub') buildArchive();   // Goal 9: the Archive goes up after every coin, NPC, pickup and the vendor are placed, so none of them moves
+  addQuestPortal(key);   // Goal 15: the realm's quest portal goes up last, at a fixed spot clear of everything above; it draws no rng
   bundles.forEach(b => { b.g = null; if(b.world === key) addBundleMesh(b); });
   if(ENDLESS[key] && !W.custom) startBuiltin(key);   // no boundaries (Goal 8a): the land goes on past the hand-made core
   applyPhotos(key); autoReal(key);
@@ -8785,7 +8790,7 @@ function archiveUpdate(dt){
   // the rooms are built the first time you come near (one a frame), so the Spaceport loads exactly as fast as before
   if(Math.hypot(px, pz - 77) < 60){ const k = archive.rooms.findIndex(R => !R.built); if(k >= 0) archiveBuildRoom(k); }
   const inB = px > A.x0 - 0.3 && px < A.x1 + 0.3 && pz > A.z0 - 0.3 && pz < A.z1 + 0.3, camIn = cp.x > A.x0 && cp.x < A.x1 && cp.z > A.z0 && cp.z < A.z1;
-  archive.inside = inB; if(me.tag) me.tag.visible = !inB;
+  archive.inside = inB; if(me.tag) me.tag.visible = !inB && !pocketIn();
   // Goal 10: the first time you walk into the entrance hall, the Architect's Last Broadcast plays (once; replay it from the brass screen by the door)
   if(inB && playing && !state.archive.broadcast && !bc.on && Math.abs(px) < A.hall - 0.6 && pz > A.z0 + 0.9 && pz < A.z0 + 8) playBroadcast('first');   // indoors the camera is close and your own name tag would fill the view
   let at = -1;
@@ -9572,6 +9577,7 @@ window.addEventListener('keydown', e => {
   if(e.code === 'KeyM'){ openWarp(); return; }
   if(e.code === 'KeyR'){ aiStart(); return; }
   if(e.code === 'KeyL'){ e.preventDefault(); openLook(); return; }
+  if(e.code === 'KeyQ' && qa && qa.inside){ e.preventDefault(); qpQuit(); return; }   // Goal 15: leave a quest arena (no reward unless it is already won)
   keys[e.code] = true;
   if(e.code === 'Space'){ if(!e.repeat) jumpBuffer = 0.15; e.preventDefault(); }
   if(e.code.indexOf('Arrow') === 0) e.preventDefault();
@@ -10528,8 +10534,9 @@ function buildCorrHall(){   // (named apart from Campus's buildHall(T): two decl
   // (the step of No. 9 is in the floor function, pocketFloor, so you walk up onto it)
   g.visible = false; hall.built = true;
 }
-const pocketIn = () => !!((hollow && hollow.inside) || (corr && corr.inside));
-function pocketFloor(x, z){ if(hollow && hollow.inside) return hollowFloor(x, z); const u = z - CORR.z0; return CORR.y + (u > CORR.L - 0.45 && x < CORR.x ? 0.17 : 0); }
+let qa = null, qpList = [], qpNear = null, qpCool = 0;   // Goal 15: the quest arena you are in (or built this visit), this realm's quest portals
+const pocketIn = () => !!((hollow && hollow.inside) || (corr && corr.inside) || (qa && qa.inside));
+function pocketFloor(x, z){ if(hollow && hollow.inside) return hollowFloor(x, z); if(qa && qa.inside) return qa.A.y + (qa.M.floor ? qa.M.floor(x - qa.A.x, z - qa.A.z) : 0); const u = z - CORR.z0; return CORR.y + (u > CORR.L - 0.45 && x < CORR.x ? 0.17 : 0); }
 function corrReset(){
   const H = corr; H.S = corrNew(); H.stepT = 0.2; H.echoOn = false; H.tuneOn = false; H.tuneNext = 0; H.roll = 0; H.stopEcho = false; H.lastSpeed = 0;
   H.lanterns.forEach(l => { l.lvl = l.want = 1; l.flick = 0; }); H.doors.forEach(d => { d.ang = d.want = 0; d.hinge.rotation.y = 0; }); H.signs.forEach(s => { s.on = 0; s.flick = 0; });
@@ -10670,8 +10677,300 @@ function vrUpdate(dt){
   if(Math.abs(turn) > 0.7 && vr.snapCool <= 0){ vr.rig.rotation.y -= Math.sign(turn) * Math.PI / 6; vr.snapCool = 0.3; }
   if(Math.abs(turn) < 0.4) vr.snapCool = Math.min(vr.snapCool, 0);
 }
-function interactKey(){ if(bike.riding) dismountBike(); else if(bike.near) mountBike(); else if(shopNear) openShop(); else if(vendNear) openVendor(); else if(deskNear) enroll(); else if(forgeNear) openForge(); else if(archNear) archiveAct(); else if(hollowNear) hollowAct(); else if(chimeNear != null) strikeChime(chimeNear + 1, 'key'); else if(ashNear) ashAct(); else if(localNear) openTalk(localNear); }
+function interactKey(){ if(qa && qa.inside){ qa.eDown = true; return; } if(bike.riding) dismountBike(); else if(bike.near) mountBike(); else if(shopNear) openShop(); else if(vendNear) openVendor(); else if(deskNear) enroll(); else if(forgeNear) openForge(); else if(archNear) archiveAct(); else if(hollowNear) hollowAct(); else if(chimeNear != null) strikeChime(chimeNear + 1, 'key'); else if(ashNear) ashAct(); else if(qpNear) qpEnter(qpNear); else if(localNear) openTalk(localNear); }
 vrSetup();
+
+/* ================= Goal 15: quest portals (blueprint 7) =================
+   Every built-in realm (Ashfall is sealed and Hunt-only) has a quest portal: a tall arched doorway lit gold-white from inside, unlike the
+   round travel portals, with its quest and reward on its label. Step through it (or press E by it) and you are in a small pocket arena
+   (the Hollow's pattern: pocketIn/pocketFloor, its own floor and walls flagged hollow, the sun switched off and put back) with one
+   self-contained mission that suits the realm. Each mission is one pure step function, QM[kind].step(S, pose, dt), which runs both the
+   played mission and __hub.quest.simulate(); qpResult() is the one place a result is scored, paid and saved: the first clear pays the full
+   reward and the item, a replay pays a quarter, a fail or quitting pays nothing and puts you back at the portal.
+   The portals go up after everything in a realm is placed, at fixed spots picked from a dump (clear of portals, vendors, kiosks, the bike,
+   the trial pad, coins, NPC spawn spots and pickups); they draw no rng and coreSum skips their groups, so nothing in any realm moves.
+   The arenas all sit at QP_ARENA, deep under the hand-made core and away from every 2-D trigger (vault, Archive, Drift, gym, Hollow). */
+const QP_ARENA = {x:-120, z:-120, y:-80};
+const QPORTALS = {
+  hub:{kind:'relay', name:'Beacon Relay', x:-20, z:-1, face:[0, 6], credits:40, xp:80, item:'beacon-lens', col:0xffc04d,
+    tag:'Watch the landing beacons light up, then run to them in the same order. Three rounds; one slip is forgiven.'}
+};
+const QP_ORDER = ['hub', 'campus', 'dunes', 'grid', 'grove', 'sky'];
+const qpReplay = d => ({credits:Math.max(5, Math.round(d.credits / 4)), xp:Math.max(5, Math.round(d.xp / 4))});
+const QM = {};
+let qpLast = null, qpBtnShown = false;
+// saved per realm: wins, tries (every result, quitting included), best time
+function qpClean(o){ const out = {}; if(o && typeof o === 'object' && !Array.isArray(o)) for(const k of QP_ORDER){ const r = o[k]; if(r && typeof r === 'object') out[k] = {wins:Math.max(0, Math.floor(num(r.wins, 0))), tries:Math.max(0, Math.floor(num(r.tries, 0))), best:r.best == null ? null : Math.max(0, +num(r.best, 0).toFixed(1))}; } return out; }
+state.qp = qpClean(state.qp);
+const qpRec = k => state.qp[k] || (state.qp[k] = {wins:0, tries:0, best:null});
+const archShape = (w, h) => { const s = new THREE.Shape(), r = w / 2; s.moveTo(-r, 0); s.lineTo(r, 0); s.lineTo(r, h - r); s.absarc(0, h - r, r, 0, Math.PI, false); s.lineTo(-r, 0); return s; };
+const scaleUV = (geo, k) => { const uv = geo.attributes.uv; for(let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * k, uv.getY(i) * k); return geo; };
+// each realm's doorway is built from its own stone or metal, so it belongs to the realm's fixed look; the light inside is always the quest gold
+function qpLook(key){
+  const tex = (n, c, o) => { const s = surface(n); return std(c, Object.assign({map:s.map, normalMap:s.normal, normalScale:new V2(0.7, 0.7), roughness:0.8}, o || {})); };
+  if(key === 'hub') return {frame:phys(0x4a505c, {metalness:0.85, roughness:0.34, normalMap:detailNormal, normalScale:new V2(0.18, 0.18)}), base:tex('concrete', 0xb8b4ac), tile:4};
+  if(key === 'campus'){ const T = campusTextures(); return {frame:std(0xffffff, {map:T.wall.map, normalMap:T.wall.normal, roughnessMap:T.wall.rough, roughness:1}), base:std(0xffffff, {map:T.pave.map, normalMap:T.pave.normal, roughnessMap:T.pave.rough, roughness:1}), tile:6}; }
+  if(key === 'dunes') return {frame:tex('redrock', 0xf0d2b0), base:tex('redrock', 0xd8b896), tile:4};
+  if(key === 'grid') return {frame:phys(0x0b0914, {roughness:0.2, metalness:0.6, normalMap:detailNormal, normalScale:new V2(0.12, 0.12)}), base:phys(0x14101f, {roughness:0.3, metalness:0.5}), tile:4};
+  if(key === 'grove') return {frame:tex('pinebark', 0x9a8a7a), base:tex('darkrock', 0x8a8a8a), tile:3};
+  return {frame:tex('granite', 0xffffff), base:tex('granite', 0xe8e4dc), tile:5};
+}
+const QP_MEMBRANE = {
+  vertexShader:'varying vec2 vP; void main(){ vP = position.xy; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+  // rising bands of light, brighter at the rim, a quest diamond turning slowly in the middle; fades when the camera is right at it
+  fragmentShader:'uniform float time, fade; uniform vec3 color; uniform vec2 size; varying vec2 vP; void main(){ float u = vP.x / size.x + 0.5, v = vP.y / size.y;' +
+    ' float edge = min(min(u, 1.0 - u) * size.x, 1e3); float r = size.x * 0.5; vec2 c = vec2(vP.x, vP.y - (size.y - r)); if(vP.y > size.y - r) edge = min(edge, r - length(c));' +
+    ' float s = 0.5 + 0.5 * sin(v * 22.0 - time * 2.2 + sin(u * 9.0 + time * 0.7) * 1.4); float s2 = 0.5 + 0.5 * sin(v * 9.0 - time * 1.1 + u * 4.0);' +
+    ' float rim = exp(-edge * 5.0); vec2 q = vec2(vP.x, vP.y - size.y * 0.5); float a = time * 0.6; q = mat2(cos(a), -sin(a), sin(a), cos(a)) * q;' +
+    ' float dm = abs(q.x) + abs(q.y) * 0.7; float glyph = smoothstep(0.06, 0.0, abs(dm - 0.42)) + smoothstep(0.05, 0.0, abs(dm - 0.22)) * 0.6;' +
+    ' vec3 col = color * (0.32 + 0.55 * s * s2) + vec3(1.0, 0.95, 0.85) * (rim * 0.9 + glyph * 0.75);' +
+    ' float al = clamp(0.5 + 0.3 * s + rim * 0.5 + glyph * 0.4, 0.0, 0.95) * smoothstep(0.0, 0.03, edge) * fade; gl_FragColor = vec4(col, al); }'
+};
+function qpLabelText(key){ const d = QPORTALS[key], rec = qpRec(key), it = d.item && ITEMS[d.item];
+  if(rec.wins){ const r = qpReplay(d); return ['Quest · ' + d.name + ' · cleared', 'Replay: ₵' + r.credits + ' + ' + r.xp + ' XP']; }
+  return ['Quest · ' + d.name, 'Reward: ₵' + d.credits + ' + ' + d.xp + ' XP' + (it ? ' + ' + it.name : '')]; }
+function qpLabels(q){
+  [q.title, q.sub].forEach(l => { if(l){ q.g.remove(l); l.material.map.dispose(); l.material.dispose(); } });
+  const t = qpLabelText(q.key), hx = '#' + new THREE.Color(q.d.col).getHexString();
+  q.title = label(t[0], {edge:hx, fg:'#fff4dc'}); q.title.position.y = q.top + 1.75; q.g.add(q.title);
+  q.sub = label(t[1], {small:true, edge:hx, fg:hx}); q.sub.position.y = q.top + 1.05; q.g.add(q.sub);
+}
+// the doorway: a stone (or metal) arch on a plinth, a glowing band round the opening, the membrane, a turning diamond over the keystone
+function qpDoor(g, look, col, o){
+  o = o || {}; const Wo = o.wo || 3.3, Ho = o.ho || 4.8, Wi = o.wi || 2.3, Hi = o.hi || 3.85, D = 0.6;
+  const sh = archShape(Wo, Ho); sh.holes.push(archShape(Wi, Hi));
+  const fg = new THREE.ExtrudeGeometry(sh, {depth:D, bevelEnabled:true, bevelThickness:0.05, bevelSize:0.05, bevelSegments:2, curveSegments:48}); fg.translate(0, 0.05, -D / 2); scaleUV(fg, 1 / look.tile);
+  mk(fg, look.frame, 0, 0, 0, g);
+  if(!o.noBase){ const bg = new THREE.BoxGeometry(Wo + 1.1, 1.6, D + 1.5); scaleUV(bg, 1.2 / look.tile); mk(bg, look.base, 0, -0.75, 0, g); }
+  const bs = archShape(Wi + 0.02, Hi + 0.01); bs.holes.push(archShape(Wi - 0.12, Hi - 0.06));
+  const band = mk(new THREE.ExtrudeGeometry(bs, {depth:D + 0.06, bevelEnabled:false, curveSegments:48}).translate(0, 0.05, -(D + 0.06) / 2), glowM(col, 2.4), 0, 0, 0, g); band.castShadow = false;
+  const mem = new THREE.Mesh(new THREE.ShapeGeometry(archShape(Wi - 0.12, Hi - 0.06), 48), new THREE.ShaderMaterial({uniforms:{time:uTime, fade:{value:1}, color:{value:C(col)}, size:{value:new V2(Wi - 0.12, Hi - 0.06)}},
+    vertexShader:QP_MEMBRANE.vertexShader, fragmentShader:QP_MEMBRANE.fragmentShader, transparent:true, depthWrite:false, side:THREE.DoubleSide}));
+  mem.position.y = 0.05; mem.renderOrder = 2; g.add(mem);
+  const emY = Ho + 0.6, em = mk(new THREE.OctahedronGeometry(0.3, 0), phys(col, {emissive:C(col), emissiveIntensity:1.6, roughness:0.15, metalness:0.3}), 0, emY, 0, g); em.scale.set(0.8, 1.3, 0.8);
+  const eg = glow(col, 2.2, 0, emY, 0, g, 0.45), dg = glow(col, 6, 0, Hi * 0.5, 0, g, 0.28);
+  return {mem, em, eg, dg, emY, top:Ho, Wi};
+}
+function addQuestPortal(key){
+  const d = QPORTALS[key], W = WORLDS[key]; if(!d || !W || W.custom || !QM[d.kind]) return;
+  const y0 = G(d.x, d.z) + 0.05, yaw = Math.atan2(d.face[0] - d.x, d.face[1] - d.z);
+  const g = new THREE.Group(); g.position.set(d.x, y0, d.z); g.rotation.y = yaw; g.name = 'questPortal'; world.add(g);
+  const door = qpDoor(g, qpLook(key), d.col), c = Math.cos(yaw), s = Math.sin(yaw);
+  // the two piers are solid; the opening is not
+  [-1, 1].forEach(k => colliders.push({x:d.x + k * 1.4 * c, z:d.z - k * 1.4 * s, r:0.62}));
+  const q = Object.assign({key, d, g, x:d.x, z:d.z, y:y0, yaw, c, s, armed:true, title:null, sub:null}, door);
+  qpList.push(q); qpLabels(q); return q;
+}
+// the player in a doorway's own frame (local z is the side the label faces)
+const qpLocal = (q, x, z) => { const dx = x - q.x, dz = z - q.z; return [dx * q.c - dz * q.s, dx * q.s + dz * q.c]; };
+function qpTick(dt, time){
+  qpCool -= dt;
+  for(const q of qpList){ q.em.rotation.y = time * 1.2; q.em.position.y = q.emY + Math.sin(time * 1.6) * 0.12; q.eg.position.y = q.em.position.y;
+    const dc = Math.hypot(camera.position.x - q.x, camera.position.y - (q.y + 1.9), camera.position.z - q.z); q.mem.material.uniforms.fade.value = smooth(1.0, 3.2, dc); q.dg.material.opacity = 0.28 * smooth(2.5, 7, dc); }
+  if(qa && qa.inside){ qaUpdate(dt, time); qpShowBtn(null); return; }
+  let near = null;
+  if(playing && !traveling && !zeroing && !pocketIn() && !bike.riding) for(const q of qpList){
+    const dd = Math.hypot(p.x - q.x, p.z - q.z); if(dd > 2.4) q.armed = true;
+    if(dd < 3.2 && Math.abs(p.y - q.y) < 2) near = q;
+    const L = qpLocal(q, p.x, p.z);
+    if(q.armed && qpCool <= 0 && Math.abs(L[0]) < q.Wi / 2 - 0.2 && Math.abs(L[1]) < 0.45 && p.y - q.y < 1.2){ qpEnter(q); break; }
+  }
+  qpNear = near; qpShowBtn(near);
+}
+function qpShowBtn(q){ const b = $('#qpBtn'); if(!b) return; const on = !!q || !!(qa && qa.inside); if(on !== qpBtnShown){ qpBtnShown = on; b.style.display = on ? '' : 'none'; } b.textContent = qa && qa.inside ? 'Leave' : 'Quest'; }
+// into the arena (lazily built the first time in this visit), through a fade like the Hollow
+function qpEnter(q){
+  q = q || qpNear || qpList[0]; if(!q || traveling || zeroing || (qa && qa.inside) || state.world !== q.key) return false;
+  const M = QM[q.d.kind]; if(!M) return false;
+  if(bike.riding) dismountBike(true);
+  traveling = true; fadeEl.classList.add('on'); sfx('warp');
+  setTimeout(() => { try{
+    if(state.world !== q.key) return;
+    if(!qa || qa.key !== q.key) qa = qaBuild(q);
+    qa.saved = {hc:hemi.color.getHex(), hg:hemi.groundColor.getHex(), hi:hemi.intensity, si:sunLight.intensity, fc:scene.fog ? scene.fog.color.getHex() : 0, fd:scene.fog ? scene.fog.density : 0};
+    qa.inside = true; qa.g.visible = true; qa.portal = q; qa.endT = 0; qa.eDown = false; qa.res = null; qa.inT = 0;
+    qa.S = M.init(qpRec(q.key).tries); p.zeroG = false; p.vx = p.vy = p.vz = 0; p.speed = 0;
+    if(M.light){ const L = M.light; sunLight.intensity = 0; hemi.color.setHex(L.sky); hemi.groundColor.setHex(L.ground); hemi.intensity = L.i; if(scene.fog){ scene.fog.color.setHex(L.fog); scene.fog.density = L.fd; } }
+    const st = M.start; p.x = qa.A.x + st[0]; p.z = qa.A.z + st[1]; p.y = pocketFloor(p.x, p.z); p.facing = st[2]; cam.yaw = st[2] + Math.PI; cam.pitch = Math.min(Math.max(cam.pitch, 0.12), 0.3);
+    if(M.reset) M.reset(qa);
+    snapCamera(); clipCamera(); if(camHid){ cam.yaw += 0.6; snapCamera(); clipCamera(); }
+    $('#qpPanel').style.display = ''; qpHud();
+    toast(q.d.name + '. ' + q.d.tag + '   (Q or the way-out door to leave)', 5200);
+  } finally { fadeEl.classList.remove('on'); traveling = false; } }, 450);
+  return true;
+}
+// back out in front of the doorway, facing it; the doorway will not take you again until you have stepped away from it
+function qpLeave(why){
+  if(traveling || !qa || !qa.inside) return false; traveling = true; fadeEl.classList.add('on');
+  setTimeout(() => { try{
+    if(qa){ qa.inside = false; if(qa.g) qa.g.visible = false; const s = qa.saved; if(s){ hemi.color.setHex(s.hc); hemi.groundColor.setHex(s.hg); hemi.intensity = s.hi; sunLight.intensity = s.si; if(scene.fog){ scene.fog.color.setHex(s.fc); scene.fog.density = s.fd; } } }
+    const q = qa && qa.portal; $('#qpPanel').style.display = 'none';
+    if(q && state.world === q.key){ const lz = 3.6; p.x = q.x + lz * q.s; p.z = q.z + lz * q.c; p.y = G(p.x, p.z); p.vx = p.vy = p.vz = 0; p.speed = 0; p.facing = q.yaw + Math.PI; cam.yaw = q.yaw; q.armed = false; qpCool = 1.5; snapCamera(); clipCamera(); }
+    if(why === 'quit') toast('You step back out through the doorway. No reward this time; it is open whenever you want to try again.', 4200);
+  } finally { fadeEl.classList.remove('on'); traveling = false; } }, 500);
+  return true;
+}
+function qpQuit(){ if(!qa || !qa.inside || traveling) return false; if(qa.S && qa.S.state === 'run'){ qa.S.state = 'quit'; qa.S.why = 'quit'; qpResult(qa.key, qa.S, 'played'); } return qpLeave('quit'); }
+function qaBuild(q){
+  const M = QM[q.d.kind], A = {x:QP_ARENA.x, z:QP_ARENA.z, y:M.y != null ? M.y : QP_ARENA.y};
+  const g = new THREE.Group(); g.name = 'questArena'; world.add(g);
+  const o = {key:q.key, kind:q.d.kind, d:q.d, M, A, g, inside:false, S:null, exits:[]};
+  M.build(o); g.visible = false; return o;
+}
+// a way-out door inside an arena: the same arch, lit white-blue; walking into it leaves (no reward if the mission is still running)
+function qaExit(o, lx, lz, yaw, look){
+  const g = new THREE.Group(); g.position.set(o.A.x + lx, o.A.y + (o.M.floor ? o.M.floor(lx, lz) : 0), o.A.z + lz); g.rotation.y = yaw; o.g.add(g);
+  const door = qpDoor(g, look, 0x9fd8ff, {noBase:true}); door.em.visible = door.eg.visible = false;
+  const l = label('Way out', {small:true, edge:'#9fd8ff', fg:'#dff3ff'}); l.position.y = door.top + 0.5; g.add(l);
+  const c = Math.cos(yaw), s = Math.sin(yaw); [-1, 1].forEach(k => colliders.push({x:g.position.x + k * 1.4 * c, z:g.position.z - k * 1.4 * s, r:0.62, hollow:true}));
+  o.exits.push(Object.assign({x:g.position.x, z:g.position.z, y:g.position.y, yaw, c, s, g}, door));
+}
+function qaUpdate(dt, time){
+  const o = qa, M = o.M, S = o.S, A = o.A;
+  if(M.ceil){ const top = A.y + M.ceil - 1.9; if(p.y > top){ p.y = top; if(p.vy > 0) p.vy = 0; } }
+  for(const e of o.exits){ const dc = Math.hypot(camera.position.x - e.x, camera.position.y - (e.y + 1.9), camera.position.z - e.z); e.mem.material.uniforms.fade.value = smooth(1.0, 3.2, dc); e.dg.material.opacity = 0.28 * smooth(2.5, 7, dc); }
+  if(S && S.state === 'run' && playing && !traveling && !zeroing){
+    const pose = {x:p.x - A.x, z:p.z - A.z, y:p.y - (A.y + (M.floor ? M.floor(p.x - A.x, p.z - A.z) : 0)), h:p.y - A.y, e:o.eDown, grounded:p.grounded};
+    o.eDown = false;
+    const ev = M.step(S, pose, dt); if(M.react) ev.forEach(e => M.react(o, e, S));
+    if(S.state !== 'run'){ o.res = qpResult(o.key, S, 'played'); o.endT = S.state === 'won' ? 2.6 : 2.2; }
+    else for(const e of o.exits){ const L = qpLocal(e, p.x, p.z); if(Math.abs(L[0]) < e.Wi / 2 - 0.2 && Math.abs(L[1]) < 0.45 && o.inT > 1){ qpQuit(); break; } }
+  } else if(S && S.state !== 'run' && o.endT > 0){ o.endT -= dt; if(o.endT <= 0) qpLeave(S.state); }
+  o.inT = (o.inT || 0) + dt;
+  if(M.visual) M.visual(o, dt, time);
+  qpHud();
+}
+function qpHud(){ const el = $('#qpPanel'); if(!qa || !qa.inside || !qa.S){ return; } const t = qa.M.hud(qa.S); if(el.dataset.t !== t){ el.dataset.t = t; el.innerHTML = t; } }
+// the one place a result is scored and paid: a win pays (full the first time, with the item; a quarter on a replay), anything else pays nothing
+function qpResult(key, S, how){
+  const d = QPORTALS[key]; if(!d) return null; const rec = qpRec(key); rec.tries++;
+  let pay = null;
+  if(S.state === 'won'){ const first = !rec.wins, r = first ? {credits:d.credits, xp:d.xp} : qpReplay(d); rec.wins++;
+    if(S.t > 0) rec.best = rec.best == null ? +S.t.toFixed(1) : Math.min(rec.best, +S.t.toFixed(1));
+    let item = null; if(first && d.item && ITEMS[d.item]){ giveItem(d.item, 1, true); item = d.item; if(typeof invRefresh === 'function') invRefresh(); }
+    reward(r.xp, r.credits); sfx('win'); pay = {credits:r.credits, xp:r.xp, item, first};
+    toast('Quest complete: ' + d.name + (first ? '' : ' (replay)') + '.   +₵' + r.credits + ' +' + r.xp + ' XP' + (item ? ' + ' + ITEMS[item].name : ''), 5200);
+  } else if(S.state === 'failed'){ sfx('hit'); toast('Quest failed: ' + (S.why || d.name) + '. No reward this time. The doorway is open whenever you want to try again.', 4800); }
+  persist();
+  const out = {realm:key, kind:d.kind, name:d.name, how, result:S.state, why:S.why || null, t:+(S.t || 0).toFixed(1), pay, wins:rec.wins, tries:rec.tries, best:rec.best};
+  qpLast = out; qpList.forEach(q => { if(q.key === key) qpLabels(q); });
+  return out;
+}
+// the headless check: the same step function, driven by a scripted player (QM[kind].sim), scored by qpResult unless dry
+function qpSimulate(key, policy, o){
+  o = o || {}; const d = QPORTALS[key]; if(!d) return {error:'no quest portal in ' + key};
+  const M = QM[d.kind], S = M.init(o.attempt != null ? o.attempt : qpRec(key).tries), log = M.sim(S, policy);
+  if(log && log.error) return log;
+  const res = {realm:key, kind:d.kind, policy, result:S.state, why:S.why || null, t:+S.t.toFixed(1), events:(log || []).slice(0, 80)};
+  if(M.summary) Object.assign(res, M.summary(S));
+  res.scored = o.dry ? null : qpResult(key, S, 'simulated');
+  return res;
+}
+// a scripted walker for sims: moves the pose toward a point at speed v (m/s), one dt at a time
+const qpWalk = (P, tx, tz, v, dt) => { const dx = tx - P.x, dz = tz - P.z, d = Math.hypot(dx, dz), st = v * dt; if(d <= st){ P.x = tx; P.z = tz; return true; } P.x += dx / d * st; P.z += dz / d * st; return false; };
+
+/* ---- Hub Spaceport: Beacon Relay. A round landing hangar with six beacons; they light in a sequence, then you run to them in order.
+   Rounds of 3, 4 and 5 (one sequence, Simon-style), one wrong beacon is forgiven (the round is shown again), a second ends it; 120 s. ---- */
+const RELAY = {r:12, h:7, ring:6.5, touch:1.25, lead:0.8, slot:0.9, on:0.65, rounds:[3, 4, 5], limit:120, cols:[0xffc04d, 0x5ce1e6, 0xff6fa8, 0x9dff6a, 0xb18cff, 0xf4f1ea], hz:[392, 440, 523.25, 587.33, 659.25, 783.99]};
+const relayBeacon = k => { const a = (k * 60 + 30) * Math.PI / 180; return {x:Math.sin(a) * RELAY.ring, z:Math.cos(a) * RELAY.ring}; };
+QM.relay = {
+  start:[0, -9.2, 0], ceil:RELAY.h, view:[0, 2.5, Math.PI, 0.5, 8.5],
+  light:{sky:0x8a96c8, ground:0x2a2430, i:0.75, fog:0x0a0c14, fd:0.012},
+  init(att){ const q = rng(9100 + att * 7), seq = []; while(seq.length < 5){ const k = Math.floor(q() * 6); if(seq[seq.length - 1] !== k) seq.push(k); }
+    return {kind:'relay', state:'run', t:0, why:null, att, seq, round:0, phase:'show', pt:0, idx:0, at:-1, mistakes:0, lit:-1, flash:null, touches:0}; },
+  // pose: {x, z} in the arena's frame. Events: show:k (a beacon lights), go, ok:k, wrong:k, round, won, failed
+  step(S, pose, dt){
+    const ev = []; if(S.state !== 'run') return ev;
+    S.t += dt; if(S.t > RELAY.limit){ S.state = 'failed'; S.why = 'the beacons timed out'; ev.push('failed'); return ev; }
+    let at = -1; for(let k = 0; k < 6; k++){ const b = relayBeacon(k); if(Math.hypot(pose.x - b.x, pose.z - b.z) < RELAY.touch){ at = k; break; } }
+    const n = RELAY.rounds[S.round];
+    if(S.phase === 'show'){
+      S.pt += dt; const k = Math.floor((S.pt - RELAY.lead) / RELAY.slot), f = (S.pt - RELAY.lead) - k * RELAY.slot;
+      const lit = S.pt >= RELAY.lead && k < n && f < RELAY.on ? S.seq[k] : -1; if(lit >= 0 && lit !== S.lit) ev.push('show:' + lit); S.lit = lit;
+      if(S.pt > RELAY.lead + n * RELAY.slot + 0.2){ S.phase = 'input'; S.idx = 0; S.lit = -1; ev.push('go'); }
+      S.at = at; return ev;
+    }
+    if(at >= 0 && at !== S.at){ S.touches++;
+      if(at === S.seq[S.idx]){ S.idx++; S.flash = {k:at, ok:true, t:0}; ev.push('ok:' + at);
+        if(S.idx >= n){ S.round++; if(S.round >= RELAY.rounds.length){ S.state = 'won'; ev.push('won'); } else { S.phase = 'show'; S.pt = -0.6; ev.push('round'); } } }
+      else { S.mistakes++; S.flash = {k:at, ok:false, t:0}; ev.push('wrong:' + at);
+        if(S.mistakes >= 2){ S.state = 'failed'; S.why = 'two wrong beacons'; ev.push('failed'); } else { S.phase = 'show'; S.pt = -0.8; } } }
+    S.at = at; return ev;
+  },
+  sim(S, policy){
+    if(['win', 'wrong', 'idle'].indexOf(policy) < 0) return {error:'unknown policy', policies:['win', 'wrong', 'idle']};
+    const P = {x:0, z:-9.2}, dt = 1 / 30, log = []; let tgt = null, back = false;
+    for(let i = 0; i < 30 * 200 && S.state === 'run'; i++){
+      if(S.phase === 'input' && policy !== 'idle'){
+        if(!tgt){ const k = policy === 'win' ? S.seq[S.idx] : (S.seq[S.idx] + 1) % 6; tgt = relayBeacon(k); back = false; }
+        if(!back){ if(qpWalk(P, tgt.x, tgt.z, 5, dt)) back = true; } else if(qpWalk(P, 0, 0, 5, dt)) tgt = null;
+      } else if(S.phase === 'show'){ qpWalk(P, 0, 0, 5, dt); tgt = null; }
+      M_relayStep(S, P, dt, log);
+    }
+    return log;
+  },
+  summary(S){ return {round:S.round, mistakes:S.mistakes, touches:S.touches, seq:S.seq.slice()}; },
+  hud(S){ const n = RELAY.rounds[Math.min(S.round, RELAY.rounds.length - 1)], left = Math.max(0, RELAY.limit - S.t);
+    return '<b>Beacon Relay</b> Round ' + Math.min(S.round + 1, 3) + ' / 3 · ' + (S.state === 'won' ? 'cleared' : S.phase === 'show' ? 'watch the beacons' : 'your turn: ' + S.idx + ' / ' + n) + ' · ' + left.toFixed(0) + ' s' + (S.mistakes ? ' · one slip used' : '') + '<span class="qpq">Q: leave</span>'; },
+  react(o, e, S){ const k = +e.split(':')[1];
+    if(e.indexOf('show:') === 0 || e.indexOf('ok:') === 0){ if(snd.ctx && snd.on) try{ tone('sine', RELAY.hz[k], RELAY.hz[k], 0.5, 0.06); tone('triangle', RELAY.hz[k] * 2, RELAY.hz[k] * 2, 0.25, 0.015); }catch(err){} }
+    else if(e.indexOf('wrong:') === 0){ if(snd.ctx && snd.on) try{ tone('sawtooth', 140, 90, 0.5, 0.05); }catch(err){} if(S.state === 'run') toast('Wrong beacon. One slip is forgiven: watch the round again.', 2600); }
+    else if(e === 'go') toast('Your turn: run to the beacons in the same order.', 2000);
+    else if(e === 'round'){ sfx('coin'); toast('Round cleared. Watch again: one more beacon this time.', 2200); } },
+  build(o){
+    const A = o.A, g = o.g, R = RELAY.r, H = RELAY.h, K = roomKit({cx:A.x, cz:A.z, sd:1, ry:a => a}, g);
+    const con = surface('concrete'), metal = phys(0x3c424e, {metalness:0.8, roughness:0.38, normalMap:detailNormal, normalScale:new V2(0.2, 0.2)});
+    // the floor: concrete with the berth's painted markings (a hazard ring, the beacon circle, chevrons to the middle)
+    const floor = mk(scaleUV(new THREE.CircleGeometry(R + 0.3, 96), 1 / 4), std(0xa8a49c, {map:con.map, normalMap:con.normal, roughness:0.86}), A.x, A.y, A.z, g); floor.rotation.x = -Math.PI / 2;
+    const paint = canvasTex(2048, 2048, (x, w) => { const c = w / 2, m = w / (2 * (R + 0.3)); x.clearRect(0, 0, w, w);
+      for(let i = 0; i < 72; i++){ x.fillStyle = i % 2 ? 'rgba(20,20,22,0.85)' : 'rgba(240,184,40,0.9)'; x.beginPath(); x.arc(c, c, (R - 0.6) * m, i / 72 * TAU, (i + 1) / 72 * TAU); x.arc(c, c, (R - 1.3) * m, (i + 1) / 72 * TAU, i / 72 * TAU, true); x.closePath(); x.fill(); }
+      x.strokeStyle = 'rgba(235,235,230,0.8)'; x.lineWidth = 0.08 * m; x.setLineDash([0.6 * m, 0.4 * m]); x.beginPath(); x.arc(c, c, RELAY.ring * m, 0, TAU); x.stroke(); x.setLineDash([]);
+      x.lineWidth = 0.1 * m; x.beginPath(); x.arc(c, c, 1.4 * m, 0, TAU); x.stroke();
+      x.fillStyle = 'rgba(235,235,230,0.75)'; x.font = '700 ' + Math.round(0.9 * m) + 'px "Chakra Petch","Trebuchet MS",sans-serif'; x.textAlign = 'center'; x.fillText('BERTH 7', c, c + 3.9 * m);
+      for(let k = 0; k < 3; k++){ const y = c + (8 - k * 1.1) * m; x.beginPath(); x.moveTo(c - 0.7 * m, y); x.lineTo(c, y - 0.6 * m); x.lineTo(c + 0.7 * m, y); x.lineTo(c + 0.7 * m, y + 0.25 * m); x.lineTo(c, y - 0.35 * m); x.lineTo(c - 0.7 * m, y + 0.25 * m); x.closePath(); x.fill(); } });
+    const pm = mk(new THREE.CircleGeometry(R + 0.3, 96), std(0xffffff, {map:paint, transparent:true, roughness:0.7, depthWrite:false, polygonOffset:true, polygonOffsetFactor:-2}), A.x, A.y + 0.005, A.z, g); pm.rotation.x = -Math.PI / 2; pm.castShadow = false;
+    // the wall: ribbed metal panels, light strips at the foot and under the roof, tall amber slots between the ribs
+    const pan = canvasTex(1024, 512, (x, w, h) => { x.fillStyle = '#5d6370'; x.fillRect(0, 0, w, h); for(let i = 0; i < 8; i++){ const gx = i * w / 8, gr = x.createLinearGradient(gx, 0, gx + w / 8, 0); gr.addColorStop(0, '#4a505b'); gr.addColorStop(0.5, '#6a717e'); gr.addColorStop(1, '#4e5460'); x.fillStyle = gr; x.fillRect(gx + 3, 0, w / 8 - 6, h); x.fillStyle = '#2a2e35'; x.fillRect(gx, 0, 3, h); for(let j = 0; j < 6; j++){ x.fillStyle = '#80868f'; x.beginPath(); x.arc(gx + 10, 20 + j * 90, 3, 0, TAU); x.arc(gx + w / 8 - 10, 20 + j * 90, 3, 0, TAU); x.fill(); } } x.fillStyle = 'rgba(0,0,0,0.25)'; x.fillRect(0, h * 0.48, w, 6); });
+    pan.wrapS = THREE.RepeatWrapping;
+    const wallG = new THREE.CylinderGeometry(R, R, H, 96, 1, true); scaleUV(wallG, 1); wallG.attributes.uv.array.forEach((v, i, a) => { if(i % 2 === 0) a[i] = v * 9; });
+    mk(wallG, std(0xffffff, {map:pan, normalMap:detailNormal, normalScale:new V2(0.25, 0.25), metalness:0.6, roughness:0.45, side:THREE.BackSide}), A.x, A.y + H / 2, A.z, g);
+    [[R - 0.06, 0.12, 0xffd9a0, 2.2], [R - 0.06, H - 0.3, 0xffd9a0, 2.0]].forEach(([rad, y, c, i]) => { const b = mk(new THREE.TorusGeometry(rad, 0.05, 8, 192), glowM(c, i), A.x, A.y + y, A.z, g); b.rotation.x = Math.PI / 2; b.castShadow = false; });
+    for(let k = 0; k < 18; k++){ const a = (k + 0.5) / 18 * TAU; if(Math.abs(Math.cos(a) + 1) < 0.08) continue; const x = Math.sin(a) * (R - 0.12), z = Math.cos(a) * (R - 0.12);
+      const s = mk(new THREE.BoxGeometry(0.16, H - 1.4, 0.06), glowM(0xffb85a, 1.4), A.x + x, A.y + H / 2, A.z + z, g); s.rotation.y = a; s.castShadow = false; }
+    // the roof, with a round skylight painted with the Spaceport's dusk and its shuttles' lights
+    const roof = mk(new THREE.CircleGeometry(R + 0.2, 96), metal, A.x, A.y + H, A.z, g); roof.rotation.x = Math.PI / 2;
+    const dusk = canvasTex(1024, 1024, (x, w) => { const gr = x.createRadialGradient(w * 0.5, w * 0.62, w * 0.05, w * 0.5, w * 0.5, w * 0.5); gr.addColorStop(0, '#f6a26a'); gr.addColorStop(0.45, '#7a5a8a'); gr.addColorStop(1, '#1d2b5e'); x.fillStyle = gr; x.fillRect(0, 0, w, w);
+      const q = rng(7701); for(let i = 0; i < 260; i++){ x.fillStyle = 'rgba(255,240,220,' + (0.2 + q() * 0.6).toFixed(2) + ')'; const r0 = q() * w * 0.48, a0 = q() * TAU; x.fillRect(w / 2 + Math.cos(a0) * r0, w / 2 + Math.sin(a0) * r0 * 0.9 - w * 0.08, 1.6, 1.6); } });
+    const sky = mk(new THREE.CircleGeometry(4.2, 64), std(0x000000, {emissive:C(0xffffff), emissiveMap:dusk, emissiveIntensity:0.9, roughness:1}), A.x, A.y + H - 0.02, A.z, g); sky.rotation.x = Math.PI / 2; sky.castShadow = false;
+    const rim = mk(new THREE.TorusGeometry(4.25, 0.12, 10, 128), metal, A.x, A.y + H - 0.05, A.z, g); rim.rotation.x = Math.PI / 2;
+    // the six beacons: a pedestal, a glass dome that lights, a ring on the floor marking where to stand
+    o.beacons = [];
+    for(let k = 0; k < 6; k++){ const b = relayBeacon(k), col = RELAY.cols[k], x = A.x + b.x, z = A.z + b.z;
+      mk(new THREE.CylinderGeometry(0.42, 0.62, 0.9, 32), metal, x, A.y + 0.45, z, g);
+      mk(new THREE.TorusGeometry(0.44, 0.05, 10, 48), phys(0x9aa0aa, {metalness:0.9, roughness:0.25}), x, A.y + 0.9, z, g).rotation.x = Math.PI / 2;
+      const lm = phys(col, {emissive:C(col), emissiveIntensity:0.12, roughness:0.08, metalness:0.1}); mk(new THREE.SphereGeometry(0.4, 40, 16, 0, TAU, 0, Math.PI / 2), lm, x, A.y + 0.9, z, g).castShadow = false;
+      const rm = std(col, {emissive:C(col), emissiveIntensity:0.15, roughness:0.5, transparent:true, opacity:0.85}); const ring = mk(new THREE.RingGeometry(1.05, 1.25, 64), rm, x, A.y + 0.012, z, g); ring.rotation.x = -Math.PI / 2; ring.castShadow = false;
+      const gl = glow(col, 3.2, x, A.y + 1.2, z, g, 0); colliders.push({x, z, r:0.62, hollow:true});
+      o.beacons.push({lm, rm, gl, lvl:0}); }
+    // collision: the round wall as straight pieces
+    const N = 28; for(let k = 0; k < N; k++){ const th = (k + 0.5) / N * TAU; addBox(A.x + Math.sin(th) * (R + 0.15), A.z + Math.cos(th) * (R + 0.15), (R + 0.15) * Math.PI / N + 0.1, 0.15, A.y - 1, A.y + H + 1, {a:-th, hollow:true}); }
+    K.done();
+    qaExit(o, 0, -R + 0.45, 0, {frame:metal, base:metal, tile:4});
+  },
+  visual(o, dt, time){ const S = o.S; if(!S) return;
+    if(S.flash) S.flash.t += dt;
+    o.beacons.forEach((b, k) => { let want = 0.08;
+      if(S.state === 'won') want = 0.6 + 0.4 * Math.sin(time * 6 + k);
+      else if(S.phase === 'show' && S.lit === k) want = 1;
+      else if(S.flash && S.flash.k === k && S.flash.t < 0.5) want = S.flash.ok ? 1 : 0.5 + 0.5 * Math.sin(time * 40);
+      else if(S.phase === 'input') want = 0.2;
+      b.lvl += (want - b.lvl) * (1 - Math.exp(-dt * 18));
+      b.lm.emissiveIntensity = 0.12 + 3.2 * b.lvl; b.rm.emissiveIntensity = 0.15 + 2.0 * b.lvl; b.gl.material.opacity = 0.75 * b.lvl; });
+  }
+};
+// (one step call shared by the sim; the played mission calls QM.relay.step through qaUpdate)
+function M_relayStep(S, P, dt, log){ QM.relay.step(S, {x:P.x, z:P.z}, dt).forEach(e => log.push(e)); }
+
 
 /* ================= Goal 13: the Cyan Shard, the wind chimes on Sky Isles' highest isle =================
    The clue (HUNT_CLUES.cyan, the Ledger's third riddle, the music box in Archive room 6): seven tubes numbered from the longest, which sings lowest;
@@ -10885,6 +11184,7 @@ function update(dt, time){
     const c = gymCeil(camera.position.x, camera.position.z) - 0.5; if(camera.position.y > c) camera.position.y = c;
   }
   const cg = (pocketIn() ? pocketFloor(camera.position.x, camera.position.z) : G(camera.position.x, camera.position.z)) + 0.4; if(camera.position.y < cg) camera.position.y = cg;
+  if(qa && qa.inside && qa.M.ceil){ const top = qa.A.y + qa.M.ceil - 0.25; if(camera.position.y > top) camera.position.y = top; }
   if(corr && corr.inside){ const top = CORR.y + CORR.h - 0.2 + (camera.position.z - CORR.z0 > CORR.zoneC ? 0.6 : 0); if(camera.position.y > top) camera.position.y = top; }
   camera.lookAt(_t1); if(corr && corr.inside && corr.roll) camera.rotateZ(corr.roll); camera.updateMatrixWorld(); camWorld.copy(camera.position);
   sky.position.copy(camera.position);
@@ -10945,7 +11245,7 @@ function update(dt, time){
     state.won = true; reward(500, 200); sfx('win'); setHalo(); toast('You opened the vault. First to crack the Hub.   +500 XP', 5000);
   }
   if(playing && p.grounded && p.speed > 0.6){ snd.stepT -= dt; if(snd.stepT <= 0){ sfx('step'); snd.stepT = p.speed > 7 ? 0.27 : 0.42; } } else snd.stepT = 0.1;
-  shopProximity(); bikeProximity(); vendProximity(); deskProximity(); archiveUpdate(dt); hollowUpdate(dt, time); chimeUpdate(dt, time); ashUpdate(dt, time); starTick(dt, time); driftUpdate(dt, time); hallUpdate(dt, time); rallyTick(dt, time); trialUpdate(dt, time);
+  shopProximity(); bikeProximity(); vendProximity(); deskProximity(); archiveUpdate(dt); hollowUpdate(dt, time); chimeUpdate(dt, time); ashUpdate(dt, time); starTick(dt, time); driftUpdate(dt, time); hallUpdate(dt, time); rallyTick(dt, time); trialUpdate(dt, time); qpTick(dt, time);
   updatePickups(dt, time); hurtCool -= dt; simTime += dt; updateHazards(simTime); updateBurst(dt); checkBundles();
   if(!WORLDS[state.world].rules.danger && !zeroing && state.hp < maxHp()){ state.hp = Math.min(maxHp(), state.hp + 12 * dt); hpHud(); }
   portalCool -= dt;
@@ -12630,6 +12930,27 @@ function cleanLocalsStore(){
   if(changed) saveLocals();
   return changed;
 }
+// Goal 15 (quest portals): the button and the test hooks, here because window.__hub is built near the end
+$('#qpBtn').addEventListener('click', () => { if(qa && qa.inside) qpQuit(); else if(qpNear) qpEnter(qpNear); });
+// test hooks (Goal 15): list portals, enter one, simulate a win or a fail headless, read rewards and the save, frame a screenshot
+const qpWait = (want) => new Promise(res => { const t0 = performance.now(), t = setInterval(() => { if(!traveling || performance.now() - t0 > 20000){ clearInterval(t); res(want()); } }, 50); });
+Object.defineProperties(window.__hub, {
+  QPORTALS:{get:() => QP_ORDER.filter(k => QPORTALS[k]).map(k => { const d = QPORTALS[k], r = qpRec(k); return {realm:k, kind:d.kind, name:d.name, x:d.x, z:d.z, credits:d.credits, xp:d.xp, item:d.item || null, replay:qpReplay(d), label:qpLabelText(k), wins:r.wins, tries:r.tries, best:r.best}; })},
+  questPortals:{get:() => qpList.map(q => ({realm:q.key, name:q.d.name, kind:q.d.kind, x:+q.x.toFixed(2), y:+q.y.toFixed(2), z:+q.z.toFixed(2), yaw:+q.yaw.toFixed(3), label:qpLabelText(q.key), armed:q.armed}))},
+  quest:{get:() => ({inside:!!(qa && qa.inside), realm:qa ? qa.key : null, kind:qa ? qa.kind : null, near:qpNear ? qpNear.key : null, arena:qa ? Object.assign({}, qa.A) : null,
+    S:qa && qa.S ? JSON.parse(JSON.stringify(qa.S)) : null, last:qpLast && JSON.parse(JSON.stringify(qpLast)), saved:JSON.parse(JSON.stringify(state.qp)), pocket:pocketIn(), sun:+sunLight.intensity.toFixed(2), hemi:+hemi.intensity.toFixed(2)})},
+  // stand in front of this realm's portal (walk:true steps into it through the real update loop; otherwise it calls the same qpEnter as E)
+  questEnter:{value:(o) => { o = o || {}; const q = qpList[0]; if(!q) return Promise.resolve(false); if(o.walk){ p.x = q.x + 2.5 * q.s; p.z = q.z + 2.5 * q.c; p.y = G(p.x, p.z); q.armed = true; qpCool = 0; p.facing = q.yaw + Math.PI; cam.yaw = q.yaw; snapCamera(); return Promise.resolve(true); }
+    p.x = q.x + 2.2 * q.s; p.z = q.z + 2.2 * q.c; p.y = G(p.x, p.z); qpEnter(q); return qpWait(() => !!(qa && qa.inside)); }},
+  questLeave:{value:() => { qpQuit() || qpLeave('quit'); return qpWait(() => !(qa && qa.inside)); }},
+  questSim:{value:(realm, policy, o) => qpSimulate(realm || state.world, policy || 'win', o)},
+  questResult:{value:(realm, result) => { const d = QPORTALS[realm]; if(!d) return null; return qpResult(realm, {state:result || 'won', t:1, why:result === 'failed' ? 'a test fail' : null}, 'test'); }},
+  questStep:{value:(n, keys2) => { if(!qa || !qa.inside) return null; for(let i = 0; i < (n || 1); i++) update(0.05, simTime); return qa.S && JSON.parse(JSON.stringify(qa.S)); }},
+  questGoto:{value:(lx, lz, yaw) => { if(!qa || !qa.inside) return null; p.x = qa.A.x + lx; p.z = qa.A.z + lz; p.y = pocketFloor(p.x, p.z); p.vy = 0; p.speed = 0; if(yaw != null){ cam.yaw = yaw; p.facing = yaw + Math.PI; } snapCamera(); clipCamera(); return {x:p.x, y:p.y, z:p.z}; }},
+  // frame a screenshot: 'portal' (this realm's doorway from in front) or 'arena' (inside, a wide view of the mission)
+  viewQuest:{value:what => { if(what === 'arena'){ if(!qa || !qa.inside) return null; const v = qa.M.view || [0, -6, 0, 0.35, 7]; p.x = qa.A.x + v[0]; p.z = qa.A.z + v[1]; p.y = pocketFloor(p.x, p.z); cam.yaw = v[2]; p.facing = v[2] + Math.PI; cam.pitch = v[3]; cam.dist = v[4]; me.g.position.set(p.x, p.y, p.z); snapCamera(); clipCamera(); return {x:p.x, z:p.z}; }
+    const q = qpList[0]; if(!q) return null; const d = 8, a = q.yaw + 0.35; p.x = q.x + Math.sin(a) * d; p.z = q.z + Math.cos(a) * d; p.y = G(p.x, p.z); cam.yaw = Math.atan2(p.x - q.x, p.z - q.z) + 0.25; p.facing = cam.yaw + Math.PI; cam.pitch = 0.12; cam.dist = 5.5; me.g.position.set(p.x, p.y, p.z); me.g.rotation.y = p.facing; snapCamera(); clipCamera(); return {x:p.x, z:p.z, portal:[q.x, q.z]}; }}
+});
 cleanLocalsStore();
 Object.defineProperties(window.__hub, { cleanLocalsStore:{value:() => cleanLocalsStore()} });
 questHud();
