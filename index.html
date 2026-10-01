@@ -10885,7 +10885,7 @@ const QPORTALS = {
   hub:{kind:'relay', name:'Beacon Relay', x:-20, z:-1, face:[0, 6], credits:40, xp:80, item:'beacon-lens', col:0xffc04d,
     tag:'Watch the landing beacons light up, then run to them in the same order. Three rounds; one slip is forgiven.'}
 };
-const QP_ORDER = ['hub', 'campus', 'dunes', 'grid', 'grove', 'sky'];
+const QP_ORDER = ['hub', 'campus', 'dunes', 'grid', 'grove', 'sky', 'warfront'];   // Goal 20: Warfront's Signal Run joins last
 const qpReplay = d => ({credits:Math.max(5, Math.round(d.credits / 4)), xp:Math.max(5, Math.round(d.xp / 4))});
 const QM = {};
 let qpLast = null, qpBtnShown = false;
@@ -10903,6 +10903,7 @@ function qpLook(key){
   if(key === 'dunes') return {frame:tex('redrock', 0xf0d2b0), base:tex('redrock', 0xd8b896), tile:4};
   if(key === 'grid') return {frame:phys(0x0b0914, {roughness:0.2, metalness:0.6, normalMap:detailNormal, normalScale:new V2(0.12, 0.12)}), base:phys(0x14101f, {roughness:0.3, metalness:0.5}), tile:4};
   if(key === 'grove') return {frame:tex('pinebark', 0x9a8a7a), base:tex('darkrock', 0x8a8a8a), tile:3};
+  if(key === 'warfront'){ const X = warTex(); return {frame:std(0xffffff, {map:X.stone.map, normalMap:X.stone.normal, roughnessMap:X.stone.rough, roughness:1}), base:std(0xffffff, {map:X.wood.map, normalMap:X.wood.normal, roughnessMap:X.wood.rough, roughness:1}), tile:4}; }
   return {frame:tex('granite', 0xffffff), base:tex('granite', 0xe8e4dc), tile:5};
 }
 const QP_MEMBRANE = {
@@ -13815,7 +13816,7 @@ function deedsNow(){
   if(state.enrolled) out.push({id:'campus', big:false, realm:'campus', text:'is enrolled at Campus', line:'A Campus student! How is the Orbital Maths going?'});
   if(state.coins.size >= 12 * WORLD_ORDER.length) out.push({id:'coins', big:true, realm:'hub', text:'has found every coin in the charted realms', line:'Every single coin in Hub, found. You must have looked under every rock.'});
   const qpN = QP_ORDER.filter(k => state.qp[k] && state.qp[k].wins > 0).length;   // Goal 15: quest portals cleared
-  if(qpN >= 1) out.push({id:qpN >= 6 ? 'qp:6' : 'qp:1', big:qpN >= 6, realm:'hub', text:qpN >= 6 ? 'has cleared every quest portal in Hub' : 'has cleared ' + qpN + (qpN === 1 ? ' quest portal' : ' quest portals'), line:qpN >= 6 ? 'Every quest portal in Hub, cleared! Is there anything you cannot do?' : 'I hear you have been through a quest portal or two. What was inside?'});
+  if(qpN >= 1) out.push({id:qpN >= QP_ORDER.length ? 'qp:6' : 'qp:1', big:qpN >= QP_ORDER.length, realm:'hub', text:qpN >= QP_ORDER.length ? 'has cleared every quest portal in Hub' : 'has cleared ' + qpN + (qpN === 1 ? ' quest portal' : ' quest portals'), line:qpN >= QP_ORDER.length ? 'Every quest portal in Hub, cleared! Is there anything you cannot do?' : 'I hear you have been through a quest portal or two. What was inside?'});
   const KN = state.kills.n, KF = state.kills.first && MON[state.kills.first.realm] ? state.kills.first.realm : null;   // Goal 16: the first monster seen off, and a big tally
   if(KN >= 1 && KF) out.push({id:'hunt:1', big:false, realm:KF, text:'saw off their first ' + MON[KF].name.toLowerCase() + ' in ' + WORLDS[KF].name + (KN > 1 ? ' (' + KN + ' monsters so far)' : ''), line:MON[KF].gossip});
   if(KN >= 25) out.push({id:'hunt:25', big:true, realm:'hub', text:'has seen off ' + KN + ' monsters across Hub', line:KN + ' monsters seen off! The wraiths and the drones must tell stories about you.'});
@@ -15600,6 +15601,110 @@ ENDLESS.warfront = {
     {name:'near', r:1, build(c, k){ cellPebbles(c, 70, 'gravel', 0x8e877e); cellWeeds(c, 24, [0x6b6a3e, 0x7a6e44, 0x5e5a3a]); }}
   ]
 };
+/* ---- Warfront: Signal Run (Goal 20). A capture-the-beacon run in the Long Match's drill hall: hold three signal beacons in turn (stand in the ring until it
+   turns ember) while two spotter drones lock onto where you stand and fire a flash at it a beat later (a shrinking ring on the floor shows the spot: step out
+   of it). A hit knocks the beacon you are holding back and counts; three hits and the run is over. 75 s. The drones keep a fixed rhythm on the mission's own
+   clock, so the run is the same at any frame rate and the scripted runs below prove it. ---- */
+const CAP = {beacons:[[-7, 7], [8, 13], [0, 21]], ring:2.6, take:4.5, first:2.2, per:3.0, wind:1.1, blast:1.4, lives:3, limit:75, hw:13, z0:-1.5, z1:27, h:7};
+QM.capture = {
+  start:[0, 1.2, 0], ceil:CAP.h, view:[-1.5, 6, Math.PI + 0.32, 0.36, 6.5],
+  light:{sky:0xd8c8b0, ground:0x4a3e32, i:1.1, fog:0x1c1712, fd:0.006},
+  init(att){ return {kind:'capture', state:'run', t:0, why:null, att, cur:0, prog:[0, 0, 0], hits:0, lock:null, nextLock:CAP.first, fired:0, flash:null, inRing:false}; },
+  // pose: {x, z, y (feet above the floor)}. Events: lock, hit, miss, beacon:k, won, failed
+  step(S, pose, dt){
+    const ev = []; if(S.state !== 'run') return ev;
+    S.t += dt; if(S.flash) S.flash.t += dt;
+    if(!S.lock && S.t >= S.nextLock){ S.lock = {x:pose.x, z:pose.z, t:S.t, d:S.fired % 2}; ev.push('lock'); }
+    if(S.lock && S.t - S.lock.t >= CAP.wind){ const L = S.lock, hit = Math.hypot(pose.x - L.x, pose.z - L.z) < CAP.blast && (pose.y || 0) < 2.4;
+      S.flash = {x:L.x, z:L.z, d:L.d, t:0, hit}; S.fired++; S.lock = null; S.nextLock = S.t + CAP.per - CAP.wind; ev.push(hit ? 'hit' : 'miss');
+      if(hit){ S.hits++; S.prog[S.cur] *= 0.4; if(S.hits >= CAP.lives){ S.state = 'failed'; S.why = 'three flash hits'; ev.push('failed'); return ev; } } }
+    const b = CAP.beacons[S.cur]; S.inRing = Math.hypot(pose.x - b[0], pose.z - b[1]) < CAP.ring;
+    if(S.inRing){ S.prog[S.cur] = Math.min(1, S.prog[S.cur] + dt / CAP.take);
+      if(S.prog[S.cur] >= 1){ ev.push('beacon:' + S.cur); S.cur++; if(S.cur >= CAP.beacons.length){ S.state = 'won'; ev.push('won'); return ev; } } }
+    else S.prog[S.cur] = Math.max(0, S.prog[S.cur] - dt * 0.15);
+    if(S.t > CAP.limit){ S.state = 'failed'; S.why = 'the beacons were not all held in time'; ev.push('failed'); }
+    return ev;
+  },
+  // scripted players: 'win' walks to each beacon and steps 2.2 m out of every locked spot (still inside the ring); 'stand' never dodges; 'idle' never moves
+  sim(S, policy){
+    if(['win', 'stand', 'idle'].indexOf(policy) < 0) return {error:'unknown policy', policies:['win', 'stand', 'idle']};
+    const P = {x:0, z:1.2}, dt = 1 / 30, log = []; let dodge = null, lockT = -1;
+    for(let i = 0; i < 30 * 120 && S.state === 'run'; i++){
+      const b = CAP.beacons[Math.min(S.cur, CAP.beacons.length - 1)];
+      if(policy === 'win' && S.lock && S.lock.t !== lockT){ lockT = S.lock.t; let dx = S.lock.x - b[0], dz = S.lock.z - b[1], d = Math.hypot(dx, dz); if(d < 0.3){ dx = 1; dz = 0; d = 1; } dodge = [S.lock.x + dx / d * 2.2, S.lock.z + dz / d * 2.2]; if(Math.hypot(dodge[0] - b[0], dodge[1] - b[1]) > CAP.ring - 0.2){ dodge = [S.lock.x - dx / d * 2.2, S.lock.z - dz / d * 2.2]; } }
+      if(!S.lock) dodge = null;
+      if(policy !== 'idle') qpWalk(P, dodge ? dodge[0] : b[0], dodge ? dodge[1] : b[1], 5, dt);
+      QM.capture.step(S, {x:P.x, z:P.z, y:0}, dt).forEach(e => log.push(e + '@' + S.t.toFixed(1)));
+    }
+    return log;
+  },
+  summary(S){ return {held:S.cur, hits:S.hits, prog:S.prog.map(v => +v.toFixed(2)), fired:S.fired}; },
+  hud(S){ const k = Math.min(S.cur, CAP.beacons.length - 1); return '<b>Signal Run</b> Beacon ' + Math.min(S.cur + 1, 3) + ' / 3 · ' + (S.state === 'won' ? 'all held' : Math.round(S.prog[k] * 100) + '% held' + (S.inRing ? '' : ' · get in the ring')) + ' · hits ' + S.hits + ' / ' + CAP.lives + ' · ' + Math.max(0, CAP.limit - S.t).toFixed(0) + ' s' + (S.lock ? ' · <b>locked: step aside!</b>' : '') + '<span class="qpq">Q: leave</span>'; },
+  react(o, e, S){
+    if(e === 'lock'){ if(snd.ctx && snd.on) try{ [0, 0.12, 0.24].forEach(d => tone('square', 1500, 1400, 0.04, 0.025, snd.ctx.currentTime + d)); }catch(err){} }
+    else if(e === 'hit'){ sfx('hit'); const fx = $('#hurtFx'); fx.classList.add('on'); setTimeout(() => fx.classList.remove('on'), 120); if(S.state === 'run') toast('Flash hit! The beacon slips back. ' + (CAP.lives - S.hits) + (CAP.lives - S.hits === 1 ? ' hit' : ' hits') + ' left.', 2200); }
+    else if(e === 'miss'){ sfx('zap'); }
+    else if(e.indexOf('beacon:') === 0){ sfx('coin'); if(S.state === 'run') toast('Beacon ' + (+e.split(':')[1] + 1) + ' held. On to the next one.', 1800); } },
+  build(o){
+    const A = o.A, g = o.g, Y = A.y, hw = CAP.hw, z0 = CAP.z0, z1 = CAP.z1, H = CAP.h, X = warTex(), K = roomKit({cx:A.x, cz:A.z, sd:1, ry:a => a}, g);
+    const mud = surface('mud'), Ms = {floor:std(0xb0a090, {map:mud.map, normalMap:mud.normal, normalScale:new V2(0.8, 0.8), roughness:0.95}),
+      stone:std(0xffffff, {map:X.stone.map, normalMap:X.stone.normal, roughnessMap:X.stone.rough, roughness:1}), wood:std(0xffffff, {map:X.wood.map, normalMap:X.wood.normal, roughnessMap:X.wood.rough, roughness:1}),
+      roof:std(0x26221e, {roughness:0.9, map:detailTex}), lamp:glowM(0xffd8a0, 1.8), iron:std(0x2e2a26, {metalness:0.7, roughness:0.45})};
+    // floor, walls (planked to head height, stone above), roof with lamp strips
+    K.box(Ms.floor, 4, -hw - 0.4, hw + 0.4, Y - 0.3, Y, z0 - 0.4, z1 + 0.4);
+    K.box(Ms.wood, 3, -hw - 0.4, -hw, Y, Y + 2.2, z0, z1); K.box(Ms.wood, 3, hw, hw + 0.4, Y, Y + 2.2, z0, z1); K.box(Ms.wood, 3, -hw, hw, Y, Y + 2.2, z1, z1 + 0.4); K.box(Ms.wood, 3, -hw, hw, Y, Y + 2.2, z0 - 0.4, z0);
+    K.box(Ms.stone, 4, -hw - 0.4, -hw, Y + 2.2, Y + H, z0, z1); K.box(Ms.stone, 4, hw, hw + 0.4, Y + 2.2, Y + H, z0, z1); K.box(Ms.stone, 4, -hw - 0.4, hw + 0.4, Y + 2.2, Y + H, z1, z1 + 0.4); K.box(Ms.stone, 4, -hw - 0.4, hw + 0.4, Y + 2.2, Y + H, z0 - 0.4, z0);
+    K.box(Ms.roof, 4, -hw - 0.4, hw + 0.4, Y + H, Y + H + 0.3, z0 - 0.4, z1 + 0.4);
+    for(let z = z0 + 3; z < z1; z += 5) K.box(Ms.lamp, 1, -hw + 1, hw - 1, Y + H - 0.04, Y + H, z - 0.12, z + 0.12);
+    for(let x = -hw + 2; x <= hw - 2; x += 6.5) K.box(Ms.wood, 2, x - 0.18, x + 0.18, Y + H - 0.6, Y + H, z0, z1);   // roof beams
+    // sandbag bays along the side walls and the Long Match's two banners on the far wall
+    const bags = [], cols = [], q = rng(2951);
+    [-1, 1].forEach(sd => { for(let z = z0 + 2; z < z1 - 2; z += 0.55) for(let row = 0; row < 2; row++){ const x = sd * (hw - 0.45 - row * 0.02); bags.push(mat4(A.x + x, Y + 0.09 + row * 0.19, A.z + z + (row ? 0.27 : 0), 0, Math.PI / 2 + (q() - 0.5) * 0.12, 0)); const c = C(0xffffff); c.multiplyScalar(0.78 + q() * 0.3); cols.push(c); } });
+    const bm = instanced(sandbagGeo(), std(0xffffff, {map:X.burlap, normalMap:detailNormal, normalScale:new V2(0.6, 0.6), roughness:0.96}), bags, cols, true); if(bm){ g.add(bm); }
+    warBanner('ember', A.x - 5, A.z + z1 - 0.8, 5.6, Math.PI, g, Y); warBanner('tide', A.x + 5, A.z + z1 - 0.8, 5.6, Math.PI, g, Y);
+    colliders.splice(colliders.length - 2, 2);   // the banners' pole colliders belong to the realm above, not to the hall
+    // the three beacons: an iron post with a signal lamp, a ring painted on the floor where you hold it
+    o.beacons = CAP.beacons.map((b, k) => { const x = A.x + b[0], z = A.z + b[1];
+      mk(new THREE.CylinderGeometry(0.09, 0.13, 2.4, 12), Ms.iron, x, Y + 1.2, z, g); mk(new THREE.CylinderGeometry(0.3, 0.22, 0.25, 16), Ms.iron, x, Y + 2.45, z, g);
+      const lm = std(0x1d5c68, {emissive:C(0x5fd0e0), emissiveIntensity:0.6, roughness:0.3}); mk(new THREE.SphereGeometry(0.28, 20, 12), lm, x, Y + 2.75, z, g).castShadow = false;
+      const rm = std(0x5fd0e0, {emissive:C(0x5fd0e0), emissiveIntensity:0.4, roughness:0.6, transparent:true, opacity:0.75}), ring = mk(new THREE.RingGeometry(CAP.ring - 0.18, CAP.ring, 72), rm, x, Y + 0.015, z, g); ring.rotation.x = -Math.PI / 2; ring.castShadow = false;
+      const pm = std(0xffa040, {emissive:C(0xffa040), emissiveIntensity:1.2, roughness:0.5, transparent:true, opacity:0.9, side:THREE.DoubleSide}), prog = mk(new THREE.RingGeometry(CAP.ring - 0.45, CAP.ring - 0.25, 72, 1, 0, 0.001), pm, x, Y + 0.02, z, g); prog.rotation.x = -Math.PI / 2; prog.castShadow = false;
+      const gl = glow(0x5fd0e0, 3.2, x, Y + 2.75, z, g, 0.35); colliders.push({x, z, r:0.3, hollow:true});
+      const l = label('Beacon ' + (k + 1), {small:true, edge:'#e8a04a', fg:'#ffe2b8'}); l.position.set(x, Y + 3.5, z); g.add(l);
+      return {lm, rm, pm, prog, gl, x, z, shown:-1}; });
+    // the two spotter drones under the roof, the lock marker and the flash
+    o.drones = [0, 1].map(d => { const dg = new THREE.Group(); dg.position.set(A.x + (d ? 6 : -6), Y + 5.6, A.z + 12); g.add(dg);
+      mk(new THREE.SphereGeometry(0.32, 20, 14), Ms.iron, 0, 0, 0, dg); mk(new THREE.TorusGeometry(0.42, 0.04, 8, 32), std(0xc29a52, {metalness:1, roughness:0.32}), 0, 0, 0, dg).rotation.x = Math.PI / 2;
+      const eye = mk(new THREE.SphereGeometry(0.1, 12, 8), glowM(0xffa040, 2.2), 0, -0.26, 0, dg); eye.castShadow = false; return {g:dg, home:dg.position.clone(), eye}; });
+    o.marker = mk(new THREE.RingGeometry(0.9, 1.0, 64), new THREE.MeshBasicMaterial({color:C(0xff6a2a), transparent:true, opacity:0.85, side:THREE.DoubleSide, toneMapped:false, depthWrite:false}), A.x, Y + 0.03, A.z, g); o.marker.rotation.x = -Math.PI / 2; o.marker.visible = false; o.marker.castShadow = false;
+    o.beam = mk(new THREE.CylinderGeometry(0.06, 0.06, 1, 10, 1, true), new THREE.MeshBasicMaterial({color:C(0xfff0d8), transparent:true, opacity:0.9, blending:THREE.AdditiveBlending, depthWrite:false, toneMapped:false}), 0, 0, 0, g); o.beam.visible = false; o.beam.castShadow = false;
+    o.boom = glow(0xffc070, 4, A.x, Y + 0.5, A.z, g, 0);
+    // collision: the hall's walls
+    addBox(A.x - hw - 0.2, A.z + (z0 + z1) / 2, 0.2, (z1 - z0) / 2 + 0.4, Y - 1, Y + H + 1, {hollow:true}); addBox(A.x + hw + 0.2, A.z + (z0 + z1) / 2, 0.2, (z1 - z0) / 2 + 0.4, Y - 1, Y + H + 1, {hollow:true});
+    addBox(A.x, A.z + z1 + 0.2, hw + 0.4, 0.2, Y - 1, Y + H + 1, {hollow:true}); addBox(A.x, A.z + z0 - 0.2, hw + 0.4, 0.2, Y - 1, Y + H + 1, {hollow:true});
+    K.done();
+    qaExit(o, 0, z0 + 0.45, 0, {frame:Ms.stone, base:Ms.stone, tile:4});
+  },
+  reset(o){ o.marker.visible = false; o.beam.visible = false; o.boom.material.opacity = 0; },
+  visual(o, dt, time){ const S = o.S; if(!S) return; const A = o.A, Y = A.y;
+    o.beacons.forEach((b, k) => { const held = k < S.cur || S.state === 'won', cur = k === S.cur && S.state === 'run', pr = held ? 1 : cur ? S.prog[k] : 0;
+      const col = held ? 0xffa040 : 0x5fd0e0; b.lm.emissive.setHex(col); b.lm.emissiveIntensity = held ? 2.2 : cur ? 1.0 + 0.6 * Math.sin(time * 4) : 0.35; b.rm.emissive.setHex(col); b.rm.color.setHex(col); b.rm.emissiveIntensity = cur ? 0.9 : held ? 1.2 : 0.25; b.gl.material.color.setHex(col); b.gl.material.opacity = held ? 0.6 : cur ? 0.45 : 0.15;
+      const step = Math.round(pr * 72); if(step !== b.shown){ b.shown = step; b.prog.geometry.dispose(); b.prog.geometry = new THREE.RingGeometry(CAP.ring - 0.45, CAP.ring - 0.25, 72, 1, Math.PI / 2, Math.max(0.001, pr * TAU)); } });
+    // drones drift over the locked spot (or home); the marker shrinks as the flash comes; the flash is a beam and a burst of light
+    o.drones.forEach((d, i) => { let tx = d.home.x, tz = d.home.z; if(S.lock && S.lock.d === i){ tx = A.x + S.lock.x; tz = A.z + S.lock.z; } else if(S.flash && S.flash.d === i && S.flash.t < 0.4){ tx = A.x + S.flash.x; tz = A.z + S.flash.z; }
+      d.g.position.x += (tx - d.g.position.x) * (1 - Math.exp(-dt * 3)); d.g.position.z += (tz - d.g.position.z) * (1 - Math.exp(-dt * 3)); d.g.position.y = d.home.y + Math.sin(time * 1.7 + i * 2) * 0.15;
+      d.eye.material.emissiveIntensity = S.lock && S.lock.d === i ? 2.2 + 3 * smooth(0, CAP.wind, S.t - S.lock.t) : 1.4; });
+    if(S.lock){ const k = 1 - smooth(0, CAP.wind, S.t - S.lock.t); o.marker.visible = true; o.marker.position.set(A.x + S.lock.x, Y + 0.03, A.z + S.lock.z); o.marker.scale.setScalar(CAP.blast * (1 + 0.8 * k)); o.marker.material.opacity = 0.5 + 0.45 * Math.sin(time * 18) * 0.5 + 0.25; }
+    else o.marker.visible = false;
+    const F = S.flash, on = F && F.t < 0.25; o.beam.visible = !!on; o.boom.material.opacity = F && F.t < 0.5 ? 0.9 * (1 - F.t / 0.5) : 0;
+    if(F){ o.boom.position.set(A.x + F.x, Y + 0.6, A.z + F.z); }
+    if(on){ const d = o.drones[F.d].g.position, bx = A.x + F.x, bz = A.z + F.z, dx = bx - d.x, dy = Y - d.y, dz = bz - d.z, L = Math.hypot(dx, dy, dz);
+      o.beam.position.set((d.x + bx) / 2, (d.y + Y) / 2, (d.z + bz) / 2); o.beam.scale.set(1, L, 1); o.beam.quaternion.setFromUnitVectors(_wy.set(0, 1, 0), _wz.set(dx / L, dy / L, dz / L)); }
+  }
+};
+// in the Muster Field, west of the arrival point, facing it
+QPORTALS.warfront = {kind:'capture', name:'Signal Run', x:-19, z:-27, face:[0, -19], credits:50, xp:100, item:'match-ribbon', col:0xe8a04a,
+  tag:'Hold the three signal beacons in turn: stand in each ring until it turns ember. The spotter drones mark where you stand and flash it a beat later; step out of the ring on the floor. Three hits and you are out.'};
 // portals added to a realm after its core was finished (Goal 20): no pad (the Spaceport's plaza is level there), no rng, and built with Math.random pointed
 // away from the NPCs' sequence (three.js draws it for every new object's id), so every coin, NPC, pickup, kiosk and their wander stay exactly as they were.
 // The Spaceport's Warfront portal stands at the head of the plaza between the Neon Grid and Night Grove portals, more than 15 m from every coin and pickup spot.
