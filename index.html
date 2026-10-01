@@ -10938,7 +10938,7 @@ const QPORTALS = {
   hub:{kind:'relay', name:'Beacon Relay', x:-20, z:-1, face:[0, 6], credits:40, xp:80, item:'beacon-lens', col:0xffc04d,
     tag:'Watch the landing beacons light up, then run to them in the same order. Three rounds; one slip is forgiven.'}
 };
-const QP_ORDER = ['hub', 'campus', 'dunes', 'grid', 'grove', 'sky', 'warfront', 'lampblack'];   // Goal 20: Warfront's Signal Run joins last, then Lampblack's case
+const QP_ORDER = ['hub', 'campus', 'dunes', 'grid', 'grove', 'sky', 'warfront', 'lampblack', 'saltlark'];   // Goal 20: Warfront's Signal Run joins last, then Lampblack's case, then Saltlark's ring swim
 const qpReplay = d => ({credits:Math.max(5, Math.round(d.credits / 4)), xp:Math.max(5, Math.round(d.xp / 4))});
 const QM = {};
 let qpLast = null, qpBtnShown = false;
@@ -10957,6 +10957,7 @@ function qpLook(key){
   if(key === 'grid') return {frame:phys(0x0b0914, {roughness:0.2, metalness:0.6, normalMap:detailNormal, normalScale:new V2(0.12, 0.12)}), base:phys(0x14101f, {roughness:0.3, metalness:0.5}), tile:4};
   if(key === 'grove') return {frame:tex('pinebark', 0x9a8a7a), base:tex('darkrock', 0x8a8a8a), tile:3};
   if(key === 'warfront'){ const X = warTex(); return {frame:std(0xffffff, {map:X.stone.map, normalMap:X.stone.normal, roughnessMap:X.stone.rough, roughness:1}), base:std(0xffffff, {map:X.wood.map, normalMap:X.wood.normal, roughnessMap:X.wood.rough, roughness:1}), tile:4}; }
+  if(key === 'saltlark'){ const T = slTex(); return {frame:tex('rock', 0xf0e6d4), base:std(0xffffff, {map:T.deck.map, normalMap:T.deck.normal, roughnessMap:T.deck.rough, roughness:1}), tile:4}; }   // pale coral stone on a plank base
   return {frame:tex('granite', 0xffffff), base:tex('granite', 0xe8e4dc), tile:5};
 }
 const QP_MEMBRANE = {
@@ -17328,6 +17329,86 @@ function slLifeUpdate(dt, time){
   if(L.ripple){ const d = slDepth(), lvl = qa && qa.inside ? (qa.M.water != null ? qa.A.y + qa.M.water : null) : SLK.sea, on = d > 0.08 && lvl != null;
     L.ripple.visible = on; if(on){ const k = (time * (0.8 + p.speed * 0.25)) % 1; L.ripple.position.set(p.x, lvl + 0.02, p.z); L.ripple.scale.setScalar(0.8 + k * 1.6); L.ripple.material.opacity = (1 - k) * (0.25 + Math.min(0.45, p.speed * 0.12)); } }
 }
+/* ---- Saltlark Isle: the Glowwater Ring Swim (quest portal, Goal 20 part 3). A sea grotto under the isle with a glowing pool: swim through seven
+   floating rings in order before the tide clock runs out. The next ring shines gold; going through any other ring does nothing, and missing one costs
+   nothing (swim back through it). The pool is deeper than you can stand, so you float and swim (the isle's own rule), and the rings, the clock and the
+   pass test are all in one pure step, so the played swim and the scripted ones below are the same rule. Child-friendly: nothing hurts, there is no
+   penalty but the clock, and the clock is generous (60 s for a swim the scripted swimmer does in about 25). ---- */
+const SWIM = {water:0, ledge:0.35, pool:{x:0, z:14, rx:14, rz:11}, ring:1.3, limit:60, speed:2.8,
+  rings:[[0, 6], [7, 10], [9.5, 17], [4, 22], [-4, 19], [-9, 13], [-3, 9]]};
+// the pool's bed in the grotto's frame: a deep bowl inside the ellipse, a dry sandy ledge round it
+function swimBed(x, z){ const P = SWIM.pool, e = 1 - ((x - P.x) / P.rx) ** 2 - ((z - P.z) / P.rz) ** 2; return e > 0 ? -0.3 - 1.7 * smooth(0, 0.45, e) : Math.min(SWIM.ledge, -0.3 - e * 6); }
+// each ring faces the way the course runs through it (from the ring before to the ring after)
+const swimRings = () => SWIM.rings.map((r, k) => { const a = k ? SWIM.rings[k - 1] : [0, 0], b = SWIM.rings[k + 1] || [r[0] + (r[0] - a[0]), r[1] + (r[1] - a[1])], dx = b[0] - a[0], dz = b[1] - a[1], l = Math.hypot(dx, dz); return {x:r[0], z:r[1], nx:dx / l, nz:dz / l}; });
+QM.swim = {
+  start:[0, 0, 0], ceil:10, view:[-5, 4.5, Math.PI + 0.65, 0.42, 7.5], water:SWIM.water,
+  light:{sky:0x86d4e4, ground:0x123a40, i:0.78, fog:0x041a20, fd:0.022},
+  floor:(x, z) => Math.max(swimBed(x, z), SWIM.water - SLK.swim),
+  init(att){ return {kind:'swim', state:'run', t:0, why:null, att, next:0, prevF:null, passes:[], wrong:0}; },
+  // pose: {x, z} in the grotto's frame. Events: ring:k (the next ring passed), won, failed
+  step(S, pose, dt){
+    const ev = []; if(S.state !== 'run') return ev;
+    S.t += dt; const R = swimRings(), r = R[S.next], dx = pose.x - r.x, dz = pose.z - r.z, f = dx * r.nx + dz * r.nz, l = Math.abs(-dx * r.nz + dz * r.nx);
+    if(S.prevF != null && (S.prevF < 0) !== (f < 0) && Math.abs(S.prevF) < 2 && Math.abs(f) < 2 && l < SWIM.ring){ S.passes.push(+S.t.toFixed(2)); ev.push('ring:' + S.next); S.next++; S.prevF = null;
+      if(S.next >= R.length){ S.state = 'won'; ev.push('won'); return ev; } }
+    else S.prevF = f;
+    if(S.t > SWIM.limit){ S.state = 'failed'; S.why = 'the tide clock ran out with ' + (R.length - S.next) + (R.length - S.next === 1 ? ' ring' : ' rings') + ' to go'; ev.push('failed'); }
+    return ev;
+  },
+  // scripted swimmers: 'win' swims through each ring's middle in order at swimming speed; 'slow' does the same at a quarter of it; 'skip' swims
+  // through the first ring and then straight to the last (out of order, so it never counts); 'idle' never moves
+  sim(S, policy){
+    if(['win', 'slow', 'skip', 'idle'].indexOf(policy) < 0) return {error:'unknown policy', policies:['win', 'slow', 'skip', 'idle']};
+    const R = swimRings(), P = {x:0, z:0}, dt = 1 / 30, log = [], v = policy === 'slow' ? SWIM.speed / 4 : SWIM.speed;
+    const route = policy === 'skip' ? [R[0], R[6]] : R; const pts = []; route.forEach(r => { pts.push([r.x - r.nx * 1.6, r.z - r.nz * 1.6], [r.x + r.nx * 1.6, r.z + r.nz * 1.6]); });
+    let w = 0;
+    for(let i = 0; i < 30 * 90 && S.state === 'run'; i++){
+      if(policy !== 'idle' && w < pts.length && qpWalk(P, pts[w][0], pts[w][1], v, dt)) w++;
+      QM.swim.step(S, {x:P.x, z:P.z, y:0}, dt).forEach(e => log.push(e + '@' + S.t.toFixed(1)));
+    }
+    return log;
+  },
+  summary(S){ return {rings:S.next, of:SWIM.rings.length, passes:S.passes.slice()}; },
+  hud(S){ return '<b>Glowwater Ring Swim</b> Ring ' + Math.min(S.next + 1, SWIM.rings.length) + ' / ' + SWIM.rings.length + (S.state === 'won' ? ' · all through!' : ' · swim through the gold ring') + ' · ' + Math.max(0, SWIM.limit - S.t).toFixed(0) + ' s'; },
+  react(o, e, S){
+    if(e.indexOf('ring:') === 0){ const k = +e.split(':')[1]; if(snd.ctx && snd.on) try{ const t = snd.ctx.currentTime; slPan(523.25 * Math.pow(2, [0, 2, 4, 5, 7, 9, 12][k] / 12), t, 0.06, 0.8); }catch(err){} if(S.state === 'run') toast('Ring ' + (k + 1) + '. On to ring ' + (k + 2) + '.', 1500); } },
+  build(o){
+    const A = o.A, g = o.g, Y = A.y, T = slTex(), ws = surface('whitesand'), rk = surface('rock');
+    // the floor: the ledge and the pool's bed, glowing faintly teal where it is under the water
+    { const geo = new THREE.PlaneGeometry(40, 38, 120, 114); geo.rotateX(-Math.PI / 2); geo.translate(0, 0, 12); const a = geo.attributes.position, uv = geo.attributes.uv, col = new Float32Array(a.count * 3);
+      for(let i = 0; i < a.count; i++){ const x = a.getX(i), z = a.getZ(i), y = swimBed(x, z), d = clamp(-y, 0, 2); a.setY(i, y); uv.setXY(i, x / 3, z / 3); const c = [1 - 0.55 * smooth(0, 1.2, d), 1 - 0.12 * smooth(0, 1.2, d), 1 - 0.18 * smooth(0, 1.2, d)]; col.set(c, i * 3); }
+      geo.setAttribute('color', new THREE.BufferAttribute(col, 3)); geo.computeVertexNormals();
+      const m = mk(geo, std(0xffffff, {map:ws.map, normalMap:ws.normal, vertexColors:true, roughness:0.9, emissive:C(0x0c4c54), emissiveIntensity:0.35}), A.x, Y, A.z, g); m.castShadow = false; }
+    // the water: a lit, see-through surface over the pool (no mirror down here)
+    { const w = mk(new THREE.PlaneGeometry(31, 25, 1, 1).rotateX(-Math.PI / 2), phys(0x2fb8c0, {roughness:0.06, metalness:0.1, normalMap:waterNormal, normalScale:new V2(0.35, 0.35), transparent:true, opacity:0.5, emissive:C(0x0a3a40), emissiveIntensity:0.6, depthWrite:false}), A.x, Y + SWIM.water, A.z + SWIM.pool.z, g);
+      w.castShadow = false; w.receiveShadow = false; w.renderOrder = 2; w.userData.noAO = true; o.water = w; }
+    // the grotto: a low dome of rough rock, glowing specks on it, three crystal clusters
+    { const dome = new THREE.SphereGeometry(22, 64, 24, 0, TAU, 0, Math.PI / 2), a = dome.attributes.position, uv = dome.attributes.uv;
+      for(let i = 0; i < a.count; i++){ const x = a.getX(i), y = a.getY(i), z = a.getZ(i), f = 1 + 0.06 * lump(x * 0.15, y * 0.15, z * 0.15); a.setXYZ(i, x * f, y * 0.48 * f, z * f); uv.setXY(i, uv.getX(i) * 12, uv.getY(i) * 3); }
+      dome.computeVertexNormals(); const m = mk(dome, std(0x6a7478, {map:rk.map, normalMap:rk.normal, roughness:0.85, side:THREE.BackSide}), A.x, Y - 0.6, A.z + 12, g); m.castShadow = false;
+      const q = rng(8801), specks = []; for(let i = 0; i < 160; i++){ const th = q() * TAU, ph = 0.15 + q() * 1.2, x = Math.cos(th) * Math.cos(ph) * 21, z = Math.sin(th) * Math.cos(ph) * 21 + 12, y = Math.sin(ph) * 21 * 0.48 - 0.6; specks.push([A.x + x, Y + y, A.z + z, 0.5 + q() * 0.9, q() < 0.7 ? 0x6fe8f0 : 0x9ff0c8, 0.55 + q() * 0.4, 0.05, q() * 6]); }
+      const gc = glowCloud(specks, 0.7); if(gc){ g.add(gc); }
+      [[-13, 4], [13, 7], [8, 25]].forEach(([x, z], k) => { for(let i = 0; i < 5; i++){ const c = mk(new THREE.OctahedronGeometry(0.4 + q() * 0.4, 0), phys(0x7fe8f0, {emissive:C(0x3fc8d8), emissiveIntensity:1.4, roughness:0.15, metalness:0.2}), A.x + x + (q() - 0.5) * 1.6, Y + swimBed(x, z) + 0.5, A.z + z + (q() - 0.5) * 1.6, g); c.scale.set(0.6, 1.8 + q(), 0.6); c.rotation.set((q() - 0.5) * 0.6, q() * TAU, (q() - 0.5) * 0.6); c.castShadow = false; }
+        glow(0x6fe8f0, 4, A.x + x, Y + 1.5, A.z + z, g, 0.35); }); }
+    // the seven rings, standing in the water, numbered
+    o.rings = swimRings().map((r, k) => { const m = std(0x5fd8e8, {emissive:C(0x5fd8e8), emissiveIntensity:0.6, roughness:0.35, metalness:0.2}), t = mk(new THREE.TorusGeometry(SWIM.ring, 0.1, 12, 64), m, A.x + r.x, Y + SWIM.water + 0.25, A.z + r.z, g);
+      t.rotation.y = Math.atan2(r.nx, r.nz); t.castShadow = false;
+      const l = label(String(k + 1), {small:true, edge:'#5fd8e8', fg:'#e8fbff'}); l.position.set(A.x + r.x, Y + SWIM.water + 2.1, A.z + r.z); l.scale.multiplyScalar(0.6); g.add(l);
+      const gl = glow(0x5fd8e8, 3.2, A.x + r.x, Y + SWIM.water + 0.25, A.z + r.z, g, 0.25); return {m, t, gl, l}; });
+    // the grotto's walls are solid (the dome is wider than the floor's edge, so these keep you on the sand)
+    addBox(A.x - 19.5, A.z + 12, 0.3, 19, Y - 3, Y + 10, {hollow:true}); addBox(A.x + 19.5, A.z + 12, 0.3, 19, Y - 3, Y + 10, {hollow:true});
+    addBox(A.x, A.z + 30.5, 20, 0.3, Y - 3, Y + 10, {hollow:true}); addBox(A.x, A.z - 4.6, 20, 0.3, Y - 3, Y + 10, {hollow:true});
+    qaExit(o, 0, -3.6, 0, {frame:std(0xe8ddc8, {map:rk.map, normalMap:rk.normal, roughness:0.85}), base:std(0xe8ddc8, {map:rk.map, normalMap:rk.normal, roughness:0.85}), tile:4});
+  },
+  reset(o){ o.rings.forEach(r => { r.t.scale.setScalar(1); }); },
+  visual(o, dt, time){ const S = o.S; if(!S) return;
+    o.rings.forEach((r, k) => { const done = k < S.next, cur = k === S.next && S.state === 'run', col = cur ? 0xffc84a : done ? 0x3a8890 : 0x5fd8e8;
+      r.m.color.setHex(col); r.m.emissive.setHex(col); r.m.emissiveIntensity = cur ? 1.3 + 0.6 * Math.sin(time * 5) : done ? 0.25 : 0.6; r.gl.material.color.setHex(col); r.gl.material.opacity = cur ? 0.55 : done ? 0.08 : 0.22; r.t.scale.setScalar(cur ? 1 + 0.04 * Math.sin(time * 5) : 1); });
+  }
+};
+// on the beach west of the bar, facing the boardwalk
+QPORTALS.saltlark = {kind:'swim', name:'Glowwater Ring Swim', x:-16.5, z:-0.5, face:[-16.5, -8], credits:45, xp:90, item:'snorkel-badge', col:0x5fd8e8,
+  tag:'Swim through the seven glowing rings in order before the tide clock runs out. The next ring shines gold; if you miss one, just swim back through it.'};
 })();
 </script>
 </body>
