@@ -11881,7 +11881,8 @@ function monBuild0(key){
   mon.dropG.coin.rotateX(Math.PI / 2); mon.dropG.gem.scale(0.8, 1.4, 0.8); mon.goldM = std(0xffc94d, {metalness:1, roughness:0.22, emissive:C(0x8a5a00), emissiveIntensity:0.6});
   mon.ring = new THREE.Mesh(new THREE.RingGeometry(0.82, 1, 72), new THREE.MeshBasicMaterial({color:C(0xcfe4ff), transparent:true, opacity:0, depthWrite:false, blending:THREE.AdditiveBlending, toneMapped:false, side:THREE.DoubleSide}));
   mon.ring.rotation.x = -Math.PI / 2; mon.ring.visible = false; mon.ring.layers.set(1); mon.ring.renderOrder = 6; root.add(mon.ring); mon.ringT = -1;
-  mon.kit = D ? MON_KITS[D.kind]() : null;   // the Units' kit is built the first time one is needed (unitKitMake)
+  mon.kit = D ? MON_KITS[D.kind]() : null;
+  if(mon.ucore.length && unitsOn(key)) mon.ukit = unitKitMake();   // the Units' shared avatar, built inside the travel fade (else the first time one is needed)
   if(D || (mon.ucore.length && W.rules.danger)){ document.body.classList.add('mon-on'); $('#strikeBtn').textContent = ATK[atkMode()].label; }
 }
 
@@ -14400,7 +14401,7 @@ function raiseField(o){
     ring.rotation.x = -Math.PI / 2; ring.position.y = 0.03; g.add(ring);
     g.traverse(x => { x.castShadow = false; x.receiveShadow = false; x.userData.noAO = true; });
     const f = {id:++artFieldSeq, owner:o.owner || 'player', shields:o.shields || o.owner || 'player', follow:!!o.follow, x:o.x != null ? o.x : p.x, z:o.z != null ? o.z : p.z, y:o.y != null ? o.y : p.y, r, h,
-      t0:artRt.clock, until:artRt.clock + (o.dur == null ? 12 : o.dur), g, jar, shell, ring, drop:0, flash:0, blocked:0, broken:false, why:null};
+      t0:artRt.clock, until:artRt.clock + (o.dur == null ? 12 : o.dur), g, jar, shell, ring, drop:0, flash:0, blocked:0, broken:false, why:null, opK:o.op || 1};
     g.position.set(f.x, f.y, f.z); artRt.fields.push(f); return f;
   });
 }
@@ -14661,7 +14662,7 @@ function artUpdate(dt, time){
     const k = smooth(0, 0.45, artRt.clock - f.t0), lift = left < 0.6 ? smooth(0.6, 0, left) : 0;
     f.g.position.set(f.x, f.y + (f.drop ? (1 - k) * 3 + lift * 2.5 : 0), f.z);
     f.flash = Math.max(0, f.flash - dt * 2.5); f.shell.uniforms.flash.value = f.flash; f.shell.uniforms.t.value = artRt.clock;
-    f.shell.uniforms.op.value = k * (1 - lift) * (left < 3 && left > 0.6 ? 0.65 + 0.35 * Math.cos(artRt.clock * 12) : 1); f.ring.material.opacity = 0.55 * k * (1 - lift);
+    f.shell.uniforms.op.value = f.opK * k * (1 - lift) * (left < 3 && left > 0.6 ? 0.65 + 0.35 * Math.cos(artRt.clock * 12) : 1); f.ring.material.opacity = 0.55 * k * (1 - lift);
     if(left <= 0 && (!f.drop || lift >= 1 || left < -0.7)){ if(!f.broken){ f.broken = true; f.why = 'ended'; } artDispose(f.g); artRt.fields.splice(i, 1); } }
   // slack water
   if(artRt.tide && artRt.tide <= artRt.clock){ artRt.tide = 0; $('#tideFx').classList.remove('on'); }
@@ -14721,10 +14722,13 @@ Object.defineProperties(window.__hub, {
   artTick:{value:(n, dt) => { for(let i = 0; i < (n || 1); i++) update(dt || 0.05, simTime); return {clock:+artRt.clock.toFixed(2), fields:artRt.fields.length, tideK:artTideK(), lamp:!!artRt.lamp, compass:!!artRt.cmp, reveal:artRt.reveal ? +artRt.reveal.t.toFixed(2) : null}; }},
   artUnfound:{value:o => artUnfound(o || {}).map(it => ({kind:it.kind, name:it.name, x:+it.x.toFixed(1), z:+it.z.toFixed(1), d:Math.round(it.d)}))},
   raiseField:{value:o => { const f = raiseField(o); return f.id; }}, dropField:{value:id => dropField(artRt.fields.find(f => f.id === id), 'test')}, fieldAt:{value:(x, y, z, s) => { const f = fieldAt(x, y, z, s); return f ? f.id : null; }},
-  // frame the reveal for a screenshot: hold it at time t (default 3 s, artifact up, shaft lit), camera behind and to the left of you so the plinth stands clear
+  // frame the reveal for a screenshot: hold it at time t (default 3 s, artifact up, shaft lit), seen first person from 3.4 m and looking a little above it,
+  // as monView does, so the artifact sits below the button bar that crosses the middle of a small screen (Goal 17 tester note)
   artView:{value:(t, id) => { if(id) artReveal(id); const R = artRt.reveal; if(!R) return null; R.t = t == null ? 3 : t; artRt.hold = true;
-    const a = Math.atan2(p.x - R.x, p.z - R.z); p.x = R.x + Math.sin(a) * 1.9; p.z = R.z + Math.cos(a) * 1.9; p.y = R.fy; p.vy = 0; me.g.position.set(p.x, p.y, p.z); artRevealStep(0); if(artRt.breathFx){ artDispose(artRt.breathFx.g); artRt.breathFx = null; } cam.yaw = a + 0.55; cam.pitch = 0.3; cam.dist = 3.6; p.facing = Math.atan2(R.x - p.x, R.z - p.z); me.g.rotation.y = p.facing; if(me.tag) me.tag.visible = false; snapCamera(); clipCamera(); return {id:R.id, t:R.t}; }},
-  artViewEnd:{value:() => { artRt.hold = false; return true; }},   // (artView re-raises the plinth where you stand when given an id)
+    const a = Math.atan2(p.x - R.x, p.z - R.z), d = 3.4; p.x = R.x + Math.sin(a) * d; p.z = R.z + Math.cos(a) * d; p.y = R.fy; p.vy = 0; me.g.position.set(p.x, p.y, p.z); artRevealStep(0); if(artRt.breathFx){ artDispose(artRt.breathFx.g); artRt.breathFx = null; }
+    cam.view = 2; cam.dist = VIEWS[2].dist; me.g.visible = false; cam.yaw = a; p.facing = a + Math.PI; me.g.rotation.y = p.facing; cam.pitch = clamp(Math.atan2(p.y + 1.62 * me.S - (R.fy + 1.8), d) - 0.24, -1.1, 1.2);
+    if(me.tag) me.tag.visible = false; snapCamera(); return {id:R.id, t:R.t}; }},
+  artViewEnd:{value:() => { artRt.hold = false; cam.view = 0; cam.dist = VIEWS[0].dist; cam.pitch = VIEWS[0].pitch; me.g.visible = true; snapCamera(); return true; }},   // (artView re-raises the plinth where you stand when given an id)
   artGo:{value:what => { if(what === 'chest'){ if(!hollow || !hollow.inside) return {error:'enter the Hollow first (__hub.enterHollow())'}; const K = HOLLOW.chest; p.x = HOLLOW.x + K.x + 1.2; p.z = HOLLOW.z + K.z - 0.6; p.y = pocketFloor(p.x, p.z); p.vy = 0; hollowUpdate(0, 0); return {near:hollowNear}; } return null; }}
 });
 artHudDraw();
@@ -14839,7 +14843,7 @@ function unitKitMake(){
   return K;
 }
 function unitDraw(K, dt, time){
-  const A = K.av, seen = new Set(); let slot = 0;
+  const A = K.av, seen = new Set(); let slot = 0, made = 0;
   for(const m of mon.live){ if(!m.D.unit || m.sc <= 0.001 || slot >= UNIT_CAP) continue;
     A.amp = m.amp; A.phase = m.ph2; A.air = 0; animateAvatar(A, dt, m.speed, true, time); m.amp = A.amp; m.ph2 = A.phase;
     if(m.mode === 'wind' || m.mode === 'recover'){ const w = m.mode === 'wind' ? smooth(0, m.D.wind, m.wind) : clamp(m.rt / 0.5, 0, 1), AR = A.armR; AR.sh.rotation.x = lerp(AR.sh.rotation.x, -2.4 + (m.mode === 'recover' ? 2.6 * (1 - w) : 0), w); AR.el.rotation.x = lerp(AR.el.rotation.x, -0.4, w); }
@@ -14848,8 +14852,8 @@ function unitDraw(K, dt, time){
     A.g.updateMatrixWorld(true);
     const b = 1 + m.flash * 2.2 + (m.mode === 'dying' ? 2 * (1 - m.sc) : 0); _mCol.setRGB(b, b, b);
     for(const P of K.list){ P.m.setMatrixAt(slot, P.node.matrixWorld); P.m.setColorAt(slot, _mCol); }
-    let tg = K.tags.get(m.id); if(!tg){ tg = noRandom(() => label(m.tagName, {small:true, edge:'#b9b4d6', fg:'#dcd9f0'})); tg.layers.set(1); mon.root.add(tg); K.tags.set(m.id, tg); }
-    tg.position.set(m.x, m.y + 2.25, m.z); tg.visible = m.mode !== 'dying' && Math.hypot(m.x - camWorld.x, m.z - camWorld.z) < 45; seen.add(m.id);
+    let tg = K.tags.get(m.id); if(!tg && !made++){ tg = noRandom(() => label(m.tagName, {small:true, edge:'#b9b4d6', fg:'#dcd9f0'})); tg.layers.set(1); mon.root.add(tg); K.tags.set(m.id, tg); }   // one new tag a frame (each is a canvas)
+    if(tg){ tg.position.set(m.x, m.y + 2.25, m.z); tg.visible = m.mode !== 'dying' && Math.hypot(m.x - camWorld.x, m.z - camWorld.z) < 45; } seen.add(m.id);
     slot++; }
   for(const P of K.list){ P.m.count = slot; P.m.instanceMatrix.needsUpdate = true; P.m.instanceColor.needsUpdate = true; }
   K.tags.forEach((tg, id) => { if(!seen.has(id)){ mon.root.remove(tg); tg.material.map.dispose(); tg.material.dispose(); K.tags.delete(id); } });
@@ -14901,11 +14905,11 @@ function merBuild0(){
 // the saved state drives what stands: the dome and the shields go up or come down, the pylons go dark, the walls follow
 function merSync(){
   if(!mer) return; const up = fieldUp(), D = MERIDIAN.dome;
-  if(up && !mer.dome) mer.dome = merField({x:D.x, z:D.z, y:mer.domeY, r:D.r, h:D.h, shields:'meridian', ripple:26, col:0xc8c2ff});
+  if(up && !mer.dome) mer.dome = merField({x:D.x, z:D.z, y:mer.domeY, r:D.r, h:D.h, shields:'meridian', ripple:26, col:0xc8c2ff, op:0.32});
   if(!up && mer.dome && mer.shatter < 0){ dropField(mer.dome, 'broken'); mer.dome = null; }
   mer.pylons.forEach((P, i) => { const down = !!state.hunt.pylons[i] || !!state.hunt.field;
     P.band.material = down ? P.mats.deadBand : P.mats.band; P.core.material = down ? P.mats.deadCore : P.mats.core; P.glow.visible = P.hit.visible = !down; P.beam.visible = !down && up;
-    if(up && !down && !P.shield) P.shield = merField({x:P.x, z:P.z, y:P.y - 0.3, r:MERIDIAN.shieldR, h:8.8, shields:'pylon', ripple:30});
+    if(up && !down && !P.shield) P.shield = merField({x:P.x, z:P.z, y:P.y - 0.3, r:MERIDIAN.shieldR, h:8.8, shields:'pylon', ripple:30, op:0.6});
     if((!up || down) && P.shield){ dropField(P.shield, 'down'); P.shield = null; } });
   mer.walls = [];
   if(up && mer.dome) mer.walls.push({kind:'dome', x:D.x, z:D.z, r:D.r, top:mer.domeY + D.h});
@@ -15055,12 +15059,14 @@ Object.defineProperties(window.__hub, {
   blackout:{value:{start:() => merBlackout('hook'), step:(n, dt) => { for(let k = 0; k < (n || 1); k++) update(dt || 0.05, simTime); return window.__hub.blackout.state; },
     get state(){ const B = mer && mer.bo; return {saved:state.hunt.blackout, running:!!(B && !B.done), t:B ? +B.t.toFixed(2) : null, stage:B ? B.stage : null, breath:B ? B.breath : null, done:B ? B.done || null : null,
       dark:$('#blackFx').classList.contains('on'), msg:$('#blackMsg').textContent, zeroing, world:state.world, units:unitAlive().length, hp:state.hp, avatar:me.g.visible, held:ART_ORDER.filter(artHas)}; }}},
-  // frame the one screenshot: 'dome' (the glass over the Citadel from the plain, Units in front) or 'yard' (the pylons and their guards)
+  // frame the one screenshot: 'dome' (the whole glass over the Citadel from the plain), 'gate' (closer, the wall through the glass, a Unit in front) or 'yard' (the pylons and their guards); the Units hold still until merViewEnd()
   merView:{value:what => { if(!mer) return null; const D = MERIDIAN.dome; let tx, tz;
     if(what === 'yard'){ const P = mer.pylons[1]; tx = P.x; tz = P.z; const a = mer.yardA; p.x = P.x + Math.sin(a + 0.5) * 17; p.z = P.z + Math.cos(a + 0.5) * 17; }
-    else { tx = D.x; tz = D.z - 6; p.x = 15; p.z = -24; }
-    p.y = G(p.x, p.z); p.vy = 0; p.speed = 0; cam.yaw = Math.atan2(p.x - tx, p.z - tz) + 0.18; cam.pitch = what === 'yard' ? 0.12 : -0.02; cam.dist = 7; cam.view = 0; p.facing = cam.yaw + Math.PI;
-    me.g.position.set(p.x, p.y, p.z); me.g.rotation.y = p.facing; if(mon){ monRefresh(); mon.live.forEach(m => { m.sc = 1; }); } snapCamera(); clipCamera(); return {x:+p.x.toFixed(1), z:+p.z.toFixed(1), units:unitAlive().length}; }}
+    else if(what === 'gate'){ tx = D.x; tz = D.z - 10; p.x = 11; p.z = -12; }
+    else { tx = D.x; tz = D.z; p.x = -30; p.z = -36; }
+    p.y = G(p.x, p.z); p.vy = 0; p.speed = 0; cam.yaw = Math.atan2(p.x - tx, p.z - tz) + 0.18; cam.pitch = what === 'yard' ? 0.12 : what === 'gate' ? -0.02 : -0.12; cam.dist = 7; cam.view = 0; p.facing = cam.yaw + Math.PI;
+    me.g.position.set(p.x, p.y, p.z); me.g.rotation.y = p.facing; if(mon){ monRefresh(); mon.live.forEach(m => { m.sc = 1; }); mon.freeze = true; } snapCamera(); clipCamera(); return {x:+p.x.toFixed(1), z:+p.z.toFixed(1), units:unitAlive().length}; }},
+  merViewEnd:{value:() => { if(mon) mon.freeze = false; return true; }}
 });
 })();
 </script>
