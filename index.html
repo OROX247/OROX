@@ -20294,8 +20294,8 @@ var SCAPES = {
     spots:[{k:'bird', pts:[[20, -30], [-40, 20], [45, 35], [-30, -45], [10, 48], [-52, -8]], y:7, every:[5, 14], range:70, ref:10},
       {k:'chime', pts:[[0, -40], [30, 10], [-30, 10]], y:8, every:[50, 120], range:130, ref:25},
       {k:'murmur', pts:[[8, 6], [-9, 4], [4, -10], [-6, -12]], y:1.5, every:[7, 16], range:30, ref:5}],
-    loops:[{k:'shuttle', find:() => { let best = null, bd = 1e9; ships.forEach(s => { const e = s.g.matrixWorld.elements, d = Math.hypot(e[12] - p.x, e[14] - p.z, e[13] - p.y); if(d < bd){ bd = d; best = [e[12], e[13], e[14]]; } }); return best; },
-      range:340, ref:70, lvl:0.6, make:sndShuttle, cap:'[A shuttle passes overhead]'}]},
+    loops:[{k:'shuttle', find:() => { let best = null, bd = 1e9; ships.forEach(s => { const q = s.g.position, d = Math.hypot(q.x - p.x, q.z - p.z, q.y - p.y); if(d < bd){ bd = d; best = [q.x, q.y, q.z]; } }); return best; },   /* the position update() moves (matrixWorld lags until the next render) */
+      range:340, ref:50, lvl:0.45, make:sndShuttle, cap:'[A shuttle passes overhead]'}]},   /* a far roar most of the time, louder as one passes near */
   campus:{bed:[{n:'leaves', src:'pink', ft:'highpass', f:[1800, 3800], q:0.5, g:[0.003, 0.012], every:[3, 8], gust:0.2}, {n:'lawn', src:'brown', ft:'lowpass', f:[200, 400], g:[0.02, 0.05], every:[8, 16], rich:true}],
     spots:[{k:'bird', lat:{cell:28, n:2, ok:(x, z) => x > 22 || Math.hypot(x, z) > 70}, y:7, every:[3, 9], range:55, ref:8},
       {k:'bell', pts:[[0, 190], [-170, -120]], y:30, every:[80, 170], range:650, ref:120, cap:'[A bell rings across Campus]'}]},
