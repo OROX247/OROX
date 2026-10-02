@@ -137,6 +137,8 @@ html,body{ height:100%; margin:0; overflow:hidden; background:#07061a; color:var
 .bubble b{ display:block; font:700 10px 'Chakra Petch','Trebuchet MS',sans-serif; letter-spacing:.08em; text-transform:uppercase; color:#6b3fd1; }
 .bubble::after{ content:''; position:absolute; left:50%; bottom:-7px; margin-left:-7px; border:7px solid transparent; border-bottom:0; border-top-color:rgba(250,248,255,.94); }
 body.vr #bubbles, body.bcast #bubbles{ visibility:hidden; }
+#wfBubbles{ position:fixed; inset:0; pointer-events:none; z-index:4; overflow:hidden; } body.vr #wfBubbles, body.bcast #wfBubbles{ visibility:hidden; }
+.bubble.wf{ background:rgba(255,246,222,.95); } .bubble.wf b{ color:#a8641a; } .bubble.wf::after{ border-top-color:rgba(255,246,222,.95); }
 #regAsk{ padding:9px 16px; border:none; background:linear-gradient(90deg,var(--cyan),var(--pink)); color:var(--btn-ink); font:700 15px 'Chakra Petch','Trebuchet MS',sans-serif; cursor:pointer; }
 #regChips{ display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
 #regChips button{ padding:5px 10px; background:none; border:1.5px solid rgba(255,255,255,.22); color:#dcd7f5; font:13px 'Chakra Petch','Trebuchet MS',sans-serif; cursor:pointer; }
@@ -627,6 +629,7 @@ body.a11y-cues .hpbar.low i{ background:repeating-linear-gradient(135deg,rgba(0,
 <div id="bcast" hidden aria-live="polite"><div class="bc-bar top"></div><div class="bc-bar bot"></div><div class="bc-title"><small>Recorded at No. 9 Lantern Row, Fennick Bay</small><b>The Architect's Last Broadcast</b></div><p class="bc-sub"></p><button id="bcSkip" class="ghost">Skip (Esc)</button><div class="bc-fade"></div></div>
 <div id="roomCard" class="panel" aria-live="polite"><small></small><b></b><p></p></div>
 <div id="bubbles" aria-hidden="true"></div>
+<div id="wfBubbles" aria-hidden="true"><div id="wfSay" class="bubble wf" style="display:none"></div></div>
 <div id="talk" class="card hidden" role="dialog" aria-labelledby="talkName">
   <div class="talk-head"><b id="talkName"></b><small id="talkWho"></small><button id="talkClose" aria-label="Close">×</button></div>
   <div id="talkLog" aria-live="polite"></div>
@@ -3105,7 +3108,7 @@ const FOG_SUN = {x:0, y:1, z:0}, FOG_SUNCOL = {r:1, g:0.8, b:0.6}, FOG_PARAMS = 
 // play) is queued in SLOT_PENDING and carried out here, at the very top of the next page load: before any loader runs, and after the old page's
 // last writes have landed, so nothing the old page saves can spill into the new slot. Device settings (accessibility, keys for AI services,
 // realm looks) are not part of a slot.
-const SLOT_STORES = ['hub-universe-save-v2', 'hub-locals-v1', 'hub-den-v1', 'hub-fennick-v1', 'hub-explorer-v1', 'hub-dreams-v1', 'hub-realms-v1'];
+const SLOT_STORES = ['hub-universe-save-v2', 'hub-locals-v1', 'hub-den-v1', 'hub-fennick-v1', 'hub-explorer-v1', 'hub-dreams-v1', 'hub-realms-v1', 'hub-wayfarer-v1'];   // hub-wayfarer-v1: the companion (its log, name, look, album list)
 const SLOT_META = 'hub-slots-v1', SLOT_PENDING = 'hub-slot-pending', SLOT_N = 3;
 const slotKey = (n, k) => 'hub-slot' + n + ':' + k, slotStage = k => 'hub-slot-stage:' + k;
 const slotLs = {get(k){ try{ return localStorage.getItem(k); }catch(e){ return null; } }, set(k, v){ if(v == null) localStorage.removeItem(k); else localStorage.setItem(k, v); }};
@@ -13160,6 +13163,7 @@ function update(dt, time){
   if(!WORLDS[state.world].rules.danger && !zeroing && state.hp < maxHp()){ state.hp = Math.min(maxHp(), state.hp + 12 * dt); hpHud(); }
   portalCool -= dt;
   if(playing && portalCool <= 0 && !traveling && !zeroing && !pocketIn()) for(const q of portals){ if(Math.hypot(p.x - q.x, p.z - q.z) < 1.6 && p.y - G(p.x, p.z) < 2){ travel(q.to); break; } }
+  wfTick(dt, time);   // the Wayfarer follows you (after the camera, so it can step out of its way)
 }
 
 // where the sun is on screen this frame: drives the sun rays and the lens flare (both fade out as the sun leaves the frame)
@@ -19636,7 +19640,7 @@ function slotStaleCard(){
 }
 // a window that has gone stale (another window changed slot) must not change any slot either: copy, delete, import, use and write all refuse
 function slotStaleNo(){ return {ok:false, stale:true, why:'Another window changed save slot. Reload this window first.'}; }
-function slotFlush(){ try{ persist(); }catch(e){} try{ saveLocals(); }catch(e){} try{ denSave(); }catch(e){} try{ fbMemSave(); }catch(e){} try{ saveExplorer(); }catch(e){} try{ saveDreams(); }catch(e){} try{ saveRealms(); }catch(e){} }
+function slotFlush(){ try{ persist(); }catch(e){} try{ saveLocals(); }catch(e){} try{ denSave(); }catch(e){} try{ fbMemSave(); }catch(e){} try{ saveExplorer(); }catch(e){} try{ saveDreams(); }catch(e){} try{ saveRealms(); }catch(e){} try{ wfSave(); }catch(e){} }
 function slotInfo(n){
   const m = slotMeta(), s = m.slots[n], o = {n, active:m.active === n, label:s.name || ('Slot ' + n), name:'', level:0, credits:0, shards:0, realm:'', realmName:'', played:s.played, empty:slotEmpty(n), ok:true};
   if(o.empty) return o;
@@ -19678,6 +19682,7 @@ function slotCheckFile(o){
     let c = slotSafe(v);
     if(k === SAVE_KEY) c = slotCleanMain(c);
     if(k === 'hub-den-v1'){ try{ const d = denClean(c); c = {v:1, own:Object.assign({}, d.own), placed:d.placed.map(e => e.wall ? {id:e.id, wall:e.wall, a:e.a, b:e.b, r:e.r} : {id:e.id, a:e.a, b:e.b, r:e.r})}; }catch(e){ continue; } }
+    if(k === 'hub-wayfarer-v1') c = wfClean(c);   /* the Wayfarer's store, rebuilt field by field */
     if(k === 'hub-fennick-v1') c = {found:Array.isArray(c.found) ? c.found.filter((id, i, a) => typeof id === 'string' && FB_MEMS.some(m => m.id === id) && a.indexOf(id) === i) : [], all:!!c.all};
     if(k === 'hub-explorer-v1'){ const pl = c.planets && typeof c.planets === 'object' && !Array.isArray(c.planets) ? c.planets : {}; for(const id of Object.keys(pl)){ const e = pl[id]; if(!/^\d+-\d+$/.test(id) || !e || typeof e !== 'object' || e.id !== id || typeof e.name !== 'string') delete pl[id]; } c.planets = pl; }
     st[k] = c; any = true;
@@ -20654,6 +20659,261 @@ var SND_HOOKS = {
 };
 Object.defineProperties(window.__hub, {sound:{value:SND_HOOKS}});
 
+
+/* ================= the Wayfarer: a small companion that travels with you (blueprint 5, 5a, 9, 11) =================
+   Your Wayfarer is a driftlamp, an invented palm-sized moth whose round belly glows like a lamp. It floats at your shoulder in every realm and
+   never between the camera and you, keeps a short travel log in its own store (hub-wayfarer-v1, one per save slot), comments now and then,
+   offers a gentle nudge when the Hunt has stalled, and answers when you talk to it (Y) with the Living Locals' brains, filters and caps.
+   Its look comes from words through the describe-your-avatar parser, always as a small creature. It is two draw calls (body, glow), casts no
+   shadow and is left out of SSAO. Everything here is built with Math.random pointed at its own rng (wfQuiet) and draws from no realm's rng,
+   so nothing in any realm moves. */
+var WF_KEY = 'hub-wayfarer-v1', WF_MODES = ['off', 'quiet', 'chatty'], WF_DEFAULT_NAME = 'Nib';
+var wf = {store:null, g:null, body:null, glowM:null, bodyM:null, look:null, P:new V3(), V:new V3(), T:new V3(), Tp:new V3(), snap:true, dim:1, glowK:1, uFlap:{value:0}, flapW:14, flapA:0.55,
+  sayT:0, sayText:'', emote:null, emoteT:0, blocked:0, ticks:0, lastBlock:null, world:null, hideTest:false};
+var wfQR = rng(6161);
+function wfQuiet(f){ const mr = Math.random; Math.random = wfQR; try{ return f(); } finally{ Math.random = mr; } }
+// a name is the player's own text: letters, digits, spaces, ' and -, at most 16, nothing personal, nothing rude, no outside names
+function wfName(s){
+  s = typeof s === 'string' ? s : '';
+  s = s.replace(/[\u0000-\u001f\u007f<>\u00ad\u061c\u180e\u200b-\u200f\u2028-\u202e\u2066-\u2069\ufeff]/g, '').replace(/[^\p{L}\p{N} '\-]/gu, '').replace(/\s+/g, ' ').trim().slice(0, 16).trim();
+  if(!s || /\d{3,}/.test(s) || LP_BANNED.test(s) || LP_PRIVATE.test(s) || lpAsks(s) || /\b(stupid|idiot|hate|kill|dumb|loser|ugly|admin|moderator)\b/i.test(s)) return '';
+  return s;
+}
+function wfIdOk(s){ return typeof s === 'string' && /^[a-z0-9:_-]{1,40}$/i.test(s); }
+// the store, checked field by field on load and on import (a forged or old save is cut back to what the game would have written)
+function wfClean(o){
+  o = o && typeof o === 'object' && !Array.isArray(o) ? o : {};
+  const L = o.log && typeof o.log === 'object' && !Array.isArray(o.log) ? o.log : {};
+  const A = (v, n, f) => Array.isArray(v) ? v.filter((x, i, a) => f(x) && a.indexOf(x) === i).slice(-n) : [];
+  const time = Object.create(null), tsrc = bareMap(L.time);
+  for(const k of Object.keys(tsrc)) if(wfIdOk(k) && typeof tsrc[k] === 'number' && isFinite(tsrc[k]) && tsrc[k] > 0) time[k] = Math.min(1e7, Math.floor(tsrc[k]));
+  const hsrc = bareMap(o.hints), hints = Object.create(null); for(const k of Object.keys(hsrc)) if(wfIdOk(k)) hints[k] = clamp(Math.floor(num(hsrc[k], 0)), 0, 3);
+  const desc = typeof o.desc === 'string' ? scrubText(o.desc.replace(/[\u0000-\u001f<>]/g, ' ')).replace(/\s+/g, ' ').trim().slice(0, 200) : '';
+  return {v:1, name:wfName(o.name) || WF_DEFAULT_NAME, desc, mode:WF_MODES.indexOf(o.mode) >= 0 ? o.mode : 'quiet',
+    log:{realms:A(L.realms, 40, wfIdOk), shards:A(L.shards, 3, s => ['dunes', 'grid', 'sky'].indexOf(s) >= 0), artifacts:A(L.artifacts, 10, s => wfIdOk(s) && hasOwn(ART, s)), quests:A(L.quests, 24, wfIdOk),
+      landmarks:A(L.landmarks, 30, s => wfIdOk(s) && hasOwn(QUEST_LANDMARKS, s)), planets:clamp(Math.floor(num(L.planets, 0)), 0, 99999), time},
+    deeds:A(o.deeds, 80, wfIdOk), seen:A(o.seen, 80, wfIdOk), said:Array.isArray(o.said) ? o.said.filter(s => typeof s === 'string').slice(-6).map(s => scrubText(s).slice(0, 150)) : [],
+    stuck:clamp(num(o.stuck, 0), 0, 1e7), hunt:clamp(Math.floor(num(o.hunt, -1)), -1, 1e4), hints,
+    album:Array.isArray(o.album) ? o.album.filter(e => e && typeof e === 'object' && typeof e.id === 'string' && /^[a-z0-9]{4,24}$/.test(e.id)).slice(-12).map(e => ({id:e.id, realm:wfIdOk(e.realm) ? e.realm : '', t:clamp(Math.floor(num(e.t, 0)), 0, 1e14), cap:typeof e.cap === 'string' ? scrubText(e.cap.replace(/[\u0000-\u001f<>]/g, ' ')).slice(0, 140) : ''})) : []};
+}
+// a new companion remembers what you did before you met it (so it does not cheer old deeds as new), from the game's own state
+function wfSeed(S){
+  const L = S.log;
+  [...state.visited].forEach(k => { if(WORLDS[k] && !/^p:/.test(k) && L.realms.indexOf(k) < 0) L.realms.push(k); });
+  [...state.shards].forEach(k => { if(L.shards.indexOf(k) < 0) L.shards.push(k); });
+  if(state.art && state.art.won) ART_ORDER.forEach(id => { if(state.art.won[id] && L.artifacts.indexOf(id) < 0) L.artifacts.push(id); });
+  QP_ORDER.forEach(k => { if(state.qp[k] && state.qp[k].wins > 0 && L.quests.indexOf('qp:' + k) < 0) L.quests.push('qp:' + k); });
+  L.planets = Object.keys(explorer.planets || {}).length;
+  try{ S.deeds = deedsNow().map(d => d.id).slice(-80); }catch(e){}
+  S.hunt = wfHuntScore();
+}
+function wfLoad(){ let o = null, fresh = false; try{ const s = localStorage.getItem(WF_KEY); if(s == null) fresh = true; else o = JSON.parse(s); }catch(e){}
+  const S = wfClean(o); if(fresh){ try{ wfSeed(S); }catch(e){} } return S; }
+function wfSave(){ if(!wf.store || !slotCanSave()) return; try{ localStorage.setItem(WF_KEY, JSON.stringify(wf.store)); }catch(e){} }
+// how far along the Hunt is, as one number: any change counts as progress (the nudge timer starts again)
+function wfHuntScore(){ const H = state.hunt, A = state.archive; let n = state.shards.size * 10 + (A.ledger ? 1 : 0) + A.found.size + (A.broadcast ? 1 : 0) + (H.door ? 1 : 0) + (H.hoard ? 1 : 0) + (H.rose ? 1 : 0) + (H.cyan ? 1 : 0);
+  n += H.gates.filter(Boolean).length * 5 + H.pylons.filter(Boolean).length + (H.field ? 2 : 0) + (H.blackout ? 2 : 0) + (H.won ? 20 : 0); return n; }
+
+/* ---- the look: the describe-your-avatar parser reads the words, and the companion keeps only what fits a small creature ---- */
+var WF_LOOK_DEF = {kind:'moth', main:'#d8cbb0', second:'#7a6488', glow:'#ffc45e', eyes:'dots', mat:'soft', feats:{wings:true, antenna:true}, size:1};
+function wfLookOf(desc){
+  const t = String(desc || '').toLowerCase(), words = t.replace(/[^a-z0-9\s'-]/g, ' ').split(/\s+/).filter(Boolean), has = re => words.some(w => re.test(w));
+  const L = JSON.parse(JSON.stringify(WF_LOOK_DEF)); if(!words.length) return L;
+  const rc = parseDescription(t), D = RECIPE_DEFAULT;
+  if(has(/^(robot|robotic|drone|bot|clockwork|machine|android|droid|mech|automaton|gizmo|gadget)s?$/) || rc.body === 'robot') L.kind = 'drone';
+  else if(has(/^(wisp|sprite|spirit|ghost|jelly|jellyfish|blob|slime|orb|cloud|spark|star|bubble|flame|ember|tide)s?$/) || rc.body === 'blob') L.kind = 'wisp';
+  else if(has(/^(fox|cat|kitten|owl|bird|bat|dragon|mouse|rabbit|bunny|dog|puppy|otter|critter|hamster|squirrel|ferret|beast|lizard|gecko|frog|panda|bear|wolf|raccoon|monkey|penguin)s?$/) || rc.body === 'beast') L.kind = 'critter';
+  if(rc.colours.main !== D.colours.main){ L.main = rc.colours.main; L.second = rc.colours.second; }
+  if(rc.colours.glow !== D.colours.glow || has(/^(cyan|aqua)$/)) L.glow = rc.colours.glow;
+  if(words.some(w => hasOwn(WORD_MATERIALS, w)) || rc.material !== 'plate') L.mat = {chrome:'chrome', glass:'glass', jelly:'glass', stone:'stone', neon:'neon', plate:'shiny', matte:'soft', cloth:'soft', fur:'soft'}[rc.material] || 'soft';
+  if(L.kind === 'drone' && !words.some(w => hasOwn(WORD_MATERIALS, w))) L.mat = 'shiny';
+  const F = rc.features; L.feats = {wings:L.kind !== 'wisp' && L.kind !== 'drone', antenna:L.kind === 'moth' || L.kind === 'drone'};
+  ['horns', 'tail', 'ears', 'halo', 'crown', 'spikes', 'antenna', 'wings'].forEach(f => { if(F.indexOf(f) >= 0) L.feats[f] = true; });
+  if(L.kind === 'critter' && !has(/^(owl|bird|penguin|frog|lizard|gecko)s?$/)) L.feats.ears = true;
+  if(has(/^wingless$/) || /\b(no|without) wings?\b/.test(t)) L.feats.wings = false;
+  if(/\b(no|without) (antenna|antennae|feelers)\b/.test(t)) L.feats.antenna = false;
+  L.eyes = rc.eyes.style === 'visor' ? 'dots' : rc.eyes.style;
+  L.size = has(/^(tiny|teeny|small|little|mini|pocket|micro|wee)$/) ? 0.8 : has(/^(big|large|huge|giant|chunky|round|plump|fat|massive)$/) ? 1.22 : 1;
+  return L;
+}
+// geometry: every part is a small three.js shape moved into place; the body parts and the glowing parts become one mesh each
+function wfGeo(L){
+  const body = [], glow = [], sp = (r, ws, hs) => new THREE.SphereGeometry(r, ws || 14, hs || 10);
+  const put = (list, g, hex, flap, x, y, z, sx, sy, sz, rx, ry, rz) => { geoAt(g, x || 0, y || 0, z || 0, sx == null ? 1 : sx, sy == null ? (sx == null ? 1 : sx) : sy, sz == null ? (sx == null ? 1 : sx) : sz, rx, ry, rz); list.push({g, hex, flap:flap || 0}); };
+  const B = (g, hex, flap, ...a) => put(body, g, hex, flap, ...a), Gl = (g, hex, ...a) => put(glow, g, hex, 0, ...a);
+  const dark = '#15121c', hot = mixHex(L.glow, '#ffffff', 0.55), sec = L.second, main = L.main;
+  let headY = 0.035, headZ = 0.085, headR = 0.04;
+  if(L.kind === 'moth'){
+    B(sp(0.05), main, 0, 0, 0.01, 0.02, 1, 0.95, 1.15);                                        // thorax, soft and round
+    B(sp(headR), main, 0, 0, headY, headZ);                                                    // head
+    Gl(sp(0.058, 16, 12), hot, 0, -0.012, -0.075, 0.92, 0.9, 1.3);                             // the lamp belly
+    [-0.05, -0.088, -0.12].forEach((z, i) => B(new THREE.TorusGeometry(0.052 - i * 0.008, 0.005, 6, 20), sec, 0, 0, -0.012, z, 1, 0.95, 1));   // dark bands round the lamp
+    if(L.feats.wings) [-1, 1].forEach(s => {
+      B(new THREE.CircleGeometry(0.11, 20), main, s, s * 0.15, 0.025, 0.02, 1.2, 0.78, 1, -Math.PI / 2, s * 0.32, 0);    // forewings
+      B(new THREE.CircleGeometry(0.04, 14), sec, s, s * 0.175, 0.028, 0.03, 1.3, 0.9, 1, -Math.PI / 2, s * 0.32, 0);        // an eye-spot on each
+      B(new THREE.CircleGeometry(0.075, 18), mixHex(main, sec, 0.35), s, s * 0.1, 0.012, -0.06, 1.2, 0.85, 1, -Math.PI / 2, -s * 0.5, 0);   // hindwings
+    });
+  } else if(L.kind === 'wisp'){
+    Gl(sp(0.068, 18, 14), hot, 0, 0, 0);                                                        // a glowing core
+    B(new THREE.CylinderGeometry(0.05, 0.085, 0.07, 18, 1, true), main, 0, 0, -0.06, 0);        // a little veil under it
+    for(let i = 0; i < 5; i++){ const a = i / 5 * TAU; B(new THREE.ConeGeometry(0.012, 0.09, 6), main, 0, Math.sin(a) * 0.055, -0.12, Math.cos(a) * 0.055, 1, 1, 1, Math.PI, 0, 0); }   // tendrils
+    [-1, 1].forEach(s => B(new THREE.CircleGeometry(0.05, 14), sec, s, s * 0.085, 0.01, -0.01, 1.4, 0.8, 1, -Math.PI / 2, 0, 0));   // side fins that beat like wings
+    headY = 0.01; headZ = 0.062; headR = 0.0;
+  } else if(L.kind === 'drone'){
+    B(sp(0.065, 18, 12), main, 0, 0, 0, 0, 1.15, 0.72, 1.1);                                   // shell
+    B(new THREE.CylinderGeometry(0.03, 0.03, 0.18, 10), sec, 0, 0, 0.02, -0.01, 1, 1, 1, 0, 0, Math.PI / 2);   // the arm across
+    [-1, 1].forEach(s => { B(new THREE.CylinderGeometry(0.055, 0.055, 0.008, 22), sec, s, s * 0.11, 0.035, -0.01); Gl(new THREE.TorusGeometry(0.055, 0.004, 5, 24), L.glow, s * 0.11, 0.04, -0.01, 1, 1, 1, Math.PI / 2, 0, 0); });   // rotor discs with glowing rims
+    Gl(new THREE.CircleGeometry(0.04, 20), hot, 0, 0.0, 0.071, 1.2, 0.8, 1);                   // a lamp lens in front
+    headY = 0.0; headZ = 0.072; headR = 0.0;
+  } else {   // critter: a round furry body, a head, small wings, a lamp in the chest
+    B(sp(0.068), main, 0, 0, -0.005, -0.01, 1, 0.95, 1.1);
+    Gl(sp(0.045), hot, 0, -0.02, 0.035);
+    headY = 0.065; headZ = 0.05; headR = 0.05; B(sp(headR), main, 0, 0, headY, headZ);
+    B(sp(0.016), sec, 0, 0, headY - 0.012, headZ + 0.045);                                     // a small snout
+    if(L.feats.wings) [-1, 1].forEach(s => B(new THREE.CircleGeometry(0.07, 16), sec, s, s * 0.09, 0.03, -0.02, 1.35, 0.75, 1, -Math.PI / 2, s * 0.4, 0));
+    if(L.feats.tail !== false) B(new THREE.ConeGeometry(0.018, 0.1, 8), main, 0, 0, -0.01, -0.1, 1, 1, 1, -Math.PI / 2 - 0.5, 0, 0);
+  }
+  // eyes: dark with a bright glint (the glint is part of the glow mesh)
+  const ey = headY + (headR ? headR * 0.25 : 0.012), ez = headZ + (headR ? headR * 0.82 : 0.0), ex = headR ? headR * 0.5 : 0.026;
+  const eye = (x, r, sy) => { B(sp(r, 10, 8), dark, 0, x, ey, ez, 1, sy || 1, 0.7); Gl(sp(r * 0.35, 6, 5), '#ffffff', x + r * 0.25, ey + r * 0.3, ez + r * 0.55); };
+  if(L.eyes === 'one') eye(0, 0.02); else if(L.eyes === 'wide') [-1, 1].forEach(s => eye(s * ex, 0.017)); else if(L.eyes === 'slits') [-1, 1].forEach(s => eye(s * ex, 0.014, 0.45)); else [-1, 1].forEach(s => eye(s * ex, 0.012));
+  const topY = headY + (headR || 0.06);
+  if(L.feats.antenna) [-1, 1].forEach(s => { B(new THREE.CylinderGeometry(0.0025, 0.0035, 0.085, 5), sec, 0, s * 0.02, topY + 0.025, headZ + 0.01, 1, 1, 1, 0.5, 0, -s * 0.45); Gl(sp(0.009, 8, 6), L.glow, s * 0.039, topY + 0.058, headZ + 0.03); });
+  if(L.feats.horns) [-1, 1].forEach(s => B(new THREE.ConeGeometry(0.009, 0.04, 6), '#e8e0d0', 0, s * 0.022, topY + 0.006, headZ - 0.005, 1, 1, 1, -0.3, 0, -s * 0.35));
+  if(L.feats.ears) [-1, 1].forEach(s => B(new THREE.ConeGeometry(0.016, 0.04, 6), main, 0, s * 0.03, topY - 0.004, headZ - 0.01, 1, 1, 0.55, 0, 0, -s * 0.3));
+  if(L.feats.halo) Gl(new THREE.TorusGeometry(0.04, 0.004, 6, 24), '#ffe08a', 0, topY + 0.045, headZ - 0.01, 1, 1, 1, Math.PI / 2, 0, 0);
+  if(L.feats.crown) B(new THREE.CylinderGeometry(0.022, 0.02, 0.022, 5, 1, true), '#d4a93a', 0, 0, topY + 0.008, headZ, 1, 1, 1);
+  if(L.feats.spikes) for(let i = 0; i < 4; i++) B(new THREE.ConeGeometry(0.008, 0.03, 5), sec, 0, 0, 0.045 + (L.kind === 'moth' ? 0 : 0.02) - i * 0.004, 0.02 - i * 0.035, 1, 1, 1, -0.4, 0, 0);
+  if(L.feats.tail && L.kind !== 'critter') B(new THREE.ConeGeometry(0.012, 0.08, 6), main, 0, 0, -0.02, -0.16, 1, 1, 1, -Math.PI / 2, 0, 0);
+  const pack = list => {
+    let n = 0; list.forEach(e => { e.g = e.g.index ? e.g.toNonIndexed() : e.g; n += e.g.attributes.position.count; });
+    const pos = new Float32Array(n * 3), nor = new Float32Array(n * 3), col = new Float32Array(n * 3), flap = new Float32Array(n); let o = 0;
+    list.forEach(e => { const p = e.g.attributes.position, nm = e.g.attributes.normal, c = C(e.hex); pos.set(p.array, o * 3); nor.set(nm.array, o * 3);
+      for(let i = 0; i < p.count; i++){ col[(o + i) * 3] = c.r; col[(o + i) * 3 + 1] = c.g; col[(o + i) * 3 + 2] = c.b; flap[o + i] = e.flap; } o += p.count; e.g.dispose(); });
+    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos, 3)); g.setAttribute('normal', new THREE.BufferAttribute(nor, 3)); g.setAttribute('color', new THREE.BufferAttribute(col, 3)); g.setAttribute('aFlap', new THREE.BufferAttribute(flap, 1));
+    g.boundingSphere = new THREE.Sphere(new V3(0, 0, 0), 0.32); return g;
+  };
+  return {body:pack(body), glow:pack(glow)};
+}
+function wfMaterial(L){
+  const k = {soft:[0.9, 0], shiny:[0.35, 0.3], chrome:[0.16, 0.9], glass:[0.08, 0.1], stone:[0.95, 0], neon:[0.4, 0]}[L.mat] || [0.9, 0];
+  const m = new THREE.MeshStandardMaterial({vertexColors:true, roughness:k[0], metalness:k[1], side:THREE.DoubleSide});
+  if(L.mat === 'neon' || L.mat === 'glass'){ m.emissive = C(L.mat === 'neon' ? L.main : L.glow).multiplyScalar(L.mat === 'neon' ? 0.5 : 0.18); }
+  // the wings beat in the vertex shader (aFlap is +1 on the right wing, -1 on the left, 0 on the body), so the body stays one draw call
+  m.onBeforeCompile = sh => { sh.uniforms.uFlap = wf.uFlap;
+    sh.vertexShader = 'attribute float aFlap;\nuniform float uFlap;\n' + sh.vertexShader
+      .replace('#include <beginnormal_vertex>', '#include <beginnormal_vertex>\n float wfA = aFlap * uFlap, wfC = cos(wfA), wfS = sin(wfA); objectNormal.xy = vec2(objectNormal.x * wfC - objectNormal.y * wfS, objectNormal.x * wfS + objectNormal.y * wfC);')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\n transformed.xy = vec2(transformed.x * wfC - transformed.y * wfS, transformed.x * wfS + transformed.y * wfC);'); };
+  m.customProgramCacheKey = () => 'wayfarer-body';
+  return m;
+}
+// (re)build the creature from the stored words; it only changes when the player describes it
+function wfBuild(){
+  wfQuiet(() => {
+    if(wf.g){ scene.remove(wf.g); [wf.body, wf.glowMesh].forEach(m => { if(m){ m.geometry.dispose(); m.material.dispose(); } }); }
+    const L = wf.look = wfLookOf(wf.store.desc), G0 = wfGeo(L), g = new THREE.Group(); g.name = 'wayfarer';
+    wf.bodyM = wfMaterial(L); wf.glowM = new THREE.MeshBasicMaterial({vertexColors:true, toneMapped:false});
+    wf.body = new THREE.Mesh(G0.body, wf.bodyM); wf.glowMesh = new THREE.Mesh(G0.glow, wf.glowM);
+    [wf.body, wf.glowMesh].forEach(m => { m.castShadow = false; m.receiveShadow = false; m.userData.noAO = true; m.layers.set(1); g.add(m); });
+    wf.body.name = 'wayfarer:body'; wf.glowMesh.name = 'wayfarer:glow';
+    g.scale.setScalar(L.size * 1.25); g.position.copy(wf.P); wf.g = g; scene.add(g); wf.snap = true;
+  });
+}
+var _wfR = new V3(), _wfF = new V3(), _wfH = new V3(), _wfQ = new V3(), _wfD = new V3(), _wfN = new V3();
+// how the companion sits against the camera: distance to the line from the camera to your head, to the camera itself, and whether it is in the
+// middle of the picture closer than you are (any of those is "blocking")
+function wfBlockInfo(P){
+  const C0 = camWorld, h = me && me.recipe ? me.recipe.height : 1.8; _wfH.set(p.x, p.y + h * 0.85, p.z);
+  _wfD.subVectors(_wfH, C0); const len2 = _wfD.lengthSq(), t = len2 > 1e-6 ? clamp(_wfQ.subVectors(P, C0).dot(_wfD) / len2, 0, 1) : 0;
+  _wfQ.copy(C0).addScaledVector(_wfD, t); const seg = P.distanceTo(_wfQ), camD = P.distanceTo(C0);
+  const fp = len2 < 0.04, hd = Math.sqrt(len2);   /* first person: the camera is at your head */
+  _wfN.copy(P).project(camera); const centre = _wfN.z < 1 && Math.abs(_wfN.x) < 0.3 && Math.abs(_wfN.y) < 0.42 && (fp ? camD < 3 : camD < hd - 0.6);   /* in the middle of the picture and well in front of you */
+  return {seg, camD, ndc:[+_wfN.x.toFixed(3), +_wfN.y.toFixed(3)], centre, blocks:(seg < 0.3 && !fp) || camD < 0.75 || centre};
+}
+// every frame (from update): float towards a spot by your shoulder, then step out of the camera's way
+function wfTick(dt, time){
+  if(!wf.g || !me) return;
+  const S = wf.store, show = S.mode !== 'off' && !bc.on && !wf.hideTest;
+  wf.g.visible = show; if(!show){ wf.snap = true; wf.sayT = 0; return; }
+  const h = me.recipe ? me.recipe.height : 1.8, sy = Math.sin(cam.yaw), cy = Math.cos(cam.yaw), fp = cam.view === 2;
+  _wfR.set(cy, 0, -sy); _wfF.set(-sy, 0, -cy);
+  const bob = Math.sin(time * 1.7) * 0.05, sway = Math.sin(time * 0.63) * 0.08;
+  if(fp) wf.T.set(p.x, p.y + h * 0.8 + bob, p.z).addScaledVector(_wfR, 0.7 + sway * 0.5).addScaledVector(_wfF, 0.9);
+  else wf.T.set(p.x, p.y + h * 0.92 + 0.2 + bob, p.z).addScaledVector(_wfR, 0.7 + sway).addScaledVector(_wfF, 0.05);
+  if(pocketIn()){ const top = (pocketFloor(p.x, p.z) || p.y) + 2.1; if(wf.T.y > top) wf.T.y = top; }
+  if(wf.snap || wf.P.distanceTo(wf.T) > 8 || wf.world !== state.world){ wf.P.copy(wf.T); wf.V.set(0, 0, 0); wf.Tp.copy(wf.T); wf.snap = false; wf.world = state.world; }
+  else if(dt > 0){   /* a damped spring that also matches the spot's own speed, so it keeps up with a run without trailing far behind */
+    const k = 26, c = 2 * Math.sqrt(k) * 0.9; _wfD.subVectors(wf.T, wf.Tp).divideScalar(dt); if(_wfD.length() > 30) _wfD.setLength(30);
+    wf.V.x += ((wf.T.x - wf.P.x) * k + (_wfD.x - wf.V.x) * c) * dt; wf.V.y += ((wf.T.y - wf.P.y) * k + (_wfD.y - wf.V.y) * c) * dt; wf.V.z += ((wf.T.z - wf.P.z) * k + (_wfD.z - wf.V.z) * c) * dt; wf.P.addScaledVector(wf.V, dt); wf.Tp.copy(wf.T); }
+  // out of the way: off the line from the camera to your head, not in the camera's face, not in the middle of the picture in front of you
+  let b = wfBlockInfo(wf.P);
+  for(let i = 0; i < 8 && b.blocks; i++){
+    if(b.camD < 0.75){ _wfD.subVectors(wf.P, camWorld); if(_wfD.lengthSq() < 1e-6) _wfD.copy(_wfR); wf.P.copy(camWorld).addScaledVector(_wfD.normalize(), 0.8); }
+    if(b.seg < 0.3){ _wfD.subVectors(wf.P, _wfQ); _wfD.y *= 0.3; if(_wfD.lengthSq() < 1e-6) _wfD.copy(_wfR); wf.P.copy(_wfQ).addScaledVector(_wfD.normalize(), 0.34); }
+    if(b.centre) wf.P.addScaledVector(_wfR, (b.ndc[0] < 0 ? -1 : 1) * 0.12);
+    b = wfBlockInfo(wf.P);
+  }
+  wf.ticks++; if(b.blocks) wf.blocked++; wf.lastBlock = b;
+  const fl = (pocketIn() ? pocketFloor(wf.P.x, wf.P.z) : G(wf.P.x, wf.P.z)) + 0.25; if(wf.P.y < fl) wf.P.y = fl;
+  wf.g.position.copy(wf.P);
+  // face where you are heading (or the way the camera looks while you stand), bank a little into turns
+  const sp = Math.hypot(wf.V.x, wf.V.z), want = sp > 0.6 ? Math.atan2(wf.V.x, wf.V.z) : (fp ? Math.atan2(-_wfF.x, -_wfF.z) : p.facing);
+  wf.g.rotation.y = lerpAngle(wf.g.rotation.y, want, 1 - Math.exp(-dt * 5)); wf.g.rotation.z = clamp(-wf.V.x * cy * 0.08 + wf.V.z * sy * 0.08, -0.35, 0.35); wf.g.rotation.x = clamp(sp * 0.04, 0, 0.25);
+  // wings, the emote, and the lamp: dimmed in pockets (the Hollow, the hallway, the Den, quest arenas), brighter for a moment when it glows
+  wf.emoteT = Math.max(0, wf.emoteT - dt); const em = wf.emoteT > 0 ? wf.emote : null;
+  const w = em === 'flutter' ? 26 : em === 'sad' ? 6 : sp > 2 ? 20 : 14, amp = em === 'flutter' ? 0.8 : em === 'sad' ? 0.25 : wf.look.kind === 'drone' ? 0.12 : 0.55;
+  wf.flapPh = (wf.flapPh || 0) + dt * w; wf.uFlap.value = Math.sin(wf.flapPh) * amp + (em === 'sad' ? -0.35 : 0.1);
+  if(em === 'spin') wf.g.rotation.y += (1 - wf.emoteT / 1.2) * TAU; if(em === 'nod') wf.g.rotation.x += Math.sin(wf.emoteT * 14) * 0.3;
+  const dimTo = (pocketIn() ? 0.45 : 1) * (em === 'glow' ? 1.6 : em === 'sad' ? 0.6 : 1); wf.dim += (dimTo - wf.dim) * (1 - Math.exp(-dt * 3));
+  wf.glowM.color.setScalar(wf.dim);
+  wfBubble();
+}
+function wfEmote(kind){ if(['flutter', 'glow', 'spin', 'nod', 'sad'].indexOf(kind) < 0) return; wf.emote = kind; wf.emoteT = kind === 'spin' ? 1.2 : 1.8; }
+// the speech bubble over the companion (its own element; the locals' bubbles are swept by localsBubbles)
+var wfBubbleEl = null;
+function wfBubble(){
+  if(!wfBubbleEl) return;
+  const on = wf.sayT > 0 && wf.g.visible && !ph.on && !vr.on && !bc.on;
+  if(!on){ if(wfBubbleEl.style.display !== 'none') wfBubbleEl.style.display = 'none'; return; }
+  _wfN.copy(wf.P); _wfN.y += 0.28 * (wf.look ? wf.look.size : 1); _wfN.project(camera);
+  if(_wfN.z > 1 || Math.abs(_wfN.x) > 1.05 || Math.abs(_wfN.y) > 1.05){ wfBubbleEl.style.display = 'none'; return; }
+  if(wfBubbleEl.dataset.t !== wf.sayText){ wfBubbleEl.dataset.t = wf.sayText; wfBubbleEl.innerHTML = '<b>' + esc(wf.store.name) + '</b>' + esc(wf.sayText); }
+  wfBubbleEl.style.display = ''; wfBubbleEl.style.opacity = clamp(wf.sayT, 0, 1).toFixed(2);
+  wfBubbleEl.style.transform = 'translate(-50%,-100%) translate(' + ((_wfN.x * 0.5 + 0.5) * innerWidth).toFixed(1) + 'px,' + ((-_wfN.y * 0.5 + 0.5) * innerHeight).toFixed(1) + 'px)';
+}
+var ph = {on:false};   // photo mode (its own section below); the companion's bubble hides while it is on
+wf.store = wfLoad();
+wfBubbleEl = document.getElementById('wfSay');
+wfBuild();
+if(!localStorage.getItem(WF_KEY)) wfSave();
+// ---- test hooks (the Wayfarer) ----
+var WF_HOOKS = {
+  get store(){ return JSON.parse(JSON.stringify(wf.store)); },
+  get look(){ return JSON.parse(JSON.stringify(wf.look)); },
+  get state(){ const b = wf.lastBlock; return {visible:!!(wf.g && wf.g.visible), mode:wf.store.mode, name:wf.store.name, pos:wf.P.toArray().map(v => +v.toFixed(3)), target:wf.T.toArray().map(v => +v.toFixed(3)), lag:+wf.P.distanceTo(wf.T).toFixed(3),
+    dim:+wf.dim.toFixed(3), blocked:wf.blocked, ticks:wf.ticks, block:b ? {seg:+b.seg.toFixed(3), camD:+b.camD.toFixed(3), ndc:b.ndc, centre:b.centre, blocks:b.blocks} : null, saying:wf.sayT > 0 ? wf.sayText : null,
+    drawCalls:wf.g ? wf.g.children.filter(m => m.isMesh).length : 0, castShadow:wf.g ? wf.g.children.some(m => m.castShadow) : null, noAO:wf.g ? wf.g.children.every(m => m.userData.noAO) : null}; },
+  // make sure it is out (mode quiet if it was off) and snapped to its spot
+  spawn(){ if(wf.store.mode === 'off'){ wf.store.mode = 'quiet'; wfSave(); } wf.hideTest = false; wf.snap = true; wfTick(0.05, performance.now() / 1000); return WF_HOOKS.state; },
+  // walk the player (keys held through the real update(), loop stopped) and record how the companion follows and whether it ever blocks the view
+  follow(steps, o){ o = o || {}; steps = steps || 120; const wasLoop = !o.keepLoop; if(wasLoop) renderer.setAnimationLoop(null);
+    const k = o.keys || ['KeyW'], out = {steps, maxLag:0, sumLag:0, blockedSteps:0, worst:null, start:[p.x, p.z], end:null};
+    for(const c of k) keys[c] = true; const yaw0 = cam.yaw;
+    for(let i = 0; i < steps; i++){ if(o.turn) cam.yaw = yaw0 + Math.sin(i * 0.05) * o.turn; if(o.view != null && i === 0) setView(o.view); update(0.05, i * 0.05);
+      const b = wf.lastBlock, lag = wf.P.distanceTo(wf.T); out.maxLag = Math.max(out.maxLag, lag); out.sumLag += lag; if(b && b.blocks){ out.blockedSteps++; out.worst = b; } }
+    for(const c of k) keys[c] = false; out.avgLag = +(out.sumLag / steps).toFixed(3); out.maxLag = +out.maxLag.toFixed(3); delete out.sumLag; out.end = [+p.x.toFixed(2), +p.z.toFixed(2)];
+    if(o.view != null) setView(0); if(wasLoop) renderer.setAnimationLoop(frame); return out; },
+  // put the companion straight between the camera and you, then let one update() move it: it must leave the line of sight
+  blockTest(){ renderer.setAnimationLoop(null); update(0.05, 0); const h = me.recipe.height; wf.P.lerpVectors(camWorld, new V3(p.x, p.y + h * 0.85, p.z), 0.5); wf.V.set(0, 0, 0);
+    const before = wfBlockInfo(wf.P), b0 = {seg:+before.seg.toFixed(3), blocks:before.blocks}; update(0.05, 0.05); const after = wf.lastBlock; renderer.setAnimationLoop(frame);
+    return {before:b0, after:{seg:+after.seg.toFixed(3), camD:+after.camD.toFixed(3), centre:after.centre, blocks:after.blocks}}; },
+  describe(text){ wf.store.desc = scrubText(String(text || '').replace(/[\u0000-\u001f<>]/g, ' ')).replace(/\s+/g, ' ').trim().slice(0, 200); wfSave(); wfBuild(); return WF_HOOKS.look; },
+  lookOf:t => wfLookOf(t),
+  setMode(m){ if(WF_MODES.indexOf(m) < 0) return false; wf.store.mode = m; wfSave(); return true; },
+  emote:k => wfEmote(k),
+  clean:o => wfClean(o), saved(){ try{ return JSON.parse(localStorage.getItem(WF_KEY)); }catch(e){ return null; } }, key:WF_KEY
+};
+Object.defineProperties(window.__hub, {wayfarer:{value:WF_HOOKS}});
 })();
 </script>
 </body>
