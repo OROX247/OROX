@@ -333,6 +333,20 @@ body.bcast #hud, body.bcast #corner, body.bcast #roomCard, body.bcast #toast{ vi
   #toast{ bottom:calc(env(safe-area-inset-bottom,0px) + 170px); } #roomCard{ bottom:calc(env(safe-area-inset-bottom,0px) + 228px); }
 }
 @media (pointer:coarse) and (max-width:560px){ #denBar{ left:6px; right:6px; bottom:calc(env(safe-area-inset-bottom,0px) + 178px); } }   /* a phone held upright: above the stick and the jump button, full width */
+#slots{ z-index:12; }
+.slot-row{ border:1.5px solid rgba(255,255,255,.18); padding:10px 12px; margin:0 0 10px; }
+.slot-row.on{ border-color:var(--cyan); }
+.slot-head{ display:flex; gap:10px; align-items:center; font-size:16px; }
+.slot-tag{ font-size:12px; padding:1px 7px; border:1px solid var(--cyan); color:var(--cyan); }
+.slot-info{ margin:4px 0 0; color:var(--muted); font-size:14px; line-height:1.4; }
+.slot-bar{ display:flex; flex-wrap:wrap; gap:6px; }
+.slot-bar .ghost{ width:auto; flex:1 1 auto; margin-top:8px; padding:7px 10px; font-size:14px; }
+.slot-ask{ border:1.5px solid var(--gold); padding:10px 12px; margin:0 0 10px; }
+.slot-ask p{ margin:0 0 6px; }
+.slot-ask input{ width:100%; box-sizing:border-box; padding:8px; background:rgba(255,255,255,.06); border:1.5px solid rgba(255,255,255,.25); color:#f3f0ff; font:15px 'Chakra Petch','Trebuchet MS',sans-serif; }
+.intro-more{ display:flex; gap:8px; align-items:center; margin:0 0 10px; }
+.intro-more .ghost{ margin:0; width:auto; flex:1; }
+#slotNow{ color:var(--muted); font-size:13px; margin:0 0 6px; }
 </style>
 </head>
 <body class="paused">
@@ -379,8 +393,22 @@ body.bcast #hud, body.bcast #corner, body.bcast #roomCard, body.bcast #toast{ vi
     <div class="swatch-row"><span>Glow</span><span class="swatches" id="visorSw"></span></div>
     <p class="controls mouse-only">WASD to move, Shift to run, Space to jump and Space again mid-air to boost. Drag to look, scroll to zoom. M warp, E ride / shop / vend (and read, ask and inspect in the Archive, south of the plaza), F Worldsmith (describe a realm and it is built; it goes on forever, with landmarks invented as you walk), X fight back (a pulse where tech works, a ward where only magic does), B T H K the powers of any artifacts you hold, I inventory, J Explorer Log (every star on the Warp map is a planet), V camera, C cinematic, N sound, Esc this panel. A VR button appears when a headset is connected.</p>
     <p class="controls touch-only">Left stick to move, Jump twice to boost, drag anywhere else to look. Warp is top right.</p>
+    <p id="slotNow"></p>
+    <div class="intro-more"><button class="ghost" id="slotsBtn" aria-label="Saves: three save slots, import and export">Saves</button></div>
     <button class="ghost" id="ledgerBtn" style="margin:0 0 10px">The Ashcombe Ledger</button>
     <button class="start" id="startBtn">Enter the Hub</button>
+  </div>
+</div>
+
+<div id="slots" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="slotsTitle">
+  <div class="card">
+    <h2 id="slotsTitle">Saves</h2>
+    <p class="lede">Three save slots. Each keeps everything: your avatar, credits, shards, the locals' memory, your Den, your charted planets and forged realms. Export a slot to a file to keep it safe or move it to another computer.</p>
+    <div id="slotList"></div>
+    <div id="slotAsk" class="slot-ask" role="alertdialog" aria-labelledby="slotAskText" hidden><p id="slotAskText"></p><input id="slotAskInput" maxlength="24" autocomplete="off" spellcheck="false" aria-label="Slot name" hidden><div class="slot-bar"><button class="ghost" id="slotAskYes">Yes</button><button class="ghost" id="slotAskNo">Cancel</button></div></div>
+    <p class="lede" id="slotMsg" role="status" aria-live="polite"></p>
+    <input type="file" id="slotFile" accept=".json,application/json" hidden aria-hidden="true">
+    <button class="ghost" id="slotsClose">Close</button>
   </div>
 </div>
 
@@ -3014,6 +3042,59 @@ const FOG_SUN = {x:0, y:1, z:0}, FOG_SUNCOL = {r:1, g:0.8, b:0.6}, FOG_PARAMS = 
   for(const k in THREE.ShaderLib){ const u = THREE.ShaderLib[k].uniforms; if(u && u.fogColor){ u.fogSunDir = {value:FOG_SUN}; u.fogSunColor = {value:FOG_SUNCOL}; u.fogParams = {value:FOG_PARAMS}; } }
 })();
 
+/* ================= save slots (Phase 4) ================= */
+// Three save slots. The live keys (SLOT_STORES) always hold the slot being played, so every loader below reads them exactly as before and the
+// old single save simply is slot 1. The other slots rest under 'hub-slot<n>:' + key. A switch (continue, new game, or new data for the slot in
+// play) is queued in SLOT_PENDING and carried out here, at the very top of the next page load: before any loader runs, and after the old page's
+// last writes have landed, so nothing the old page saves can spill into the new slot. Device settings (accessibility, keys for AI services,
+// realm looks) are not part of a slot.
+const SLOT_STORES = ['hub-universe-save-v2', 'hub-locals-v1', 'hub-den-v1', 'hub-fennick-v1', 'hub-explorer-v1', 'hub-dreams-v1', 'hub-realms-v1'];
+const SLOT_META = 'hub-slots-v1', SLOT_PENDING = 'hub-slot-pending', SLOT_N = 3;
+const slotKey = (n, k) => 'hub-slot' + n + ':' + k, slotStage = k => 'hub-slot-stage:' + k;
+const slotLs = {get(k){ try{ return localStorage.getItem(k); }catch(e){ return null; } }, set(k, v){ if(v == null) localStorage.removeItem(k); else localStorage.setItem(k, v); }};
+function slotName(s){ return typeof s === 'string' ? s.replace(/[\u0000-\u001f\u007f<>]/g, '').replace(/\s+/g, ' ').trim().slice(0, 24) : ''; }
+function slotMeta(){
+  let o = null; try{ o = JSON.parse(slotLs.get(SLOT_META) || 'null'); }catch(e){}
+  const m = {v:1, active:1, slots:{}}, src = o && typeof o === 'object' && o.slots && typeof o.slots === 'object' && !Array.isArray(o.slots) ? o.slots : null;
+  if(o && typeof o === 'object'){ const a = Math.floor(Number(o.active)); if(a >= 1 && a <= SLOT_N) m.active = a; }
+  for(let n = 1; n <= SLOT_N; n++){
+    const s = src && Object.prototype.hasOwnProperty.call(src, String(n)) && src[n] && typeof src[n] === 'object' ? src[n] : {};
+    const pl = Number(s.played);
+    m.slots[n] = {name:slotName(s.name), played:isFinite(pl) && pl > 0 && pl < 1e14 ? Math.floor(pl) : 0, realm:typeof s.realm === 'string' && /^[a-z0-9:_-]{1,40}$/i.test(s.realm) ? s.realm : ''};
+  }
+  return m;
+}
+function slotMetaSave(m){ try{ slotLs.set(SLOT_META, JSON.stringify(m)); }catch(e){} }
+// the boot step: carry out a queued switch, never throwing (a broken switch leaves the slot in play as it was)
+const slotBoot = (() => {
+  const out = {did:null, err:null};
+  let pend = null; try{ pend = JSON.parse(slotLs.get(SLOT_PENDING) || 'null'); }catch(e){}
+  try{ slotLs.set(SLOT_PENDING, null); }catch(e){}
+  if(!pend || typeof pend !== 'object') return out;
+  const m = slotMeta(), cur = m.active, to = Math.floor(Number(pend.to));
+  if(!(to >= 1 && to <= SLOT_N)) return out;
+  const live = {}; SLOT_STORES.forEach(k => { live[k] = slotLs.get(k); });
+  try{
+    if(to !== cur){
+      SLOT_STORES.forEach(k => slotLs.set(slotKey(cur, k), live[k]));                 // the slot being left is kept whole first
+      SLOT_STORES.forEach(k => { slotLs.set(k, slotLs.get(slotKey(to, k))); });        // then the new slot moves into the live keys
+      SLOT_STORES.forEach(k => slotLs.set(slotKey(to, k), null));
+    }
+    if(pend.stage){ SLOT_STORES.forEach(k => { slotLs.set(k, slotLs.get(slotStage(k))); slotLs.set(slotStage(k), null); }); }
+    m.active = to; if(pend.fresh) m.slots[to] = {name:slotName(pend.name), played:0, realm:''};
+    if(typeof pend.name === 'string' && pend.name) m.slots[to].name = slotName(pend.name);
+    slotMetaSave(m); out.did = {from:cur, to, stage:!!pend.stage, cont:!!pend.cont};
+  }catch(e){
+    out.err = String(e && e.message || e);   // most likely the storage is full: put the slot in play back as it was
+    try{ SLOT_STORES.forEach(k => { slotLs.set(k, live[k]); if(to !== cur) slotLs.set(slotKey(cur, k), null); slotLs.set(slotStage(k), null); }); }catch(x){}
+  }
+  return out;
+})();
+// last played and the realm, for the Saves panel (written at most every 5 s, or at once when the realm changes)
+let slotTouchT = 0, slotTouchW = '';
+function slotTouch(world){ const now = Date.now(); if(now - slotTouchT < 5000 && world === slotTouchW) return; slotTouchT = now; slotTouchW = world;
+  const m = slotMeta(); m.slots[m.active].played = now; if(typeof world === 'string') m.slots[m.active].realm = world.slice(0, 40); slotMetaSave(m); }
+
 /* ================= save ================= */
 const SAVE_KEY = 'hub-universe-save-v2';
 function loadSave(){ try{ const v = localStorage.getItem(SAVE_KEY); return v ? JSON.parse(v) : {}; }catch(e){ return {}; } }
@@ -3045,6 +3126,7 @@ const state = {
 function persist(){
   try{ localStorage.setItem(SAVE_KEY, JSON.stringify({coins:[...state.coins], shards:[...state.shards], visited:[...state.visited],
     name:state.name, color:state.color, visor:state.visor, xp:state.xp, credits:state.credits, won:state.won, look:state.look, lookSeed:state.lookSeed, lookPath:state.lookPath, recipe:state.recipe, owned:[...state.owned], mute:state.mute, best:state.best, inv:state.inv, picked:[...state.picked], fuel:Math.round(state.fuel * 10) / 10, enrolled:state.enrolled, archive:{ledger:state.archive.ledger, rooms:[...state.archive.rooms], found:[...state.archive.found], broadcast:state.archive.broadcast}, hunt:state.hunt, qp:state.qp, kills:state.kills, art:state.art})); }catch(e){}
+  slotTouch(state.world);   // Phase 4: last played and realm for the Saves panel
 }
 function rng(seed){ return function(){ seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
 function makeNoise(seed){
@@ -6297,7 +6379,7 @@ function realmLook(r){
   return L;
 }
 const WS_KEY = 'hub-realms-v1';
-let realms = []; try{ realms = JSON.parse(localStorage.getItem(WS_KEY) || '[]'); if(!Array.isArray(realms)) realms = []; }catch(e){ realms = []; }
+let realms = []; try{ realms = JSON.parse(localStorage.getItem(WS_KEY) || '[]'); if(!Array.isArray(realms)) realms = []; realms = realms.filter(cleanRealmRec); }catch(e){ realms = []; }   // Phase 4: a forged record (no id, no text) is dropped instead of stopping the load
 function saveRealms(){ try{ localStorage.setItem(WS_KEY, JSON.stringify(realms.slice(-26))); }catch(e){} }
 function realmKey(rl){ return 'w:' + rl.id; }
 function registerRealm(rl){
@@ -9997,6 +10079,7 @@ window.addEventListener('keydown', e => {
   if(!regEl.classList.contains('hidden')){ if(e.code === 'Escape') closeRegistrar(); return; }
   if(!talkEl.classList.contains('hidden')){ if(e.code === 'Escape'){ e.preventDefault(); closeTalk(); } else if(e.code === 'Enter' || (e.code === 'KeyE' && !e.repeat)){ e.preventDefault(); $('#talkQ').focus(); } return; }   // Living Locals: the conversation
   if(!memoEl.classList.contains('hidden')){ if(e.code === 'Escape' || e.code === 'Enter' || (e.code === 'KeyE' && !e.repeat)){ e.preventDefault(); closeMemo(); } return; }
+  if(slotsKey(e)) return;   // Phase 4: the Saves panel sits over the intro card
   if(!introEl.classList.contains('hidden')){ if(e.code === 'Enter' || (e.code === 'Escape' && state.started)){ e.preventDefault(); startGame(); } return; }
   if(!lookEl.classList.contains('hidden')){ if(e.code === 'Escape') closeLook(); return; }
   if(!xlogEl.classList.contains('hidden')){ if(e.code === 'Escape' || (e.code === 'KeyJ' && !(e.target && e.target.tagName === 'INPUT'))){ e.preventDefault(); closeXlog(); } return; }
@@ -19374,6 +19457,195 @@ Object.defineProperties(window.__hub, {
     others:() => { const out = {}; for(const k of WORLD_ORDER){ try{ buildWorld(k); out[k] = {core:coreSum().world, coins:coins.length, npcs:npcs.length, lift:!!(denRT && denRT.lift)}; }catch(e){ out[k] = 'THROW ' + e.message; } } buildWorld('hub'); return out; }
   }}
 });
+/* ================= the Saves panel (Phase 4) ================= */
+// Everything here is a function declaration or var, like the Den section: the panel is only used long after load. Slot data is read raw from
+// storage and every field the list shows is checked on the way (a forged slot shows as "unreadable" or with safe defaults, never throws); the
+// game itself only ever sees a slot through the usual loaders after a reload, which clean it as they always have.
+var SLOT_EXPORT_TAG = 'hub-save-slot', SLOT_MAX_BYTES = 4000000;
+var slotsEl = $('#slots'), slotConfirm = null;
+function slotRead(n, k){ return slotMeta().active === n ? slotLs.get(k) : slotLs.get(slotKey(n, k)); }
+function slotEmpty(n){ return SLOT_STORES.every(k => slotRead(n, k) == null); }
+function slotFlush(){ try{ persist(); }catch(e){} try{ saveLocals(); }catch(e){} try{ denSave(); }catch(e){} try{ fbMemSave(); }catch(e){} try{ saveExplorer(); }catch(e){} try{ saveDreams(); }catch(e){} try{ saveRealms(); }catch(e){} }
+function slotInfo(n){
+  const m = slotMeta(), s = m.slots[n], o = {n, active:m.active === n, label:s.name || ('Slot ' + n), name:'', level:0, credits:0, shards:0, realm:'', realmName:'', played:s.played, empty:slotEmpty(n), ok:true};
+  if(o.empty) return o;
+  let sv = null; try{ sv = JSON.parse(slotRead(n, SAVE_KEY) || 'null'); }catch(e){ o.ok = false; }
+  if(sv && typeof sv === 'object' && !Array.isArray(sv)){
+    o.name = typeof sv.name === 'string' ? sv.name.replace(/[\u0000-\u001f]/g, '').slice(0, 16) : '';
+    const xp = Number(sv.xp); o.level = lvlOf(isFinite(xp) && xp > 0 ? xp : 0);
+    const cr = Number(sv.credits); o.credits = isFinite(cr) ? Math.max(0, Math.min(1e9, Math.floor(cr))) : 0;
+    o.shards = Array.isArray(sv.shards) ? ['dunes', 'grid', 'sky'].filter(k => sv.shards.indexOf(k) >= 0).length : 0;
+  } else if(sv !== null) o.ok = false;
+  else if(!o.empty) o.level = 1;
+  o.realm = m.active === n && state.started ? state.world : s.realm;
+  o.realmName = o.realm && hasOwn(WORLDS, o.realm) && WORLDS[o.realm] && typeof WORLDS[o.realm].name === 'string' ? WORLDS[o.realm].name : (/^p:/.test(o.realm) ? 'a charted planet' : /^w:/.test(o.realm) ? 'a forged realm' : o.realm ? 'Hub Spaceport' : '');
+  return o;
+}
+function slotList(){ const out = []; for(let n = 1; n <= SLOT_N; n++) out.push(slotInfo(n)); return out; }
+// the whole slot as plain data: {key: parsed value}; unreadable stores are left out
+function slotData(n){ if(slotMeta().active === n) slotFlush(); const st = {}; SLOT_STORES.forEach(k => { const v = slotRead(n, k); if(v == null) return; try{ st[k] = JSON.parse(v); }catch(e){} }); return st; }
+// rebuild any JSON value with plain objects only: no "__proto__" / "constructor" / "prototype" keys, bounded depth, size and string length
+function slotSafe(v, d){
+  d = d || 0; if(d > 14) return null;
+  if(v === null || typeof v === 'boolean') return v;
+  if(typeof v === 'number') return isFinite(v) ? v : 0;
+  if(typeof v === 'string') return v.length > 20000 ? v.slice(0, 20000) : v;
+  if(Array.isArray(v)) return v.slice(0, 5000).map(x => slotSafe(x, d + 1));
+  if(typeof v === 'object'){ const o = {}; let i = 0; for(const k of Object.keys(v)){ if(k === '__proto__' || k === 'constructor' || k === 'prototype') continue; if(++i > 5000) break; o[k.slice(0, 200)] = slotSafe(v[k], d + 1); } return o; }
+  return null;
+}
+// validate a parsed export file and clean every store in it; returns {ok, stores, name, why}
+function slotCheckFile(o){
+  if(!o || typeof o !== 'object' || Array.isArray(o)) return {ok:false, why:'This is not a Hub save file.'};
+  if(o.hub !== SLOT_EXPORT_TAG) return {ok:false, why:'This is not a Hub save file.'};
+  if(!o.stores || typeof o.stores !== 'object' || Array.isArray(o.stores)) return {ok:false, why:'The file has no saved game in it.'};
+  const st = {}; let any = false;
+  for(const k of SLOT_STORES){
+    if(!hasOwn(o.stores, k)) continue; const v = o.stores[k];
+    if(k === 'hub-realms-v1'){ if(!Array.isArray(v)) continue; st[k] = slotSafe(v).filter(cleanRealmRec).slice(-26); any = true; continue; }
+    if(!v || typeof v !== 'object' || Array.isArray(v)) continue;
+    let c = slotSafe(v);
+    if(k === SAVE_KEY) c = slotCleanMain(c);
+    if(k === 'hub-den-v1'){ try{ const d = denClean(c); c = {v:1, own:Object.assign({}, d.own), placed:d.placed.map(e => e.wall ? {id:e.id, wall:e.wall, a:e.a, b:e.b, r:e.r} : {id:e.id, a:e.a, b:e.b, r:e.r})}; }catch(e){ continue; } }
+    if(k === 'hub-fennick-v1') c = {found:Array.isArray(c.found) ? c.found.filter((id, i, a) => typeof id === 'string' && FB_MEMS.some(m => m.id === id) && a.indexOf(id) === i) : [], all:!!c.all};
+    if(k === 'hub-explorer-v1'){ const pl = c.planets && typeof c.planets === 'object' && !Array.isArray(c.planets) ? c.planets : {}; for(const id of Object.keys(pl)){ const e = pl[id]; if(!/^\d+-\d+$/.test(id) || !e || typeof e !== 'object' || e.id !== id || typeof e.name !== 'string') delete pl[id]; } c.planets = pl; }
+    st[k] = c; any = true;
+  }
+  if(!any || !st[SAVE_KEY]) return {ok:false, why:'The file has no saved game in it.'};
+  const s = JSON.stringify(st); if(s.length > SLOT_MAX_BYTES) return {ok:false, why:'That save is too big.'};
+  return {ok:true, stores:st, name:slotName(o.name)};
+}
+// the main save's top-level fields, checked by type (the loaders and cleanInv/artClean/qpClean check the rest at load, as for any save)
+function slotCleanMain(c){
+  const A = v => Array.isArray(v) ? v.filter(x => typeof x === 'string' && x.length < 80).slice(0, 4000) : [], N = (v, lo, hi, d) => typeof v === 'number' && isFinite(v) ? Math.max(lo, Math.min(hi, v)) : d;
+  const S = (v, n) => typeof v === 'string' ? v.slice(0, n) : '';
+  const out = Object.assign({}, c);
+  out.coins = A(c.coins); out.shards = A(c.shards).filter(k => ['dunes', 'grid', 'sky'].indexOf(k) >= 0); out.visited = A(c.visited); out.owned = A(c.owned); out.picked = A(c.picked);
+  out.name = S(c.name, 16); out.look = S(c.look, 300); out.color = /^#[0-9a-f]{6}$/i.test(c.color) ? c.color : '#1f2a44'; out.visor = /^#[0-9a-f]{6}$/i.test(c.visor) ? c.visor : '#5ce1e6';
+  out.xp = N(c.xp, 0, 1e7, 0); out.credits = Math.floor(N(c.credits, 0, 1e9, 20)); out.fuel = N(c.fuel, 0, 100, 100);
+  ['inv', 'best', 'qp'].forEach(k => { out[k] = c[k] && typeof c[k] === 'object' && !Array.isArray(c[k]) ? c[k] : {}; });
+  if(c.recipe != null){ try{ out.recipe = cleanRecipe(c.recipe); }catch(e){ out.recipe = null; } }
+  return out;
+}
+function cleanRealmRec(rl){ return !!rl && typeof rl === 'object' && !Array.isArray(rl) && typeof rl.id === 'string' && /^[a-z0-9_-]{1,40}$/i.test(rl.id) && typeof rl.text === 'string' && rl.text.length <= 600 && (rl.name == null || typeof rl.name === 'string'); }
+// write a whole slot (stores = {key: value}, missing keys are cleared). The slot in play is only ever written through a reload (staged).
+function slotWrite(n, stores, name, reload){
+  const m = slotMeta();
+  if(m.active === n){
+    try{ SLOT_STORES.forEach(k => slotLs.set(slotStage(k), hasOwn(stores, k) ? JSON.stringify(stores[k]) : null)); slotLs.set(SLOT_PENDING, JSON.stringify({to:n, stage:true, name:name || '', fresh:!Object.keys(stores).length})); }
+    catch(e){ SLOT_STORES.forEach(k => { try{ slotLs.set(slotStage(k), null); }catch(x){} }); return {ok:false, why:'There is no room left in this browser\'s storage.'}; }
+    if(reload !== false) slotReload(); return {ok:true, reload:true};
+  }
+  const old = {}; SLOT_STORES.forEach(k => { old[k] = slotLs.get(slotKey(n, k)); });
+  try{ SLOT_STORES.forEach(k => slotLs.set(slotKey(n, k), hasOwn(stores, k) ? JSON.stringify(stores[k]) : null)); }
+  catch(e){ SLOT_STORES.forEach(k => { try{ slotLs.set(slotKey(n, k), old[k]); }catch(x){} }); return {ok:false, why:'There is no room left in this browser\'s storage.'}; }
+  m.slots[n] = {name:slotName(name), played:Date.now(), realm:'hub'}; slotMetaSave(m); return {ok:true};
+}
+var slotReloadHook = null;   // a test can catch the reload instead (window.__hub.slots.noReload)
+function slotReload(){ if(slotReloadHook){ slotReloadHook(); return; } try{ location.reload(); }catch(e){ toast('Reload the page to switch slots.', 5000); } }
+function slotUse(n, how){   // continue (or start a new game in) slot n: the switch happens at the top of the next load
+  n = Math.floor(n); if(!(n >= 1 && n <= SLOT_N)) return {ok:false, why:'No such slot.'};
+  const m = slotMeta(); if(m.active === n && how !== 'new'){ closeSlots(); return {ok:true, same:true}; }
+  if(how === 'new' && !slotEmpty(n)) return {ok:false, why:'That slot is not empty. Delete it first.'};
+  if(m.active !== n) slotFlush();
+  try{ slotLs.set(SLOT_PENDING, JSON.stringify({to:n, cont:how !== 'new', fresh:how === 'new'})); }catch(e){ return {ok:false, why:'Storage is not available.'}; }
+  slotReload(); return {ok:true, reload:true};
+}
+function slotCopy(a, b, force){
+  if(a === b || !(a >= 1 && a <= SLOT_N) || !(b >= 1 && b <= SLOT_N)) return {ok:false, why:'Pick two different slots.'};
+  if(slotEmpty(a)) return {ok:false, why:'Slot ' + a + ' is empty.'};
+  if(!slotEmpty(b) && !force) return {ok:false, why:'Slot ' + b + ' is not empty.', confirm:true};
+  const st = slotData(a), nm = slotInfo(a).label;
+  return slotWrite(b, st, slotName(nm + ' copy'));
+}
+function slotDelete(n){
+  if(!(n >= 1 && n <= SLOT_N)) return {ok:false, why:'No such slot.'};
+  const m = slotMeta();
+  if(m.active === n){ return slotWrite(n, {}, ''); }
+  SLOT_STORES.forEach(k => { try{ slotLs.set(slotKey(n, k), null); }catch(e){} });
+  m.slots[n] = {name:'', played:0, realm:''}; slotMetaSave(m); return {ok:true};
+}
+function slotRename(n, name){ if(!(n >= 1 && n <= SLOT_N)) return {ok:false}; const m = slotMeta(); m.slots[n].name = slotName(name); slotMetaSave(m); return {ok:true, name:m.slots[n].name}; }
+function slotExportText(n){ const i = slotInfo(n); if(i.empty) return null; return JSON.stringify({hub:SLOT_EXPORT_TAG, v:1, name:slotMeta().slots[n].name || i.name, exported:new Date().toISOString(), stores:slotData(n)}); }
+function slotExport(n){
+  const txt = slotExportText(n); if(!txt){ toast('That slot is empty.', 2000); return null; }
+  const file = 'hub-save-' + (slotInfo(n).label.replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '').toLowerCase() || ('slot-' + n)) + '.json';
+  try{ const url = URL.createObjectURL(new Blob([txt], {type:'application/json'})), a = document.createElement('a'); a.href = url; a.download = file; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 4000); }catch(e){}
+  return {file, bytes:txt.length};
+}
+function slotImportText(n, txt, force){
+  if(typeof txt !== 'string' || txt.length > SLOT_MAX_BYTES * 1.5) return {ok:false, why:'That file is too big.'};
+  let o = null; try{ o = JSON.parse(txt); }catch(e){ return {ok:false, why:'That file could not be read.'}; }
+  const r = slotCheckFile(o); if(!r.ok) return r;
+  if(!slotEmpty(n) && !force) return {ok:false, why:'Slot ' + n + ' is not empty.', confirm:true};
+  const w = slotWrite(n, r.stores, r.name || 'Imported'); return Object.assign({stores:Object.keys(r.stores)}, w);
+}
+// the panel
+function renderSlots(){
+  const list = $('#slotList'); list.textContent = '';
+  slotList().forEach(i => {
+    const row = document.createElement('div'); row.className = 'slot-row' + (i.active ? ' on' : ''); row.setAttribute('role', 'group'); row.setAttribute('aria-label', 'Slot ' + i.n + (i.active ? ', in play' : ''));
+    const h = document.createElement('div'); h.className = 'slot-head'; const b = document.createElement('b'); b.textContent = i.n + '. ' + i.label; h.appendChild(b);
+    if(i.active){ const t = document.createElement('span'); t.className = 'slot-tag'; t.textContent = 'In play'; h.appendChild(t); }
+    row.appendChild(h);
+    const d = document.createElement('div'); d.className = 'slot-info';
+    d.textContent = i.empty ? 'Empty slot' : !i.ok ? 'This slot could not be read. Delete it, or load it and the game will clean what it can.' :
+      (i.name || 'No name yet') + ' · Level ' + i.level + ' · ₵' + i.credits.toLocaleString('en-GB') + ' · Shards ' + i.shards + '/3' + (i.realmName ? ' · ' + i.realmName : '') + (i.played ? ' · ' + new Date(i.played).toLocaleString('en-GB', {dateStyle:'medium', timeStyle:'short'}) : '');
+    row.appendChild(d);
+    const bar = document.createElement('div'); bar.className = 'slot-bar';
+    const btn = (txt, f, aria) => { const x = document.createElement('button'); x.className = 'ghost'; x.textContent = txt; x.setAttribute('aria-label', aria || (txt + ', slot ' + i.n)); x.addEventListener('click', f); bar.appendChild(x); return x; };
+    if(i.empty){ btn('New game', () => slotAct(slotUse(i.n, 'new'))); btn('Import', () => slotPickFile(i.n)); }
+    else {
+      btn(i.active ? 'Continue' : 'Load', () => slotAct(slotUse(i.n, 'cont')));
+      btn('Copy', () => slotAskCopy(i.n)); btn('Rename', () => slotAskRename(i.n)); btn('Export', () => { const r = slotExport(i.n); if(r) $('#slotMsg').textContent = 'Saved ' + r.file + ' to your downloads.'; });
+      btn('Import', () => slotPickFile(i.n)); btn('Delete', () => slotAsk('Delete ' + i.label + '? This cannot be undone.' + (i.active ? ' The game reloads with an empty slot.' : ''), () => slotAct(slotDelete(i.n))));
+    }
+    row.appendChild(bar); list.appendChild(row);
+  });
+  $('#slotAsk').hidden = true;
+}
+function slotAct(r){ if(!r) return; $('#slotMsg').textContent = r.ok ? (r.reload ? 'Loading…' : 'Done.') : (r.why || 'That did not work.'); if(r.ok && !r.reload && !r.same) renderSlots(); }
+function slotAsk(text, yes, input){
+  const box = $('#slotAsk'); box.hidden = false; $('#slotAskText').textContent = text; const inp = $('#slotAskInput'); inp.hidden = input == null; if(input != null){ inp.value = input; }
+  slotConfirm = yes; (input != null ? inp : $('#slotAskNo')).focus();
+}
+function slotAnswer(ok){ const f = slotConfirm; slotConfirm = null; $('#slotAsk').hidden = true; if(ok && f) f($('#slotAskInput').value); }
+function slotAskRename(n){ slotAsk('A name for slot ' + n + ':', v => slotAct(slotRename(n, v)), slotInfo(n).label); }
+function slotAskCopy(n){
+  const to = [1, 2, 3].filter(k => k !== n), empty = to.filter(slotEmpty), dest = empty.length ? empty[0] : to[0];
+  slotAsk('Copy slot ' + n + ' into slot ' + dest + '?' + (empty.length ? '' : ' Slot ' + dest + ' is not empty; it will be replaced.') + (slotMeta().active === dest ? ' The game reloads.' : ''), () => slotAct(slotCopy(n, dest, true)));
+}
+function slotPickFile(n){
+  const f = $('#slotFile'); f.value = ''; f.onchange = () => { const file = f.files && f.files[0]; if(!file) return; if(file.size > SLOT_MAX_BYTES * 1.5){ slotAct({ok:false, why:'That file is too big.'}); return; }
+    file.text().then(txt => { const r = slotImportText(n, txt, false); if(r.confirm) slotAsk('Replace slot ' + n + ' with the imported save?' + (slotMeta().active === n ? ' The game reloads.' : ''), () => slotAct(slotImportText(n, txt, true))); else slotAct(r); }, () => slotAct({ok:false, why:'That file could not be read.'})); };
+  f.click();
+}
+function openSlots(){ renderSlots(); $('#slotMsg').textContent = slotBoot.err ? 'The last switch could not be finished: ' + slotBoot.err : ''; slotsEl.classList.remove('hidden'); $('#slotsClose').focus(); }
+function closeSlots(){ if(slotsEl.classList.contains('hidden')) return; slotsEl.classList.add('hidden'); slotConfirm = null; const b = $('#slotsBtn'); if(b && !introEl.classList.contains('hidden')) b.focus(); }
+$('#slotsBtn').addEventListener('click', openSlots); $('#slotsClose').addEventListener('click', closeSlots);
+$('#slotAskYes').addEventListener('click', () => slotAnswer(true)); $('#slotAskNo').addEventListener('click', () => slotAnswer(false));
+$('#slotAskInput').addEventListener('keydown', e => { e.stopPropagation(); if(e.key === 'Enter'){ e.preventDefault(); slotAnswer(true); } if(e.key === 'Escape'){ e.preventDefault(); slotAnswer(false); } });
+if(slotBoot.did) setTimeout(() => { const i = slotInfo(slotBoot.did.to); toast((slotBoot.did.stage ? 'Slot ' + i.n + ' is ready' : 'Slot ' + i.n + ' loaded') + (i.name ? ': ' + i.name : ''), 3500); }, 600);
+{ const i = slotInfo(slotMeta().active), el = $('#slotNow'); if(el) el.textContent = 'Slot ' + i.n + (i.label !== 'Slot ' + i.n ? ' · ' + i.label : '') + (i.empty ? ' · new game' : ''); }
+// the main keydown asks this first while the Saves panel is open
+function slotsKey(e){
+  if(slotsEl.classList.contains('hidden')) return false;
+  if(e.code === 'Escape'){ e.preventDefault(); if(!$('#slotAsk').hidden) slotAnswer(false); else closeSlots(); }
+  return true;
+}
+Object.defineProperties(window.__hub, {
+  slots:{get:() => ({
+    list:slotList, meta:slotMeta, boot:slotBoot, stores:SLOT_STORES, open:openSlots, close:closeSlots, render:renderSlots,
+    use:(n, how) => slotUse(n, how || 'cont'), newGame:n => slotUse(n, 'new'), copy:(a, b, force) => slotCopy(a, b, force), del:n => slotDelete(n), rename:slotRename,
+    exportText:slotExportText, export:slotExport, importText:(n, txt, force) => slotImportText(n, txt, force), check:txt => { try{ const r = slotCheckFile(JSON.parse(txt)); return r.ok ? {ok:true, name:r.name, stores:r.stores} : r; }catch(e){ return {ok:false, why:'not JSON'}; } },
+    raw:(n, k) => slotRead(n, k || SAVE_KEY), data:slotData,
+    // test only: catch reloads instead of reloading (then call __hub.slots.reload() yourself); and make an old single save from scratch
+    set noReload(v){ slotReloadHook = v ? () => { window.__slotReloads = (window.__slotReloads || 0) + 1; } : null; },
+    reload:() => location.reload(),
+    makeOldSave:o => { try{ localStorage.removeItem(SLOT_META); localStorage.removeItem(SLOT_PENDING); for(let n = 1; n <= SLOT_N; n++) SLOT_STORES.forEach(k => localStorage.removeItem(slotKey(n, k))); localStorage.setItem(SAVE_KEY, JSON.stringify(o)); return true; }catch(e){ return false; } }
+  })}
+});
+
 })();
 </script>
 </body>
