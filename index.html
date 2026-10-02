@@ -4758,9 +4758,26 @@ function animateAvatar(a, dt, speed, grounded, time){
 
 state.recipe = cleanRecipe(sv.recipe && typeof sv.recipe === 'object' ? sv.recipe : state.look ? parseDescription(state.look) : {colours:{main:state.color, glow:state.visor}, eyes:{glow:state.visor}});
 let me = null, halo = null;
+// frees a replaced avatar on the GPU: its geometries, its own materials and their own textures (the name tag's canvas was left behind on every
+// rebuild before, +1 GPU texture each time). Cached and shared things stay: SHARED_TEX (patterns, screen faces, face shading, Decart faces,
+// Poly Haven and kit textures), materials marked userData.shared, SHARED_GEO, and the one plane all sprites share inside three.js.
+const AV_TEX_KEYS = ['map', 'emissiveMap', 'normalMap', 'roughnessMap', 'metalnessMap', 'alphaMap', 'aoMap', 'bumpMap', 'lightMap', 'displacementMap', 'clearcoatNormalMap', 'clearcoatMap', 'clearcoatRoughnessMap', 'transmissionMap', 'specularMap', 'envMap'];
+const avSharedGeo = q => { try{ return SHARED_GEO.has(q); }catch(e){ return false; } };   // (SHARED_GEO is declared further down)
+function disposeAvatar(av){
+  const g = av && (av.g || av); if(!g) return;
+  if(g.parent) g.parent.remove(g);
+  g.traverse(o => {
+    if(o.geometry && !o.isSprite && !avSharedGeo(o.geometry)) o.geometry.dispose();
+    if(o.material) (Array.isArray(o.material) ? o.material : [o.material]).forEach(m => {
+      if(m.userData.shared) return;
+      AV_TEX_KEYS.forEach(k => { const t = m[k]; if(t && !SHARED_TEX.has(t) && perfReupload(t)) t.dispose(); });   // (perfReupload: only textures with their own image, never a render target's)
+      m.dispose();
+    });
+  });
+}
 function rebuildPlayer(){
   const pos = me ? me.g.position.clone() : null, ry = me ? me.g.rotation.y : Math.PI;
-  if(me){ scene.remove(me.g); me.g.traverse(o => { if(o.geometry) o.geometry.dispose(); if(o.material && !o.material.userData.shared && !(o.material.map && SHARED_TEX.has(o.material.map))) o.material.dispose(); }); }
+  if(me) disposeAvatar(me);
   halo = null;
   me = makeAvatar({recipe:state.recipe});
   if(pos){ me.g.position.copy(pos); me.g.rotation.y = ry; }
