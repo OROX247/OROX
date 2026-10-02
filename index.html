@@ -21269,10 +21269,11 @@ function lifeGeo(parts){
 }
 const lifeEll = (rx, ry, rz, x, y, z, rotx, ws, hs) => geoAt(new THREE.SphereGeometry(1, ws || 16, hs || 12), x, y, z, rx, ry, rz, rotx || 0);
 // a flat wing (or fin) from an outline in (span, back) metres, laid flat on y, mirrored for the left side
-function lifeWing(pts, side, x0, y0, z0){
+function lifeWing(pts, side, x0, y0, z0, dih){
   const sh = new THREE.Shape(); pts.forEach(([a, b], i) => i ? sh.lineTo(a, b) : sh.moveTo(a, b));
   const g = new THREE.ShapeGeometry(sh, 6); g.rotateX(Math.PI / 2);   // shape y -> +z (back of the wing towards -z below)
-  g.scale(side, 1, -1); g.translate(x0 * side, y0, z0); return g;
+  g.scale(side, 1, -1); if(dih){ const P = g.attributes.position; for(let i = 0; i < P.count; i++) P.setY(i, Math.abs(P.getX(i)) * dih); g.computeVertexNormals(); }   // dihedral: the wing rises towards its tip, so it never reads as a thin blade edge-on
+  g.translate(x0 * side, y0, z0); return g;
 }
 const lifeLerpHex = (a, b, t) => '#' + new THREE.Color(a).lerp(new THREE.Color(b), Math.max(0, Math.min(1, t))).getHexString();
 // a perching bird (pigeon or gull): a round body, a head with an eye and a beak, a tail, folded wings and legs when sitting, open wings when flying
@@ -21303,9 +21304,9 @@ function lifeMothGeo(){
   [-1, 1].forEach(e => B(geoAt(new THREE.ConeGeometry(0.0035, 0.032, 5), e * 0.008, 0.012, 0.048, 1, 1, 1, 1.1, 0, -e * 0.45), 0x8a7a64));
   const eye = (x, z, cx, cz, r) => Math.hypot(Math.abs(x) - cx, z - cz) < r;
   [-1, 1].forEach(e => {
-    B(lifeWing([[0, 0], [0.03, -0.012], [0.062, -0.006], [0.066, 0.008], [0.05, 0.026], [0.02, 0.03], [0, 0.022]], e, 0.008, 0.004, 0.022),
+    B(lifeWing([[0, 0], [0.03, -0.012], [0.062, -0.006], [0.066, 0.008], [0.05, 0.026], [0.02, 0.03], [0, 0.022]], e, 0.008, 0.004, 0.022, 0.36),
       (x, y, z) => eye(x, z, 0.044, 0.006, 0.009) ? 0x3a2c22 : Math.abs(x) > 0.058 ? 0x9e8d74 : 0xd6c8ad, 2, x => Math.min(1, Math.max(0, Math.abs(x) - 0.008) / 0.06));
-    B(lifeWing([[0, 0], [0.034, 0.004], [0.046, 0.022], [0.036, 0.042], [0.014, 0.046], [0, 0.03]], e, 0.006, 0.001, 0.004),
+    B(lifeWing([[0, 0], [0.034, 0.004], [0.046, 0.022], [0.036, 0.042], [0.014, 0.046], [0, 0.03]], e, 0.006, 0.001, 0.004, 0.3),
       (x, y, z) => eye(x, z, 0.03, -0.026, 0.008) ? 0x2c2018 : eye(x, z, 0.03, -0.026, 0.012) ? 0xe7b25a : 0xc4b59a, 2, x => Math.min(1, Math.max(0, Math.abs(x) - 0.006) / 0.05) * 0.85);
   });
   return lifeGeo(parts);
@@ -21343,9 +21344,10 @@ function lifeMat(o){
       (o.wiggle ? ' transformed.x += sin(transformed.z * 26.0 - lifeT * iFl.y + iFl.z) * iFl.x * aWing;\n'
         : ' float lf = sin(lifeT * iFl.y + iFl.z); transformed.y += lf * iFl.x * aWing;' + (o.fold ? ' transformed.x *= 1.0 - ' + o.fold.toFixed(2) + ' * abs(lf) * aWing;' : '') + '\n'));
     sh.fragmentShader = sh.fragmentShader.replace('#include <normal_fragment_begin>', 'float faceDirection = gl_FrontFacing ? 1.0 : - 1.0; vec3 normal = normalize( vNormal ); vec3 geometryNormal = normal;');
+    if(o.rim) sh.fragmentShader = sh.fragmentShader.replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n totalEmissiveRadiance += vec3(' + o.rim.map(v => v.toFixed(3)).join(', ') + ') * pow(1.0 - abs(dot(normal, normalize(vViewPosition))), 3.0);');   // a soft wet rim of lamplight on the silhouette
     if(o.selfLit) sh.fragmentShader = sh.fragmentShader.replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n totalEmissiveRadiance += diffuseColor.rgb * ' + o.selfLit.toFixed(2) + ';');   // lit by the glow it circles
   };
-  m.customProgramCacheKey = () => 'life' + (o.wiggle ? 'w' : 'f') + (o.fold || 0) + (o.selfLit || 0);
+  m.customProgramCacheKey = () => 'life' + (o.wiggle ? 'w' : 'f') + (o.fold || 0) + (o.selfLit || 0) + (o.rim ? 'r' + o.rim.join(',') : '');
   return m;
 }
 function lifeMesh(geo, mat, n){
@@ -21412,9 +21414,9 @@ function lifeBuild(key){
       const core = new THREE.InstancedMesh(oct, new THREE.MeshBasicMaterial({color:new THREE.Color(2.2, 2.2, 2.2), vertexColors:true}), n); core.frustumCulled = false; core.userData.noAO = true; core.instanceMatrix.setUsage(THREE.DynamicDrawUsage); g.add(core);
       const hp = new Float32Array(n * 3), hc = new Float32Array(n * 3), hs = new Float32Array(n), hg = new THREE.BufferGeometry(); hg.setAttribute('position', new THREE.BufferAttribute(hp, 3)); hg.setAttribute('color', new THREE.BufferAttribute(hc, 3)); hg.setAttribute('aSize', new THREE.BufferAttribute(hs, 1));
       const halo = new THREE.Points(hg, new THREE.ShaderMaterial({uniforms:{uH:{value:540}, fogD:{value:0}}, transparent:true, depthWrite:false, blending:THREE.AdditiveBlending,
-        vertexShader:'attribute vec3 color; attribute float aSize; uniform float uH, fogD; varying vec3 vC; varying float vF; void main(){ vec4 mv = modelViewMatrix * vec4(position, 1.0); gl_Position = projectionMatrix * mv; gl_PointSize = min(256.0, aSize * projectionMatrix[1][1] * uH * 0.5 / max(0.05, -mv.z)); float d = length(mv.xyz); vF = exp(-fogD * fogD * d * d); vC = color; }',
+        vertexShader:'attribute vec3 color; attribute float aSize; uniform float uH, fogD; varying vec3 vC; varying float vF; void main(){ vec4 mv = modelViewMatrix * vec4(position, 1.0); gl_Position = projectionMatrix * mv; float z = max(0.05, -mv.z); gl_PointSize = min(uH * 0.24, aSize * projectionMatrix[1][1] * uH * 0.5 / z); float d = length(mv.xyz); vF = exp(-fogD * fogD * d * d) * smoothstep(0.6, 2.6, z); vC = color; }',
         fragmentShader:'varying vec3 vC; varying float vF; void main(){ vec2 q = gl_PointCoord * 2.0 - 1.0; float r = dot(q, q); if(r > 1.0) discard; float a = exp(-r * 5.0) * (1.0 - r) * 0.55 + exp(-r * 40.0) * 0.5; gl_FragColor = vec4(vC * a * vF, 1.0); }'}));
-      halo.frustumCulled = false; halo.userData.noAO = true; g.add(halo);
+      halo.frustumCulled = false; halo.userData.noAO = true; g.add(halo);   // the halo fades out from 2.6 m to 0.6 m in front of the camera and is never wider than 0.24 of the screen height (256 px at 1080p, as before), so a sprite you walk into is not a blown-out blob
       const cols = [0x5ce1e6, 0xff4fa3, 0x5ce1e6, 0xb58cff], mem = [], schools = [];
       for(let s = 0; s < 6; s++){ const a = s / 6 * TAU + q() * 0.6, d = 9 + q() * 26; schools.push({x:Math.cos(a) * d, z:Math.sin(a) * d, R:6 + q() * 8, wx:0.05 + q() * 0.05, wz:0.04 + q() * 0.05, ph:q() * TAU, h:1.3 + q() * 2.5, c:C(cols[s % cols.length])}); }
       for(let i = 0; i < n; i++){ const S = schools[i % 6]; mem.push({S, a:q() * TAU, r:0.5 + q() * 1.3, w:(0.8 + q() * 1.2) * (q() < 0.5 ? -1 : 1), y:(q() - 0.5) * 1.2, ph:q() * TAU, spin:1.5 + q() * 2, s:0.8 + q() * 0.5}); hs[i] = 0.9 + q() * 0.5; }
@@ -21447,7 +21449,7 @@ function lifeBuild(key){
           const face = ex + (q() < 0.5 ? Math.PI / 2 : -Math.PI / 2) + (q() - 0.5) * 0.8;
           mem.push({x, y, z, flock, yaw:face, face, look:face, lookT:q() * 4, st:'sit', t:0, T:3.6 + q() * 1.2, dx:0, dz:1, away:0, hop:0, s:0.9 + q() * 0.25}); }
         if(any) flock++; }
-      if(mem.length){ const m = lifeMesh(lifeBirdGeo(spec), lifeMat({rough:0.8}), mem.length); mem.forEach((b, i) => m.geometry.attributes.iFl.setXYZW(i, spec.flap[0], spec.flap[1], q() * TAU, 0));
+      if(mem.length){ const m = lifeMesh(lifeBirdGeo(spec), lifeMat(key === 'lampblack' ? {rough:0.8, rim:[0.13, 0.125, 0.11]} : {rough:0.8}), mem.length); mem.forEach((b, i) => m.geometry.attributes.iFl.setXYZW(i, spec.flap[0], spec.flap[1], q() * TAU, 0));
         K.push({kind:key === 'lampblack' ? 'pigeon' : 'gull', m, mem, spec, step:lifePerchers}); }
     }
     K.forEach(k => { k.n = k.mem.length; });
