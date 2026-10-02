@@ -446,6 +446,8 @@ body.a11y-cues .hpbar.low i{ background:repeating-linear-gradient(135deg,rgba(0,
   <div class="panel" id="questPanel" style="display:none"></div>
   <div class="panel" id="trialPanel" style="display:none;color:var(--gold);font-weight:700">Ring 1 / 8 · 0.0s</div>
   <div class="panel" id="qpPanel" style="display:none"></div>
+  <div class="panel" id="qwPanel" style="display:none;color:#9dff6a;font-weight:700" aria-live="polite"></div>
+  <div class="panel" id="qwRiddle" style="display:none;color:#ffd98a;max-width:min(420px,70vw)"></div>
 </div>
 
 <div id="corner">
@@ -3163,7 +3165,7 @@ const FOG_SUN = {x:0, y:1, z:0}, FOG_SUNCOL = {r:1, g:0.8, b:0.6}, FOG_PARAMS = 
 // play) is queued in SLOT_PENDING and carried out here, at the very top of the next page load: before any loader runs, and after the old page's
 // last writes have landed, so nothing the old page saves can spill into the new slot. Device settings (accessibility, keys for AI services,
 // realm looks) are not part of a slot.
-const SLOT_STORES = ['hub-universe-save-v2', 'hub-locals-v1', 'hub-den-v1', 'hub-fennick-v1', 'hub-explorer-v1', 'hub-dreams-v1', 'hub-realms-v1', 'hub-wayfarer-v1'];   // hub-wayfarer-v1: the companion (its log, name, look, album list)
+const SLOT_STORES = ['hub-universe-save-v2', 'hub-locals-v1', 'hub-den-v1', 'hub-fennick-v1', 'hub-explorer-v1', 'hub-dreams-v1', 'hub-realms-v1', 'hub-wayfarer-v1', 'hub-quests-v1'];   // hub-wayfarer-v1: the companion (its log, name, look, album list)
 const SLOT_META = 'hub-slots-v1', SLOT_PENDING = 'hub-slot-pending', SLOT_N = 3;
 const slotKey = (n, k) => 'hub-slot' + n + ':' + k, slotStage = k => 'hub-slot-stage:' + k;
 const slotLs = {get(k){ try{ return localStorage.getItem(k); }catch(e){ return null; } }, set(k, v){ if(v == null) localStorage.removeItem(k); else localStorage.setItem(k, v); }};
@@ -7715,6 +7717,7 @@ function coreSum(detail){
   if(sl && state.world === 'saltlark') sl.skip.forEach(o => skip.add(o));   // Goal 20 part 3: Saltlark's sea follows you; the lighthouse beam turns, the boats sail, the crabs and fish move   // Goal 20: Lampblack's road mirror follows you; the tram and the cats move   // Goal 20: a portal added after the core (the Spaceport's Warfront portal)
   if(mer && mer.g) skip.add(mer.g);   // Goal 18: Meridian's pylons come and go with the Hunt
   if(mon && mon.root) skip.add(mon.root);   // Goal 16: monsters move (and their loot comes and goes)
+  if(qwRun && qwRun.g) skip.add(qwRun.g);   /* the Questwright: a player-made quest is added after the core and taken away again */
   if(trial.pad) skip.add(trial.pad); trial.rings.forEach(rg => { if(rg.g) skip.add(rg.g); if(rg.m) skip.add(rg.m); });
   if(detail){ const list = []; sumObject(world, skip, list); return list; }
   return {world:sumObject(world, skip), terrain:mainTerrain ? hashNums(2166136261, mainTerrain.geometry.attributes.position.array, 7).toString(16) : null, centre:mainTerrain ? [mainTerrain.userData.terrain.cx, mainTerrain.userData.terrain.cz] : null};
@@ -10291,7 +10294,8 @@ window.addEventListener('keydown', e => {
   if(e.code === 'KeyM'){ openWarp(); return; }
   if(e.code === 'KeyR'){ aiStart(); return; }
   if(e.code === 'KeyL'){ e.preventDefault(); openLook(); return; }
-  if(e.code === 'KeyQ' && qa && qa.inside){ e.preventDefault(); qpQuit(); return; }   // Goal 15: leave a quest arena (no reward unless it is already won)
+  if(e.code === 'KeyQ' && qa && qa.inside){ e.preventDefault(); qpQuit(); return; }
+  if(e.code === 'KeyQ' && qwRun){ e.preventDefault(); if(!e.repeat) qwQuit(); return; }   // leave a quest of your own   // Goal 15: leave a quest arena (no reward unless it is already won)
   keys[e.code] = true;
   if(e.code === 'Space'){ if(!e.repeat) jumpBuffer = 0.15; e.preventDefault(); }
   if(e.code.indexOf('Arrow') === 0) e.preventDefault();
@@ -13223,6 +13227,7 @@ function update(dt, time){
   portalCool -= dt;
   if(playing && portalCool <= 0 && !traveling && !zeroing && !pocketIn()) for(const q of portals){ if(Math.hypot(p.x - q.x, p.z - q.z) < 1.6 && p.y - G(p.x, p.z) < 2){ travel(q.to); break; } }
   wfTick(dt, time);   // the Wayfarer follows you (after the camera, so it can step out of its way)
+  qwTick(dt, time);   // a quest of the player's own (the Questwright), stepped with the real player
 }
 
 // where the sun is on screen this frame: drives the sun rays and the lens flare (both fade out as the sun leaves the frame)
@@ -19742,6 +19747,7 @@ function slotCheckFile(o){
     if(k === SAVE_KEY) c = slotCleanMain(c);
     if(k === 'hub-den-v1'){ try{ const d = denClean(c); c = {v:1, own:Object.assign({}, d.own), placed:d.placed.map(e => e.wall ? {id:e.id, wall:e.wall, a:e.a, b:e.b, r:e.r} : {id:e.id, a:e.a, b:e.b, r:e.r})}; }catch(e){ continue; } }
     if(k === 'hub-wayfarer-v1') c = wfClean(c);   /* the Wayfarer's store, rebuilt field by field */
+    if(k === 'hub-quests-v1') c = qbClean(c);   /* the Questbook: every recipe through cleanQuest */
     if(k === 'hub-fennick-v1') c = {found:Array.isArray(c.found) ? c.found.filter((id, i, a) => typeof id === 'string' && FB_MEMS.some(m => m.id === id) && a.indexOf(id) === i) : [], all:!!c.all};
     if(k === 'hub-explorer-v1'){ const pl = c.planets && typeof c.planets === 'object' && !Array.isArray(c.planets) ? c.planets : {}; for(const id of Object.keys(pl)){ const e = pl[id]; if(!/^\d+-\d+$/.test(id) || !e || typeof e !== 'object' || e.id !== id || typeof e.name !== 'string') delete pl[id]; } c.planets = pl; }
     st[k] = c; any = true;
@@ -20768,7 +20774,8 @@ function wfClean(o){
   const desc = typeof o.desc === 'string' ? scrubText(o.desc.replace(/<[^>]*>/g, '').replace(/[\u0000-\u001f<>]/g, ' ')).replace(/\s+/g, ' ').trim().slice(0, 200) : '';
   return {v:1, name:wfName(o.name) || WF_DEFAULT_NAME, desc, mode:WF_MODES.indexOf(o.mode) >= 0 ? o.mode : 'quiet', greeted:o.greeted === true,
     log:{realms:A(L.realms, 40, wfIdOk), shards:A(L.shards, 3, s => ['dunes', 'grid', 'sky'].indexOf(s) >= 0), artifacts:A(L.artifacts, 10, s => wfIdOk(s) && hasOwn(ART, s)), quests:A(L.quests, 24, wfIdOk),
-      landmarks:A(L.landmarks, 30, s => wfIdOk(s) && hasOwn(QUEST_LANDMARKS, s)), planets:clamp(Math.floor(num(L.planets, 0)), 0, 99999), time},
+      landmarks:A(L.landmarks, 30, s => wfIdOk(s) && hasOwn(QUEST_LANDMARKS, s)), planets:clamp(Math.floor(num(L.planets, 0)), 0, 99999), time,
+      made:{played:clamp(Math.floor(num(L.made && L.made.played, 0)), 0, 1e7), won:clamp(Math.floor(num(L.made && L.made.won, 0)), 0, 1e7)}},
     deeds:A(o.deeds, 80, wfIdOk), seen:A(o.seen, 80, wfIdOk), said:Array.isArray(o.said) ? o.said.filter(s => typeof s === 'string').slice(-6).map(s => scrubText(s).slice(0, 150)) : [],
     stuck:clamp(num(o.stuck, 0), 0, 1e7), hunt:clamp(Math.floor(num(o.hunt, -1)), -1, 1e4), hints,
     album:Array.isArray(o.album) ? o.album.filter(e => e && typeof e === 'object' && typeof e.id === 'string' && /^[a-z0-9]{4,24}$/.test(e.id)).slice(-12).map(e => ({id:e.id, realm:wfIdOk(e.realm) ? e.realm : '', t:clamp(Math.floor(num(e.t, 0)), 0, 1e14), cap:typeof e.cap === 'string' ? scrubText(e.cap.replace(/[\u0000-\u001f<>]/g, ' ')).slice(0, 140) : ''})) : []};
@@ -21128,7 +21135,7 @@ function wfLogSummary(){
   const L = wf.store.log, fav = Object.keys(L.time).filter(k => hasOwn(WORLDS, k)).sort((a, b) => L.time[b] - L.time[a]).slice(0, 3);
   return {realms:L.realms.filter(k => hasOwn(WORLDS, k)).map(wfPlace), shards:L.shards.map(k => ({dunes:'Amber', grid:'Rose', sky:'Cyan'})[k] + ' Shard'), artifacts:L.artifacts.map(id => ITEMS[id] ? ITEMS[id].name : id),
     quests:L.quests.filter(q => /^qp:/.test(q)).map(q => QPORTALS[q.slice(3)] ? QPORTALS[q.slice(3)].name : q.slice(3)), favours:L.quests.filter(q => /^fav:/.test(q)).length, planets:L.planets,
-    landmarks:L.landmarks.map(id => QUEST_LANDMARKS[id] ? QUEST_LANDMARKS[id].name : id), favourites:fav.map(k => ({realm:wfPlace(k), minutes:Math.round(L.time[k] / 60)}))};
+    landmarks:L.landmarks.map(id => QUEST_LANDMARKS[id] ? QUEST_LANDMARKS[id].name : id), favourites:fav.map(k => ({realm:wfPlace(k), minutes:Math.round(L.time[k] / 60)})), made:{played:L.made ? L.made.played : 0, won:L.made ? L.made.won : 0}};
 }
 Object.assign(WF_HOOKS, {
   log:() => wfLogSummary(),
@@ -21168,6 +21175,7 @@ function wfJourneyText(){ const J = wfLogSummary(), bits = [];
   bits.push(J.realms.length ? 'We have been to ' + wfList(J.realms) + '.' : 'We have only just started.');
   if(J.shards.length) bits.push('We found the ' + wfList(J.shards) + '.'); if(J.artifacts.length) bits.push('You hold ' + wfList(J.artifacts) + '.');
   if(J.quests.length) bits.push('Quest portals cleared: ' + wfList(J.quests) + '.'); if(J.favours) bits.push('Favours for locals: ' + J.favours + '.');
+  if(J.made.played) bits.push('Quests of your own: ' + J.made.played + ' played, ' + J.made.won + ' won.');
   if(J.planets) bits.push('Planets charted: ' + J.planets + '.'); if(J.landmarks.length) bits.push('Landmarks: ' + wfList(J.landmarks) + '.');
   if(J.favourites.length && J.favourites[0].minutes > 0) bits.push('Our favourite place is ' + J.favourites[0].realm + '.');
   return bits.join(' '); }
@@ -21797,6 +21805,366 @@ Object.defineProperties(QW_HOOKS, {
   testResponse:{get:() => qwAI.testResponse, set:v => { qwAI.testResponse = v == null ? null : v; }, enumerable:true},
   lastRequest:{get:() => qwAI.lastRequest && JSON.parse(JSON.stringify(qwAI.lastRequest)), enumerable:true},
   why:{get:() => qwAI.why, enumerable:true}, path:{get:() => qwAI.path, enumerable:true}
+});
+/* ---- the recipe becomes a quest in the open world ----
+   qwPlace: where things go, from the quest's own rng (its seed and the spot you start from, snapped to 4 m), only on valid ground: solid, not steep,
+   dry (unless the quest swims, never lava), clear of safe circles (portals and their arrival spots, kiosks, quest portals, the arena column, the
+   Archive, the Hollow door, The Drift, the chimes), colliders, low platforms, walls and hazards, and in the outskirts only in cells already built.
+   qwInit/qwStep: the whole rule, pure (no world, no time, no rng): the played quest and qwSim run the same code. The quest's group is built inside
+   noRandom after the realm, skipped by coreSum, and removed on the end or a quit; it never changes a core placement. */
+var QW_D = {
+  calm:{r0:10, r1:32, step:[10, 18], gap:6, vis:18, k:1.8, lives:3, wGap:6, wV:1.3, wMax:1, light:6.2},
+  normal:{r0:12, r1:45, step:[14, 24], gap:7, vis:12, k:1.35, lives:2, wGap:4.5, wV:1.8, wMax:2, light:5.6},
+  hard:{r0:16, r1:58, step:[18, 30], gap:8, vis:8, k:1.1, lives:1, wGap:3.2, wV:2.4, wMax:3, light:5.1}};
+var QW_ORDERED = {race:1, rings:1, riddle:1, escort:1};
+var qwSafe = [], qwRun = null, qwDayTest = null;
+function qwSeaLevel(){ return waterBody && waterBody.kind !== 'ice' ? waterBody.level : state.world === 'saltlark' ? SLK.sea : state.world === 'fennick' ? FB.sea : null; }
+var _qwRay = null;
+// 'water', 'lava' or null for the ground at (x, z)
+function qwWet(x, z, g){
+  if(waterBody && waterBody.kind !== 'ice' && hf(x, z) < waterBody.level + 0.35) return waterBody.kind === 'lava' || waterBody.kind === 'acid' ? 'lava' : 'water';
+  if(state.world === 'saltlark' && g < SLK.sea + 0.3) return 'water';
+  if(state.world === 'fennick' && g < FB.sea + 0.3) return 'water';
+  if(state.world === 'grove' && Math.hypot(x, z) < 7.5) return 'water';   // the pond in the clearing
+  const S = ENDLESS[state.world]; if(S && typeof S.wet === 'function' && S.n && S.wet(x, z)) return 'water';
+  if(state.world !== 'lampblack' && waterMeshes.length){   // any other pool: a water surface above the ground here (Lampblack's mirror is its wet road, not water)
+    if(!_qwRay) _qwRay = new THREE.Raycaster(); _qwRay.set(new V3(x, g + 40, z), new V3(0, -1, 0)); _qwRay.far = 80;
+    const h = _qwRay.intersectObjects(waterMeshes.filter(w => w.parent), false)[0]; if(h && h.point.y > g - 0.02) return 'water';
+  }
+  return null;
+}
+function qwCellReady(x, z){
+  const E = endless; if(!E) return true;
+  const cx = Math.floor(x / CHUNK), cz = Math.floor(z / CHUNK);
+  if(E.builtin){ if(cellInCore(cx, cz, E.style.core)) return true; const c = E.chunks.get(chunkKey(cx, cz)); return !!c && E.style.tiers.every((t, i) => !!c.parts[i]); }
+  return Math.hypot(x, z) < 57 || E.chunks.has(chunkKey(cx, cz));
+}
+// null when a quest may put something at (x, z), else why not
+function qwSpotWhy(x, z, o){
+  o = o || {}; if(!isFinite(x) || !isFinite(z)) return 'nowhere';
+  const g = G(x, z); if(!isFinite(g) || g < -900) return 'no ground';
+  const e = 1.2, gs = [G(x + e, z), G(x - e, z), G(x, z + e), G(x, z - e)];
+  if(gs.some(v => !isFinite(v) || v < -900)) return 'edge';
+  if(Math.max.apply(null, gs.map(v => Math.abs(v - g))) / e > 0.75) return 'steep';
+  const SE = ENDLESS[state.world]; if(SE && typeof SE.solidAt === 'function' && !SE.solidAt(x, z, 2)) return 'edge';
+  if(!qwCellReady(x, z)) return 'unbuilt';
+  const w = qwWet(x, z, g); if(w && !(o.swim && w === 'water')) return w;
+  for(const s of qwSafe) if(Math.hypot(x - s.x, z - s.z) < s.r) return 'safe';
+  for(const c of colliders) if(Math.hypot(x - c.x, z - c.z) < c.r + 1.2) return 'collider';
+  for(const s of platforms) if(!(s.bottom > g + 2.5) && Math.hypot(x - s.x, z - s.z) < s.r + 1.2) return 'platform';
+  for(const b of boxes){ if(b.y0 > g + 2.5 || b.y1 < g - 0.3) continue; if(boxOut(x, z, b, 1.2)) return 'wall'; }
+  for(const h of hazards) if(h.x != null && Math.hypot(x - h.x, z - h.z) < (h.L || 2) + 2) return 'hazard';
+  return null;
+}
+// the spot's height for a thing of this kind (items float at hand height, rings at head height, markers on the ground; on water, at the surface)
+function qwY(kind, x, z){ const g = G(x, z), s = qwSeaLevel(), base = s != null && g < s ? s : g; return {g:base, y:base + (kind === 'rings' ? 1.7 : QW_ORDERED[kind] ? 0 : 0.85)}; }
+function qwPlace(R, origin){
+  const key = state.world, D = QW_D[R.difficulty] || QW_D.normal, ox = origin.x, oz = origin.z;
+  const q = rng((R.seed ^ strHash(key + ':' + ox + ':' + oz)) >>> 0), pts = [], why = Object.create(null);
+  qwSafe = monSafeList(key);
+  const gap0 = R.kind === 'rings' ? Math.max(D.gap, 8) : D.gap; let gap = gap0; const r1 = D.r1 + (R.count > 5 ? 8 : 0);
+  const ok = (x, z) => { const w = qwSpotWhy(x, z, R); if(w){ why[w] = (why[w] || 0) + 1; return false; } if(Math.hypot(x - ox, z - oz) < 5){ why.start = (why.start || 0) + 1; return false; }
+    if(pts.some(s => Math.hypot(s.x - x, s.z - z) < gap)){ why.crowded = (why.crowded || 0) + 1; return false; } return true; };
+  const add = (x, z) => { const Y = qwY(R.kind, x, z); pts.push({x, z, y:Y.y, g:Y.g, got:false}); };
+  let lantern = null, wisps = [];
+  if(R.kind === 'defend'){
+    const f = p.facing;
+    for(let t = 0; t < 200 && !lantern; t++){ const a = f + (q() - 0.5) * (1 + t * 0.05), d = 5 + q() * (4 + t * 0.2), x = ox + Math.sin(a) * d, z = oz + Math.cos(a) * d; if(ok(x, z)){ const Y = qwY('defend', x, z); lantern = {x, z, g:Y.g}; } }
+    if(lantern) for(let i = 0; i < R.count; i++){ const a = i * TAU / R.count + q() * 0.7, d = 18 + q() * 8; wisps.push({x:lantern.x + Math.sin(a) * d, z:lantern.z + Math.cos(a) * d}); }
+    if(!lantern) return {ok:false, why, n:0};
+    return {ok:true, pts, lantern, wisps, origin:{x:ox, z:oz, g:G(ox, oz)}, why};
+  }
+  if(QW_ORDERED[R.kind]) for(const sc of [1, 0.6, 0.4]){   // narrow ground (a pier, an isle): try again with shorter steps, from the same rng
+    pts.length = 0; gap = Math.min(gap0, D.step[0] * sc * 0.9); let px = ox, pz = oz, h = q() * TAU;
+    for(let i = 0; i < R.count; i++){
+      let placed = false;
+      for(let t = 0; t < 160; t++){
+        const s = (D.step[0] + q() * (D.step[1] - D.step[0])) * sc, turn = (q() - 0.5) * (1.4 + t * 0.04), far = Math.hypot(px - ox, pz - oz) > r1 - D.step[1] * sc;
+        const a = far ? Math.atan2(ox - px, oz - pz) + turn : h + turn, x = px + Math.sin(a) * s, z = pz + Math.cos(a) * s;
+        if(placed || Math.hypot(x - ox, z - oz) > r1 || !ok(x, z)) continue;
+        add(x, z); px = x; pz = z; h = a; placed = true;
+      }
+      if(!placed) break;
+    }
+    if(pts.length >= R.count) break;
+  } else {
+    for(let t = 0; t < 900 && pts.length < R.count; t++){ const a = q() * TAU, d = D.r0 + q() * (r1 - D.r0), x = ox + Math.sin(a) * d, z = oz + Math.cos(a) * d; if(ok(x, z)) add(x, z); }
+  }
+  if(pts.length < R.count) return {ok:false, why, n:pts.length};
+  return {ok:true, pts, origin:{x:ox, z:oz, g:G(ox, oz)}, why};
+}
+// the clock the quest really gets: the recipe's time, but never less than the route needs at a jog (so no quest is impossible)
+function qwLimit(R, L){
+  if(!R.time || R.kind === 'defend') return 0;
+  const D = QW_D[R.difficulty] || QW_D.normal; let len = 0, x = L.origin.x, z = L.origin.z;
+  if(QW_ORDERED[R.kind]) L.pts.forEach(s => { len += Math.hypot(s.x - x, s.z - z); x = s.x; z = s.z; });
+  else { const left = L.pts.slice(); while(left.length){ let bi = 0, bd = 1e9; left.forEach((s, i) => { const d = Math.hypot(s.x - x, s.z - z); if(d < bd){ bd = d; bi = i; } }); len += bd; x = left[bi].x; z = left[bi].z; left.splice(bi, 1); } }
+  const need = len / (R.kind === 'escort' ? D.light * 0.85 : 7) + R.count * 1.5;
+  return Math.max(R.time, Math.ceil(need * D.k));
+}
+function qwInit(R, L){
+  const D = QW_D[R.difficulty] || QW_D.normal;
+  const S = {kind:R.kind, n:R.count, pts:L.pts.map(s => Object.assign({}, s, {got:false})), i:0, got:0, t:0, limit:qwLimit(R, L), over:null, why:'', near:null, vis:D.vis};
+  if(R.kind === 'escort'){ S.light = {x:L.origin.x, z:L.origin.z}; S.lightV = D.light; S.far = 0; }
+  if(R.kind === 'defend'){ S.lantern = Object.assign({}, L.lantern); S.lives = D.lives; S.lives0 = D.lives; S.spawns = L.wisps.map(w => Object.assign({}, w)); S.live = []; S.next = 0; S.spawnT = 1.5; S.wGap = D.wGap; S.wV = D.wV; S.wMax = D.wMax; S.lost = 0; }
+  return S;
+}
+// one step of the rule: P is where the player's feet are ({x, y, z}); returns what happened this step
+function qwStep(S, P, dt){
+  const ev = []; if(S.over) return ev;
+  S.t += dt; const K = S.kind, px = P.x, py = P.y, pz = P.z;
+  const end = (how, why) => { S.over = how; S.why = why || ''; ev.push({type:how, why}); };
+  if(K === 'gather' || K === 'hidden'){
+    let near = null;
+    S.pts.forEach((s, i) => { if(s.got) return; const d = Math.hypot(s.x - px, s.z - pz);
+      if(d < 1.7 && Math.abs(py + 1 - s.y) < 2.4){ s.got = true; S.got++; ev.push({type:'got', i}); } else if(near == null || d < near) near = d; });
+    S.near = near; if(S.got >= S.n) end('won');
+  } else if(K === 'race' || K === 'rings' || K === 'riddle'){
+    const s = S.pts[S.i];
+    if(s){ const d = Math.hypot(s.x - px, s.z - pz), dy = K === 'rings' ? Math.abs(py + 1 - s.y) < 3.2 : Math.abs(py - s.y) < 3; S.near = d;
+      if(d < (K === 'rings' ? 2.6 : 2.4) && dy){ s.got = true; ev.push({type:'got', i:S.i}); S.i++; S.got++; if(S.i >= S.n) end('won'); } }
+  } else if(K === 'escort'){
+    const L = S.light; let dx = px - L.x, dz = pz - L.z, d = Math.hypot(dx, dz);
+    if(d > 1.2){ const m = Math.min(d - 1.2, S.lightV * dt); L.x += dx / d * m; L.z += dz / d * m; }
+    d = Math.hypot(px - L.x, pz - L.z); S.far = d > 18 ? S.far + dt : Math.max(0, S.far - dt * 2); S.lightGap = d;
+    const s = S.pts[S.i]; if(s){ S.near = Math.hypot(s.x - px, s.z - pz); if(Math.hypot(s.x - L.x, s.z - L.z) < 2.6){ s.got = true; ev.push({type:'got', i:S.i}); S.i++; S.got++; if(S.i >= S.n) end('won'); } }
+    if(!S.over && S.far > 6) end('failed', 'The light lost sight of you and drifted home');
+  } else if(K === 'defend'){
+    const Lt = S.lantern; S.spawnT -= dt;
+    if(S.spawnT <= 0 && S.next < S.n && S.live.length < S.wMax){ const w = S.spawns[S.next]; S.live.push({i:S.next, x:w.x, z:w.z}); ev.push({type:'spawn', i:S.next}); S.next++; S.spawnT = S.wGap; }
+    for(let j = S.live.length - 1; j >= 0; j--){ const w = S.live[j]; let dx = Lt.x - w.x, dz = Lt.z - w.z; const d = Math.hypot(dx, dz);
+      if(Math.hypot(w.x - px, w.z - pz) < 1.8){ S.live.splice(j, 1); S.got++; ev.push({type:'got', i:w.i}); continue; }
+      if(d < 1.0){ S.live.splice(j, 1); S.lives--; S.lost++; ev.push({type:'hit', i:w.i}); continue; }
+      const m = Math.min(d, S.wV * dt); w.x += dx / d * m; w.z += dz / d * m; }
+    S.near = S.live.length ? Math.min.apply(null, S.live.map(w => Math.hypot(w.x - px, w.z - pz))) : null;
+    if(S.lives <= 0) end('failed', 'The lantern went dark');
+    else if(S.next >= S.n && !S.live.length) S.got >= Math.ceil(S.n / 2) ? end('won') : end('failed', 'Too many gloom moths reached the lantern');
+  }
+  if(!S.over && S.limit > 0 && S.t >= S.limit) end('failed', 'Time ran out');
+  return ev;
+}
+// a scripted player through the same rule: 'win' (runs to the next thing), 'slow' (ambles at 1.5 m/s), 'idle', 'away' (runs off)
+function qwSim(R, policy, o){
+  o = o || {}; const ox = o.x != null ? o.x : Math.round(p.x / 4) * 4, oz = o.z != null ? o.z : Math.round(p.z / 4) * 4;
+  const L = qwPlace(R, {x:ox, z:oz}); if(!L.ok) return {result:'unplaced', why:L.why, n:L.n};
+  const S = qwInit(R, L), P = {x:ox, y:L.origin.g, z:oz}, dt = 0.1, v = policy === 'slow' ? 1.5 : 9.5; let steps = 0, got = 0;
+  const goTo = (x, z, g, sp) => { const dx = x - P.x, dz = z - P.z, d = Math.hypot(dx, dz); if(d > 0.01){ const m = Math.min(d, sp * dt); P.x += dx / d * m; P.z += dz / d * m; } if(d < 4 && g != null) P.y = g; };
+  while(!S.over && steps < (o.maxSteps || 9000)){
+    if(policy === 'win' || policy === 'slow'){
+      if(S.kind === 'gather' || S.kind === 'hidden'){ let b = null, bd = 1e9; S.pts.forEach(s => { if(!s.got){ const d = Math.hypot(s.x - P.x, s.z - P.z); if(d < bd){ bd = d; b = s; } } }); if(b) goTo(b.x, b.z, b.g, v); }
+      else if(S.kind === 'escort'){ const s = S.pts[S.i]; if(s && Math.hypot(P.x - S.light.x, P.z - S.light.z) < 8) goTo(s.x, s.z, s.g, Math.min(v, 9.5)); }
+      else if(S.kind === 'defend'){ let b = null, bd = 1e9; S.live.forEach(w => { const d = Math.hypot(w.x - P.x, w.z - P.z); if(d < bd){ bd = d; b = w; } }); if(b) goTo(b.x, b.z, null, v); else goTo(S.lantern.x + 3, S.lantern.z, S.lantern.g, v); }
+      else { const s = S.pts[S.i]; if(s) goTo(s.x, s.z, s.g, v); }
+    } else if(policy === 'away'){ P.x += 9.5 * dt; }
+    const ev = qwStep(S, P, dt); got += ev.filter(e => e.type === 'got').length; steps++;
+  }
+  return {result:S.over || 'unfinished', why:S.why, t:+S.t.toFixed(1), got:S.got, n:S.n, limit:S.limit, lives:S.lives, steps};
+}
+/* ---- playing it: the run, its look, the HUD, the end, the pay ----
+   qwStart builds the quest round you (or says why not), qwTick steps the rule with the real player each frame, qwEnd takes everything away again.
+   Rewards: qwReward sets ₵5-25 (+ 10 XP more) from the recipe's parts; qwPay pays a quest once a day and at most QW_DAY.wins quests and
+   QW_DAY.credits a day in all. A player-made quest never gives items, shards or artifacts and never touches the Hunt. */
+var QW_DAY = {wins:5, credits:75};
+var QW_KBONUS = {gather:0, hidden:2, race:1, rings:2, riddle:1, escort:3, defend:3};
+var QB_KEY = 'hub-quests-v1', QB_MAX = 20, qb = null;
+function qwReward(R){ const c = clamp(Math.round(5 + R.count * 1.25 + ({calm:0, normal:3, hard:6})[R.difficulty] + (R.time ? 3 : 0) + (QW_KBONUS[R.kind] || 0)), 5, 25); return {credits:c, xp:10 + c}; }
+function qwDay(){ if(qwDayTest) return qwDayTest; const d = new Date(), z = n => (n < 10 ? '0' : '') + n; return d.getFullYear() + '-' + z(d.getMonth() + 1) + '-' + z(d.getDate()); }
+// the short form of a recipe: what a share code carries and what a quest's identity is made from
+function qwShort(R){ return {k:R.kind, r:R.realm, i:R.item, c:R.color, n:R.count, t:R.time, d:R.difficulty, s:R.swim ? 1 : 0, ti:R.title, q:R.riddles.slice(), sd:R.seed}; }
+function qwLong(o){ const g = k => hasOwn(o, k) ? o[k] : undefined; return {kind:g('k'), realm:g('r'), item:g('i'), color:g('c'), count:g('n'), time:g('t'), difficulty:g('d'), swim:g('s') === 1 || g('s') === true, title:g('ti'), riddles:g('q'), seed:g('sd')}; }
+function qwId(R){ return 'q' + strHash(JSON.stringify(qwShort(R))).toString(36); }   // a quest is who it is by its recipe, so a copy under another name pays no more
+function qbPayClean(o){ o = o && typeof o === 'object' && !Array.isArray(o) ? o : {}; const day = typeof o.day === 'string' && /^\d{4}-\d\d-\d\d$/.test(o.day) ? o.day : '';
+  return {day, n:clamp(Math.floor(num(o.n, 0)), 0, QW_DAY.wins), credits:clamp(Math.floor(num(o.credits, 0)), 0, QW_DAY.credits), ids:Array.isArray(o.ids) ? o.ids.filter((s, i, a) => typeof s === 'string' && /^q[a-z0-9]{1,10}$/.test(s) && a.indexOf(s) === i).slice(-QW_DAY.wins) : []}; }
+// the book, field by field: on load, on import of a save file, and on anything else that hands us one
+function qbClean(o){
+  o = o && typeof o === 'object' && !Array.isArray(o) ? o : {}; const list = [], seen = new Set();
+  for(const e of Array.isArray(o.list) ? o.list.slice(0, 60) : []){
+    if(!e || typeof e !== 'object' || Array.isArray(e) || typeof e.id !== 'string' || !/^[a-z0-9]{4,16}$/.test(e.id) || seen.has(e.id)) continue;
+    const c = cleanQuest(e.rec, 'clean'); if(!c.ok) continue;
+    const text = typeof e.text === 'string' ? scrubText(qwStrip(e.text)).slice(0, 240) : '';
+    list.push({id:e.id, text, rec:c.rec, src:e.src === 'claude' || e.src === 'code' ? e.src : 'offline', made:clamp(Math.floor(num(e.made, 0)), 0, 1e14), plays:clamp(Math.floor(num(e.plays, 0)), 0, 1e6), wins:clamp(Math.floor(num(e.wins, 0)), 0, 1e6),
+      best:typeof e.best === 'number' && isFinite(e.best) && e.best > 0 ? Math.min(1e5, +e.best.toFixed(1)) : null}); seen.add(e.id);
+    if(list.length >= QB_MAX) break;
+  }
+  return {v:1, list, pay:qbPayClean(o.pay), played:clamp(Math.floor(num(o.played, 0)), 0, 1e7), won:clamp(Math.floor(num(o.won, 0)), 0, 1e7)};
+}
+function qbLoad(){ let o = null; try{ const s = localStorage.getItem(QB_KEY); if(s) o = JSON.parse(s); }catch(e){} qb = qbClean(o); }
+function qbSave(){ if(!qb || !slotCanSave()) return; try{ localStorage.setItem(QB_KEY, JSON.stringify(qb)); }catch(e){} }
+qbLoad();
+function qwPay(R){
+  const P = qb.pay, today = qwDay(), id = qwId(R), rw = qwReward(R);
+  if(P.day !== today){ P.day = today; P.n = 0; P.credits = 0; P.ids = []; }
+  if(P.ids.indexOf(id) >= 0) return {credits:0, xp:0, why:'This quest already paid today. Play it again tomorrow for a reward.'};
+  if(P.n >= QW_DAY.wins || P.credits >= QW_DAY.credits) return {credits:0, xp:0, why:'That is all the quest rewards for today. Quests still count; rewards come back tomorrow.'};
+  const c = Math.min(rw.credits, QW_DAY.credits - P.credits), xp = 10 + c;
+  P.n++; P.credits += c; P.ids.push(id); qbSave(); reward(xp, c);
+  return {credits:c, xp, why:''};
+}
+// ---- its look: the item, a glow, the ring on the ground and (for things you are not hiding from) a beam; rings and markers like the time trial's ----
+function qwItemMesh(R, parent, scale){
+  const col = QW_COLORS[R.color] || 0xffd166, m = phys(col, {roughness:0.25, metalness:0.2, emissive:C(col), emissiveIntensity:0.6}), g = new THREE.Group(); parent.add(g);
+  const put = (geo, mat, x, y, z) => { const o = mk(geo, mat || m, x, y, z, g); return o; };
+  const k = R.item;
+  if(k === 'mushroom'){ put(new THREE.CylinderGeometry(0.06, 0.09, 0.3, 12), phys(0xe9e2d4, {roughness:0.6}), 0, -0.05, 0); put(new THREE.SphereGeometry(0.22, 18, 8, 0, TAU, 0, Math.PI / 2), m, 0, 0.1, 0); }
+  else if(k === 'lantern'){ put(new THREE.BoxGeometry(0.2, 0.26, 0.2), m, 0, 0, 0); const fr = phys(0x3a2e22, {roughness:0.5, metalness:0.6}); put(new THREE.BoxGeometry(0.26, 0.04, 0.26), fr, 0, 0.15, 0); put(new THREE.BoxGeometry(0.26, 0.04, 0.26), fr, 0, -0.15, 0); put(new THREE.TorusGeometry(0.07, 0.015, 8, 20), fr, 0, 0.22, 0); }
+  else if(k === 'shell'){ const s = put(new THREE.ConeGeometry(0.18, 0.34, 16, 1, true), m, 0, 0, 0); s.rotation.z = Math.PI / 2.3; s.scale.set(1, 1, 0.6); m.side = THREE.DoubleSide; }
+  else if(k === 'crystal'){ const s = put(new THREE.OctahedronGeometry(0.2, 0)); s.scale.set(0.7, 1.7, 0.7); }
+  else if(k === 'star'){ const sh = new THREE.Shape(); for(let i = 0; i < 10; i++){ const a = i / 10 * TAU, r = i % 2 ? 0.1 : 0.24; if(i) sh.lineTo(Math.sin(a) * r, Math.cos(a) * r); else sh.moveTo(Math.sin(a) * r, Math.cos(a) * r); } const geo = new THREE.ExtrudeGeometry(sh, {depth:0.07, bevelEnabled:false}); geo.translate(0, 0, -0.035); put(geo); }
+  else if(k === 'feather'){ const s = put(new THREE.SphereGeometry(0.2, 14, 8)); s.scale.set(0.3, 1.4, 0.07); s.rotation.z = 0.4; }
+  else if(k === 'orb'){ put(new THREE.IcosahedronGeometry(0.17, 3)); }
+  else if(k === 'flower'){ put(new THREE.SphereGeometry(0.07, 12, 8), phys(0xffd166, {emissive:C(0xffd166), emissiveIntensity:0.5}), 0, 0, 0); for(let i = 0; i < 5; i++){ const a = i / 5 * TAU, pt = put(new THREE.SphereGeometry(0.09, 10, 6), m, Math.sin(a) * 0.12, 0, Math.cos(a) * 0.12); pt.scale.set(1, 0.35, 1.5); pt.rotation.y = a; } }
+  else { const s = put(new THREE.OctahedronGeometry(0.22, 0)); s.scale.set(0.8, 1.4, 0.8); }
+  g.scale.setScalar((scale || 1) * 1.3); return g;
+}
+function qwDispose(g){ g.traverse(o => { if(o.material){ if(o.material.map && o.material.map !== glowTex) o.material.map.dispose(); o.material.dispose(); } if(o.geometry) o.geometry.dispose(); }); if(g.parent) g.parent.remove(g); }
+function qwBuild(run){
+  const R = run.R, S = run.S, col = QW_COLORS[R.color] || 0xffd166, root = new THREE.Group(); root.name = 'questwright'; world.add(root); run.g = root; run.vis = [];
+  const beamM = () => new THREE.MeshBasicMaterial({color:C(col), transparent:true, opacity:0.32, depthWrite:false, blending:THREE.AdditiveBlending, toneMapped:false});
+  S.pts.forEach((s, i) => {
+    const g = new THREE.Group(); g.position.set(s.x, s.y, s.z); root.add(g); const v = {g, i};
+    if(R.kind === 'gather' || R.kind === 'hidden'){
+      v.m = qwItemMesh(R, g, 1); v.gl = glow(col, 1.3, 0, 0, 0, g, R.kind === 'hidden' ? 0.35 : 0.6);
+      const ring = new THREE.Mesh(new THREE.RingGeometry(0.34, 0.42, 48), new THREE.MeshBasicMaterial({color:C(col), transparent:true, opacity:0.5, depthWrite:false, side:THREE.DoubleSide, toneMapped:false})); ring.rotation.x = -Math.PI / 2; ring.position.y = s.g + 0.03 - s.y; g.add(ring);
+      if(R.kind === 'gather'){ const b = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 3, 8, 1, true), beamM()); b.position.y = 1.5; g.add(b); }
+      else g.visible = false;   // hidden things only show when you are close
+    } else if(R.kind === 'rings'){
+      g.rotation.y = i ? Math.atan2(s.x - S.pts[i - 1].x, s.z - S.pts[i - 1].z) : 0;
+      v.m = mk(new THREE.TorusGeometry(2.4, 0.14, 10, 48), glowM(i === S.n - 1 ? 0x9dff6a : col, 2.2), 0, 0, 0, g); v.m.castShadow = false; v.gl = glow(col, 5, 0, 0, 0, g, 0.3);
+      const n = label(String(i + 1), {small:true}); n.position.y = 3.1; g.add(n);
+    } else {   // race checkpoints, riddle markers, escort beacons: a ring on the ground, a beam, a number
+      v.m = mk(new THREE.TorusGeometry(1.6, 0.09, 8, 48), glowM(col, 2), 0, 0.08, 0, g); v.m.rotation.x = Math.PI / 2; v.m.castShadow = false;
+      const b = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 7, 8, 1, true), beamM()); b.position.y = 3.5; g.add(b); v.beam = b;
+      v.gl = glow(col, 2.2, 0, 0.6, 0, g, 0.4); const n = label(R.kind === 'escort' ? 'Beacon ' + (i + 1) : String(i + 1), {small:true}); n.position.y = 2.2; g.add(n);
+    }
+    run.vis.push(v);
+  });
+  if(R.kind === 'escort'){ const g = new THREE.Group(); root.add(g); qwItemMesh(R, g, 1.3); glow(col, 2.4, 0, 0, 0, g, 0.75); run.light = g; }
+  if(R.kind === 'defend'){
+    const L = S.lantern, g = new THREE.Group(); g.position.set(L.x, L.g, L.z); root.add(g);
+    mk(new THREE.CylinderGeometry(0.06, 0.08, 1.2, 10), phys(0x3a2e22, {roughness:0.5, metalness:0.6}), 0, 0.6, 0, g);
+    const lm = qwItemMesh(Object.assign({}, R, {item:'lantern'}), g, 2.2); lm.position.y = 1.5; run.lampGl = glow(col, 3.2, 0, 1.5, 0, g, 0.8); run.lamp = g;
+    const wm = phys(0x6a5a9a, {roughness:0.5, emissive:C(0x5a3cbf), emissiveIntensity:0.5}), wg = new THREE.IcosahedronGeometry(0.28, 2);
+    run.moths = S.spawns.map(() => { const m = new THREE.Group(); m.visible = false; root.add(m); mk(wg, wm, 0, 0, 0, m).castShadow = false; glow(0x8a6cff, 1.5, 0, 0, 0, m, 0.45); return m; });
+  }
+}
+function qwHud(){
+  const el = document.getElementById('qwPanel'); if(!el) return; const run = qwRun;
+  if(!run){ el.style.display = 'none'; return; }
+  const S = run.S, R = run.R, left = S.limit ? Math.max(0, S.limit - S.t) : 0, clk = s => Math.floor(s / 60) + ':' + ('0' + Math.floor(s % 60)).slice(-2);
+  let what = R.kind === 'defend' ? 'Moths ' + S.got + ' caught · Lantern ' + '●'.repeat(Math.max(0, S.lives)) + '○'.repeat(Math.max(0, S.lives0 - S.lives))
+    : R.kind === 'hidden' ? S.got + ' / ' + S.n + ' found' + (S.near != null ? ' · ' + (S.near < S.vis ? 'very warm' : S.near < S.vis * 2 ? 'warm' : S.near < S.vis * 4 ? 'cool' : 'cold') : '')
+    : R.kind === 'gather' ? S.got + ' / ' + S.n : (R.kind === 'rings' ? 'Ring ' : R.kind === 'escort' ? 'Beacon ' : 'Marker ') + Math.min(S.i + 1, S.n) + ' / ' + S.n;
+  if(R.kind === 'escort' && S.lightGap > 12) what += ' · the light is falling behind';
+  el.style.display = ''; el.textContent = R.title + ' · ' + what + (S.limit ? ' · ' + clk(left) : ' · ' + clk(S.t)) + ' · ' + keyName(keyEff('quit')) + ' quits';
+  const rd = document.getElementById('qwRiddle'); if(rd){ const t = R.kind === 'riddle' && S.i < S.n ? (R.riddles[S.i] || '') : ''; rd.style.display = t ? '' : 'none'; rd.textContent = t ? 'Riddle ' + (S.i + 1) + ': ' + t : ''; }
+}
+// why a quest cannot start right now, or ''
+function qwWhyNot(R){
+  if(!state.started) return 'Start the game first.';
+  if(qwRun) return 'A quest is already running. Finish it or press ' + keyName(keyEff('quit')) + ' to leave it.';
+  if(state.world === 'ashfall') return 'Ashfall is closed to player-made quests.';
+  if(R.realm !== 'here' && R.realm !== state.world) return 'This quest is set in ' + (WORLDS[R.realm] ? WORLDS[R.realm].name : 'another realm') + '. Warp there first (' + keyName(keyEff('map')) + '), then press Play.';
+  if(traveling || zeroing) return 'Wait until you have arrived.';
+  if(pocketIn()) return 'Step back out into the open first.';
+  if(trial.active || (qa && qa.inside) || rally.open || starling.open || gate1.open || bc.on) return 'Finish what you are doing first.';
+  return '';
+}
+function qwStart(R, o){
+  o = o || {}; const c = cleanQuest(R, 'clean'); if(!c.ok) return {ok:false, why:'That is not a quest the game can build.'}; R = c.rec;
+  const no = qwWhyNot(R); if(no) return {ok:false, why:no};
+  if(bike.riding && R.kind !== 'rings' && R.kind !== 'race') dismountBike(true);
+  const origin = {x:Math.round(p.x / 4) * 4, z:Math.round(p.z / 4) * 4};
+  const L = noRandom(() => qwPlace(R, origin));
+  if(!L.ok) return {ok:false, why:'There is not enough open ground here for this quest. Try another spot, or fewer ' + (QW_ORDERED[R.kind] || R.kind === 'defend' ? 'steps' : qwItemName(R, 2)) + '.', place:L.why};
+  const run = {R, id:qwId(R), bookId:o.bookId || null, S:qwInit(R, L), L, world, realm:state.world, t0:performance.now()};
+  noRandom(() => qwBuild(run)); qwRun = run;
+  qb.played++; const B = o.bookId && qb.list.find(e => e.id === o.bookId); if(B) B.plays++; qbSave();
+  qwHud(); sfx('level'); caption('[Quest begins]', 1600);
+  toast(R.title + (R.kind === 'riddle' ? ': follow the riddles from marker to marker.' : R.kind === 'defend' ? ': catch the gloom moths before they reach the lantern.' : R.kind === 'escort' ? ': lead the light to each beacon.' : R.kind === 'hidden' ? ': look closely, they only show when you are near.' : '.') + (run.S.limit ? ' You have ' + Math.round(run.S.limit) + ' s.' : ''), 3600);
+  qwCheer('start', run);
+  return {ok:true, id:run.id, limit:run.S.limit, n:run.S.n};
+}
+function qwTick(dt, time){
+  const run = qwRun; if(!run) return;
+  if(run.world !== world || state.world !== run.realm){ qwEnd('quit', 'You left the realm, so the quest ended.'); return; }
+  const S = run.S;
+  if(playing && !traveling && !zeroing && !pocketIn()){
+    const ev = qwStep(S, p, dt);
+    ev.forEach(e => { if(e.type === 'got') sfx('coin'); else if(e.type === 'hit') sfx('hit'); });   // (what is shown follows S below)
+  }
+  // the look follows the rule
+  const col = QW_COLORS[run.R.color] || 0xffd166;
+  run.vis.forEach((v, i) => { const s = S.pts[i]; if(s.got){ v.g.visible = false; return; }
+    if(S.kind === 'gather' || S.kind === 'hidden'){ if(v.m){ v.m.rotation.y += dt * 1.6; v.m.position.y = Math.sin(time * 1.8 + i * 1.7) * 0.1; } if(S.kind === 'hidden') v.g.visible = Math.hypot(s.x - p.x, s.z - p.z) < S.vis; }
+    else { const cur = i === S.i; if(v.gl) v.gl.material.opacity = cur ? 0.55 + Math.sin(time * 6) * 0.2 : 0.15; if(v.beam) v.beam.material.opacity = cur ? 0.4 : 0.08; if(S.kind === 'rings' && v.m) v.m.rotation.z += dt * (cur ? 2.2 : 0.4); } });
+  if(run.light){ run.light.position.set(S.light.x, G(S.light.x, S.light.z) + 1.3 + Math.sin(time * 2.4) * 0.12, S.light.z); }
+  if(run.moths){ run.moths.forEach(m => { m.visible = false; }); S.live.forEach(w => { const m = run.moths[w.i]; if(m){ m.visible = true; m.position.set(w.x, Math.max(G(w.x, w.z), S.lantern.g) + 1.4 + Math.sin(time * 3 + w.i) * 0.25, w.z); } });
+    if(run.lampGl) run.lampGl.material.opacity = 0.25 + 0.55 * Math.max(0, S.lives) / S.lives0; }
+  if((run.hudT = (run.hudT || 0) - dt) <= 0){ run.hudT = 0.2; qwHud(); }
+  if(S.over) qwEnd(S.over, S.why);
+}
+function qwEnd(how, why){
+  const run = qwRun; if(!run) return null; qwRun = null;
+  if(run.g) qwDispose(run.g);
+  const R = run.R, S = run.S, B = run.bookId && qb.list.find(e => e.id === run.bookId); let pay = null;
+  if(how === 'won'){
+    qb.won++; if(B){ B.wins++; if(!B.best || S.t < B.best) B.best = +S.t.toFixed(1); }
+    pay = qwPay(R); sfx('win');
+    toast('Quest complete: ' + R.title + ' in ' + S.t.toFixed(1) + ' s.' + (pay.credits ? '   +₵' + pay.credits + '  +' + pay.xp + ' XP' : '   ' + pay.why), 5200);
+  } else if(how === 'failed'){ toast(R.title + ': ' + (why || 'not this time') + (/[.!?]$/.test(why || '') ? '' : '.') + ' Try again whenever you like.', 4200); }
+  else toast(why || 'You left the quest.', 2600);
+  qbSave(); qwHud(); const rd = document.getElementById('qwRiddle'); if(rd) rd.style.display = 'none';
+  qwCheer(how, run);
+  if(typeof qbRender === 'function') qbRender();
+  run.result = {how, why:why || '', t:+S.t.toFixed(1), got:S.got, n:S.n, pay};
+  qwLast = run.result; return run.result;
+}
+var qwLast = null;
+function qwQuit(){ return qwEnd('quit', 'You left the quest. No reward this time.'); }
+// the Wayfarer cheers at the start and the end, and its log counts the quests you made
+function qwCheer(how, run){
+  if(typeof wf === 'undefined' || !wf.store) return;
+  const L = wf.store.log; L.made = L.made || {played:0, won:0};
+  if(how === 'start') L.made.played++; else if(how === 'won') L.made.won++;
+  wfSave();
+  const t = run.R.title, lines = {start:['A quest of your own! ' + t + '. I will keep count.', 'Ooh, ' + t + '. Ready when you are!', 'Your own quest! Let\'s go.'],
+    won:['You did it! ' + t + ', done.', 'Brilliant! That was your quest and you won it.', 'Hooray! Another quest of your own, finished.'],
+    failed:['So close! We can try ' + t + ' again any time.', 'Not this time. Want another go?', 'That was a good try.']};
+  const pool = lines[how]; if(!pool) return;
+  wfComment('qw:' + how, pool[(L.made.played + L.made.won) % pool.length], {again:true, force:true, big:true, emote:how === 'won' ? 'spin' : how === 'failed' ? 'sad' : 'flutter'});
+}
+Object.assign(QW_HOOKS, {
+  place:(R, o) => { const c = cleanQuest(R, 'clean'); if(!c.ok) return c; o = o || {}; const L = noRandom(() => qwPlace(c.rec, {x:o.x != null ? o.x : Math.round(p.x / 4) * 4, z:o.z != null ? o.z : Math.round(p.z / 4) * 4}));
+    return {ok:L.ok, n:L.n, why:L.why, pts:L.ok ? L.pts.map(s => ({x:+s.x.toFixed(2), z:+s.z.toFixed(2), y:+s.y.toFixed(2)})) : [], lantern:L.lantern || null, wisps:L.wisps || null}; },
+  spotWhy:(x, z, o) => { qwSafe = monSafeList(state.world); return qwSpotWhy(x, z, o); },
+  // re-checks every placed thing of the running quest against the rules (valid ground, dry, clear) and returns what it finds
+  check(){ const run = qwRun; if(!run) return null; qwSafe = monSafeList(state.world); const swim = run.R.swim;
+    const list = run.S.pts.map(s => ({x:+s.x.toFixed(2), z:+s.z.toFixed(2), why:qwSpotWhy(s.x, s.z, {swim})}));
+    if(run.S.lantern) list.push({lantern:true, x:+run.S.lantern.x.toFixed(2), z:+run.S.lantern.z.toFixed(2), why:qwSpotWhy(run.S.lantern.x, run.S.lantern.z, {swim})});
+    return {ok:list.every(e => !e.why), list, safe:qwSafe.length, inWorld:!!(run.g && run.g.parent === world)}; },
+  sim:(R, policy, o) => { const c = cleanQuest(R, 'clean'); return c.ok ? noRandom(() => qwSim(c.rec, policy || 'win', o)) : c; },
+  init:(R, L) => qwInit(R, L), step:(S, P, dt) => qwStep(S, P, dt),
+  start:(R, o) => qwStart(R, o), quit:() => qwQuit(), whyNot:R => { const c = cleanQuest(R, 'clean'); return c.ok ? qwWhyNot(c.rec) : 'not a quest'; },
+  reward:R => { const c = cleanQuest(R, 'clean'); return c.ok ? qwReward(c.rec) : null; }, pay:R => { const c = cleanQuest(R, 'clean'); return c.ok ? qwPay(c.rec) : null; },
+  day(d){ qwDayTest = d == null ? null : String(d); return qwDay(); },   // test only: pretend it is another day
+  // test only: walk the running quest through the real update() with a scripted player ('win' runs to each next thing) and the frame loop stopped
+  walk(policy, n){ const run = qwRun; if(!run) return null; renderer.setAnimationLoop(null); const S = run.S; let k = 0; const dt = 0.05, sp = policy === 'slow' ? 1.5 : 9;
+    for(; k < (n || 4000) && qwRun === run; k++){ let tx = null, tz = null;
+      if(policy === 'win'){ if(S.kind === 'gather' || S.kind === 'hidden'){ let bd = 1e9; S.pts.forEach(s => { if(!s.got){ const d = Math.hypot(s.x - p.x, s.z - p.z); if(d < bd){ bd = d; tx = s.x; tz = s.z; } } }); }
+        else if(S.kind === 'defend'){ let bd = 1e9; S.live.forEach(w => { const d = Math.hypot(w.x - p.x, w.z - p.z); if(d < bd){ bd = d; tx = w.x; tz = w.z; } }); }
+        else if(S.kind === 'escort'){ const s = S.pts[S.i]; if(s && Math.hypot(p.x - S.light.x, p.z - S.light.z) < 8){ tx = s.x; tz = s.z; } }
+        else { const s = S.pts[S.i]; if(s){ tx = s.x; tz = s.z; } } }
+      if(tx != null){ const dx = tx - p.x, dz = tz - p.z, d = Math.hypot(dx, dz), m = Math.min(d, sp * dt); p.x += dx / d * m; p.z += dz / d * m; const s = (S.pts || []).find(q => Math.hypot(q.x - p.x, q.z - p.z) < 0.01); p.y = Math.max(G(p.x, p.z), s ? s.g : -1e9); p.vy = 0; }
+      update(dt, k * dt);
+    }
+    renderer.setAnimationLoop(frame); return {steps:k, running:!!qwRun, last:qwLast, t:+S.t.toFixed(1), got:S.got}; }
+});
+Object.defineProperties(QW_HOOKS, {
+  run:{get:() => qwRun && {id:qwRun.id, title:qwRun.R.title, kind:qwRun.R.kind, realm:qwRun.realm, got:qwRun.S.got, n:qwRun.S.n, t:+qwRun.S.t.toFixed(1), limit:qwRun.S.limit, over:qwRun.S.over, lives:qwRun.S.lives, pts:qwRun.S.pts.map(s => ({x:+s.x.toFixed(2), z:+s.z.toFixed(2), y:+s.y.toFixed(2), got:s.got}))}, enumerable:true},
+  last:{get:() => qwLast, enumerable:true},
+  book:{get:() => JSON.parse(JSON.stringify(qb)), enumerable:true},
+  limits:{get:() => ({day:QW_DAY.wins, credits:QW_DAY.credits, max:QB_MAX}), enumerable:true},
+  hud:{get:() => { const el = document.getElementById('qwPanel'); return el && el.style.display !== 'none' ? el.textContent : ''; }, enumerable:true}
 });
 })();
 </script>
