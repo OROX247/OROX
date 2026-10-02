@@ -8689,7 +8689,7 @@ function engineStart(){
   if(!snd.ctx || !snd.on || bike.engine) return;
   const c = snd.ctx, osc = c.createOscillator(), osc2 = c.createOscillator(), f = c.createBiquadFilter(), gain = c.createGain();
   osc.type = 'sawtooth'; osc.frequency.value = 70; osc2.type = 'square'; osc2.frequency.value = 35; f.type = 'lowpass'; f.frequency.value = 420; gain.gain.value = 0.03;
-  osc.connect(f); osc2.connect(f); f.connect(gain); gain.connect(snd.master); osc.start(); osc2.start(); bike.engine = {osc, osc2, gain};
+  osc.connect(f); osc2.connect(f); f.connect(gain); gain.connect(snd.fx); osc.start(); osc2.start(); bike.engine = {osc, osc2, gain};
 }
 function engineStop(){ const e = bike.engine; if(!e) return; bike.engine = null; try{ e.gain.gain.setTargetAtTime(0, snd.ctx.currentTime, 0.12); setTimeout(() => { try{ e.osc.stop(); e.osc2.stop(); }catch(x){} }, 500); }catch(x){} }
 function mountBike(){
@@ -9619,7 +9619,7 @@ function bcMusic(from){
   BC_TUNES.forEach(([a, pitch, lvl]) => HUNT_CLUES.cyan.order.forEach((n, k) => { const at = a + k * 1.3 + (k === 6 ? 0.5 : 0); if(at < off) return; const t0 = T(at), fr = LOW_TIDE_HZ[n - 1] * pitch, d = k === 6 ? 4 : 2.2;
     [[fr, 'sine', lvl], [fr * 2, 'triangle', lvl * 0.18]].forEach(([f, ty, gl]) => { const o = keep(c.createOscillator()), g = c.createGain(); o.type = ty; o.frequency.value = f;
       g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(gl, t0 + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t0 + d); o.connect(g); g.connect(bus); o.start(t0); o.stop(t0 + d + 0.05); }); }));
-  if(snd.amb) snd.amb.gain.setTargetAtTime(0.12, now, 0.6);
+  /* Phase 4 part 3: the realm's bed and music duck under the Broadcast in sndDuck */
 }
 function bcMusicStop(){
   const c = snd.ctx; if(!c) return;
@@ -9685,7 +9685,7 @@ function endBroadcast(skipped){
   if(!bc.on) return false;
   bc.on = false; bc.skipped = !!skipped; bc.hold = null;
   bcDispose();
-  bcMusicStop(); if(snd.ctx && snd.amb) snd.amb.gain.setTargetAtTime(0.55, snd.ctx.currentTime, 0.8);
+  bcMusicStop();
   const s = bc.saved || {}; cam.yaw = s.yaw != null ? s.yaw : cam.yaw; cam.pitch = s.pitch != null ? s.pitch : cam.pitch; cam.dist = s.dist || cam.dist; if(s.view != null && s.view !== cam.view) setView(s.view);
   if(post.dof && s.dof != null) post.dof.enabled = s.dof;
   me.g.visible = true; if(archive) (archive.labels || []).forEach(l => { l.visible = true; });
@@ -10824,13 +10824,17 @@ function setupPost(){
 setupPost();
 
 /* ================= sound: everything is synthesised, no files ================= */
-const snd = { ctx:null, master:null, amb:null, nodes:[], timers:[], on:!sv.mute, stepT:0, world:null };
+const snd = { ctx:null, master:null, amb:null, nodes:[], timers:[], on:!sv.mute, stepT:0, world:null,
+  fx:null, musBus:null, musDuck:null, realmMus:null, ambBus:null, ambDuck:null, out:null, outLP:null, indoor:null, stepBus:null,   // Phase 4 part 3: the mixer's buses (see sndMixer)
+  voices:0, live:0, made:0, capped:0, scene:null, fading:[], duck:{amb:1, mus:1, dieg:1, why:''}, acc:0, tickMs:0, tickMax:0, ticks:0, frames:0, sleepT:0 };
+/* Phase 4 part 3: the four volumes (Master, Music, Ambience, Effects), saved per device in hub-sound-v1 (never in a save slot) */
+const SND_KEY = 'hub-sound-v1', SND_VOL_DEF = {master:0.8, music:0.6, amb:1, fx:1};
+const sndVol = (() => { const o = Object.assign({}, SND_VOL_DEF); try{ const s = JSON.parse(localStorage.getItem(SND_KEY) || 'null'); if(s && typeof s === 'object') for(const k in SND_VOL_DEF) if(Object.prototype.hasOwnProperty.call(s, k) && typeof s[k] === 'number' && isFinite(s[k])) o[k] = Math.min(1, Math.max(0, s[k])); }catch(e){} return o; })();
 function audioInit(){
   if(snd.ctx) return;
   try{
     const AC = window.AudioContext || window.webkitAudioContext; if(!AC) return;
-    snd.ctx = new AC(); snd.master = snd.ctx.createGain(); snd.master.gain.value = snd.on ? 0.8 : 0; snd.master.connect(snd.ctx.destination);
-    snd.amb = snd.ctx.createGain(); snd.amb.gain.value = 0.55; snd.amb.connect(snd.master);
+    snd.ctx = new AC(); sndTrack(snd.ctx); sndMixer();   // Phase 4 part 3: every bus and volume is set up in sndMixer
     ambience(state.world);
   }catch(e){ snd.ctx = null; }
   if(snd.ctx && snd.ctx.state === 'suspended') snd.ctx.resume().catch(() => {});
@@ -10895,16 +10899,18 @@ function ambience(key){
   else wind(300, 0.3, 0.1, 0.5);
 }
 function tone(type, f0, f1, dur, gain, t0, dest){
-  const c = snd.ctx, o = c.createOscillator(), g = c.createGain(); t0 = t0 || c.currentTime; o.type = type;
+  if(!sndVoiceOk(dest)) return;   // Phase 4 part 3: nothing is scheduled while the sound is asleep, and ambient detail gives way at the voice cap
+  const c = snd.ctx, o = c.createOscillator(), g = c.createGain(); t0 = t0 || c.currentTime; o.type = type; sndVoice(o);
   o.frequency.setValueAtTime(f0, t0); if(f1 && f1 !== f0) o.frequency.exponentialRampToValueAtTime(f1, t0 + dur * 0.8);
   g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(gain, t0 + 0.012); g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
-  o.connect(g); g.connect(dest || snd.master); o.start(t0); o.stop(t0 + dur + 0.05);
+  o.connect(g); g.connect(dest || snd.fx); o.start(t0); o.stop(t0 + dur + 0.05);
 }
 function noiseHit(cut, q, dur, gain, t0, sweepTo, dest){
-  const c = snd.ctx, src = c.createBufferSource(); src.buffer = bufs().whiteBuf; t0 = t0 || c.currentTime;
+  if(!sndVoiceOk(dest)) return;
+  const c = snd.ctx, src = c.createBufferSource(); src.buffer = bufs().whiteBuf; t0 = t0 || c.currentTime; sndVoice(src);
   const f = c.createBiquadFilter(); f.type = 'bandpass'; f.frequency.setValueAtTime(cut, t0); if(sweepTo) f.frequency.exponentialRampToValueAtTime(sweepTo, t0 + dur); f.Q.value = q;
   const g = c.createGain(); g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(gain, t0 + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
-  src.connect(f); f.connect(g); g.connect(dest || snd.master); src.start(t0); src.stop(t0 + dur + 0.05);
+  src.connect(f); f.connect(g); g.connect(dest || snd.fx); src.start(t0); src.stop(t0 + dur + 0.05);
 }
 function sfx(name){
   if(!snd.ctx || !snd.on) return;
@@ -10940,7 +10946,7 @@ function sfx(name){
     }
   }catch(e){}
 }
-function setMute(m){ snd.on = !m; state.mute = m; persist(); if(!snd.ctx && !m) audioInit(); if(snd.master) snd.master.gain.setTargetAtTime(m ? 0 : 0.8, snd.ctx.currentTime, 0.05); $('#sndBtn').textContent = m ? 'Muted' : 'Sound'; $('#sndBtn').classList.toggle('on', !m); }
+function setMute(m){ snd.on = !m; state.mute = m; persist(); if(!snd.ctx && !m) audioInit(); if(snd.master) sndMuteTo(m); $('#sndBtn').textContent = m ? 'Muted' : 'Sound'; $('#sndBtn').classList.toggle('on', !m); }
 $('#sndBtn').addEventListener('click', () => setMute(snd.on));
 $('#sndBtn').textContent = snd.on ? 'Sound' : 'Muted'; $('#sndBtn').classList.toggle('on', snd.on);
 window.addEventListener('pointerdown', audioInit, {once:true, capture:true}); window.addEventListener('keydown', audioInit, {once:true, capture:true});
@@ -11045,7 +11051,7 @@ function buildDrift(){
 function driftSound(on, vol, cut){
   if(!snd.ctx || !drift) return; const c = snd.ctx, now = c.currentTime;
   if(!on || !snd.on){ if(drift.bus){ const b = drift.bus; b.gain.setTargetAtTime(0, now, 0.15); setTimeout(() => { try{ b.disconnect(); }catch(e){} }, 800); drift.bus = null; } return; }
-  if(!drift.bus){ caption('[Music from The Drift: "' + DRIFT.track + '"]', 4000); const b = c.createGain(), lp = c.createBiquadFilter(); b.gain.value = 0; lp.type = 'lowpass'; lp.frequency.value = cut; lp.Q.value = 0.6; b.connect(lp); lp.connect(snd.master); b.lp = lp; drift.bus = b; drift.nextT = now + 0.08; }
+  if(!drift.bus){ caption('[Music from The Drift: "' + DRIFT.track + '"]', 4000); const b = c.createGain(), lp = c.createBiquadFilter(); b.gain.value = 0; lp.type = 'lowpass'; lp.frequency.value = cut; lp.Q.value = 0.6; b.connect(lp); lp.connect(snd.musBus); b.lp = lp; drift.bus = b; drift.nextT = now + 0.08; }
   const b = drift.bus; b.gain.setTargetAtTime(vol, now, 0.25); b.lp.frequency.setTargetAtTime(cut, now, 0.25);
   if(drift.nextT < now - 0.3) drift.nextT = now + 0.05;   // a long frame: pick the beat up again rather than play a burst of late notes
   const s16 = 60 / DRIFT.bpm / 4;
@@ -13187,6 +13193,7 @@ function frame(t){
   stats.ms += (dt * 1000 - stats.ms) * 0.05; stats.fps = 1000 / stats.ms; stats.frames++;
   if(warm > 0) warm -= dt; else if(!document.hidden && !ai.on){ fAcc += dt; fN++; if(fAcc > 2.5){ if(fN / fAcc < (PERF.p.fps ? PERF.p.fps * 0.8 : 28) && qLevel < Q_MAX) degrade(); fAcc = 0; fN = 0; } }
   update(dt, clock.elapsedTime);
+  if(snd.ctx) sndTick(raw);   // Phase 4 part 3: the sound's own housekeeping, five times a second of real time
   updateLods();
   renderer.shadowMap.needsUpdate = true;
   dgFrame(dt);   // Dreamglass (5f): picks what the one stream shows and switches its passes, portals and screens; all off and untouched without a source
@@ -17149,7 +17156,7 @@ const LB_JAZZ = {bpm:96, roots:[146.83, 98.0, 130.81, 110.0], q:[[1, 1.1892, 1.4
 function lbJazz(on, vol, cut){
   if(!snd.ctx) return; const c = snd.ctx, now = c.currentTime;
   if(!on || !snd.on){ if(lbJ.bus){ const b = lbJ.bus; b.gain.setTargetAtTime(0, now, 0.2); setTimeout(() => { try{ b.disconnect(); }catch(e){} }, 900); lbJ.bus = null; } return; }
-  if(!lbJ.bus){ const b = c.createGain(), lp = c.createBiquadFilter(); b.gain.value = 0; lp.type = 'lowpass'; lp.frequency.value = cut; lp.Q.value = 0.5; b.connect(lp); lp.connect(snd.master); b.lp = lp; lbJ.bus = b; lbJ.nextT = now + 0.08; }
+  if(!lbJ.bus){ const b = c.createGain(), lp = c.createBiquadFilter(); b.gain.value = 0; lp.type = 'lowpass'; lp.frequency.value = cut; lp.Q.value = 0.5; b.connect(lp); lp.connect(snd.musBus); b.lp = lp; lbJ.bus = b; lbJ.nextT = now + 0.08; }
   const b = lbJ.bus; b.gain.setTargetAtTime(vol, now, 0.3); b.lp.frequency.setTargetAtTime(cut, now, 0.3);
   if(lbJ.nextT < now - 0.3) lbJ.nextT = now + 0.05;
   const beat = 60 / LB_JAZZ.bpm;
@@ -17754,7 +17761,7 @@ function slPan(f, t, g, dur, bus){ tone('sine', f, f, dur, g, t, bus); tone('sin
 function slDrums(on, vol, cut){
   if(!snd.ctx) return; const c = snd.ctx, now = c.currentTime;
   if(!on || !snd.on){ if(slD.bus){ const b = slD.bus; b.gain.setTargetAtTime(0, now, 0.2); setTimeout(() => { try{ b.disconnect(); }catch(e){} }, 900); slD.bus = null; } return; }
-  if(!slD.bus){ const b = c.createGain(), lp = c.createBiquadFilter(); b.gain.value = 0; lp.type = 'lowpass'; lp.frequency.value = cut; lp.Q.value = 0.5; b.connect(lp); lp.connect(snd.master); b.lp = lp; slD.bus = b; slD.nextT = now + 0.08; }
+  if(!slD.bus){ const b = c.createGain(), lp = c.createBiquadFilter(); b.gain.value = 0; lp.type = 'lowpass'; lp.frequency.value = cut; lp.Q.value = 0.5; b.connect(lp); lp.connect(snd.musBus); b.lp = lp; slD.bus = b; slD.nextT = now + 0.08; }
   const b = slD.bus; b.gain.setTargetAtTime(vol, now, 0.3); b.lp.frequency.setTargetAtTime(cut, now, 0.3);
   if(slD.nextT < now - 0.3) slD.nextT = now + 0.05;
   const step = 60 / SL_PAN.bpm / 2;
@@ -19334,7 +19341,7 @@ function denMusic(on){
   if(denRT.music) return true;
   if(!denRecordNear() && on !== 'force') return false;
   const M = denRT.music = {bar:0, timer:0, bus:null, t:0};
-  if(snd.ctx){ M.bus = snd.ctx.createGain(); M.bus.gain.value = 0.9; M.bus.connect(snd.master); M.t = snd.ctx.currentTime + 0.2; }
+  if(snd.ctx){ M.bus = snd.ctx.createGain(); M.bus.gain.value = 0.9; M.bus.connect(snd.musBus); M.t = snd.ctx.currentTime + 0.2; }
   const beat = 60 / DEN_SONG.bpm, bar = beat * 4;
   const sched = () => { if(denRT.music !== M) return;
     if(M.bus){ const c = snd.ctx; while(M.t < c.currentTime + bar * 1.5){ const k = M.bar % 4, t0 = M.t;
@@ -20030,6 +20037,115 @@ Object.defineProperties(window.__hub, {
     get size(){ const b = joyEl.getBoundingClientRect(); return {joy:Math.round(b.width), jump:Math.round($('#jumpBtn').getBoundingClientRect().width), viewport:document.querySelector('meta[name=viewport]').content}; }
   }}
 });
+
+/* ================= Phase 4 part 3: sound per realm =================
+   The mixer. master (Master volume, 0 while muted) <- fx (Effects: every sfx and the footsteps through stepBus)
+                                                    <- musBus (Music: the realm's generative music through realmMus, and the clubs' music) <- musDuck
+                                                    <- ambBus (Ambience: the realm's bed through out/outLP, a pocket's bed through indoor) <- ambDuck
+   The Broadcast keeps its own bus straight on master. Ducking (sndDuck) lowers ambience and music under the Broadcast and under a local's talk card.
+   Nothing in this section draws Math.random (the locals' wander shares it): sound has its own rng. Everything is `var` or a function declaration,
+   because the sound section near the top calls into it. */
+var SND_CAP = {full:28, saver:16};   // live one-shot voices; optional detail (spots, the realm music) gives way above this, effects and clues never do
+function sndSaver(){ return PERF.active === 'saver'; }
+function sndCap(){ return sndSaver() ? SND_CAP.saver : SND_CAP.full; }
+// counts every started oscillator and buffer source until it ends: the honest "live nodes" number for the leak check
+function sndTrack(c){
+  ['createOscillator', 'createBufferSource'].forEach(k => { const f = c[k].bind(c);
+    c[k] = function(){ const n = f(), st = n.start; snd.made++;
+      n.start = function(){ const r = st.apply(n, arguments); snd.live++; n.addEventListener('ended', () => { snd.live--; }); return r; }; return n; }; });
+}
+function sndMixer(){
+  const c = snd.ctx, G = v => { const g = c.createGain(); g.gain.value = v; return g; };
+  snd.master = G(snd.on ? sndVol.master : 0); snd.master.connect(c.destination);
+  snd.fx = G(sndVol.fx); snd.fx.connect(snd.master);
+  snd.stepBus = G(1); snd.stepBus.connect(snd.fx);
+  snd.musBus = G(sndVol.music); snd.musDuck = G(1); snd.musBus.connect(snd.musDuck); snd.musDuck.connect(snd.master);
+  snd.realmMus = G(1); snd.realmMus.connect(snd.musBus);
+  snd.ambBus = G(sndVol.amb); snd.ambDuck = G(1); snd.ambBus.connect(snd.ambDuck); snd.ambDuck.connect(snd.master);
+  snd.outLP = c.createBiquadFilter(); snd.outLP.type = 'lowpass'; snd.outLP.frequency.value = 18000; snd.outLP.Q.value = 0.5;
+  snd.out = G(1); snd.out.connect(snd.outLP); snd.outLP.connect(snd.ambBus);
+  snd.indoor = G(1); snd.indoor.connect(snd.ambBus);
+  snd.amb = G(0.55); snd.amb.connect(snd.out);
+  snd.duck = {amb:1, mus:1, dieg:1, why:''};
+  if(!snd.on) sndMuteTo(true);   // muted from the start: the graph sleeps
+}
+function sndVoice(o){ snd.voices++; o.addEventListener('ended', () => { snd.voices--; }); }
+function sndVoiceOk(dest){
+  const c = snd.ctx; if(!c || c.state !== 'running') return false;
+  if(snd.voices >= sndCap() && dest && dest._opt){ snd.capped++; return false; }   // only what is marked optional (spots, realm music, pocket beds): never a clue like the music box
+  return true;
+}
+function sndVolSave(){ try{ localStorage.setItem(SND_KEY, JSON.stringify(sndVol)); }catch(e){} }
+function sndApplyVol(){
+  if(!snd.ctx) return; const t = snd.ctx.currentTime, set = (n, v) => { if(n) n.gain.setTargetAtTime(v, t, 0.05); };
+  set(snd.master, snd.on ? sndVol.master : 0); set(snd.musBus, sndVol.music); set(snd.ambBus, sndVol.amb); set(snd.fx, sndVol.fx);
+}
+function sndSetVol(k, v){
+  if(!Object.prototype.hasOwnProperty.call(SND_VOL_DEF, k)) return false; v = +v; if(!isFinite(v)) return false;
+  sndVol[k] = Math.min(1, Math.max(0, v)); sndVolSave(); sndApplyVol(); sndVolRender(); return true;
+}
+// mute fades the master out, then puts the whole audio graph to sleep (no audio work at all while muted or while the tab is hidden)
+function sndMuteTo(m){
+  if(!snd.ctx) return; sndApplyVol(); clearTimeout(snd.sleepT);
+  if(m) snd.sleepT = setTimeout(() => { if(!snd.on && snd.ctx.state === 'running') snd.ctx.suspend().catch(() => {}); }, 400);
+  else if(snd.ctx.state === 'suspended' && !document.hidden) snd.ctx.resume().catch(() => {});
+}
+document.addEventListener('visibilitychange', () => { if(!snd.ctx) return; if(document.hidden){ if(snd.ctx.state === 'running') snd.ctx.suspend().catch(() => {}); } else if(snd.on) snd.ctx.resume().catch(() => {}); });
+// ducking: under the Broadcast the realm almost goes quiet; under a talk card it steps back; the realm's own music also steps back while club music plays
+function sndDuck(){
+  const c = snd.ctx, t = c.currentTime, D = snd.duck, talkOn = !!(talkEl && !talkEl.classList.contains('hidden'));
+  let a = 1, m = 1, why = '';
+  if(bc.on){ a = 0.22; m = 0.12; why = 'broadcast'; } else if(talkOn){ a = 0.55; m = 0.4; why = 'talk'; }
+  if(a !== D.amb || m !== D.mus){ snd.ambDuck.gain.setTargetAtTime(a, t, 0.3); snd.musDuck.gain.setTargetAtTime(m, t, 0.3); D.amb = a; D.mus = m; D.why = why; }
+  const gv = b => b ? Math.min(1, b.gain.value) : 0;
+  const club = Math.max(gv(drift && drift.bus), gv(lbJ.bus), gv(slD.bus), denRT && denRT.music && denRT.music.bus ? 0.9 : 0);
+  const dg = +(1 - 0.92 * Math.min(1, club * 1.6)).toFixed(2);
+  if(dg !== D.dieg){ snd.realmMus.gain.setTargetAtTime(dg, t, 0.8); D.dieg = dg; }
+}
+function sndTick(dt){
+  snd.frames++;
+  const c = snd.ctx; if(c.state !== 'running') return;
+  snd.acc += dt; if(snd.acc < 0.2) return;   // five times a second is plenty for everything here
+  const t0 = performance.now(), step = snd.acc; snd.acc = 0;
+  try{ sndDuck(); sndTickMore(step); }catch(e){ if(!snd.tickErr) console.warn('sound: ' + (e && e.message || e)); snd.tickErr = (snd.tickErr || 0) + 1; }
+  const ms = performance.now() - t0; snd.ticks++; snd.tickMs += ms; if(ms > snd.tickMax) snd.tickMax = ms;
+}
+function sndTickMore(step){
+}
+// the four sliders, in the Accessibility card next to the device profile (saved on this device, like it)
+function sndVolRender(){ for(const k in SND_VOL_DEF){ const i = document.getElementById('sndVol_' + k), v = document.getElementById('sndVolV_' + k); if(i) i.value = String(Math.round(sndVol[k] * 100)); if(v) v.textContent = Math.round(sndVol[k] * 100) + '%'; } }
+(function sndPanel(){
+  const card = document.querySelector('#a11y .card'), before = document.getElementById('perfL'); if(!card || !before) return;
+  const st = document.createElement('style'); st.textContent = '.snd-vols{display:grid;gap:6px;margin:4px 0 8px}.snd-row{display:flex;align-items:center;gap:10px}.snd-row>span:first-child{flex:0 0 6.5em}.snd-row input{flex:1;min-width:0;accent-color:#5ce1e6}.snd-row>span:last-child{flex:0 0 3em;text-align:right;font-variant-numeric:tabular-nums}';
+  document.head.appendChild(st);
+  const l = document.createElement('label'); l.className = 'field'; l.id = 'sndL'; l.textContent = 'Sound on this device';
+  const box = document.createElement('div'); box.className = 'snd-vols'; box.id = 'sndVols'; box.setAttribute('role', 'group'); box.setAttribute('aria-labelledby', 'sndL');
+  [['master', 'Master'], ['music', 'Music'], ['amb', 'Ambience'], ['fx', 'Effects']].forEach(([k, name]) => {
+    const row = document.createElement('label'), a = document.createElement('span'), i = document.createElement('input'), v = document.createElement('span');
+    row.className = 'snd-row'; a.textContent = name; i.type = 'range'; i.min = '0'; i.max = '100'; i.step = '5'; i.id = 'sndVol_' + k; i.setAttribute('aria-label', name + ' volume'); v.id = 'sndVolV_' + k;
+    i.addEventListener('input', () => sndSetVol(k, i.value / 100)); row.appendChild(a); row.appendChild(i); row.appendChild(v); box.appendChild(row); });
+  card.insertBefore(l, before); card.insertBefore(box, before); sndVolRender();
+})();
+// test hooks (a tester can check all of this headless within minutes; see LESSONS)
+var SND_HOOKS = {
+  init(){ audioInit(); return !!snd.ctx; },
+  get ctxState(){ return snd.ctx ? snd.ctx.state : 'none'; },
+  get on(){ return snd.on; },
+  mixer(){ const gv = n => n ? +n.gain.value.toFixed(3) : null;
+    return {vol:Object.assign({}, sndVol), saved:(() => { try{ return JSON.parse(localStorage.getItem(SND_KEY) || 'null'); }catch(e){ return null; } })(), muted:!snd.on, ctx:snd.ctx ? snd.ctx.state : 'none',
+      gains:{master:gv(snd.master), fx:gv(snd.fx), musBus:gv(snd.musBus), musDuck:gv(snd.musDuck), realmMus:gv(snd.realmMus), ambBus:gv(snd.ambBus), ambDuck:gv(snd.ambDuck), out:gv(snd.out), indoor:gv(snd.indoor), outLP:snd.outLP ? Math.round(snd.outLP.frequency.value) : null},
+      duck:Object.assign({}, snd.duck)}; },
+  setVol:(k, v) => sndSetVol(k, v),
+  tick(){ if(!snd.ctx) return false; snd.acc = 1; sndTick(0); return true; },   // run the 5 Hz housekeeping now
+  nodes(){ return {live:snd.live, voices:snd.voices, made:snd.made, capped:snd.capped, cap:sndCap(), bed:snd.nodes.length, timers:snd.timers.length}; },
+  perf(){ return {ticks:snd.ticks, frames:snd.frames, avgTickMs:snd.ticks ? +(snd.tickMs / snd.ticks).toFixed(3) : 0, maxTickMs:+snd.tickMax.toFixed(3), perFrameMs:snd.frames ? +(snd.tickMs / snd.frames).toFixed(4) : 0, errors:snd.tickErr || 0, slowestPart:Object.assign({}, snd.part || {})}; },
+  resetPerf(){ snd.ticks = 0; snd.frames = 0; snd.tickMs = 0; snd.tickMax = 0; snd.part = {}; },
+  // RMS level (dBFS) of the whole mix over ~ms, from an AnalyserNode tapped off the master (made on first use, removed after)
+  level(ms){ return new Promise(res => { if(!snd.ctx) return res(null); const a = snd.ctx.createAnalyser(); a.fftSize = 2048; snd.master.connect(a); const buf = new Float32Array(a.fftSize); let sum = 0, n = 0, peak = 0;
+    const end = performance.now() + (ms || 500), take = () => { a.getFloatTimeDomainData(buf); for(let i = 0; i < buf.length; i++){ sum += buf[i] * buf[i]; if(Math.abs(buf[i]) > peak) peak = Math.abs(buf[i]); } n += buf.length;
+      if(performance.now() < end) setTimeout(take, 40); else { try{ snd.master.disconnect(a); }catch(e){} res({rmsDb:n ? +(10 * Math.log10(sum / n + 1e-12)).toFixed(1) : null, peak:+peak.toFixed(3)}); } }; take(); }); }
+};
+Object.defineProperties(window.__hub, {sound:{value:SND_HOOKS}});
 
 })();
 </script>
