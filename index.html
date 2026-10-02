@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>Hub</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -249,7 +249,7 @@ button.inv-row{ cursor:pointer; } button.inv-row:hover{ background:rgba(255,255,
 #joy, #jumpBtn{ display:none; position:fixed; z-index:4; touch-action:none; }
 @media (pointer:coarse){ #joy, #jumpBtn{ display:block; } }
 body.paused #joy, body.paused #jumpBtn{ display:none; }
-#joy{ left:24px; bottom:calc(env(safe-area-inset-bottom,0px) + 28px); width:120px; height:120px; border-radius:50%;
+#joy{ left:24px; bottom:calc(env(safe-area-inset-bottom,0px) + 28px); width:clamp(112px, 31vmin, 150px); height:clamp(112px, 31vmin, 150px); border-radius:50%;
   background:rgba(255,255,255,.1); border:2px solid rgba(92,225,230,.5); }
 #knob{ position:absolute; left:50%; top:50%; width:52px; height:52px; margin:-26px 0 0 -26px; border-radius:50%; background:rgba(92,225,230,.55); }
 #jumpBtn{ right:28px; bottom:calc(env(safe-area-inset-bottom,0px) + 44px); width:84px; height:84px; border-radius:50%;
@@ -356,6 +356,7 @@ body.bcast #hud, body.bcast #corner, body.bcast #roomCard, body.bcast #toast{ vi
 .a11y-tog[aria-pressed="true"] b{ color:var(--cyan); }
 .a11y-text .ghost[aria-pressed="true"]{ border-color:var(--cyan); color:var(--cyan); }
 .perf-row{ flex-wrap:wrap; gap:8px; } .perf-row .ghost{ flex:1 1 40%; margin-top:6px; } .perf-row .ghost[aria-pressed="true"]{ border-color:var(--cyan); color:var(--cyan); } .perf-msg{ margin-top:8px; }
+@media (pointer:coarse){ html, body{ touch-action:manipulation; } }
 #a11yKeys{ display:grid; grid-template-columns:1fr 1fr; gap:4px 8px; }
 #a11yKeys button{ display:flex; justify-content:space-between; gap:8px; margin:0; padding:6px 9px; font-size:13px; text-align:left; }
 #a11yKeys button kbd{ font:700 13px 'Chakra Petch','Trebuchet MS',sans-serif; color:var(--gold); }
@@ -10224,9 +10225,11 @@ window.addEventListener('keyup', e => { keys[e.code] = false; });
 window.addEventListener('blur', () => { for(const k in keys) keys[k] = false; });
 const canvas = renderer.domElement;
 let lookId = null, lx = 0, ly = 0;
-canvas.addEventListener('pointerdown', e => { if(lookId !== null) return; lookId = e.pointerId; lx = e.clientX; ly = e.clientY; canvas.setPointerCapture(e.pointerId); });
+let lookArmed = false;   // Phase 4: a touch drag turns the camera only once it has moved a few pixels, so taps never nudge the view
+canvas.addEventListener('pointerdown', e => { if(lookId !== null) return; lookId = e.pointerId; lx = e.clientX; ly = e.clientY; lookArmed = e.pointerType !== 'touch'; canvas.setPointerCapture(e.pointerId); });
 canvas.addEventListener('pointermove', e => {
   if(e.pointerId !== lookId) return;
+  if(!lookArmed){ if(Math.hypot(e.clientX - lx, e.clientY - ly) < TOUCH.lookDead) return; lookArmed = true; lx = e.clientX; ly = e.clientY; return; }
   const s = e.pointerType === 'touch' ? 0.008 : 0.005;
   cam.yaw -= (e.clientX - lx) * s; cam.pitch = clamp(cam.pitch + (e.clientY - ly) * s * 0.8 * (A11Y.invertY ? -1 : 1), cam.view === 2 ? -1.1 : -0.15, 1.2);
   lx = e.clientX; ly = e.clientY;
@@ -10246,8 +10249,10 @@ cam.view = 0;
 const joy = {x:0, y:0}, joyEl = $('#joy'), knob = $('#knob'); let joyId = null;
 function joyMove(e){
   const b = joyEl.getBoundingClientRect(); let dx = e.clientX - (b.left + b.width / 2), dy = e.clientY - (b.top + b.height / 2);
-  const d = Math.hypot(dx, dy), max = 46; if(d > max){ dx = dx / d * max; dy = dy / d * max; }
-  knob.style.transform = 'translate(' + dx + 'px,' + dy + 'px)'; joy.x = dx / max; joy.y = -dy / max;
+  const d = Math.hypot(dx, dy), max = b.width * 0.38; if(d > max){ dx = dx / d * max; dy = dy / d * max; }
+  knob.style.transform = 'translate(' + dx + 'px,' + dy + 'px)';
+  const m = Math.min(d, max) / max, k = m < TOUCH.dead ? 0 : (m - TOUCH.dead) / (1 - TOUCH.dead) / (m || 1);   // Phase 4: a dead zone, then the full range again
+  joy.x = dx / max * k; joy.y = -dy / max * k;
 }
 joyEl.addEventListener('pointerdown', e => { joyId = e.pointerId; joyEl.setPointerCapture(e.pointerId); joyMove(e); e.preventDefault(); });
 joyEl.addEventListener('pointermove', e => { if(e.pointerId === joyId) joyMove(e); });
@@ -19973,6 +19978,18 @@ Object.defineProperties(window.__hub, {
     get mode(){ return PERF.mode; }, get active(){ return PERF.active; }, get profile(){ return Object.assign({}, PERF.p); }, get device(){ return Object.assign({}, PERF_DEV); }, profiles:PERF_PROFILES,
     set:mode => perfSet(mode), metrics:() => perfMetrics(), frameInfo:() => perfFrameInfo(), texMB:() => perfTexMB(),
     resetWorst(){ PERF.worst = {ms:0, at:''}; PERF.stalls = []; PERF.capped = 0; }
+  }}
+});
+/* touch polish (Phase 4 part 2): the stick has a dead zone and scales with the screen, a camera drag only starts after a few pixels (a tap never
+   nudges the view), and pinch or double-tap never zooms the page (the text size setting is the way to make things bigger). */
+const TOUCH = {dead:0.14, lookDead:7, pinchBlocked:0};   /* double-tap zoom is off through touch-action: manipulation (CSS), which keeps every tap a click */
+document.addEventListener('gesturestart', e => { e.preventDefault(); TOUCH.pinchBlocked++; }, {passive:false});   // Safari's pinch
+document.addEventListener('touchmove', e => { if(e.touches.length > 1 && !(e.target.closest && e.target.closest('.overlay .card'))){ e.preventDefault(); TOUCH.pinchBlocked++; } }, {passive:false});
+Object.defineProperties(window.__hub, {
+  touch:{value:{
+    get joy(){ return {x:+joy.x.toFixed(3), y:+joy.y.toFixed(3), id:joyId}; }, get dead(){ return TOUCH.dead; }, get lookDead(){ return TOUCH.lookDead; },
+    get pinchBlocked(){ return TOUCH.pinchBlocked; }, get touchAction(){ return getComputedStyle(document.body).touchAction; },
+    get size(){ const b = joyEl.getBoundingClientRect(); return {joy:Math.round(b.width), jump:Math.round($('#jumpBtn').getBoundingClientRect().width), viewport:document.querySelector('meta[name=viewport]').content}; }
   }}
 });
 
