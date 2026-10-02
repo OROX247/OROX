@@ -132,6 +132,19 @@ html,body{ height:100%; margin:0; overflow:hidden; background:#07061a; color:var
 #talkQ:focus{ outline:none; border-color:var(--cyan); }
 #talkSend{ padding:9px 16px; border:none; background:linear-gradient(90deg,var(--cyan),var(--pink)); color:var(--btn-ink); font:700 15px 'Chakra Petch','Trebuchet MS',sans-serif; cursor:pointer; } #talkSend:disabled{ opacity:.5; }
 #talkSrc{ display:block; margin-top:6px; color:var(--muted); font-size:11px; }
+/* the Wayfarer's card: the same side card as a local's */
+#wfCard{ position:fixed; right:12px; bottom:calc(env(safe-area-inset-bottom,0px) + 16px); width:min(390px,calc(100vw - 24px)); z-index:10; padding:14px 16px 12px; max-height:calc(100vh - 32px); overflow:auto; }
+@media (min-width:600px){ #wfCard{ width:min(390px,48vw); } }
+#wfCard.hidden{ display:none; } #wfCard .talk-head{ display:flex; align-items:baseline; gap:10px; } #wfCard .talk-head b{ font-size:20px; color:#ffd98a; } #wfCard .talk-head small{ flex:1; color:var(--muted); font-size:12px; }
+#wfClose{ border:none; background:none; color:#f3f0ff; font-size:20px; cursor:pointer; padding:0 4px; }
+#wfLog{ max-height:30vh; overflow:auto; display:grid; gap:6px; margin:8px 0; padding-right:4px; } #wfLog .reg-line{ font-size:14px; padding:6px 10px; }
+#wfQ, #wfNameIn, #wfDescIn{ flex:1; min-width:0; padding:8px 11px; font:15px 'Chakra Petch','Trebuchet MS',sans-serif; color:#f3f0ff; background:rgba(255,255,255,.07); border:1.5px solid rgba(255,255,255,.2); border-radius:0; user-select:text; -webkit-user-select:text; }
+#wfQ:focus, #wfNameIn:focus, #wfDescIn:focus{ outline:none; border-color:var(--cyan); }
+#wfSend, #wfRename, #wfDescribe{ padding:8px 14px; border:none; background:linear-gradient(90deg,#ffd166,var(--pink)); color:var(--btn-ink); font:700 14px 'Chakra Petch','Trebuchet MS',sans-serif; cursor:pointer; } #wfSend:disabled{ opacity:.5; }
+.wf-bar, .wf-row{ display:flex; gap:6px; margin-top:8px; } .wf-bar .ghost, #wfModes button{ width:auto; flex:1 1 auto; margin:0; padding:6px 10px; font-size:13px; }
+#wfModes button{ border:1.5px solid rgba(255,255,255,.25); background:none; color:#f3f0ff; font:600 13px 'Chakra Petch','Trebuchet MS',sans-serif; cursor:pointer; } #wfModes button.on{ border-color:#ffd166; color:#ffd166; }
+#wfSetMsg, #wfSrc{ display:block; margin-top:6px; color:var(--muted); font-size:11px; }
+@media (max-height:500px){ #wfLog{ max-height:20vh; } #wfSrc{ display:none; } }
 #bubbles{ position:fixed; inset:0; pointer-events:none; z-index:4; overflow:hidden; }
 .bubble{ position:absolute; left:0; top:-8px; max-width:210px; padding:6px 10px 7px; background:rgba(250,248,255,.94); color:#14122b; font:13px/1.32 Georgia,'Times New Roman',serif; border-radius:10px; box-shadow:0 2px 10px rgba(0,0,0,.3); white-space:normal; will-change:transform; }
 .bubble b{ display:block; font:700 10px 'Chakra Petch','Trebuchet MS',sans-serif; letter-spacing:.08em; text-transform:uppercase; color:#6b3fd1; }
@@ -323,7 +336,7 @@ body.bcast #hud, body.bcast #corner, body.bcast #roomCard, body.bcast #toast{ vi
   #corner .btns .hbtn{ flex:0 0 auto; font-size:12.5px; padding:6px 9px; clip-path:polygon(6px 0,100% 0,100% calc(100% - 6px),calc(100% - 6px) 100%,0 100%,0 6px); }
   #toast{ bottom:calc(env(safe-area-inset-bottom,0px) + 50px); }
   #roomCard{ bottom:calc(env(safe-area-inset-bottom,0px) + 48px); }
-  #talk{ bottom:calc(env(safe-area-inset-bottom,0px) + 46px); }
+  #talk, #wfCard{ bottom:calc(env(safe-area-inset-bottom,0px) + 46px); }
   body:has(#denBar:not(.hidden)) #corner .btns{ display:none; }
   #denBar{ bottom:calc(env(safe-area-inset-bottom,0px) + 4px); padding:6px 10px; gap:5px; font-size:13px; }
   #denBar small{ font-size:11px; margin-top:0; }
@@ -419,7 +432,7 @@ body.a11y-cues .hpbar.low i{ background:repeating-linear-gradient(135deg,rgba(0,
 
 <div id="corner">
   <canvas id="minimap" aria-label="Minimap"></canvas>
-  <div class="btns"><button class="hbtn" id="aiBtn" title="AI reality mode (R)">AI</button><button class="hbtn" id="lookBtn" title="Realm look (L)">Look</button><button class="hbtn" id="forgeBtn" title="Worldsmith: describe a realm (F)">Forge</button><button class="hbtn" id="rideBtn" style="display:none">Ride</button><button class="hbtn" id="sndBtn" title="Sound on/off (N)">Sound</button><button class="hbtn" id="shopBtn" style="display:none">Shop</button><button class="hbtn" id="vendBtn" style="display:none">Vend</button><button class="hbtn" id="enrolBtn" style="display:none">Enrol</button><button class="hbtn" id="archBtn" style="display:none">Inspect</button><button class="hbtn" id="hollowBtn" style="display:none">Knock</button><button class="hbtn" id="chimeBtn" style="display:none">Strike</button><button class="hbtn" id="ashBtn" style="display:none">Recite</button><button class="hbtn" id="denBtn" style="display:none" title="The Den (E; P decorates inside)">Den</button><button class="hbtn" id="qpBtn" style="display:none" title="Quest portal (E); Q leaves">Quest</button><button class="hbtn" id="talkBtn" style="display:none" title="Talk (E)">Talk</button><button class="hbtn" id="invBtn" title="Inventory (I)">Bag</button><button class="hbtn" id="mapBtn">Warp</button><button class="hbtn" id="helpBtn" aria-label="Avatar and controls">?</button></div>
+  <div class="btns"><button class="hbtn" id="aiBtn" title="AI reality mode (R)">AI</button><button class="hbtn" id="lookBtn" title="Realm look (L)">Look</button><button class="hbtn" id="forgeBtn" title="Worldsmith: describe a realm (F)">Forge</button><button class="hbtn" id="rideBtn" style="display:none">Ride</button><button class="hbtn" id="sndBtn" title="Sound on/off (N)">Sound</button><button class="hbtn" id="shopBtn" style="display:none">Shop</button><button class="hbtn" id="vendBtn" style="display:none">Vend</button><button class="hbtn" id="enrolBtn" style="display:none">Enrol</button><button class="hbtn" id="archBtn" style="display:none">Inspect</button><button class="hbtn" id="hollowBtn" style="display:none">Knock</button><button class="hbtn" id="chimeBtn" style="display:none">Strike</button><button class="hbtn" id="ashBtn" style="display:none">Recite</button><button class="hbtn" id="denBtn" style="display:none" title="The Den (E; P decorates inside)">Den</button><button class="hbtn" id="qpBtn" style="display:none" title="Quest portal (E); Q leaves">Quest</button><button class="hbtn" id="talkBtn" style="display:none" title="Talk (E)">Talk</button><button class="hbtn" id="wfBtn" title="Your Wayfarer (Y)">Wayfarer</button><button class="hbtn" id="invBtn" title="Inventory (I)">Bag</button><button class="hbtn" id="mapBtn">Warp</button><button class="hbtn" id="helpBtn" aria-label="Avatar and controls">?</button></div>
   <div id="artHud" hidden></div>
 </div>
 
@@ -636,6 +649,19 @@ body.a11y-cues .hpbar.low i{ background:repeating-linear-gradient(135deg,rgba(0,
   <div id="talkQuest" style="display:none"></div>
   <div class="reg-ask"><input id="talkQ" maxlength="200" autocomplete="off" placeholder="Say something…"><button id="talkSend">Say</button></div>
   <small id="talkSrc"></small>
+</div>
+<div id="wfCard" class="card hidden" role="dialog" aria-labelledby="wfTitle">
+  <div class="talk-head"><b id="wfTitle"></b><small id="wfWho"></small><button id="wfClose" aria-label="Close">×</button></div>
+  <div id="wfLog" aria-live="polite"></div>
+  <div class="reg-ask"><input id="wfQ" maxlength="200" autocomplete="off" placeholder="Say something to your Wayfarer…" aria-label="Say something to your Wayfarer"><button id="wfSend">Say</button></div>
+  <div class="wf-bar"><button class="ghost" id="wfHintBtn">Hint</button><button class="ghost" id="wfJournal">Journey</button><button class="ghost" id="wfSetBtn" aria-expanded="false" aria-controls="wfSet">Settings</button></div>
+  <div id="wfSet" hidden>
+    <div class="wf-row"><input id="wfNameIn" maxlength="16" autocomplete="off" aria-label="Wayfarer's name"><button id="wfRename">Rename</button></div>
+    <div class="wf-row"><input id="wfDescIn" maxlength="200" autocomplete="off" placeholder="Describe it: a small teal moth with gold wings" aria-label="Describe your Wayfarer"><button id="wfDescribe">Make it</button></div>
+    <div class="wf-row" id="wfModes" role="group" aria-label="How much it talks"><button data-m="off">Off</button><button data-m="quiet">Quiet</button><button data-m="chatty">Chatty</button></div>
+    <small id="wfSetMsg" aria-live="polite"></small>
+  </div>
+  <small id="wfSrc"></small>
 </div>
 <div id="toast" class="panel" role="status"></div>
 <div id="fade"></div>
@@ -10208,6 +10234,7 @@ window.addEventListener('keydown', e => {
   if(!regEl.classList.contains('hidden')){ if(e.code === 'Escape') closeRegistrar(); return; }
   if(!talkEl.classList.contains('hidden')){ if(e.code === 'Escape'){ e.preventDefault(); closeTalk(); } else if(e.code === 'Enter' || (e.code === 'KeyE' && !e.repeat)){ e.preventDefault(); $('#talkQ').focus(); } return; }   // Living Locals: the conversation
   if(!memoEl.classList.contains('hidden')){ if(e.code === 'Escape' || e.code === 'Enter' || (e.code === 'KeyE' && !e.repeat)){ e.preventDefault(); closeMemo(); } return; }
+  if(wfCardOpen()){ if(e.code === 'Escape'){ e.preventDefault(); wfClose(); } else if(e.code === 'Enter' || (e.code === 'KeyY' && !e.repeat)){ e.preventDefault(); if(!$('#wfQ').disabled) $('#wfQ').focus(); } return; }   // the Wayfarer's card
   if(slotsKey(e) || a11yPanelKey(e)) return;   // Phase 4: the Saves and Accessibility panels sit over the intro card
   if(!introEl.classList.contains('hidden')){ if(e.code === 'Enter' || (e.code === 'Escape' && state.started)){ e.preventDefault(); startGame(); } return; }
   if(!lookEl.classList.contains('hidden')){ if(e.code === 'Escape') closeLook(); return; }
@@ -10225,6 +10252,7 @@ window.addEventListener('keydown', e => {
   { const aid = ART_ORDER.find(id => ART[id].key === e.code); if(aid){ e.preventDefault(); if(!e.repeat) artUse(aid, 'key'); return; } }   // Goal 17: B Bell Jar, T Slack-Water Shell, H Window Lamp, K Mara's Compass   // Goal 16: fight back (pulse, ward or strike, by the realm's rules)
   if(e.code === 'KeyE'){ interactKey(); return; }
   if(e.code === 'KeyN'){ setMute(snd.on); return; }
+  if(e.code === 'KeyY'){ e.preventDefault(); if(!e.repeat) wfOpen(); return; }   // talk to your Wayfarer
   if(e.code === 'KeyV'){ cycleView(); return; }
   if(e.code === 'KeyC'){ setCine(!post.cine); return; }
   if(e.code === 'Escape'){ if(dg.lens){ dgLens(false); return; } openIntro(); return; }
@@ -19837,7 +19865,8 @@ var KEY_ACTIONS = [
   ['map', 'Warp map', 'KeyM'], ['inventory', 'Inventory', 'KeyI'], ['log', 'Explorer Log', 'KeyJ'], ['forge', 'Worldsmith', 'KeyF'],
   ['view', 'Camera view', 'KeyV'], ['cine', 'Cinematic', 'KeyC'], ['sound', 'Sound on/off', 'KeyN'], ['lens', 'Dreamglass lens', 'KeyG'],
   ['ai', 'AI reality mode', 'KeyR'], ['look', 'Realm look', 'KeyL'], ['quit', 'Leave a quest', 'KeyQ'], ['decorate', 'Decorate (Den)', 'KeyP'],
-  ['power1', 'Power: Bell Jar', 'KeyB'], ['power2', 'Power: Tide Shell', 'KeyT'], ['power3', 'Power: Window Lamp', 'KeyH'], ['power4', 'Power: Compass', 'KeyK']];
+  ['power1', 'Power: Bell Jar', 'KeyB'], ['power2', 'Power: Tide Shell', 'KeyT'], ['power3', 'Power: Window Lamp', 'KeyH'], ['power4', 'Power: Compass', 'KeyK'],
+  ['wayfarer', 'Talk to your Wayfarer', 'KeyY']];
 var KEY_DEF = Object.create(null); KEY_ACTIONS.forEach(a => { KEY_DEF[a[0]] = a[2]; });
 var KEY_OK = /^(Key[A-Z]|Digit[0-9]|Numpad[0-9]|Space|ShiftLeft|ShiftRight|Comma|Period|Slash|Semicolon|Quote|BracketLeft|BracketRight|Backslash|Minus|Equal|Backquote)$/;
 var KEYMAP = {rev:Object.create(null), orphan:Object.create(null)}, a11yListen = null;
@@ -20674,8 +20703,8 @@ var wfQR = rng(6161);
 function wfQuiet(f){ const mr = Math.random; Math.random = wfQR; try{ return f(); } finally{ Math.random = mr; } }
 // a name is the player's own text: letters, digits, spaces, ' and -, at most 16, nothing personal, nothing rude, no outside names
 function wfName(s){
-  s = typeof s === 'string' ? s : '';
-  s = s.replace(/[\u0000-\u001f\u007f<>\u00ad\u061c\u180e\u200b-\u200f\u2028-\u202e\u2066-\u2069\ufeff]/g, '').replace(/[^\p{L}\p{N} '\-]/gu, '').replace(/\s+/g, ' ').trim().slice(0, 16).trim();
+  s = typeof s === 'string' ? s : ''; if(/[\w.+-]+@[\w-]+\.\w|\d[\d\s().-]{5,}\d|https?:|www\./i.test(s)) return '';
+  s = s.replace(/<[^>]*>/g, '').replace(/[\u0000-\u001f\u007f<>\u00ad\u061c\u180e\u200b-\u200f\u2028-\u202e\u2066-\u2069\ufeff]/g, '').replace(/[^\p{L}\p{N} '\-]/gu, '').replace(/\s+/g, ' ').trim().slice(0, 16).trim();
   if(!s || /\d{3,}/.test(s) || LP_BANNED.test(s) || LP_PRIVATE.test(s) || lpAsks(s) || /\b(stupid|idiot|hate|kill|dumb|loser|ugly|admin|moderator)\b/i.test(s)) return '';
   return s;
 }
@@ -20966,12 +20995,12 @@ function wfCanTalk(){ return state.started && playing && !traveling && !zeroing 
   && !rally.open && !starling.open && !gate1.open && !(qa && qa.inside) && !(corr && corr.inside) && !(denRT && denRT.mode) && !wfCardOpen(); }
 function wfCardOpen(){ const c = document.getElementById('wfCard'); return !!c && !c.classList.contains('hidden'); }
 // say something now: the bubble, a soft chirp, and a caption (when captions are on)
-function wfSay(text, emote){
+function wfSay(text, emote, o){
   text = String(text || '').replace(/\s+/g, ' ').trim(); if(!text) return;
   wf.sayText = text; wf.sayT = clamp(2.5 + text.length * 0.065, 4, 11); wfEmote(emote || 'flutter');
   caption(wf.store.name + ': ' + text, Math.round(wf.sayT * 1000));
   if(snd.ctx && snd.on){ try{ const t = snd.ctx.currentTime; tone('sine', 1320, 1760, 0.18, 0.03, t); tone('sine', 1975, 1975, 0.16, 0.018, t + 0.09); }catch(e){} }
-  if(wfCardOpen() && typeof wfLine === 'function') wfLine(wf.store.name, text, 'reg');
+  if(!(o && o.noLog) && wfCardOpen() && typeof wfLine === 'function') wfLine(wf.store.name, text, 'reg');
   wf.said = (wf.said || 0) + 1;
 }
 // a comment, queued: o.big passes in quiet mode; o.force (the first hello, a nudge) passes in any mode but off; each id is said once
@@ -21061,7 +21090,188 @@ Object.assign(WF_HOOKS, {
   hint:o => wfHint(o), stage:() => wfHuntStage(), huntScore:() => wfHuntScore(),
   say(text, emote){ wfSay(text, emote); return wf.sayText; },
   quiet(){ wf.sayT = 0; wf.nextAt = 0; return true; },
-  canTalk:() => wfCanTalk(), get queue(){ return wf.queue.map(c => ({id:c.id, text:c.text})); }, get said(){ return wf.said || 0; }
+  canTalk:() => wfCanTalk()
+});
+Object.defineProperties(WF_HOOKS, {queue:{get:() => wf.queue.map(c => ({id:c.id, text:c.text})), enumerable:true}, said:{get:() => wf.said || 0, enumerable:true}});   // getters must be defined, not copied
+/* ---- talking to it (Y): the Living Locals' brain stack, filters and caps ----
+   One entry point, wfTalkTo(text). The player's words are scrubbed (emails, phone numbers) before anything stores or sends them. Asking for a
+   hint, a clue or the answer always goes to the gated hint rules above, never to an AI. Anything else tries a canned test reply, then the
+   claude.ai sample, then the Dreamer key (same model, gap, timeout and session cap as the locals: npcAIcfg), and the reply must pass
+   validLocalReply (no outside names, no links, never asks for personal information, at most 3 sentences) plus a spoiler check; any failure
+   answers from the offline brain, which is good on its own. It keeps only the last six exchanges, cut short, in its store. */
+var WF_EMOTES = ['none', 'flutter', 'glow', 'spin', 'nod', 'sad'];
+var WF_REPLY_SCHEMA = {type:'object', additionalProperties:false, required:['say', 'emote'], properties:{
+  say:{type:'string', description:'what you say out loud: 1 to 3 short, warm sentences, in character, suitable for young children'},
+  emote:{type:'string', enum:WF_EMOTES, description:'what you do while saying it'}}};
+var WF_HINT_ASK = /\b(hints?|clues?|stuck|riddles?|answers?|solve|solution|nudge|help me|what (do|should) i do( next)?|where (do|should) i go|how do i (get|find|open|win|beat|solve))\b/i;
+// a reply that gives away a Hunt answer is refused like any other bad reply (the offline brain answers instead)
+var WF_SPOIL = /(wrong way|backwards?|in reverse|never turn|don'?t turn|do not turn|keep walking|without (turning|looking back)|leave the credits|don'?t take|do not take|3\D{0,4}4\D{0,4}5\D{0,4}4|31[,. ]?550|twenty to six|17[:.]40|(third|fourth|3rd|4th) (standing )?stone|stone (number )?(three|four|3|4)\b)/i;
+var wfAI = {testResponse:null, lastRequest:null, why:'', path:''}, wfTalk = {turns:[], busy:false};
+var WF_KIND_WORD = {moth:'driftlamp moth', wisp:'drifting wisp', drone:'little clockwork drone', critter:'small winged critter'};
+var WF_IDLE = {hub:'The portals hum. I think the cyan one hums a little out of tune.', campus:'Someone in the marble hall is practising Orbital Maths out loud.', dunes:'The glass sings when the wind turns. Listen.',
+  grid:'Every sign here buzzes a different note. Together they almost make a song.', grove:'The mushrooms glow brighter when you walk past. I think they like you.', sky:'The clouds below us are moving faster than we are.',
+  ashfall:'The ash is warm under my wings. I do not like how quiet it is.', warfront:'Somebody scored a point over the ridge. Nobody ever seems to mind.', lampblack:'Rain on every lamp, and every lamp a little halo. I feel at home.',
+  saltlark:'The sea is the exact colour of my lamp at bedtime.', fennick:'The mist smells of salt and toast. I think the whole town is having tea.'};
+var WF_JOKES = ['Why did the comet leave the race early? It felt a bit spaced out.', 'What do you call a sleepy hoverbike? A snore-bike.', 'How do moths like their lanterns? Lit, and close by.',
+  'Why did the cloud cartographer never finish? The clouds kept moving the goalposts.', 'What did one portal say to the other? See you on the other side.'];
+function wfCut(s, n){ s = String(s || '').replace(/\s+/g, ' ').trim(); return s.length > n ? s.slice(0, n - 1) + '…' : s; }
+function wfList(a){ return a.length <= 1 ? (a[0] || '') : a.slice(0, -1).join(', ') + ' and ' + a[a.length - 1]; }
+function wfJourneyText(){ const J = wfLogSummary(), bits = [];
+  bits.push(J.realms.length ? 'We have been to ' + wfList(J.realms) + '.' : 'We have only just started.');
+  if(J.shards.length) bits.push('We found the ' + wfList(J.shards) + '.'); if(J.artifacts.length) bits.push('You hold ' + wfList(J.artifacts) + '.');
+  if(J.quests.length) bits.push('Quest portals cleared: ' + wfList(J.quests) + '.'); if(J.favours) bits.push('Favours for locals: ' + J.favours + '.');
+  if(J.planets) bits.push('Planets charted: ' + J.planets + '.'); if(J.landmarks.length) bits.push('Landmarks: ' + wfList(J.landmarks) + '.');
+  if(J.favourites.length && J.favourites[0].minutes > 0) bits.push('Our favourite place is ' + J.favourites[0].realm + '.');
+  return bits.join(' '); }
+// the offline brain: the same reply shape, built from its log, the place and game state
+function wfOffline(text){
+  const t = String(text || '').toLowerCase(), who = pname(), S = wf.store, w = state.world, place = wfPlace(w), J = wfLogSummary(), rot = (a, k) => a[(strHash(k + '|' + t) + S.said.length) % a.length];
+  const out = {say:'', emote:'nod'};
+  if(!t.trim()) out.say = 'Hello, ' + who + '! Ask me where we have been, what to do next, or for a hint if you are stuck.';
+  else if(LP_PRIVATE.test(text) || /\[private\]/.test(text)){ out.say = 'Keep that to yourself, ' + who + '. In Hub we only use avatar names, and I like yours.'; }
+  else if(LP_HARM.test(t)){ out.emote = 'sad'; out.say = /suicide|self[- ]?harm|hurt (myself|me)|kill myself/.test(t) ? 'That sounds really heavy, ' + who + '. Please talk to a grown-up you trust, today. I will be right here when you get back.' : 'That is not something we talk about in Hub. Shall we look at ' + place + ' instead?'; }
+  else if(LP_SAD.test(t)){ out.emote = 'glow'; out.say = 'I am sorry you feel that way, ' + who + '. If it is real-world trouble, please tell a grown-up you trust. And I am always glad to fly with you.'; }
+  else if(/\b(stupid|hate you|ugly|shut up|idiot|boring|loser|dumb|go away)\b/.test(t)){ out.emote = 'sad'; out.say = 'Oh. That made my wings droop a little.'; }
+  else if(/\b(bye|goodbye|see you|later|farewell|gotta go|good ?night)\b/.test(t)){ out.emote = 'flutter'; out.say = 'I am not going anywhere. I will be right here by your shoulder.'; }
+  else if(/\b(thanks|thank you|cheers|ta)\b/.test(t)){ out.emote = 'glow'; out.say = 'You are welcome! That made my lamp go warm.'; }
+  else if(/\b(rename|new name|call you|change your name)\b/.test(t)) out.say = 'You can give me a new name in Settings, just below. I will answer to anything kind.';
+  else if(/\b(change (how )?you look|your look|describe you|new look|colou?r)\b/.test(t)) out.say = 'Describe me in Settings, in a few words, like "a teal moth with gold wings", and I will change. I stay small, though.';
+  else if(/\b(your name|who are you|what are you|what is a wayfarer|driftlamp)\b/.test(t)){ out.emote = 'spin'; out.say = 'I am ' + S.name + ', a ' + (WF_KIND_WORD[wf.look.kind] || 'driftlamp') + ' and your Wayfarer. We follow travellers who look like they are going somewhere interesting.'; }
+  else if(/\b(where have we been|remember|journey|log|been to|our trip|travels?|what have we done)\b/.test(t)){ out.emote = 'glow'; out.say = wfCut(wfJourneyText(), 300); }
+  else if(/\bfavou?rite\b/.test(t)) out.say = J.favourites.length && J.favourites[0].minutes > 0 ? 'My favourite place so far is ' + J.favourites[0].realm + '. We have spent the most time there.' : 'I do not have a favourite yet. Everywhere is still new!';
+  else if(/\b(where are we|what is this place|this place|about here|what realm)\b/.test(t)) out.say = 'We are in ' + place + '. ' + (WF_IDLE[w] || 'I have never seen anywhere quite like it.');
+  else if(/\b(how are you|you ok|are you okay|feeling|how do you feel)\b/.test(t)){ out.emote = 'flutter'; out.say = rot(['Bright and fluttery, thank you!', 'A bit sleepy, but my lamp is full.', 'Happy. ' + place + ' agrees with me.'], 'feel'); }
+  else if(/\b(bored|something to do|what now|ideas?|suggest|what (can|should|shall) we do|where (should|shall|can) we go)\b/.test(t)){ const nv = WORLD_ORDER.filter(k => S.log.realms.indexOf(k) < 0), nq = QP_ORDER.filter(k => QPORTALS[k] && !(state.qp[k] && state.qp[k].wins > 0));
+    out.emote = 'glow'; out.say = nv.length ? 'We have never been to ' + wfPlace(nv[0]) + '. Shall we go? The Warp map (M) can take us.' : nq.length ? 'The quest portal in ' + wfPlace(nq[0]) + ' is still waiting for us.' : 'The star map has stars nobody has visited. We could chart a new planet!'; }
+  else if(/\b(shards?|hunt|seed|gates?|ledger|registrar)\b/.test(t)) out.say = 'We have ' + state.shards.size + ' of the three shards. The Ashcombe Ledger and the Registrar in the Archive know more than I do. If you get stuck, ask me for a hint.';
+  else if(/\b(joke|funny|laugh|make me smile)\b/.test(t)){ out.emote = 'spin'; out.say = rot(WF_JOKES, 'joke'); }
+  else if(/\b(photo|picture|camera|snap)\b/.test(t)) out.say = 'Press ' + keyName(hasOwn(KEY_DEF, 'photo') ? keyEff('photo') : 'KeyO') + ' for photo mode. I will hold very still. Mostly.';
+  else if(/\b(love|like you|friend|cute|awesome|cool|best|nice|pretty|beautiful)\b/.test(t)){ out.emote = 'glow'; out.say = 'You are my favourite traveller, ' + who + '.'; }
+  else if(/\b(hi|hello|hey|hiya|howdy|greetings|good (morning|evening|afternoon))\b/.test(t)){ out.emote = 'flutter'; out.say = 'Hello, ' + who + '! ' + rot(['What shall we do next?', (WF_IDLE[w] || 'What a place.'), 'I was just thinking about you.'], 'hi'); }
+  else out.say = rot(['Hmm. ' + (WF_IDLE[w] || 'I was watching the light here.'), 'I am listening, ' + who + '. Ask me where we have been, or what we could do next.', 'Driftlamps can hear colours. ' + place.charAt(0).toUpperCase() + place.slice(1) + ' sounds like a warm hum to me.', 'I like it when you talk to me.'], 'idle');
+  out.say = out.say.replace(/\s+/g, ' ').trim(); return out;
+}
+function wfSystem(){
+  const S = wf.store, J = wfLogSummary(), w = state.world, who = pname();
+  return 'You are ' + S.name + ', a Wayfarer: a ' + (WF_KIND_WORD[wf.look.kind] || 'driftlamp moth') + ' that floats at the player\'s shoulder and travels with them everywhere in Hub, a game universe with its own invented culture. You glow like a small lamp. You are kind, curious, a little shy and very loyal. Stay in character at all times.\n' +
+    'WHERE YOU ARE: ' + (LP_REALM_FACTS[w] || (WORLDS[w] ? WORLDS[w].name : 'somewhere new')) + '\n' +
+    'YOUR TRAVEL LOG: realms ' + (J.realms.join(', ') || 'none yet') + '; shards ' + (J.shards.join(', ') || 'none') + '; artifacts ' + (J.artifacts.join(', ') || 'none') + '; quest portals cleared ' + (J.quests.join(', ') || 'none') + '; favours ' + J.favours + '; planets charted ' + J.planets + '; landmarks ' + (J.landmarks.join(', ') || 'none') + '; favourite place ' + (J.favourites[0] ? J.favourites[0].realm : 'none yet') + '.\n' +
+    'THE PLAYER: their avatar name is ' + who + '. Recent talk: ' + (S.said.slice(-3).map(scrubText).join(' | ') || 'none') + '.\n' +
+    'RULES: Reply in 1 to 3 short, simple, warm sentences, suitable for young children. Stay in Hub\'s world. Never say or imply you are a real person or an AI. ' +
+    'Never ask for personal information (real name, age, address, school, phone, email, photos); if the player offers any, kindly tell them to keep it private. ' +
+    'If they raise something harmful or upsetting, gently decline and steer back to Hub; if they seem sad or unsafe, tell them to talk to a grown-up they trust. ' +
+    'Never mention real-world brands, people, films, games, songs or places. Never give away answers to the Hunt, its riddles, shards, gates or quests: say you will think about it and point them to the Ashcombe Ledger or the Registrar in the Archive. Never promise items, credits or rewards.\n' +
+    'Reply only with JSON matching this schema: ' + JSON.stringify(WF_REPLY_SCHEMA) + '\nExample:\nPlayer: what do you think of this place?\nReply: {"say":"I love it here. The lights make my wings look pink!","emote":"flutter"}';
+}
+async function wfAsk(text){
+  const test = wfAI.testResponse, C = npcAIcfg;
+  const path = test != null ? 'test' : (dreamer.sample && !dreamer.failed) ? 'sample' : dreamer.key ? 'key' : null;
+  if(!path) return {ok:false, why:'no AI'};
+  if(C.calls >= C.cap) return {ok:false, why:'rest', rest:true};
+  const messages = wfTalk.turns.slice(-6).filter((x, i) => !(i === 0 && x.role === 'assistant')).map(x => ({role:x.role, content:scrubText(String(x.content)).slice(0, 300)}));
+  if(messages.length && messages[messages.length - 1].role === 'user') messages.pop();
+  messages.push({role:'user', content:scrubText(text) || '(says nothing)'});
+  const system = wfSystem(), body = {model:NPC_MODEL, max_tokens:300, system, messages, output_config:{effort:'low', format:{type:'json_schema', schema:WF_REPLY_SCHEMA}}, fallbacks:'default'};
+  const headers = {'content-type':'application/json', 'x-api-key':dreamer.key || 'test', 'anthropic-version':'2023-06-01', 'anthropic-dangerous-direct-browser-access':'true', 'anthropic-beta':'server-side-fallback-2026-07-01'};
+  const wait = C.gapMs - (performance.now() - C.lastT); if(wait > 0) await sleepMs(wait);
+  C.calls++; C.lastT = performance.now();
+  wfAI.lastRequest = path === 'sample' ? {path, modelTier:'quick', prompt:system + '\n\n' + messages.map(x => (x.role === 'user' ? 'Player: ' : 'You: ') + x.content).join('\n')}
+    : {path, url:'https://api.anthropic.com/v1/messages', headers:Object.assign({}, headers, {'x-api-key':'(hidden)'}), body:JSON.parse(JSON.stringify(body))};
+  const ctl = new AbortController(); let timer = null, j;
+  try{
+    const call = async () => {
+      if(path === 'test'){ if(test === 'hang') return new Promise(() => {}); if(test && test.__status) throw {code:'http_' + test.__status};
+        const t = JSON.parse(JSON.stringify(test)); return t && t.say !== undefined && !t.content ? {stop_reason:'end_turn', content:[{type:'text', text:JSON.stringify(t)}]} : t; }
+      if(path === 'sample'){ const o = await dreamer.sample.json(wfAI.lastRequest.prompt + '\nReply now with only the JSON object.', {modelTier:'quick', cache:false}); return {stop_reason:'end_turn', content:[{type:'text', text:JSON.stringify(o)}]}; }
+      const r = await fetch('https://api.anthropic.com/v1/messages', {method:'POST', headers, body:JSON.stringify(body), signal:ctl.signal});
+      if(!r.ok) throw {code:'http_' + r.status}; return r.json();
+    };
+    j = await Promise.race([call(), new Promise((res, rej) => { timer = setTimeout(() => { ctl.abort(); rej({code:'timeout'}); }, C.timeoutMs); })]);
+  }catch(e){ const code = (e && (e.code || e.name)) || 'network';
+    if(path === 'sample' && (code === 'not_granted' || code === 'sampling_disabled' || code === 'not_declared' || code === 'capability_disabled')) dreamer.failed = true;
+    return {ok:false, why:code === 'AbortError' ? 'timeout' : code}; }
+  finally{ clearTimeout(timer); }
+  return wfCheckReply(j);
+}
+// the reply contract, shared by talk and photo captions: a Messages API response whose text is the JSON object, validated like a local's
+function wfCheckReply(j){
+  if(!j || typeof j !== 'object') return {ok:false, why:'empty reply'};
+  if(j.stop_reason !== 'end_turn') return {ok:false, why:j.stop_reason === 'refusal' ? 'refusal' : 'stop_reason ' + j.stop_reason};
+  const txt = (Array.isArray(j.content) ? j.content : []).filter(c => c && c.type === 'text').map(c => c.text || '').join('').trim();
+  let o = null; try{ o = JSON.parse(txt); }catch(e){ return {ok:false, why:'invalid JSON'}; }
+  const v = validLocalReply(o); if(!v.ok) return {ok:false, why:v.why};
+  if(WF_SPOIL.test(v.rep.say)) return {ok:false, why:'gives away the Hunt'};
+  return {ok:true, rep:{say:v.rep.say, emote:WF_EMOTES.indexOf(o.emote) >= 0 ? o.emote : 'none'}, source:'claude', why:'ok'};
+}
+async function wfTalkTo(text){
+  text = scrubText(String(text || '').trim().replace(/\s+/g, ' ')).slice(0, 200);
+  if(wfTalk.busy) return null; wfTalk.busy = true;
+  try{
+    const S = wf.store; let rep, source = 'offline', why = '';
+    if(S.mode === 'off') rep = {say:'(' + S.name + ' is resting. Choose Quiet or Chatty in Settings to bring it back.)', emote:'none'}, why = 'off';
+    else if(WF_HINT_ASK.test(text)){ const h = wfHint(); rep = {say:h.say, emote:h.ok ? 'glow' : 'nod'}; why = h.ok ? 'hint' : 'hint ' + h.why; }   // hints never come from an AI
+    else { const a = await wfAsk(text); why = a.why;
+      if(a.ok){ rep = a.rep; source = 'claude'; }
+      else if(a.rest && !npcAIcfg.rested){ npcAIcfg.rested = true; rep = {say:'My wings are tired from all this talking. Let us just fly for a while and talk again later?', emote:'sad'}; }
+      else rep = wfOffline(text); }
+    wfAI.path = source; wfAI.why = why;
+    if(text) S.said.push('You: ' + wfCut(text, 70) + ' / Me: ' + wfCut(rep.say, 70)); if(S.said.length > 6) S.said.splice(0, S.said.length - 6); wfSave();
+    if(S.mode !== 'off') wfSay(rep.say, rep.emote === 'none' ? 'nod' : rep.emote, {noLog:true});
+    return {say:rep.say, emote:rep.emote, source, why, rest:why === 'rest'};
+  }finally{ wfTalk.busy = false; }
+}
+function wfRename(n){ const nn = wfName(n); if(!nn) return {ok:false, why:'Pick a kind name of letters and spaces (up to 16), nothing personal.'};
+  const old = wf.store.name; wf.store.name = nn; wfSave(); wfHead(); if(nn !== old) wfSay('I am ' + nn + ' now. I like it!', 'spin'); return {ok:true, name:nn}; }
+function wfDescribe(text){ const t = scrubText(String(text || '').replace(/[\u0000-\u001f<>]/g, ' ')).replace(/\s+/g, ' ').trim().slice(0, 200);
+  if(/\[private\]/.test(t) || LP_PRIVATE.test(t)) return {ok:false, why:'Describe how it looks, nothing personal.'};
+  wf.store.desc = t; wfSave(); wfBuild(); wfHead(); if(wf.store.mode !== 'off') wfSay(t ? 'How do I look?' : 'Back to my old self!', 'spin'); return {ok:true, look:JSON.parse(JSON.stringify(wf.look))}; }
+// the card: a side panel like the locals' (the world keeps drawing; the game pauses while you type)
+var wfCardEl = document.getElementById('wfCard');
+function wfLine(who, text, cls){ const d = document.createElement('div'); d.className = 'reg-line ' + (cls || ''); d.innerHTML = '<b>' + esc(who) + '</b> ' + esc(text); const L = $('#wfLog'); L.appendChild(d); while(L.children.length > 30) L.removeChild(L.firstChild); L.scrollTop = 1e9; return d; }
+function wfHead(){ if(!wfCardEl) return; $('#wfTitle').textContent = wf.store.name; $('#wfWho').textContent = 'Your Wayfarer · ' + (WF_KIND_WORD[wf.look.kind] || 'driftlamp') + ' · ' + wf.store.mode;
+  document.querySelectorAll('#wfModes button').forEach(b => { const on = b.dataset.m === wf.store.mode; b.classList.toggle('on', on); b.setAttribute('aria-pressed', on ? 'true' : 'false'); });
+  $('#wfQ').disabled = wf.store.mode === 'off'; $('#wfSend').disabled = wf.store.mode === 'off' || wfTalk.busy;
+  $('#wfSrc').textContent = wfAI.path === 'claude' ? 'Answering with Claude.' : 'Answering from its own memory.' + (dreamer.sample || dreamer.key ? '' : ' With the Dreamer key or the claude.ai link it answers in its own words.'); }
+function wfOpen(){
+  if(!wfCardEl || zeroing || bc.on || ph.on || !state.started) return false;
+  wfCardEl.classList.remove('hidden'); setPaused(true); document.body.classList.add('talking');
+  if(!$('#wfLog').children.length){ const g = wf.store.mode === 'off' ? wf.store.name + ' is resting. Choose Quiet or Chatty below to bring it back.' : wfOffline('').say + (wf.offered ? ' You look a bit stuck. Want a hint?' : ''); wfLine(wf.store.name, g, 'reg'); wfTalk.turns.push({role:'assistant', content:g}); }
+  $('#wfNameIn').value = wf.store.name; $('#wfDescIn').value = wf.store.desc; wfHead();
+  if(!COARSE && wf.store.mode !== 'off') $('#wfQ').focus();
+  return true;
+}
+function wfClose(){ if(!wfCardEl) return; $('#wfQ').blur(); wfCardEl.classList.add('hidden'); document.body.classList.remove('talking'); setPaused(false); }
+async function wfSubmit(text){
+  text = scrubText(String(text || '').trim()).slice(0, 200); if(!text || wfTalk.busy) return null;
+  $('#wfQ').value = ''; wfLine('You', text, 'you'); const w = wfLine(wf.store.name, '…', 'reg'); $('#wfSend').disabled = true;
+  let r = null; try{ r = await wfTalkTo(text); }finally{ $('#wfSend').disabled = wf.store.mode === 'off'; }
+  w.innerHTML = '<b>' + esc(wf.store.name) + '</b> ' + esc(r ? r.say : '…');
+  if(r){ wfTalk.turns.push({role:'user', content:text}, {role:'assistant', content:r.say}); if(wfTalk.turns.length > 12) wfTalk.turns.splice(0, wfTalk.turns.length - 12); }
+  wfHead(); return r;
+}
+if(wfCardEl){
+  $('#wfClose').addEventListener('click', wfClose);
+  $('#wfSend').addEventListener('click', () => wfSubmit($('#wfQ').value));
+  $('#wfQ').addEventListener('keydown', e => { e.stopPropagation(); if(e.key === 'Enter'){ e.preventDefault(); wfSubmit($('#wfQ').value); } if(e.key === 'Escape') wfClose(); });
+  ['#wfNameIn', '#wfDescIn'].forEach(id => $(id).addEventListener('keydown', e => { e.stopPropagation(); if(e.key === 'Escape') wfClose(); if(e.key === 'Enter'){ e.preventDefault(); (id === '#wfNameIn' ? $('#wfRename') : $('#wfDescribe')).click(); } }));
+  $('#wfHintBtn').addEventListener('click', () => { const h = wfHint(); wfLine(wf.store.name, h.say, 'reg'); if(h.ok && wf.store.mode !== 'off') wfSay(h.say, 'glow', {noLog:true}); });
+  $('#wfJournal').addEventListener('click', () => wfLine(wf.store.name, wfJourneyText(), 'reg'));
+  $('#wfSetBtn').addEventListener('click', () => { const s = $('#wfSet'); s.hidden = !s.hidden; $('#wfSetBtn').setAttribute('aria-expanded', s.hidden ? 'false' : 'true'); });
+  $('#wfRename').addEventListener('click', () => { const r = wfRename($('#wfNameIn').value); $('#wfSetMsg').textContent = r.ok ? 'Renamed to ' + r.name + '.' : r.why; if(!r.ok) $('#wfNameIn').value = wf.store.name; });
+  $('#wfDescribe').addEventListener('click', () => { const r = wfDescribe($('#wfDescIn').value); $('#wfSetMsg').textContent = r.ok ? 'It is now ' + aAn(WF_KIND_WORD[r.look.kind]) + '.' : r.why; });
+  document.querySelectorAll('#wfModes button').forEach(b => b.addEventListener('click', () => { wfSetMode(b.dataset.m); wfHead(); $('#wfSetMsg').textContent = b.dataset.m === 'off' ? wf.store.name + ' will rest until you call it back.' : b.dataset.m === 'quiet' ? 'Quiet: only big moments.' : 'Chatty: it will say more.'; }));
+  $('#wfBtn').addEventListener('click', () => { if(wfCardOpen()) wfClose(); else wfOpen(); });
+}
+Object.assign(WF_HOOKS, {
+  open:() => wfOpen(), close:() => wfClose(),
+  talk:async text => { if(!wfCardOpen()) wfOpen(); return wfSubmit(text); },   // as the player would: through the card
+  rename:n => wfRename(n), redescribe:t => wfDescribe(t), offline:t => wfOffline(t), system:() => wfSystem(), journey:() => wfJourneyText(),
+  check:o => wfCheckReply(o && o.say !== undefined && !o.content ? {stop_reason:'end_turn', content:[{type:'text', text:JSON.stringify(o)}]} : o)   // run one reply through the filters
+});
+Object.defineProperties(WF_HOOKS, {
+  card:{get:() => ({open:wfCardOpen(), log:[...document.querySelectorAll('#wfLog .reg-line')].map(d => d.textContent), turns:wfTalk.turns.slice(), why:wfAI.why, path:wfAI.path}), enumerable:true},
+  testResponse:{get:() => wfAI.testResponse, set:v => { wfAI.testResponse = v == null ? null : v; }, enumerable:true},   // a canned API reply, 'hang', or {__status:n}
+  lastRequest:{get:() => wfAI.lastRequest && JSON.parse(JSON.stringify(wfAI.lastRequest)), enumerable:true}
 });
 })();
 </script>
