@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Hub</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -3109,7 +3109,7 @@ const SLOT_STORES = ['hub-universe-save-v2', 'hub-locals-v1', 'hub-den-v1', 'hub
 const SLOT_META = 'hub-slots-v1', SLOT_PENDING = 'hub-slot-pending', SLOT_N = 3;
 const slotKey = (n, k) => 'hub-slot' + n + ':' + k, slotStage = k => 'hub-slot-stage:' + k;
 const slotLs = {get(k){ try{ return localStorage.getItem(k); }catch(e){ return null; } }, set(k, v){ if(v == null) localStorage.removeItem(k); else localStorage.setItem(k, v); }};
-function slotName(s){ return typeof s === 'string' ? s.replace(/[\u0000-\u001f\u007f<>\u200b-\u200f\u2028-\u202e\u2066-\u2069\ufeff]/g, '').replace(/\s+/g, ' ').trim().slice(0, 24) : ''; }
+function slotName(s){ return typeof s === 'string' ? s.replace(/[\u0000-\u001f\u007f<>\u00ad\u061c\u180e\u200b-\u200f\u2028-\u202e\u2066-\u2069\ufeff]/g, '').replace(/\s+/g, ' ').trim().slice(0, 24) : ''; }
 function slotMeta(){
   let o = null; try{ o = JSON.parse(slotLs.get(SLOT_META) || 'null'); }catch(e){}
   const m = {v:1, active:1, slots:{}}, src = o && typeof o === 'object' && o.slots && typeof o.slots === 'object' && !Array.isArray(o.slots) ? o.slots : null;
@@ -19614,7 +19614,14 @@ function slotStaleCard(){
   d.innerHTML = '<div class="card"><h2 id="slotStaleT">Save slot changed</h2><p class="lede">Another window changed save slot. Reload to continue.</p><p class="lede">Nothing more is saved from this window.</p><button class="start" id="slotStaleGo">Reload</button></div>';
   d.style.zIndex = 99; document.body.appendChild(d); try{ setPaused(true); }catch(e){}
   const b = document.getElementById('slotStaleGo'); b.addEventListener('click', () => location.reload()); b.focus();
+  // aria-modal: Tab and Shift+Tab cycle inside the card only, and focus that wanders out (a click behind it) comes back
+  const inside = () => [...d.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])')].filter(e => !e.disabled);
+  window.addEventListener('keydown', e => { if(e.key !== 'Tab' || !document.getElementById('slotStale')) return; e.preventDefault(); e.stopImmediatePropagation();
+    const f = inside(); if(!f.length) return; const i = f.indexOf(document.activeElement); f[(i < 0 ? 0 : i + (e.shiftKey ? f.length - 1 : 1)) % f.length].focus(); }, true);
+  document.addEventListener('focusin', e => { if(document.getElementById('slotStale') && !d.contains(e.target)){ const f = inside(); if(f.length) f[0].focus(); } }, true);
 }
+// a window that has gone stale (another window changed slot) must not change any slot either: copy, delete, import, use and write all refuse
+function slotStaleNo(){ return {ok:false, stale:true, why:'Another window changed save slot. Reload this window first.'}; }
 function slotFlush(){ try{ persist(); }catch(e){} try{ saveLocals(); }catch(e){} try{ denSave(); }catch(e){} try{ fbMemSave(); }catch(e){} try{ saveExplorer(); }catch(e){} try{ saveDreams(); }catch(e){} try{ saveRealms(); }catch(e){} }
 function slotInfo(n){
   const m = slotMeta(), s = m.slots[n], o = {n, active:m.active === n, label:s.name || ('Slot ' + n), name:'', level:0, credits:0, shards:0, realm:'', realmName:'', played:s.played, empty:slotEmpty(n), ok:true};
@@ -19680,6 +19687,7 @@ function slotCleanMain(c){
 function cleanRealmRec(rl){ return !!rl && typeof rl === 'object' && !Array.isArray(rl) && typeof rl.id === 'string' && /^[a-z0-9_-]{1,40}$/i.test(rl.id) && ['__proto__', 'constructor', 'prototype'].indexOf(rl.id) < 0 && typeof rl.text === 'string' && rl.text.length <= 600 && (rl.name == null || typeof rl.name === 'string'); }
 // write a whole slot (stores = {key: value}, missing keys are cleared). The slot in play is only ever written through a reload (staged).
 function slotWrite(n, stores, name, reload){
+  if(!slotCanSave()) return slotStaleNo();
   const m = slotMeta();
   if(m.active === n){
     try{ SLOT_STORES.forEach(k => slotLs.set(slotStage(k), hasOwn(stores, k) ? JSON.stringify(stores[k]) : null)); slotLs.set(SLOT_PENDING, JSON.stringify({to:n, stage:true, name:name || '', fresh:!Object.keys(stores).length})); }
@@ -19694,7 +19702,7 @@ function slotWrite(n, stores, name, reload){
 var slotReloadHook = null;   // a test can catch the reload instead (window.__hub.slots.noReload)
 function slotReload(){ if(slotReloadHook){ slotReloadHook(); return; } try{ location.reload(); }catch(e){ toast('Reload the page to switch slots.', 5000); } }
 function slotUse(n, how){   // continue (or start a new game in) slot n: the switch happens at the top of the next load
-  n = Math.floor(n); if(!(n >= 1 && n <= SLOT_N)) return {ok:false, why:'No such slot.'};
+  n = Math.floor(n); if(!(n >= 1 && n <= SLOT_N)) return {ok:false, why:'No such slot.'}; if(!slotCanSave()) return slotStaleNo();
   const m = slotMeta(); if(m.active === n && how !== 'new'){ closeSlots(); return {ok:true, same:true}; }
   if(how === 'new' && !slotEmpty(n)) return {ok:false, why:'That slot is not empty. Delete it first.'};
   if(m.active !== n) slotFlush();
@@ -19702,6 +19710,7 @@ function slotUse(n, how){   // continue (or start a new game in) slot n: the swi
   slotReload(); return {ok:true, reload:true};
 }
 function slotCopy(a, b, force){
+  if(!slotCanSave()) return slotStaleNo();
   if(a === b || !(a >= 1 && a <= SLOT_N) || !(b >= 1 && b <= SLOT_N)) return {ok:false, why:'Pick two different slots.'};
   if(slotEmpty(a)) return {ok:false, why:'Slot ' + a + ' is empty.'};
   if(!slotEmpty(b) && !force) return {ok:false, why:'Slot ' + b + ' is not empty.', confirm:true};
@@ -19709,13 +19718,13 @@ function slotCopy(a, b, force){
   return slotWrite(b, st, slotName(nm + ' copy'));
 }
 function slotDelete(n){
-  if(!(n >= 1 && n <= SLOT_N)) return {ok:false, why:'No such slot.'};
+  if(!(n >= 1 && n <= SLOT_N)) return {ok:false, why:'No such slot.'}; if(!slotCanSave()) return slotStaleNo();
   const m = slotMeta();
   if(m.active === n){ return slotWrite(n, {}, ''); }
   SLOT_STORES.forEach(k => { try{ slotLs.set(slotKey(n, k), null); }catch(e){} });
   m.slots[n] = {name:'', played:0, realm:''}; slotMetaSave(m); return {ok:true};
 }
-function slotRename(n, name){ if(!(n >= 1 && n <= SLOT_N)) return {ok:false}; const m = slotMeta(); m.slots[n].name = slotName(name); slotMetaSave(m); return {ok:true, name:m.slots[n].name}; }
+function slotRename(n, name){ if(!(n >= 1 && n <= SLOT_N)) return {ok:false}; if(!slotCanSave()) return slotStaleNo(); const m = slotMeta(); m.slots[n].name = slotName(name); slotMetaSave(m); return {ok:true, name:m.slots[n].name}; }
 function slotExportText(n){ const i = slotInfo(n); if(i.empty) return null; return JSON.stringify({hub:SLOT_EXPORT_TAG, v:1, name:slotMeta().slots[n].name || i.name, exported:new Date().toISOString(), stores:slotData(n)}); }
 function slotExport(n){
   const txt = slotExportText(n); if(!txt){ toast('That slot is empty.', 2000); return null; }
@@ -19724,6 +19733,7 @@ function slotExport(n){
   return {file, bytes:txt.length};
 }
 function slotImportText(n, txt, force){
+  if(!slotCanSave()) return slotStaleNo();
   if(typeof txt !== 'string' || txt.length > SLOT_MAX_BYTES * 1.5) return {ok:false, why:'That file is too big.'};
   let o = null; try{ o = JSON.parse(txt); }catch(e){ return {ok:false, why:'That file could not be read.'}; }
   const r = slotCheckFile(o); if(!r.ok) return r;
