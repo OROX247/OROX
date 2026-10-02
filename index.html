@@ -10949,11 +10949,7 @@ function sfx(name){
       case 'mdie': tone('triangle', 660, 110, 0.5, 0.09); noiseHit(700, 0.6, 0.5, 0.11, t, 120); break;
       case 'mwind': if(w === 'grid') tone('sine', 300, 1700, 0.7, 0.045); else if(w === 'grove') tone('sawtooth', 70, 110, 0.5, 0.05); else if(w === 'warfront'){ [0, 0.11, 0.22, 0.33].forEach(d => tone('square', 1900, 1750, 0.03, 0.03, t + d)); tone('sine', 260, 880, 0.8, 0.03); } else noiseHit(500, 0.7, 0.55, 0.06, t, 1600); break;
       case 'zap': tone('sawtooth', 1900, 180, 0.22, 0.06); noiseHit(4200, 1, 0.16, 0.07); break;
-      case 'step': { if(w === 'saltlark' && slDepth() > 0.08){ noiseHit(900, 0.7, 0.16, 0.06, t, 2600); noiseHit(3400, 1.5, 0.09, 0.025, t + 0.03); break; }   // a splash
-        if(w === 'saltlark'){ noiseHit(520, 0.6, 0.09, 0.05); break; }   // soft sand
-        if(w === 'fennick'){ if(p.y < 0.4 && !(qa && qa.inside)){ noiseHit(380, 0.8, 0.12, 0.05, t, 220); break; } noiseHit(2300, 1.4, 0.04, 0.045); noiseHit(800, 1.0, 0.05, 0.03, t + 0.01); break; }   // mud, or setts and flags
-        if(w === 'lampblack'){ noiseHit(1300, 1.1, 0.07, 0.05); noiseHit(3600, 2.2, 0.035, 0.022, t + 0.012); break; }   // a wet step
-        const soft = w === 'dunes' || w === 'sky' || w === 'grove' || w === 'campus' || w === 'warfront'; noiseHit(soft ? 340 : w === 'grid' ? 2100 : 800, soft ? 0.7 : 2.5, soft ? 0.07 : 0.045, soft ? 0.045 : 0.035); break; }
+      case 'step': stepSound(); break;   // Phase 4 part 3: the surface under you decides (sndSurface)
     }
   }catch(e){}
 }
@@ -20415,6 +20411,79 @@ function sndMusicStats(key, n){
   let backToBack = 0; for(let i = 1; i < shapes.length; i++) if(shapes[i] === shapes[i - 1]) backToBack++;
   return {phrases:shapes.length, distinct:new Set(shapes).size, backToBack, lowest:Math.min(...degs), highest:Math.max(...degs), avgRestS:+(restSum / shapes.length).toFixed(1), voice:M.voice, scale:M.scale.slice(), root:M.root};
 }
+/* ---- Phase 4 part 3: footsteps per surface. sndSurface(x, z, y) reads the ground under a point (pockets first, then a platform you stand on,
+   then the realm's own map: plazas, paths, halls, decks, the sea and the mud), and stepSound plays that surface with a little variation every step.
+   A new realm only needs a row in STEP_REALM (and STEP_QA for its quest arena). ---- */
+var STEP_SURF = ['sand', 'grass', 'stone', 'metal', 'wood', 'water', 'mud'];
+var STEP_QA = {hub:'metal', campus:'wood', dunes:'sand', grid:'metal', grove:'grass', sky:'stone', warfront:'wood', lampblack:'wood', saltlark:'stone', fennick:'stone'};
+var STEP_PLAT = {sky:pl => pl.r > 3 ? 'grass' : 'stone', grid:() => 'metal', warfront:pl => pl.step ? 'wood' : 'stone', lampblack:pl => pl.el ? 'wood' : 'stone'};
+var STEP_REALM = {
+  hub:(x, z) => Math.hypot(x, z) < 37 || (x > ARCHIVE.x0 - 1 && x < ARCHIVE.x1 + 1 && z > ARCHIVE.z0 - 3 && z < ARCHIVE.z1) ? 'stone' : 'grass',
+  campus:(x, z) => { const H = CAMPUS.hall; if(gym && Math.hypot(x - gym.x, z - gym.z) < gym.r) return 'wood'; return (x > H.x0 && x < H.x1 && z > H.z0 - 4 && z < H.z1) || onCampusPath(x, z, 0.2) ? 'stone' : 'grass'; },
+  dunes:() => 'sand',
+  grid:(x, z, y) => y > 1.5 && Math.hypot(x, z) > 60 ? 'stone' : 'metal',
+  grove:() => 'grass',
+  sky:() => 'grass',
+  ashfall:(x, z) => x > CITADEL.x0 - 1 && x < CITADEL.x1 + 1 && z > CITADEL.z - 2 && z < CITADEL.vault.z1 + 1 ? 'stone' : 'sand',
+  warfront:(x, z) => { if(!warG) return 'grass'; warG(x, z); return _wCut > 0.3 ? 'mud' : 'grass'; },
+  lampblack:() => 'stone',
+  saltlark:(x, z, y) => { const K = SLK, W = K.walk, P = K.pier;
+    if(K.sea - y > 0.08) return 'water';
+    if((x >= W.x0 - 0.2 && x <= W.x1 + 0.2 && z >= W.z0 - 0.2 && z <= W.z1 + 0.2 && y > W.y - 0.3) || (x >= P.x0 - 0.2 && x <= P.x1 + 0.2 && z >= P.z0 && z <= P.z1 && y > P.y - 0.3)) return 'wood';
+    if(Math.hypot(x - K.head.x, z - K.head.z) <= K.head.r + 0.2 && y > P.y - 0.3) return 'stone';
+    if(x > K.hotel.x0 && x < K.hotel.x1 && z > K.hotel.z0 && z < K.hotel.z1 && y > K.hotel.y - 0.4) return 'wood';
+    if(Math.hypot(x - K.hill.x, z - K.hill.z) < K.hill.r * 0.8 && y > 2) return 'grass';
+    return 'sand'; },
+  fennick:(x, z, y) => { const K = FB;
+    if(K.sea - y > 0.08) return 'water';
+    if(x > K.pier.x0 - 0.2 && x < K.pier.x1 + 0.2 && z >= K.pier.z0 && z <= K.pier.z1 && y > K.pier.y - 0.4) return 'wood';
+    if(y < 0.4) return 'mud';
+    if(Math.abs(x) > 110 || z < -50 || z > 130) return 'grass';   // the moor beyond the town
+    return 'stone'; }
+};
+function sndSurface(x, z, y, opt){
+  opt = opt || {}; const w = opt.realm || state.world;
+  if(y == null) y = G(x, z);
+  if(!opt.outside){
+    const pk = sndPocket(); if(pk === 'den' || pk === 'corr') return 'wood'; if(pk === 'hollow') return 'stone';
+    if(pk === 'qa'){ if(w === 'saltlark' && slDepth() > 0.08) return 'water'; return STEP_QA[w] || 'stone'; }
+    if(drift && zgVol(x, z) === drift) return 'metal';
+  }
+  const g0 = G(x, z);
+  if(y > g0 + 0.25){ for(const pl of platforms) if(Math.hypot(x - pl.x, z - pl.z) < (pl.r || 0) && Math.abs(pl.top - y) < 0.4){ const f = STEP_PLAT[w]; return f ? f(pl) : 'stone'; } }
+  const f = STEP_REALM[w]; if(f) return f(x, z, y);
+  const W = WORLDS[w], s = W && W.custom ? W.custom.surface : '';
+  return /sand|snow|ash|mars/.test(s) ? 'sand' : /rock|gravel/.test(s) ? 'stone' : 'grass';
+}
+var stepStats = {n:0, by:{}, last:''};
+function stepSound(){
+  const s = sndSurface(p.x, p.z, p.y), r = sndRand, d = snd.stepBus, t = snd.ctx.currentTime, k = 0.9 + r() * 0.2, v = (0.85 + r() * 0.3) * (p.speed > 7 ? 1.15 : 1);
+  stepStats.n++; stepStats.by[s] = (stepStats.by[s] || 0) + 1; stepStats.last = s;
+  switch(s){
+    case 'sand': noiseHit(420 * k, 0.6, 0.1, 0.05 * v, t, 260, d); noiseHit(3200 * k, 1.2, 0.05, 0.01 * v, t + 0.01, 0, d); break;
+    case 'grass': noiseHit(1700 * k, 0.8, 0.08, 0.03 * v, t, 900, d); noiseHit(260 * k, 1, 0.06, 0.028 * v, t, 0, d); break;
+    case 'stone': noiseHit(2300 * k, 1.4, 0.04, 0.045 * v, t, 0, d); noiseHit(800 * k, 1.0, 0.05, 0.03 * v, t + 0.01, 0, d); break;
+    case 'metal': noiseHit(2600 * k, 2.5, 0.03, 0.03 * v, t, 0, d); tone('sine', 1150 * k, 1100 * k, 0.16, 0.012 * v, t, d); tone('sine', 2730 * k, 2700 * k, 0.09, 0.006 * v, t, d); break;
+    case 'wood': tone('sine', 190 * k, 150 * k, 0.08, 0.06 * v, t, d); noiseHit(1000 * k, 1.6, 0.04, 0.03 * v, t, 0, d); break;
+    case 'water': noiseHit(900 * k, 0.7, 0.16, 0.06 * v, t, 2600, d); noiseHit(3400 * k, 1.5, 0.09, 0.025 * v, t + 0.03, 0, d); break;
+    case 'mud': noiseHit(380 * k, 0.8, 0.12, 0.05 * v, t, 220, d); tone('sine', 95 * k, 70, 0.1, 0.02 * v, t, d); break;
+  }
+  if(state.world === 'lampblack' && s === 'stone' && !sndPocket()) noiseHit(3600 * k, 2.2, 0.035, 0.022 * v, t + 0.012, 0, d);   // the streets are wet
+}
+// fixed sample points per realm for the tester: [x, z, expected surface] on the realm's own ground (outside any pocket)
+var STEP_SAMPLES = {
+  hub:[[0, 10, 'stone'], [20, -20, 'stone'], [70, 10, 'grass'], [0, 76, 'stone']],
+  campus:[[0, -15, 'stone'], [-15, -20, 'grass'], [0, 15, 'stone'], [-33, -2, 'wood'], [40, 30, 'grass']],
+  dunes:[[0, 10, 'sand'], [60, -60, 'sand']],
+  grid:[[0, 10, 'metal'], [30, -20, 'metal']],
+  grove:[[0, 10, 'grass'], [-30, 25, 'grass']],
+  sky:[[0, 14, 'grass']],
+  ashfall:[[0, 0, 'sand'], [-14, 40, 'stone']],
+  warfront:[[0, 14, 'grass']],
+  lampblack:[[0, 0, 'stone'], [24, 30, 'stone']],
+  saltlark:[[0, -8, 'wood'], [-22, 40, 'wood'], [0, 30, 'water'], [-22, 93, 'stone']],
+  fennick:[[0, 0, 'stone'], [52, 60, 'wood'], [-10, 60, 'mud'], [0, -30, 'stone'], [300, -300, 'grass']]
+};
 // test hooks (a tester can check all of this headless within minutes; see LESSONS)
 var SND_HOOKS = {
   init(){ audioInit(); return !!snd.ctx; },
@@ -20440,6 +20509,15 @@ var SND_HOOKS = {
   music(key, n){ return sndMusicStats(key || (snd.scene && snd.scene.key), n); },
   musicLog(){ const m = snd.scene && snd.scene.mus; return m ? {notes:m.notes, phrases:m.phrases, shapes:m.log.slice(), next:+(m.next - snd.ctx.currentTime).toFixed(1), centre:m.centre} : null; },
   musicNow(){ const m = snd.scene && snd.scene.mus; if(!m) return false; m.next = 0; snd.acc = 1; sndTick(0); return m.phrases; },
+  surfaceAt:(x, z, y, opt) => sndSurface(x, z, y, opt),
+  surfaceNow:() => sndSurface(p.x, p.z, p.y),
+  surfaces:STEP_SURF,
+  // the current realm's sample points: [x, z, expected, got] (built-in realms; build the realm first)
+  surfaceSamples(){ return (STEP_SAMPLES[state.world] || []).map(([x, z, e]) => ({x, z, expect:e, got:sndSurface(x, z, null, {outside:true}), ok:sndSurface(x, z, null, {outside:true}) === e})); },
+  // a histogram of surfaces on a square grid round (cx, cz): shows every surface a realm has (the Warfront trenches' mud, the Fennick basin)
+  surfaceScan(cx, cz, half, stepM){ const out = {}; half = half || 60; stepM = stepM || 3; for(let x = -half; x <= half; x += stepM) for(let z = -half; z <= half; z += stepM){ const s = sndSurface((cx || 0) + x, (cz || 0) + z, null, {outside:true}); out[s] = (out[s] || 0) + 1; } return out; },
+  steps(){ return {n:stepStats.n, by:Object.assign({}, stepStats.by), last:stepStats.last}; },
+  stepNow(){ if(!snd.ctx) return null; stepSound(); return stepStats.last; },
   // RMS level (dBFS) of the whole mix over ~ms, from an AnalyserNode tapped off the master (made on first use, removed after)
   level(ms){ return new Promise(res => { if(!snd.ctx) return res(null); const a = snd.ctx.createAnalyser(); a.fftSize = 2048; snd.master.connect(a); const buf = new Float32Array(a.fftSize); let sum = 0, n = 0, peak = 0;
     const end = performance.now() + (ms || 500), take = () => { a.getFloatTimeDomainData(buf); for(let i = 0; i < buf.length; i++){ sum += buf[i] * buf[i]; if(Math.abs(buf[i]) > peak) peak = Math.abs(buf[i]); } n += buf.length;
