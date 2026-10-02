@@ -1,0 +1,19 @@
+Hub sound per realm: tester summary at ea573d3 (headless Chromium, SwiftShader, 640x360)
+Bed = old base layers + SCAPES layers (nodes). Spots fired = in 15 s of audio time at spawn. Music = MUSIC row (root Hz, scale, voice); phrases are a random walk, with no stored melodies.
+RMS = whole mix at Master 80%, measured over 400 ms at spawn.
+
+hub       bed: wind, hum, concourse, breeze | spots: bird, chime, murmur (4 fired) | loop: shuttle roar | music 293.66 lydian bell | step stone (plaza), grass | RMS -29.9 dB
+campus    bed: wind, chirps, leaves, lawn | spots: bird, bell (bell captioned) (3) | music 349.23 pentatonic keys | step stone, grass, wood | RMS -42.8 dB
+dunes     bed: wind, wind-high, hiss, low | spots: grains x2, cry (1) | music 329.63 phrygian flute | step sand | RMS -32.3 dB
+grid      bed: hum, wind, city, buzz | spots: zap (4) | loop: tower hum | music 220 minor-pent pluck | step metal, stone | RMS -35.2 dB
+grove     bed: wind, crickets, leaves, brook | spots: owl, nightbird, frog (3) | music 164.81 dorian flute | step grass | RMS -33.0 dB
+sky       bed: wind, chirps, whistle, depth | spots: skybird, flap (2) | music 369.99 pentatonic glass | step grass, stone | RMS -33.0 dB
+ashfall   bed: wind, hum, embers, deep | spots: crackle, rumble (2) | music 138.59 aeolian horn | step sand, stone | RMS -30.2 dB
+warfront  bed: wind, wind-low, booms, grass, canvas | spots: crow, whistle (1) | music 196 aeolian horn | step grass, mud | RMS -34.7 dB
+lampblack bed: rain, wind, traffic, city, gutters | spots: steam, drip (6) | music 233.08 dorian keys + 7th chords | step stone, wood (El) | RMS -35.8 dB
+saltlark  bed: surf, wind, gulls, lap, breeze | spots: wave, clink (4) | loop: pier lap | music 392 mixolydian marimba | step wood, water, sand, stone | RMS -35.5 dB
+fennick   bed: sea, wind, gulls, horn, lap, rigging | spots: creak, clink, wave (3) | loop: pier lap | music 185 aeolian reed | step stone, wood, mud, grass | RMS -35.6 dB
+
+Spaces: den S verb wet .22, out .30, LP 650, room bed | hollow L .42, out .03, LP 250, cave bed | hallway M .30, out 0, LP 300, hall bed | arena M .28, out 0, LP 400, room bed
+Battery saver (Saltlark): drops the 'rich' layer (breeze), music echo and chords, cap 28 -> 16; restored on Auto.
+Music generator: 80 phrases per realm give 72-79 distinct shapes, 0 back-to-back repeats, average rest 14-33 s.
