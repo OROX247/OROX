@@ -355,6 +355,7 @@ body.bcast #hud, body.bcast #corner, body.bcast #roomCard, body.bcast #toast{ vi
 .a11y-tog[aria-pressed="true"]{ border-color:var(--cyan); }
 .a11y-tog[aria-pressed="true"] b{ color:var(--cyan); }
 .a11y-text .ghost[aria-pressed="true"]{ border-color:var(--cyan); color:var(--cyan); }
+.perf-row{ flex-wrap:wrap; gap:8px; } .perf-row .ghost{ flex:1 1 40%; margin-top:6px; } .perf-row .ghost[aria-pressed="true"]{ border-color:var(--cyan); color:var(--cyan); } .perf-msg{ margin-top:8px; }
 #a11yKeys{ display:grid; grid-template-columns:1fr 1fr; gap:4px 8px; }
 #a11yKeys button{ display:flex; justify-content:space-between; gap:8px; margin:0; padding:6px 9px; font-size:13px; text-align:left; }
 #a11yKeys button kbd{ font:700 13px 'Chakra Petch','Trebuchet MS',sans-serif; color:var(--gold); }
@@ -3341,6 +3342,37 @@ $('#stage').appendChild(renderer.domElement);
 renderer.shadowMap.autoUpdate = false; // one shadow pass per frame (frame() flags it), not one per render call
 const GL_INFO = (() => { try{ const gl = renderer.getContext(), x = gl.getExtension('WEBGL_debug_renderer_info'); return x ? String(gl.getParameter(x.UNMASKED_RENDERER_WEBGL)) : String(gl.getParameter(gl.RENDERER)); }catch(e){ return ''; } })();
 const SOFTWARE_GL = /swiftshader|llvmpipe|software|mesa offscreen/i.test(GL_INFO); // software renderers (headless test browsers) cannot build the sky reflection map; it comes out black
+/* ================= device profile (Phase 4 part 2: phones) =================
+   One profile is chosen before the first realm is built, from the device class (touch pointer, memory, cores, GPU name, screen):
+   desktop -> High, phone or tablet -> Balanced, low-cost phone (the School profile, blueprint 11b) -> Battery saver. The player can override it
+   in Settings (Auto / High / Balanced / Battery saver), saved per device in hub-perf-v1 (never in a save slot). Effects go first, sharpness last:
+   every profile keeps 4x MSAA, SMAA and a pixel ratio of at least 1.5. High is exactly the desktop picture as it always was.
+   Live knobs (pixel ratio, shadows, SSAO, bloom, depth of field, mirrors, grass, LOD, streaming, frame cap) switch at once; the surface texture
+   size and the ground disc density are made with the realm (next travel) or once per session (surfaces, next load). */
+const PERF_KEY = 'hub-perf-v1';
+const PERF_PROFILES = {
+  high:{name:'High', pr:2, shadow:4096, box:58, ssao:2, bloom:1, dof:true, mirror:1024, grass:1, lod:1, tier:1, stream:3, fps:0, surf:1024, rings:1},
+  balanced:{name:'Balanced', pr:1.5, shadow:2048, box:46, ssao:3, bloom:0.5, dof:false, mirror:512, grass:0.7, lod:0.8, tier:1, stream:3, fps:0, surf:512, rings:0.65},
+  saver:{name:'Battery saver', pr:1.5, shadow:1024, box:38, ssao:0, bloom:0.35, dof:false, mirror:256, grass:0.45, lod:0.6, tier:0.7, stream:4, fps:30, surf:512, rings:0.65}
+};
+const PERF_DEV = (() => {
+  const nav = navigator, mem = +nav.deviceMemory || 0, cores = +nav.hardwareConcurrency || 0, sw = Math.min(screen.width || 0, screen.height || 0), gpu = GL_INFO || '';
+  const touch = COARSE || ((nav.maxTouchPoints || 0) > 0 && !(window.matchMedia && matchMedia('(any-pointer: fine)').matches));
+  const weakGPU = /Mali-(4\d\d|T\d+|G(31|51|52|57)\b)|Adreno \(TM\) ([1-5]\d\d|60\d|61\d)\b|PowerVR|IMG BXM|Vivante|VideoCore|SwiftShader|llvmpipe|software/i.test(gpu);
+  const why = [];
+  if(!touch) why.push('fine pointer');
+  else { if(mem && mem <= 3) why.push('memory ' + mem + ' GB'); if(cores && cores <= 4) why.push(cores + ' cores'); if(weakGPU) why.push('GPU ' + gpu.slice(0, 40)); }
+  const cls = !touch ? 'desktop' : why.length ? 'school' : 'phone';
+  return {cls, kind:!touch ? 'desktop' : sw >= 600 ? 'tablet' : 'phone', mem, cores, gpu, screen:[screen.width, screen.height], dpr:window.devicePixelRatio || 1, why};
+})();
+const PERF_AUTO = {desktop:'high', phone:'balanced', school:'saver'};
+const PERF = (() => { let o = null; try{ o = JSON.parse(slotLs.get(PERF_KEY) || 'null'); }catch(e){}
+  const mode = o && typeof o === 'object' && ['auto', 'high', 'balanced', 'saver'].indexOf(o.mode) >= 0 ? o.mode : 'auto';
+  const active = mode === 'auto' ? PERF_AUTO[PERF_DEV.cls] : mode;
+  return {mode, active, p:PERF_PROFILES[active], built:PERF_PROFILES[active], lastT:-1, capped:0, firstFrame:0, worst:{ms:0, at:''}, stalls:[]}; })();
+const perfShadow = () => PERF.p.shadow;
+const perfPR = () => Math.min(window.devicePixelRatio || 1, PERF.p.pr);
+renderer.setPixelRatio(perfPR());
 const MAX_ANISO = Math.min(16, renderer.capabilities.getMaxAnisotropy());
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(55, innerWidth / innerHeight, 0.25, 2500);
@@ -3614,7 +3646,7 @@ const SURFACES = {
 const surfCache = {};
 function surface(name){
   if(surfCache[name]) return surfCache[name];
-  const S = SURFACES[name], size = COARSE ? 512 : 1024;
+  const S = SURFACES[name], size = PERF.p.surf;   /* device profile: 1024 on High, 512 on phones */
   const mk = () => { const rt = new THREE.WebGLRenderTarget(size, size, {minFilter:THREE.LinearMipmapLinearFilter, magFilter:THREE.LinearFilter, format:THREE.RGBAFormat, depthBuffer:false, stencilBuffer:false}); rt.texture.generateMipmaps = true; rt.texture.wrapS = rt.texture.wrapT = THREE.RepeatWrapping; rt.texture.anisotropy = MAX_ANISO; return rt; };
   const u = surfMatColor.uniforms; u.kind.value = S.kind; u.seed.value = (S.kind + 1) * 13.7; u.per.value = S.per; u.colA.value.setHex(S.A); u.colB.value.setHex(S.B); u.colC.value.setHex(S.C); surfMatNormal.uniforms.strength.value = S.strength;
   const old = renderer.getRenderTarget(), tm = renderer.toneMapping, oe = renderer.outputEncoding; renderer.toneMapping = THREE.NoToneMapping;
@@ -3674,7 +3706,7 @@ function lodFill(e){
   [e.hi, e.lo].forEach(m => { m.instanceMatrix.needsUpdate = true; if(m.instanceColor) m.instanceColor.needsUpdate = true; });
 }
 function lodStep(e, c){
-  const D = e.d * lodScale, H = e.h * lodScale;
+  const D = e.d * lodScale * PERF.p.lod, H = e.h * lodScale * PERF.p.lod;
   if(e.kind === 'mesh'){ const d = c.distanceTo(e.c), f = e.far ? d > D : d > D + H; if(f !== e.far){ e.far = f; e.hi.visible = !f; e.lo.visible = f; } return false; }
   let ch = false; for(let i = 0; i < e.n; i++){ const d = c.distanceTo(e.pos[i]), f = e.far[i] ? d > D : d > D + H; if(f !== !!e.far[i]){ e.far[i] = f ? 1 : 0; ch = true; } }
   return ch;
@@ -3848,9 +3880,9 @@ const sunTrans = (sd, A) => { const TR = [5.804542996261093E-6, 1.35629114198456
 
 const hemi = new THREE.HemisphereLight(0xffffff, 0x444444, 0.5); scene.add(hemi);
 const sunLight = new THREE.DirectionalLight(0xffffff, 2); sunLight.castShadow = true;
-const SHADOW_RES = COARSE ? 2048 : 4096;
+const SHADOW_RES = perfShadow();   // device profile: 4096 on High
 sunLight.shadow.mapSize.set(SHADOW_RES, SHADOW_RES);
-Object.assign(sunLight.shadow.camera, {left:-58, right:58, top:58, bottom:-58, near:1, far:420});   // 116 m of shadow around the player: 2.8 cm per texel at 4096
+Object.assign(sunLight.shadow.camera, {left:-PERF.p.box, right:PERF.p.box, top:PERF.p.box, bottom:-PERF.p.box, near:1, far:420});   // 116 m of shadow around the player: 2.8 cm per texel at 4096
 sunLight.shadow.camera.updateProjectionMatrix(); sunLight.shadow.bias = -0.0002; sunLight.shadow.normalBias = 0.05;
 scene.add(sunLight); scene.add(sunLight.target);
 hemi.layers.enable(1); sunLight.layers.enable(1); sunLight.shadow.camera.layers.enable(1);
@@ -4570,7 +4602,7 @@ function clearWorld(){
 
 /* ================= world pieces ================= */
 function buildTerrain(o){
-  const N = Math.round((o.rings || 170) * (COARSE ? 0.65 : 1)), S = Math.round((o.segs || 280) * (COARSE ? 0.65 : 1)), maxR = o.maxR;
+  const N = Math.round((o.rings || 170) * PERF.p.rings), S = Math.round((o.segs || 280) * PERF.p.rings), maxR = o.maxR;
   const cnt = (N + 1) * (S + 1), pos = new Float32Array(cnt * 3), uv = new Float32Array(cnt * 2);
   let k = 0;
   for(let i = 0; i <= N; i++){
@@ -4665,6 +4697,8 @@ function grassTexture(){
   });
   grassTex.wrapS = grassTex.wrapT = THREE.ClampToEdgeWrapping; grassTex.anisotropy = MAX_ANISO; SHARED_TEX.add(grassTex); return grassTex;
 }
+// device profile: grass is thinned by drawing fewer of the same instances (they are in random order), so nothing is placed differently
+function perfGrass(m){ if(!m.userData.fullCount) m.userData.fullCount = m.count; m.count = Math.max(1, Math.round(m.userData.fullCount * PERF.p.grass)); }
 function makeGrass(count, rMin, rMax, hexes, hr, skip){
   // grass as crossed alpha-cut cards (two quads), fewer instances than the old single blades but far denser cover
   count = Math.round(count * 0.42);
@@ -4695,7 +4729,7 @@ function makeGrass(count, rMin, rMax, hexes, hr, skip){
     const c = C(hexes[Math.floor(r() * hexes.length)]); c.multiplyScalar(0.8 + r() * 0.45); cols.push(c);
   }
   mat.customProgramCacheKey = () => 'grass';
-  const gm = instanced(geo, mat, mats, cols, false); if(gm){ gm.userData.grass = {count, rMin, rMax, hexes, hr, skip}; gm.userData.noAO = true; gm.customDepthMaterial = new THREE.MeshDepthMaterial({depthPacking:THREE.RGBADepthPacking, map:grassTexture(), alphaTest:0.4}); grassMeshes.push(gm); gm.visible = qLevel < 5 && aiVid.style.display !== 'block'; } return gm;
+  const gm = instanced(geo, mat, mats, cols, false); if(gm){ perfGrass(gm); gm.userData.grass = {count, rMin, rMax, hexes, hr, skip}; gm.userData.noAO = true; gm.customDepthMaterial = new THREE.MeshDepthMaterial({depthPacking:THREE.RGBADepthPacking, map:grassTexture(), alphaTest:0.4}); grassMeshes.push(gm); gm.visible = qLevel < 5 && aiVid.style.display !== 'block'; } return gm;
 }
 
 let leafTexCache = {};
@@ -6712,7 +6746,7 @@ function makeWater(geo, o){
   const u = w.material.uniforms; u.size.value = o.size == null ? 4 : o.size; u.fogSunDir = {value:FOG_SUN}; u.fogSunColor = {value:FOG_SUNCOL}; u.fogParams = {value:FOG_PARAMS};
   w.material.transparent = o.alpha != null && o.alpha < 1; w.rotation.x = -Math.PI / 2; w.userData.lastFrame = -1; w.userData.noAO = true;
   w.shouldRender = (renderer, sc, cam) => { if(cam !== camera || w.userData.lastFrame === stats.frames) return false; w.userData.lastFrame = stats.frames;
-    const want = qLevel >= 4 ? 256 : qLevel >= 2 ? 512 : 1024; if(w.renderTarget.width !== want) w.renderTarget.setSize(want, want / 2); return true; };
+    const want = Math.min(PERF.p.mirror, qLevel >= 4 ? 256 : qLevel >= 2 ? 512 : 1024); if(w.renderTarget.width !== want) w.renderTarget.setSize(want, want / 2); return true; };
   waterMeshes.push(w); return w;
 }
 let waterMeshes = [];
@@ -7230,7 +7264,7 @@ function updateChunks(all){
 function refillGrass(cx, cz){
   for(const gm of grassMeshes){
     const gr = gm.userData.grass; if(!gr) continue; const r = rng(Math.floor(cx * 7 + cz * 13) | 1);
-    for(let i = 0; i < gm.count; i++){
+    for(let i = 0, n = gm.userData.fullCount || gm.count; i < n; i++){
       const a = r() * TAU, d = Math.sqrt(gr.rMin * gr.rMin + r() * (gr.rMax * gr.rMax - gr.rMin * gr.rMin)), x = cx + Math.cos(a) * d, z = cz + Math.sin(a) * d;
       const hh = (gr.hr[0] + r() * (gr.hr[1] - gr.hr[0])) * 1.25, s = (gr.skip && gr.skip(x, z)) ? 0 : 1;
       gm.setMatrixAt(i, mat4(x, G(x, z) - 0.03, z, (r() - 0.5) * 0.2, r() * TAU, (r() - 0.5) * 0.2, (0.9 + r() * 0.6) * s, hh * s, (0.9 + r() * 0.6) * s));
@@ -7245,7 +7279,7 @@ function grassStep(J, until){
     const gm = grassMeshes[J.m], gr = gm.userData.grass; if(!gr){ J.m++; continue; }
     if(!J.r){ J.r = rng(Math.floor(J.cx * 7 + J.cz * 13) | 1); J.i = 0; }
     const r = J.r;
-    while(J.i < gm.count){
+    while(J.i < (gm.userData.fullCount || gm.count)){
       const a = r() * TAU, d = Math.sqrt(gr.rMin * gr.rMin + r() * (gr.rMax * gr.rMax - gr.rMin * gr.rMin)), x = J.cx + Math.cos(a) * d, z = J.cz + Math.sin(a) * d;
       const hh = (gr.hr[0] + r() * (gr.hr[1] - gr.hr[0])) * 1.25, s = (gr.skip && gr.skip(x, z)) ? 0 : 1;
       gm.setMatrixAt(J.i, mat4(x, G(x, z) - 0.03, z, (r() - 0.5) * 0.2, r() * TAU, (r() - 0.5) * 0.2, (0.9 + r() * 0.6) * s, hh * s, (0.9 + r() * 0.6) * s));
@@ -7257,7 +7291,7 @@ function grassStep(J, until){
 }
 const _pcFr = new THREE.Frustum(), _pcPm = new THREE.Matrix4(), _pcBox = new THREE.Box3();
 function planetStream(E){
-  const t0 = performance.now(), until = t0 + STREAM_MS;
+  const t0 = performance.now(), until = t0 + PERF.p.stream;
   if(E.job){ if(reStep(E.job, until)){ const T = E.job.T; E.job = null; E.grassJob = {cx:T.cx, cz:T.cz, m:0, r:null, i:0}; } }
   else if(E.grassJob){ if(grassStep(E.grassJob, until)) E.grassJob = null; }
   const pcx = Math.floor(p.x / CHUNK), pcz = Math.floor(p.z / CHUNK), sk = pcx + ',' + pcz + ',' + E.chunks.size;
@@ -7506,16 +7540,18 @@ function cellDream(ctx){
   const l = label(d.name, {small:true, edge:'#b18cff', fg:'#e6d8ff'}); l.position.set(at[0], G(at[0], at[1]) + 9, at[1]); buildParent.add(l);
   d.x = at[0]; d.z = at[1]; ctx.local.push({x:at[0], z:at[1], r:10}); ctx.cell.dream = d; E.dreamsPlaced[ctx.key] = d;
 }
+// device profile: Battery saver builds the widest (silhouette) tier over fewer cells; tiers of three cells or less, and the dream, keep their reach
+const tierR = t => t.dream || t.r <= 3 ? t.r : Math.max(3, Math.round(t.r * PERF.p.tier));
 function planCells(E){
-  const TS = E.style.tiers, F = TS[0].r, pcx = E.pcx, pcz = E.pcz, cheb = c => Math.max(Math.abs(c.cx - pcx), Math.abs(c.cz - pcz));
+  const TS = E.style.tiers, F = tierR(TS[0]), pcx = E.pcx, pcz = E.pcz, cheb = c => Math.max(Math.abs(c.cx - pcx), Math.abs(c.cz - pcz));
   for(const c of [...E.chunks.values()]){ const ch = cheb(c);
-    for(let ti = TS.length - 1; ti >= 0; ti--) if(c.parts[ti] && ch > TS[ti].r + 1){ dropPart(E, c.parts[ti]); c.parts[ti] = null; if(TS[ti].dream) c.dream = null; const hd = TS[ti].hides; if(hd != null && c.parts[hd]){ c.parts[hd].hidden = false; c.parts[hd].g.visible = true; } }
+    for(let ti = TS.length - 1; ti >= 0; ti--) if(c.parts[ti] && ch > tierR(TS[ti]) + 1){ dropPart(E, c.parts[ti]); c.parts[ti] = null; if(TS[ti].dream) c.dream = null; const hd = TS[ti].hides; if(hd != null && c.parts[hd]){ c.parts[hd].hidden = false; c.parts[hd].g.visible = true; } }
     if(!c.parts[0]) E.chunks.delete(c.key); else for(const pt of c.parts) if(pt) partDetail(pt, ch <= 1); }
   const lookX = p.x - Math.sin(cam.yaw) * 30, lookZ = p.z - Math.cos(cam.yaw) * 30, want = [];
   for(let dz = -F; dz <= F; dz++) for(let dx = -F; dx <= F; dx++){
     const cx = pcx + dx, cz = pcz + dz; if(cellInCore(cx, cz, E.style.core)) continue;
     const c = E.chunks.get(chunkKey(cx, cz)), ch = Math.max(Math.abs(dx), Math.abs(dz)), d = Math.hypot((cx + 0.5) * CHUNK - lookX, (cz + 0.5) * CHUNK - lookZ) / 1000;
-    TS.forEach((t, ti) => { if(ch <= t.r && !(c && c.parts[ti])) want.push({cx, cz, ti, pri:ch + ti * 0.05 + d}); });
+    TS.forEach((t, ti) => { if(ch <= tierR(t) && !(c && c.parts[ti])) want.push({cx, cz, ti, pri:ch + ti * 0.05 + d}); });
   }
   want.sort((a, b) => a.pri - b.pri); E.queue = want;
 }
@@ -7558,7 +7594,7 @@ function updateBuiltin(){
     if(tx !== T.cx || tz !== T.cz){ if(tx === 0 && tz === 0 && E.home) swapTerrain(E.terrain, E.home.pos, E.home.nor, E.home.col, E.home.uv, 0, 0); else E.job = reJob(E.terrain, tx, tz); } }
   if(S.tick) S.tick(E);
   for(const ci of E.coreInst){ const off = camWorld.distanceTo(ci.c) - ci.r > E.fogFar; if(off !== ci.off){ ci.off = off; if(off) ci.o.layers.set(5); else ci.o.layers.mask = ci.mask; } }
-  const until = t0 + STREAM_MS;
+  const until = t0 + PERF.p.stream;
   for(;;){
     if(E.job){ if(reStep(E.job, until)) E.job = null; }
     else if(E.queue.length) runCellJob(E, E.queue.shift());
@@ -7724,7 +7760,7 @@ function cellGrassPatch(c, n, hexes, hr, ok){
   const m = instanced(K.geo, K.mat, mats, cols, false); if(m) cellGrassMesh(m, K); return m;
 }
 // cell grass joins grassMeshes, so the quality ladder and the AI filter hide it with the rest (dropPart takes it out again)
-function cellGrassMesh(m, K){ m.userData.noAO = true; m.customDepthMaterial = K.depth; m.visible = qLevel < 5 && aiVid.style.display !== 'block'; grassMeshes.push(m); }
+function cellGrassMesh(m, K){ perfGrass(m); m.userData.noAO = true; m.customDepthMaterial = K.depth; m.visible = qLevel < 5 && aiVid.style.display !== 'block'; grassMeshes.push(m); }
 let cellPebbleCache = {};
 function cellPebbles(c, n, surf, hex, ok){
   const K = cellPebbleCache[surf] || (cellPebbleCache[surf] = (() => { const g = new THREE.IcosahedronGeometry(1, 1); displace(g, 0.25, 2.2); g.scale(1, 0.6, 1); g.translate(0, 0.3, 0); const s = surface(surf);
@@ -9623,7 +9659,7 @@ function playBroadcast(why){
   if(cam.view === 2) setView(0);
   setPaused(true); for(const k in keys) keys[k] = false; joy.x = joy.y = 0; jumpBuffer = 0;
   bcBuild(); me.g.visible = false; (archive.labels || []).forEach(l => { l.visible = false; });
-  if(post.dof) post.dof.enabled = qLevel < 1 && !COARSE;   // a shallow focus on Wick while he speaks (the cinematic layer's own pass)
+  if(post.dof) post.dof.enabled = qLevel < 1 && PERF.p.dof;   // a shallow focus on Wick while he speaks (the cinematic layer's own pass)
   bc.on = true; bc.t = 0; bc.hold = null; bc.t0 = performance.now(); bc.line = -1; bc.why = why || 'replay'; bc.skipped = false; bc.plays++;
   document.body.classList.add('bcast'); bcEl.hidden = false; bcEl.classList.remove('out'); bcEl.querySelector('.bc-sub').textContent = ''; bcEl.classList.add('open');
   $('#bcSkip').focus({preventScroll:true});
@@ -10205,7 +10241,7 @@ function setView(i){
   me.g.visible = i !== 2; toast(v.name, 1200);
 }
 function cycleView(){ setView((cam.view + 1) % VIEWS.length); }
-function setCine(on){ post.cine = on; if(post.on){ if(post.dof) post.dof.enabled = on && qLevel < 1 && !COARSE; post.grade.uniforms.grain.value = on ? 0.03 : 0; post.grade.uniforms.chroma.value = on ? 0.0006 : 0; } toast(on ? 'Cinematic: depth of field, grain and lens colour on' : 'Cinematic off', 1600); }
+function setCine(on){ post.cine = on; if(post.on){ if(post.dof) post.dof.enabled = on && qLevel < 1 && PERF.p.dof; post.grade.uniforms.grain.value = on ? 0.03 : 0; post.grade.uniforms.chroma.value = on ? 0.0006 : 0; } toast(on ? 'Cinematic: depth of field, grain and lens colour on' : 'Cinematic off', 1600); }
 cam.view = 0;
 const joy = {x:0, y:0}, joyEl = $('#joy'), knob = $('#knob'); let joyId = null;
 function joyMove(e){
@@ -10230,7 +10266,7 @@ function travel(to, opts){
   if(bike.riding) dismountBike(true);
   const from = state.world; fadeEl.classList.add('on'); sfx('warp');
   setTimeout(() => {
-    buildWorld(to);
+    const tb = performance.now(); buildWorld(to); PERF.travel = {to, buildMs:Math.round(performance.now() - tb), at:stats.frames};
     if(opts.spawn || (to === 'hub' && !portals.some(q => q.to === from))){ p.x = 0; p.z = 14; cam.yaw = 0; }
     else {   // arrive far enough out that the camera (cam.dist behind you) stands in front of the return portal, not inside its ring looking through the back of it
       const back = portals.find(q => q.to === from) || portals[0], d = Math.hypot(back.x, back.z) || 1, k = clamp(cam.dist + 2.5, 4.5, 12);
@@ -10643,8 +10679,8 @@ $('#texClear').addEventListener('click', clearPhotos);
 // Chain: scene (4x MSAA) -> ambient occlusion (half-res, multiplied in) -> bloom on glows only -> gamma -> grade (vignette, a touch of saturation) -> SMAA edges.
 // Everything here is optional: if the vendored passes are missing or WebGL cannot do it, the game renders the plain way.
 const post = { on:false, msaa:false, composer:null, ssao:null, rays:null, bloom:null, dof:null, gamma:null, grade:null, smaa:null, sharpen:null, cine:true };
-const basePixelRatio = () => qLevel >= 6 ? 1 : Math.min(window.devicePixelRatio || 1, COARSE ? 1.5 : 2);
-function setPixelRatio(x){ renderer.setPixelRatio(x); if(post.on) post.composer.setPixelRatio(x); }
+const basePixelRatio = () => qLevel >= 6 ? 1 : perfPR();
+function setPixelRatio(x){ renderer.setPixelRatio(x); if(post.on){ post.composer.setPixelRatio(x); post.sharpen.uniforms.texel.value.set(1 / (innerWidth * x), 1 / (innerHeight * x)); } }
 // sun rays: the bright sky around the sun, occluded by whatever is in front of it, is smeared outward from the sun
 // (three blur passes at quarter size, 216 taps in all) and added back as light. The blurred image also tells the lens flare how much sun is visible.
 const RAYS_MASK = {
@@ -10739,7 +10775,7 @@ function setupPost(){
     const ssao = new THREE.SSAOPass(scene, camera, Math.round(w * pr / 2), Math.round(h * pr / 2));
     ssao.kernelRadius = 0.7; ssao.minDistance = 0.000006; ssao.maxDistance = 0.0007;
     ssao.normalRenderTarget.depthTexture.type = THREE.UnsignedIntType;
-    ssao.setSize = function(W, H){ THREE.SSAOPass.prototype.setSize.call(this, Math.round(W / 2), Math.round(H / 2)); };
+    ssao.setSize = function(W, H){ const k = PERF.p.ssao || 2; THREE.SSAOPass.prototype.setSize.call(this, Math.round(W / k), Math.round(H / k)); };   // device profile: half size on High, a third on Balanced
     ssao.overrideVisibility = function(){ const cache = this._visibilityCache; this.scene.traverse(o => { cache.set(o, o.visible); if(o.isPoints || o.isLine || o.isSprite || o.userData.noAO) o.visible = false; }); };
     ssao.render = function(r, writeBuffer, readBuffer){
       this.overrideVisibility(); this.renderOverride(r, this.normalMaterial, this.normalRenderTarget, 0x7777ff, 1.0); this.restoreVisibility();
@@ -10753,15 +10789,15 @@ function setupPost(){
     };
     composer.addPass(ssao);
     const rays = new SunRaysPass(Math.round(w * pr), Math.round(h * pr)); composer.addPass(rays);
-    const bloom = new THREE.UnrealBloomPass(new V2(w, h), 0.28, 0.5, 0.92); composer.addPass(bloom);
+    const bloom = new THREE.UnrealBloomPass(new V2(w, h), 0.28, 0.5, 0.92); bloom.setSize = function(W, H){ const k = PERF.p.bloom; if(k === 1) THREE.UnrealBloomPass.prototype.setSize.call(this, W, H); else THREE.UnrealBloomPass.prototype.setSize.call(this, Math.max(4, Math.round(W * k)), Math.max(4, Math.round(H * k))); }; composer.addPass(bloom);   // device profile: lower-res bloom on phones
     // gentle depth of field: focus rides on the camera distance, far things soften like a real lens
     let dof = null;
-    if(THREE.BokehPass){ dof = new THREE.BokehPass(scene, camera, {focus:cam.dist, aperture:0.00011, maxblur:0.0038, width:Math.round(w * pr), height:Math.round(h * pr)}); dof.needsSwap = true; dof.enabled = !COARSE; composer.addPass(dof); }
+    if(THREE.BokehPass){ dof = new THREE.BokehPass(scene, camera, {focus:cam.dist, aperture:0.00011, maxblur:0.0038, width:Math.round(w * pr), height:Math.round(h * pr)}); dof.needsSwap = true; dof.enabled = PERF.p.dof; composer.addPass(dof); }
     const gamma = new THREE.ShaderPass(THREE.GammaCorrectionShader); composer.addPass(gamma);
     const grade = new THREE.ShaderPass(GRADE_SHADER); grade.uniforms.aspect.value = w / h; composer.addPass(grade);
     const smaa = new THREE.SMAAPass(w * pr, h * pr); composer.addPass(smaa);
     const sharpen = new THREE.ShaderPass(SHARPEN_SHADER); sharpen.uniforms.texel.value.set(1 / (w * pr), 1 / (h * pr)); composer.addPass(sharpen);
-    Object.assign(post, {on:true, composer, ssao, rays, bloom, dof, gamma, grade, smaa, sharpen});
+    Object.assign(post, {on:true, composer, ssao, rays, bloom, dof, gamma, grade, smaa, sharpen}); ssao.enabled = PERF.p.ssao > 0;
   }catch(e){ post.on = false; console.warn('Post-processing is off: ' + (e && e.message || e)); }
 }
 setupPost();
@@ -13117,15 +13153,17 @@ function degrade(){
   if(qLevel === 1 && post.on){ if(post.dof) post.dof.enabled = false; }
   else if(qLevel === 2 && post.on) post.ssao.enabled = false;
   else if(qLevel === 3){ if(post.on) post.bloom.enabled = false; skyU.cloudQ.value = 0; }
-  else if(qLevel === 4){ sunLight.shadow.mapSize.set(SHADOW_RES / 2, SHADOW_RES / 2); if(sunLight.shadow.map){ sunLight.shadow.map.dispose(); sunLight.shadow.map = null; } }
+  else if(qLevel === 4){ sunLight.shadow.mapSize.set(perfShadow() / 2, perfShadow() / 2); if(sunLight.shadow.map){ sunLight.shadow.map.dispose(); sunLight.shadow.map = null; } }
   else if(qLevel === 5) grassMeshes.forEach(g => { g.visible = false; });
   else if(qLevel === 6) setPixelRatio(basePixelRatio());
   toast('Quality step ' + qLevel + ' of ' + Q_MAX + ' (keeping the frame rate up)', 2000);
 }
-function frame(){
-  const dt = Math.min(clock.getDelta(), 0.05);
+function frame(t){
+  if(PERF.p.fps && t != null && !vr.on){ if(PERF.lastT >= 0 && t - PERF.lastT < 1000 / PERF.p.fps - 4){ PERF.capped++; return; } PERF.lastT = t; }   // Battery saver: a 30 fps cap (only the real animation loop passes t)
+  const raw = clock.getDelta(), dt = Math.min(raw, 0.05);
+  perfNote(raw);
   stats.ms += (dt * 1000 - stats.ms) * 0.05; stats.fps = 1000 / stats.ms; stats.frames++;
-  if(warm > 0) warm -= dt; else if(!document.hidden && !ai.on){ fAcc += dt; fN++; if(fAcc > 2.5){ if(fN / fAcc < 28 && qLevel < Q_MAX) degrade(); fAcc = 0; fN = 0; } }
+  if(warm > 0) warm -= dt; else if(!document.hidden && !ai.on){ fAcc += dt; fN++; if(fAcc > 2.5){ if(fN / fAcc < (PERF.p.fps ? PERF.p.fps * 0.8 : 28) && qLevel < Q_MAX) degrade(); fAcc = 0; fN = 0; } }
   update(dt, clock.elapsedTime);
   updateLods();
   renderer.shadowMap.needsUpdate = true;
@@ -13142,13 +13180,14 @@ function frame(){
   else { renderMirrors(); renderer.render(scene, camera); }
   if(!vr.on) drawMap();
   localsBubbles(dt);
+  if(!PERF.firstFrame) PERF.firstFrame = performance.now();
 }
 window.addEventListener('resize', () => { if(vr.on) return; renderer.setSize(innerWidth, innerHeight); camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); if(post.on){ post.composer.setSize(innerWidth, innerHeight); const pr = renderer.getPixelRatio(); post.grade.uniforms.aspect.value = innerWidth / innerHeight; post.sharpen.uniforms.texel.value.set(1 / (innerWidth * pr), 1 / (innerHeight * pr)); } sizeMap(); });
 
 const ready = (document.fonts && document.fonts.ready) ? document.fonts.ready : Promise.resolve();
 ready.then(() => new Promise(res => setTimeout(res, 60))).then(() => {
-  sizeMap(); buildWorld('hub');
-  renderer.compile(scene, camera); p.y = G(p.x, p.z); setPlayerTag(); setHalo(); refreshHud(); snapCamera(); renderer.setAnimationLoop(frame);
+  sizeMap(); const tb = performance.now(); buildWorld('hub'); const tc = performance.now();
+  renderer.compile(scene, camera); PERF.boot = {startMs:Math.round(tb), buildMs:Math.round(tc - tb), compileMs:Math.round(performance.now() - tc)}; p.y = G(p.x, p.z); setPlayerTag(); setHalo(); refreshHud(); snapCamera(); renderer.setAnimationLoop(frame);
   const ld = $('#loading'); if(ld) ld.remove();
   $('#nameInput').focus();
 }).catch(err => { const ld = $('#loading'); if(ld) ld.textContent = 'Could not start: ' + err.message; });
@@ -13681,7 +13720,7 @@ window.__hub = { state, p, cam, post, stats, WORLDS, scene, renderer, camera, su
   forgeRealm, realmKey, parseRealm, describeRealm, deleteRealm, get realms(){ return realms.map(x => Object.assign({}, x)); }, get waterBody(){ return waterBody && {level:waterBody.level, kind:waterBody.kind}; },
   fare, CAMPUS, get enrolled(){ return state.enrolled; }, set enrolled(v){ state.enrolled = !!v; persist(); }, enroll, get desk(){ return desk && {x:desk.x, z:desk.z}; }, get deskNear(){ return deskNear; }, get boxes(){ return boxes.length; }, boxOut, G:(x, z) => G(x, z), get portals(){ return portals.map(q => ({to:q.to, x:q.x, z:q.z})); }, get coins(){ return coins.map(k => ({id:k.id, x:k.g.position.x, y:k.g.position.y, z:k.g.position.z})); },
   get lods(){ return lods.map(e => e.kind === 'mesh' ? {kind:'mesh', d:e.d, h:e.h, far:e.far, at:e.c.toArray().map(v => +v.toFixed(1)), dist:+camWorld.distanceTo(e.c).toFixed(1), triNear:e.hi.geometry.index.count / 3, triFar:e.lo.geometry.index.count / 3}
-    : {kind:'inst', d:e.d, h:e.h, n:e.n, near:e.hi.count, far:e.lo.count, triNear:e.hi.geometry.index.count / 3, triFar:e.lo.geometry.index.count / 3}); }, updateLods, camWorld, frame:() => frame(), get lodScale(){ return lodScale; }, set lodScale(v){ lodScale = +v || 1; updateLods(); },
+    : {kind:'inst', d:e.d, h:e.h, n:e.n, near:e.hi.count, far:e.lo.count, triNear:e.hi.geometry.index.count / 3, triFar:e.lo.geometry.index.count / 3}); }, updateLods, camWorld, frame:t => frame(t), get lodScale(){ return lodScale; }, set lodScale(v){ lodScale = +v || 1; updateLods(); },
   get phDown(){ return phDown; }, texInfo(){ const o = {}; for(const k in slotMats) o[k] = slotMats[k].map(en => ({kind:en.kind, map:en.mat.map && en.mat.map.image && en.mat.map.image.width, rough:!!en.mat.roughnessMap, ao:!!en.mat.aoMap, real:!!(en.mat.aoMap || (en.mat.map && en.mat.map.image && en.mat.map.image.width >= 2048))})); return o; }, idb,
   get npcs(){ return npcs.map(nn => ({name:nn.name, x:nn.x, z:nn.z, line:nn.line, look:describeRecipe(nn.av.recipe), height:nn.av.recipe.height, colour:nn.av.recipe.colours.main})); }, get colliders(){ return colliders.map(c => Object.assign({}, c)); } };
 
@@ -19862,6 +19901,80 @@ function cbStripes(){ if(!cbStripeTex){ const c = document.createElement('canvas
   cbStripeTex = new THREE.CanvasTexture(c); cbStripeTex.wrapS = cbStripeTex.wrapT = THREE.RepeatWrapping; } return cbStripeTex; }
 function denCbMats(){ if(!denCbM) denCbM = {bad:new THREE.MeshBasicMaterial({color:C(0xff5a5a), map:cbStripes(), transparent:true, opacity:0.8, alphaTest:0.3, depthWrite:false}),
   badF:new THREE.MeshBasicMaterial({color:C(0xff5a5a), map:cbStripes(), transparent:true, opacity:0.55, alphaTest:0.3, depthWrite:false, side:THREE.DoubleSide})}; return denCbM; }
+
+/* ================= device profile: switching, settings and metrics (Phase 4 part 2) =================
+   PERF (top of the script) holds the device class, the chosen mode and the active profile. perfSet(mode) is the only way to change it:
+   it saves the mode per device and perfApply switches every live knob at once. perfNote(dt) keeps the worst frame and the long stalls. */
+function perfNote(raw){
+  const ms = raw * 1000; if(!PERF.firstFrame || ms > 5000 || document.hidden) return;   // the frame after a hidden tab is not a stall
+  if(ms > PERF.worst.ms) PERF.worst = {ms:Math.round(ms), at:state.world, frame:stats.frames};
+  if(ms > 100){ PERF.stalls.push({ms:Math.round(ms), world:state.world, frame:stats.frames}); if(PERF.stalls.length > 20) PERF.stalls.shift(); }
+}
+function perfSave(){ try{ slotLs.set(PERF_KEY, JSON.stringify({v:1, mode:PERF.mode})); }catch(e){} }
+function perfApply(active){
+  const P = PERF_PROFILES[active]; PERF.active = active; PERF.p = P; PERF.lastT = -1;
+  setPixelRatio(basePixelRatio());
+  if(post.on){ post.composer.setSize(innerWidth, innerHeight); post.ssao.enabled = qLevel < 2 && P.ssao > 0; if(post.dof) post.dof.enabled = post.cine && qLevel < 1 && P.dof; }
+  const S = qLevel >= 4 ? P.shadow / 2 : P.shadow; if(sunLight.shadow.mapSize.x !== S){ sunLight.shadow.mapSize.set(S, S); if(sunLight.shadow.map){ sunLight.shadow.map.dispose(); sunLight.shadow.map = null; } }
+  const sc = sunLight.shadow.camera; if(sc.right !== P.box){ Object.assign(sc, {left:-P.box, right:P.box, top:P.box, bottom:-P.box}); sc.updateProjectionMatrix(); }
+  grassMeshes.forEach(m => { if(m.userData.fullCount) perfGrass(m); });
+  updateLods();
+  if(endless && endless.builtin) endless.pcx = 1e9;   // plan the streamed cells again with this profile's tier reach
+}
+function perfSet(mode){
+  if(['auto', 'high', 'balanced', 'saver'].indexOf(mode) < 0) return {ok:false, why:'No such profile.'};
+  PERF.mode = mode; perfSave(); perfApply(mode === 'auto' ? PERF_AUTO[PERF_DEV.cls] : mode); perfRender();
+  return {ok:true, mode, active:PERF.active};
+}
+const PERF_MODES = [['auto', 'Auto'], ['high', 'High'], ['balanced', 'Balanced'], ['saver', 'Battery saver']];
+function perfRender(){
+  const row = document.getElementById('perfRow'); if(!row) return;
+  row.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.perf === PERF.mode)));
+  const d = PERF_DEV, cls = {desktop:'a computer', phone:'a ' + d.kind, school:'a low-cost ' + d.kind}[d.cls];
+  $('#perfMsg').textContent = (PERF.mode === 'auto' ? 'Auto picked ' + PERF.p.name + ' for ' + cls + '. ' : PERF.p.name + ' is set by hand. ') +
+    (PERF.active === 'saver' ? 'Effects are lighter and the frame rate is held at 30 to save battery. ' : PERF.active === 'balanced' ? 'Effects are lighter; edges stay smooth. ' : 'Every effect is on. ') +
+    'Texture detail changes after the next reload.';
+}
+(function perfPanel(){
+  const card = document.querySelector('#a11y .card'), before = document.getElementById('a11yKeysL'); if(!card || !before) return;
+  const l = document.createElement('label'); l.className = 'field'; l.id = 'perfL'; l.textContent = 'Performance on this device';
+  const row = document.createElement('div'); row.className = 'look-row perf-row'; row.id = 'perfRow'; row.setAttribute('role', 'group'); row.setAttribute('aria-labelledby', 'perfL');
+  PERF_MODES.forEach(([k, name]) => { const b = document.createElement('button'); b.className = 'ghost'; b.dataset.perf = k; b.textContent = name; b.addEventListener('click', () => { perfSet(k); }); row.appendChild(b); });
+  const msg = document.createElement('p'); msg.className = 'lede perf-msg'; msg.id = 'perfMsg'; msg.setAttribute('role', 'status'); msg.setAttribute('aria-live', 'polite');
+  card.insertBefore(l, before); card.insertBefore(row, before); card.insertBefore(msg, before); perfRender();
+})();
+// an estimate of texture memory in MB from what the scene and the passes hold (a test hook; real drivers pad and compress)
+function perfTexMB(){
+  const seen = new Set(), add = t => { if(t && !seen.has(t)) seen.add(t); }; let b = 0;
+  scene.traverse(o => { const ms = o.material ? (Array.isArray(o.material) ? o.material : [o.material]) : []; ms.forEach(m => { for(const k in m){ const v = m[k]; if(v && v.isTexture) add(v); } if(m.uniforms) for(const k in m.uniforms){ const v = m.uniforms[k] && m.uniforms[k].value; if(v && v.isTexture) add(v); } }); });
+  if(scene.background && scene.background.isTexture) add(scene.background);
+  seen.forEach(t => { const im = t.image; if(!im) return; const w = im.width || 0, h = im.height || 0, bpp = t.type === THREE.FloatType ? 16 : t.type === THREE.HalfFloatType ? 8 : 4; b += w * h * bpp * (t.generateMipmaps && t.minFilter !== THREE.LinearFilter ? 4 / 3 : 1) * (t.isCubeTexture ? 6 : 1); });
+  const rt = (r, k) => { if(r) b += r.width * r.height * (k || 4); };
+  if(sunLight.shadow.map) rt(sunLight.shadow.map);
+  if(post.on){ rt(post.composer.renderTarget1); rt(post.composer.renderTarget2); }
+  return +(b / 1048576).toFixed(1);
+}
+function perfFrameInfo(){   // one frame's real draw calls and triangles (info resets on every render call, so count over the whole frame)
+  const R = renderer; R.info.autoReset = false; R.info.reset();
+  const t = performance.now(); frame(); const ms = performance.now() - t;
+  const o = {calls:R.info.render.calls, triangles:R.info.render.triangles, points:R.info.render.points, lines:R.info.render.lines, cpuMs:+ms.toFixed(1)};
+  R.info.autoReset = true; return o;
+}
+function perfMetrics(){
+  const m = renderer.info.memory, sh = sunLight.shadow;
+  return {mode:PERF.mode, active:PERF.active, device:Object.assign({}, PERF_DEV), q:qLevel, pixelRatio:renderer.getPixelRatio(), size:[innerWidth, innerHeight],
+    shadow:{map:sh.mapSize.x, box:sunLight.shadow.camera.right * 2}, ssao:post.on && post.ssao.enabled, ssaoDiv:PERF.p.ssao, bloom:post.on && post.bloom.enabled, bloomScale:PERF.p.bloom, dof:!!(post.on && post.dof && post.dof.enabled),
+    mirrors:waterMeshes.filter(w => w.parent).map(w => w.renderTarget.width), grass:grassMeshes.reduce((a, g) => a + g.count, 0), grassFull:grassMeshes.reduce((a, g) => a + (g.userData.fullCount || g.count), 0),
+    lod:PERF.p.lod, tier:PERF.p.tier, streamMs:PERF.p.stream, fpsCap:PERF.p.fps, capped:PERF.capped, fps:+stats.fps.toFixed(1), ms:+stats.ms.toFixed(1),
+    geometries:m.geometries, textures:m.textures, texMB:perfTexMB(), released:PERF.released || 0, firstFrameMs:Math.round(PERF.firstFrame), boot:PERF.boot || null, travel:PERF.travel || null, worst:Object.assign({}, PERF.worst), stalls:PERF.stalls.slice()};
+}
+Object.defineProperties(window.__hub, {
+  perf:{value:{
+    get mode(){ return PERF.mode; }, get active(){ return PERF.active; }, get profile(){ return Object.assign({}, PERF.p); }, get device(){ return Object.assign({}, PERF_DEV); }, profiles:PERF_PROFILES,
+    set:mode => perfSet(mode), metrics:() => perfMetrics(), frameInfo:() => perfFrameInfo(), texMB:() => perfTexMB(),
+    resetWorst(){ PERF.worst = {ms:0, at:''}; PERF.stalls = []; PERF.capped = 0; }
+  }}
+});
 
 })();
 </script>
