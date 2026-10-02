@@ -333,7 +333,8 @@ body.bcast #hud, body.bcast #corner, body.bcast #roomCard, body.bcast #toast{ vi
   #toast{ bottom:calc(env(safe-area-inset-bottom,0px) + 170px); } #roomCard{ bottom:calc(env(safe-area-inset-bottom,0px) + 228px); }
 }
 @media (pointer:coarse) and (max-width:560px){ #denBar{ left:6px; right:6px; bottom:calc(env(safe-area-inset-bottom,0px) + 178px); } }   /* a phone held upright: above the stick and the jump button, full width */
-#slots{ z-index:12; }
+#slots, #a11y{ z-index:12; background:rgba(5,4,18,.86); }
+#slots .card, #a11y .card{ background:#0e0c28; }
 .slot-row{ border:1.5px solid rgba(255,255,255,.18); padding:10px 12px; margin:0 0 10px; }
 .slot-row.on{ border-color:var(--cyan); }
 .slot-head{ display:flex; gap:10px; align-items:center; font-size:16px; }
@@ -348,7 +349,6 @@ body.bcast #hud, body.bcast #corner, body.bcast #roomCard, body.bcast #toast{ vi
 .intro-more .ghost{ margin:0; width:auto; flex:1; }
 #slotNow{ color:var(--muted); font-size:13px; margin:0 0 6px; }
 /* Phase 4: accessibility */
-#a11y{ z-index:12; }
 .a11y-tog{ display:flex; justify-content:space-between; gap:10px; text-align:left; margin-top:8px; }
 .a11y-tog small{ display:block; color:var(--muted); font-weight:400; font-size:13px; margin-top:2px; }
 .a11y-tog b{ flex:0 0 auto; }
@@ -19670,7 +19670,7 @@ function renderSlots(){
     }
     row.appendChild(bar); list.appendChild(row);
   });
-  $('#slotAsk').hidden = true;
+  $('#slotAsk').hidden = true; slotNowLine();
 }
 function slotAct(r){ if(!r) return; $('#slotMsg').textContent = r.ok ? (r.reload ? 'Loading…' : 'Done.') : (r.why || 'That did not work.'); if(r.ok && !r.reload && !r.same) renderSlots(); }
 function slotAsk(text, yes, input){
@@ -19688,13 +19688,14 @@ function slotPickFile(n){
     file.text().then(txt => { const r = slotImportText(n, txt, false); if(r.confirm) slotAsk('Replace slot ' + n + ' with the imported save?' + (slotMeta().active === n ? ' The game reloads.' : ''), () => slotAct(slotImportText(n, txt, true))); else slotAct(r); }, () => slotAct({ok:false, why:'That file could not be read.'})); };
   f.click();
 }
-function openSlots(){ renderSlots(); $('#slotMsg').textContent = slotBoot.err ? 'The last switch could not be finished: ' + slotBoot.err : ''; slotsEl.classList.remove('hidden'); $('#slotsClose').focus(); }
+function openSlots(){ renderSlots(); $('#slotMsg').textContent = slotBoot.err ? 'The last switch could not be finished: ' + slotBoot.err : ''; slotsEl.classList.remove('hidden'); const f = slotsEl.querySelector('#slotList button') || $('#slotsClose'); f.focus(); slotsEl.scrollTop = 0; }
 function closeSlots(){ if(slotsEl.classList.contains('hidden')) return; slotsEl.classList.add('hidden'); slotConfirm = null; const b = $('#slotsBtn'); if(b && !introEl.classList.contains('hidden')) b.focus(); }
 $('#slotsBtn').addEventListener('click', openSlots); $('#slotsClose').addEventListener('click', closeSlots);
 $('#slotAskYes').addEventListener('click', () => slotAnswer(true)); $('#slotAskNo').addEventListener('click', () => slotAnswer(false));
 $('#slotAskInput').addEventListener('keydown', e => { e.stopPropagation(); if(e.key === 'Enter'){ e.preventDefault(); slotAnswer(true); } if(e.key === 'Escape'){ e.preventDefault(); slotAnswer(false); } });
 if(slotBoot.did) setTimeout(() => { const i = slotInfo(slotBoot.did.to); toast((slotBoot.did.stage ? 'Slot ' + i.n + ' is ready' : 'Slot ' + i.n + ' loaded') + (i.name ? ': ' + i.name : ''), 3500); }, 600);
-{ const i = slotInfo(slotMeta().active), el = $('#slotNow'); if(el) el.textContent = 'Slot ' + i.n + (i.label !== 'Slot ' + i.n ? ' · ' + i.label : '') + (i.empty ? ' · new game' : ''); }
+function slotNowLine(){ const m = slotMeta(), n = m.active, el = $('#slotNow'); if(el) el.textContent = 'Playing in slot ' + n + (m.slots[n].name ? ': ' + m.slots[n].name : ''); }
+slotNowLine();
 // the main keydown asks this first while the Saves panel is open
 function slotsKey(e){
   if(slotsEl.classList.contains('hidden')) return false;
@@ -19797,7 +19798,7 @@ function renderA11y(){
     const l = document.createElement('span'); l.textContent = name; const k = document.createElement('kbd'); k.textContent = a11yListen === a ? 'press a key…' : keyName(c) + (a === 'forward' || a === 'back' || a === 'left' || a === 'right' ? ' / arrow' : '');
     b.appendChild(l); b.appendChild(k); b.addEventListener('click', () => { a11yListen = a; a11yMsg('Press the key for ' + name + ', or Esc to cancel.'); renderA11y(); const n = kl.querySelector('[data-a="' + a + '"]'); if(n) n.focus(); }); kl.appendChild(b); });
 }
-function openA11y(){ a11yListen = null; renderA11y(); a11yMsg(''); a11yEl.classList.remove('hidden'); $('#a11yClose').focus(); }
+function openA11y(){ a11yListen = null; renderA11y(); a11yMsg(''); a11yEl.classList.remove('hidden'); const f = a11yEl.querySelector('.a11y-text button[aria-pressed="true"]') || $('#a11yClose'); f.focus(); a11yEl.scrollTop = 0; }
 function closeA11y(){ if(a11yEl.classList.contains('hidden')) return; a11yListen = null; a11yEl.classList.add('hidden'); const b = $('#a11yBtn'); if(b && !introEl.classList.contains('hidden')) b.focus(); }
 function a11yPanelKey(e){ if(a11yEl.classList.contains('hidden')) return false; if(e.code === 'Escape'){ e.preventDefault(); closeA11y(); } return true; }
 a11yEl.querySelectorAll('.a11y-text button').forEach(b => b.addEventListener('click', () => { a11ySet('text', +b.dataset.text); a11yMsg('Text size: ' + b.textContent + '.'); }));
