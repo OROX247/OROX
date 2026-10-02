@@ -20336,6 +20336,85 @@ var SCAPES = {
     spots:[{k:'bird', lat:{cell:50, n:1}, y:8, every:[8, 20], range:60, ref:8}]},
   other:{bed:[], spots:[]}
 };
+/* ---- Phase 4 part 3: each realm's own quiet generative music (all invented). A phrase of 3-7 notes is drawn from the realm's scale by a random walk
+   whose centre wanders, with a rest of 10-45 s after it (now and then a much longer silence) and sometimes a soft chord under it; the last few
+   phrase shapes are kept and never played again straight away, so there is no loop to learn. It sits on the Music volume, steps back under
+   club music (sndDuck) and rests inside pockets. Battery saver drops the echo and the chords and rests longer. ---- */
+var MUSIC = {
+  hub:{root:293.66, scale:[0, 2, 4, 6, 7, 9, 11], lo:-3, hi:9, voice:'bell', gap:[0.55, 0.8], rest:[10, 26], lvl:0.5, pad:0.35, echo:[0.42, 0.32, 0.3]},
+  campus:{root:349.23, scale:[0, 2, 4, 7, 9], lo:-4, hi:7, voice:'keys', gap:[0.4, 0.6], rest:[9, 22], lvl:0.45, pad:0.25, echo:[0.36, 0.25, 0.2]},
+  dunes:{root:329.63, scale:[0, 1, 3, 5, 7, 8, 10], lo:-4, hi:7, voice:'flute', gap:[0.7, 1.1], rest:[14, 32], lvl:0.4, pad:0.5, echo:[0.55, 0.3, 0.3]},
+  grid:{root:220, scale:[0, 3, 5, 7, 10], lo:-2, hi:9, voice:'pluck', gap:[0.25, 0.4], rest:[8, 20], lvl:0.4, pad:0.2, echo:[0.375, 0.42, 0.4]},
+  grove:{root:164.81, scale:[0, 2, 3, 5, 7, 9, 10], lo:0, hi:11, voice:'flute', gap:[0.8, 1.2], rest:[14, 34], lvl:0.4, pad:0.3, echo:[0.6, 0.35, 0.35]},
+  sky:{root:369.99, scale:[0, 2, 4, 7, 9], lo:-3, hi:8, voice:'glass', gap:[0.6, 0.9], rest:[10, 26], lvl:0.4, pad:0.3, echo:[0.5, 0.4, 0.38]},
+  ashfall:{root:138.59, scale:[0, 2, 3, 5, 7, 8, 10], lo:0, hi:9, voice:'horn', gap:[1.0, 1.5], rest:[18, 40], lvl:0.35, pad:0.6, echo:[0.7, 0.3, 0.3]},
+  warfront:{root:196, scale:[0, 2, 3, 5, 7, 8, 10], lo:-2, hi:8, voice:'horn', gap:[0.9, 1.3], rest:[20, 45], lvl:0.3, pad:0.3, echo:[0.6, 0.25, 0.25]},
+  lampblack:{root:233.08, scale:[0, 2, 3, 5, 7, 9, 10], lo:-2, hi:9, voice:'keys', gap:[0.5, 0.8], rest:[10, 24], lvl:0.4, pad:0.5, sev:true, echo:[0.33, 0.2, 0.2]},
+  saltlark:{root:392, scale:[0, 2, 4, 5, 7, 9, 10], lo:-4, hi:7, voice:'marimba', gap:[0.28, 0.42], rest:[9, 22], lvl:0.4, pad:0.2, echo:[0.3, 0.25, 0.2]},
+  fennick:{root:185, scale:[0, 2, 3, 5, 7, 8, 10], lo:0, hi:10, voice:'reed', gap:[0.6, 0.9], rest:[14, 30], lvl:0.35, pad:0.35, echo:[0.5, 0.3, 0.25]}
+};
+function sndMusicDef(key){
+  if(MUSIC[key]) return MUSIC[key]; if(!/^[wp]:/.test(key)) return null;
+  const h = strHash('music:' + key), k = h % 12, sc = [[0, 2, 4, 7, 9], [0, 3, 5, 7, 10], [0, 2, 3, 7, 8], [0, 2, 5, 7, 9]][(h >> 4) % 4];
+  return {root:196 * Math.pow(2, k / 12), scale:sc, lo:-2, hi:8, voice:['glass', 'flute', 'bell', 'pluck'][(h >> 8) % 4], gap:[0.6, 1.0], rest:[16, 36], lvl:0.3, pad:0.3, echo:[0.5, 0.3, 0.3]};
+}
+function sndMusicStart(sc){
+  const M = sndMusicDef(sc.key); if(!M) return; const c = snd.ctx, t = c.currentTime;
+  const g = c.createGain(); g._opt = true; g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(M.lvl, t + SND_XF.in); g.connect(snd.realmMus);
+  const nodes = [g];
+  if(!sc.saver){ const dl = c.createDelay(1.5), fb = c.createGain(), wet = c.createGain(); dl.delayTime.value = M.echo[0]; fb.gain.value = M.echo[1]; wet.gain.value = M.echo[2];
+    g.connect(dl); dl.connect(fb); fb.connect(dl); dl.connect(wet); wet.connect(snd.realmMus); nodes.push(dl, fb, wet); }
+  sc.mus = {M, gain:g, nodes, next:t + 4 + sc.r() * 8, centre:Math.round((M.lo + M.hi) / 2), recent:[], notes:0, phrases:0, log:[]};
+}
+// the frequency of scale degree d (degrees past the scale's length go up an octave)
+function sndDeg(M, d){ const n = M.scale.length, o = Math.floor(d / n), i = d - o * n; return M.root * Math.pow(2, (M.scale[i] + 12 * o) / 12); }
+function sndPhrase(m, r){
+  const M = m.M; let best = null;
+  for(let tries = 0; tries < 4; tries++){
+    const n = 3 + Math.floor(r() * 5), out = []; let d = clamp(m.centre + Math.floor(r() * 5) - 2, M.lo, M.hi);
+    for(let i = 0; i < n; i++){ out.push([d, [1, 1, 1, 2, 0.5, 1.5, 1][Math.floor(r() * 7)]]); const st = [-2, -1, -1, 1, 1, 2, 3, -3, 0][Math.floor(r() * 9)]; d = clamp(d + st, M.lo, M.hi); }
+    out[out.length - 1][1] = 2.5 + r() * 1.5;   // the last note is held
+    const shape = out.map((q, i) => i ? Math.sign(q[0] - out[i - 1][0]) : 0).join('') + ':' + out.map(q => q[0] - out[0][0]).join(',');
+    best = {notes:out, shape}; if(m.recent.indexOf(shape) < 0) break;
+  }
+  m.recent.push(best.shape); if(m.recent.length > 6) m.recent.shift();
+  if(r() < 0.35) m.centre = clamp(m.centre + (r() < 0.5 ? -1 : 1) * (1 + Math.floor(r() * 2)), M.lo + 2, M.hi - 2);   // the music's centre wanders
+  return best;
+}
+// one note of a realm's instrument: a few sine/triangle partials with their own attack and decay
+function sndMusNote(voice, f, t, dur, lvl, d){
+  const P = (type, k, a, att, len) => { if(!sndVoiceOk(d)) return; const c = snd.ctx, o = c.createOscillator(), g = c.createGain(); o.type = type; o.frequency.value = f * k; sndVoice(o);
+    g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(lvl * a, t + att); g.gain.exponentialRampToValueAtTime(0.0001, t + att + len); o.connect(g); g.connect(d); o.start(t); o.stop(t + att + len + 0.05); };
+  switch(voice){
+    case 'bell': P('sine', 1, 0.09, 0.008, dur * 2.6); P('sine', 2.76, 0.018, 0.005, dur * 0.9); P('sine', 5.4, 0.006, 0.004, dur * 0.4); break;
+    case 'keys': P('sine', 1, 0.08, 0.01, dur * 1.6); P('sine', 2, 0.02, 0.01, dur * 0.7); P('sine', 7.1, 0.004, 0.003, 0.25); break;
+    case 'flute': P('sine', 1, 0.07, 0.14, dur * 1.2); P('sine', 2, 0.01, 0.18, dur * 0.8); break;
+    case 'pluck': P('triangle', 1, 0.06, 0.004, dur * 0.9); P('sine', 2, 0.02, 0.003, dur * 0.4); break;
+    case 'glass': P('sine', 1, 0.07, 0.05, dur * 2.2); P('sine', 3, 0.01, 0.06, dur * 1.2); break;
+    case 'horn': P('triangle', 1, 0.07, 0.22, dur * 1.3); P('sine', 2, 0.02, 0.25, dur * 1.0); P('sine', 0.5, 0.03, 0.3, dur * 1.2); break;
+    case 'marimba': P('sine', 1, 0.09, 0.004, 0.7); P('sine', 4, 0.012, 0.002, 0.08); break;
+    case 'reed': P('triangle', 1, 0.05, 0.12, dur * 1.1); P('triangle', 1.004, 0.04, 0.14, dur * 1.1); P('sine', 2, 0.01, 0.15, dur * 0.8); break;
+    case 'pad': P('sine', 1, 0.035, 1.2, dur); P('sine', 1.003, 0.03, 1.4, dur); break;
+  }
+}
+function sndMusicTick(sc, t){
+  const m = sc.mus; if(!m || t < m.next || !snd.on) return;
+  if(sndPocket() || bc.on){ m.next = t + 6; return; }   // music rests inside pockets and under the Broadcast
+  const M = m.M, r = sc.r, ph = sndPhrase(m, r), unit = M.gap[0] + r() * (M.gap[1] - M.gap[0]); let T = t + 0.15;
+  if(!sc.saver && r() < M.pad){ const root = m.centre + [0, 3, 4, -2][Math.floor(r() * 4)], len = ph.notes.reduce((a, q) => a + q[1], 0) * unit + 3;
+    [0, 2, 4].concat(M.sev ? [6] : []).forEach(k => sndMusNote('pad', sndDeg(M, root + k) / 2, T, len, 0.8, m.gain)); }
+  ph.notes.forEach(([d, L]) => { sndMusNote(M.voice, sndDeg(M, d), T, L * unit, 1, m.gain); T += L * unit; m.notes++; });
+  m.phrases++; m.log.push(ph.shape); if(m.log.length > 50) m.log.shift();
+  let rest = M.rest[0] + r() * (M.rest[1] - M.rest[0]); if(r() < 0.2) rest *= 2.5; if(sc.saver) rest *= 1.5;
+  m.next = T + rest;
+}
+// a test hook: n phrases from a realm's generator (no sound), to show nothing repeats: distinct shapes, the longest run of a repeated shape
+function sndMusicStats(key, n){
+  const M = sndMusicDef(key); if(!M) return null; const m = {M, centre:Math.round((M.lo + M.hi) / 2), recent:[]}, r = rng(strHash('musicstats:' + key)), shapes = [], degs = [];
+  let restSum = 0; for(let i = 0; i < (n || 60); i++){ const ph = sndPhrase(m, r); shapes.push(ph.shape); ph.notes.forEach(q => degs.push(q[0])); restSum += M.rest[0] + r() * (M.rest[1] - M.rest[0]); }
+  let backToBack = 0; for(let i = 1; i < shapes.length; i++) if(shapes[i] === shapes[i - 1]) backToBack++;
+  return {phrases:shapes.length, distinct:new Set(shapes).size, backToBack, lowest:Math.min(...degs), highest:Math.max(...degs), avgRestS:+(restSum / shapes.length).toFixed(1), voice:M.voice, scale:M.scale.slice(), root:M.root};
+}
 // test hooks (a tester can check all of this headless within minutes; see LESSONS)
 var SND_HOOKS = {
   init(){ audioInit(); return !!snd.ctx; },
@@ -20358,6 +20437,9 @@ var SND_HOOKS = {
   xlog(){ return sndXlog.slice(); },
   spot(kind, x, z, y){ const sc = snd.scene; if(!sc || !SPOT_FX[kind]) return false; return sndSpot(sc, kind, x, y == null ? G(x, z) + 1.5 : y, z, {ref:8, range:80}); },
   place:(x, y, z, ref, range) => sndPlace(x, y, z, ref || 10, range || 60),
+  music(key, n){ return sndMusicStats(key || (snd.scene && snd.scene.key), n); },
+  musicLog(){ const m = snd.scene && snd.scene.mus; return m ? {notes:m.notes, phrases:m.phrases, shapes:m.log.slice(), next:+(m.next - snd.ctx.currentTime).toFixed(1), centre:m.centre} : null; },
+  musicNow(){ const m = snd.scene && snd.scene.mus; if(!m) return false; m.next = 0; snd.acc = 1; sndTick(0); return m.phrases; },
   // RMS level (dBFS) of the whole mix over ~ms, from an AnalyserNode tapped off the master (made on first use, removed after)
   level(ms){ return new Promise(res => { if(!snd.ctx) return res(null); const a = snd.ctx.createAnalyser(); a.fftSize = 2048; snd.master.connect(a); const buf = new Float32Array(a.fftSize); let sum = 0, n = 0, peak = 0;
     const end = performance.now() + (ms || 500), take = () => { a.getFloatTimeDomainData(buf); for(let i = 0; i < buf.length; i++){ sum += buf[i] * buf[i]; if(Math.abs(buf[i]) > peak) peak = Math.abs(buf[i]); } n += buf.length;
