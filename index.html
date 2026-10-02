@@ -7163,7 +7163,7 @@ function renderForge(){
     const row = document.createElement('div'); row.style.cssText = 'display:flex;align-items:stretch;margin-top:6px'; b.style.flex = '1'; row.appendChild(b); row.appendChild(del); list.appendChild(row);
   });
 }
-function openForge(){ if(zeroing) return; renderForge(); forgeEl.classList.remove('hidden'); setPaused(true); $('#forgeText').focus(); }
+function openForge(){ if(zeroing) return; if(cardUp()) return; renderForge(); forgeEl.classList.remove('hidden'); setPaused(true); $('#forgeText').focus(); }
 function closeForge(){ forgeEl.classList.add('hidden'); setPaused(false); }
 function forgeFromText(go){
   const text = $('#forgeText').value.trim(); if(!text){ toast('Describe the realm first'); return; }
@@ -8712,7 +8712,8 @@ $('#avatarText').addEventListener('keydown', e => { if(e.key === 'Enter' && !e.s
 let playing = false;
 const keys = {};
 const introEl = $('#intro'), warpEl = $('#warp');
-function setPaused(v){ playing = !v; document.body.classList.toggle('paused', v); if(v) for(const k in keys) keys[k] = false; }
+function setPaused(v){ if(!v && typeof cardsOpen === 'function' && cardsOpen()) v = true;   /* one rule for every closer: never unpause while a card or an overlay is still open */
+  playing = !v; document.body.classList.toggle('paused', v); if(v) for(const k in keys) keys[k] = false; }
 function startGame(){
   const nm = $('#nameInput').value.trim().replace(/\s+/g, ' ').slice(0, 16);
   state.name = nm || state.name || ('Player' + Math.floor(100 + Math.random() * 900));
@@ -8721,7 +8722,7 @@ function startGame(){
   introEl.classList.add('hidden'); setPaused(false);
   if(!state.started){ state.started = true; toast('Welcome to the Hub, ' + state.name); }
 }
-function openIntro(){ if(cam.view === 2) setView(0); introEl.classList.remove('hidden'); setPaused(true); $('#startBtn').textContent = state.started ? 'Back to the game' : 'Enter the Hub'; }
+function openIntro(){ if(cardUp()) return; if(cam.view === 2) setView(0); introEl.classList.remove('hidden'); setPaused(true); $('#startBtn').textContent = state.started ? 'Back to the game' : 'Enter the Hub'; }
 $('#startBtn').addEventListener('click', startGame);
 $('#helpBtn').addEventListener('click', openIntro);
 
@@ -8933,7 +8934,7 @@ function shopAction(it){
   else { state.recipe.material = (owned && state.recipe.material === it.value) ? (state.look ? parseDescription(state.look).material : 'plate') : it.value; }
   persist(); refreshHud(); rebuildPlayer(); renderShop();
 }
-function openShop(tab){ setShopTab(tab || 'buy'); shopEl.classList.remove('hidden'); setPaused(true); const first = shopEl.querySelector('button'); if(first) first.focus(); }
+function openShop(tab){ if(cardUp()) return; setShopTab(tab || 'buy'); shopEl.classList.remove('hidden'); setPaused(true); const first = shopEl.querySelector('button'); if(first) first.focus(); }
 function closeShop(){ shopEl.classList.add('hidden'); setPaused(false); }
 $('#shopClose').addEventListener('click', closeShop);
 $('#shopBtn').addEventListener('click', () => openShop());
@@ -9139,7 +9140,7 @@ function invRefresh(){
   if(!vendEl.classList.contains('hidden')) renderVend();
   if(!shopEl.classList.contains('hidden')){ const f = document.activeElement && document.activeElement.closest && document.activeElement.closest('#sellList') ? [...$('#sellList').children].indexOf(document.activeElement) : -1; renderShop(); if(f >= 0){ const k = $('#sellList').children; const t = k[Math.min(f, k.length - 1)]; if(t && t.focus) t.focus(); } }
 }
-function openInventory(){ if(zeroing) return; renderInventory(); invEl.classList.remove('hidden'); setPaused(true); $('#invClose').focus(); }
+function openInventory(){ if(zeroing) return; if(cardUp()) return; renderInventory(); invEl.classList.remove('hidden'); setPaused(true); $('#invClose').focus(); }
 function closeInventory(){ invEl.classList.add('hidden'); setPaused(false); }
 $('#invClose').addEventListener('click', closeInventory);
 $('#invBtn').addEventListener('click', openInventory);
@@ -9195,7 +9196,7 @@ function huntState(){ const el = $('#huntState'); if(!el) return; const on = sta
       + (gOpen ? ' Gates open on Ashfall: ' + gOpen + ' of 3.' + (gOpen === 3 ? (state.hunt.blackout ? ' The vault waits at the end of Lantern Row.' : ' Lantern Row is behind the Third Gate.') : '') : ' Next: the three gates on Ashfall.') : ''); }   // Goal 18: the field
 const boardRng = rng(99);
 const BOARD = NPC_NAMES.slice(0, 11).map(nm => ({name:nm, shards:Math.floor(boardRng() * 2.6), xp:Math.floor(150 + boardRng() * 2300)}));
-function openWarp(){
+function openWarp(){ if(cardUp()) return;
   if(zeroing) return;
   const list = $('#warpList'); list.innerHTML = '';
   WORLD_ORDER.concat(HUNT_WORLDS, customKeys()).forEach(k => {
@@ -9317,7 +9318,7 @@ function renderXlog(){
     list.appendChild(row);
   });
 }
-function openXlog(){ if(zeroing) return; if(!warpEl.classList.contains('hidden')) closeWarp(); renderXlog(); xlogEl.classList.remove('hidden'); setPaused(true); $('#xlogClose').focus(); }
+function openXlog(){ if(zeroing) return; if(cardUp()) return; if(!warpEl.classList.contains('hidden')) closeWarp(); renderXlog(); xlogEl.classList.remove('hidden'); setPaused(true); $('#xlogClose').focus(); }
 function closeXlog(){ if(xlogEl.classList.contains('hidden')) return; xlogEl.classList.add('hidden'); setPaused(false); }
 $('#xlogOpen').addEventListener('click', openXlog);
 $('#xlogClose').addEventListener('click', closeXlog);
@@ -9442,7 +9443,7 @@ function buyVend(id){
   toast('Bought: ' + ITEMS[id].name + ' for ₵' + v.price + '. Use it from your bag (I).', 2600);
   invRefresh(); return true;
 }
-function openVendor(){ if(zeroing) return; renderVend(); vendEl.classList.remove('hidden'); setPaused(true); const first = vendEl.querySelector('button'); if(first) first.focus(); }
+function openVendor(){ if(zeroing) return; if(cardUp()) return; renderVend(); vendEl.classList.remove('hidden'); setPaused(true); const first = vendEl.querySelector('button'); if(first) first.focus(); }
 function closeVendor(){ vendEl.classList.add('hidden'); setPaused(false); }
 $('#vendClose').addEventListener('click', closeVendor);
 $('#vendBtn').addEventListener('click', openVendor);
@@ -9508,7 +9509,7 @@ function roomCard(i){ const R = ARCHIVE_ROOMS[i], el = $('#roomCard'); el.queryS
 function archiveAct(){ if(!archNear) return; if(archNear.kind === 'broadcast'){ playBroadcast('replay'); return; } if(archNear.kind === 'ledger'){ takeLedger(); openLedger(); } else if(archNear.kind === 'registrar') openRegistrar(); else inspectDetail(archNear.idx); }
 $('#archBtn').addEventListener('click', archiveAct);
 function playLowTide(){ if(!snd.ctx || !snd.on) return; const t = snd.ctx.currentTime + 0.35; HUNT_CLUES.cyan.order.forEach((n, k) => { const f = LOW_TIDE_HZ[n - 1]; tone('sine', f, f, 1.5, 0.08, t + k * 0.6); tone('triangle', f * 2, f * 2, 0.5, 0.015, t + k * 0.6); }); }
-function inspectDetail(i){
+function inspectDetail(i){ if(cardUp()) return;
   const R = ARCHIVE_ROOMS[i]; if(!R) return null;
   const first = !state.archive.found.has(i); state.archive.found.add(i); persist();
   $('#memoRoom').textContent = 'Room ' + (i + 1) + ' · ' + R.title; $('#memoTitle').textContent = R.detail.name; $('#memoText').textContent = R.detail.text;
@@ -9536,7 +9537,7 @@ function renderLedger(){
   $('#lgPrev').disabled = ledgerAt <= 0; $('#lgNext').disabled = ledgerAt + step >= P.length;
   return {page:ledgerAt, pages:P.length, shown:[P[ledgerAt] && P[ledgerAt].title, two && P[ledgerAt + 1] ? P[ledgerAt + 1].title : null].filter(Boolean)};
 }
-function openLedger(page){ if(zeroing) return null; if(page != null) ledgerAt = Math.max(0, Math.floor(+page) || 0); const r = renderLedger(); ledgerEl.classList.remove('hidden'); setPaused(true); $('#lgNext').focus(); sfx('ui'); return r; }
+function openLedger(page){ if(zeroing) return null; if(cardUp()) return null; if(page != null) ledgerAt = Math.max(0, Math.floor(+page) || 0); const r = renderLedger(); ledgerEl.classList.remove('hidden'); setPaused(true); $('#lgNext').focus(); sfx('ui'); return r; }
 function turnLedger(d){ const two = innerWidth >= 760; ledgerAt += d * (two ? 2 : 1); const r = renderLedger(); sfx('ui'); return r; }
 function closeLedger(){ ledgerEl.classList.add('hidden'); if(introEl.classList.contains('hidden')) setPaused(false); }
 $('#lgPrev').addEventListener('click', () => turnLedger(-1)); $('#lgNext').addEventListener('click', () => turnLedger(1)); $('#lgClose').addEventListener('click', closeLedger);
@@ -9614,7 +9615,7 @@ async function regSubmit(q){
   $('#regSrc').textContent = r.source === 'claude' ? 'Answered in character by Claude, quoting the Ledger.' : 'Answered from the Ledger.' + (dreamer.key || dreamer.sample ? '' : ' With the Dreamer key (Forge panel, local file) he answers in his own words.'); $('#regLog').scrollTop = 1e9;
   return r;
 }
-function openRegistrar(){ if(zeroing) return; regEl.classList.remove('hidden'); setPaused(true);
+function openRegistrar(){ if(zeroing) return; if(cardUp()) return; regEl.classList.remove('hidden'); setPaused(true);
   if(!$('#regLog').children.length) regSay('The Registrar', 'Welcome to the Archive. The Ledger is on the lectern by the door, and the six rooms are the Architect\'s memories. What would you like to know?', 'reg');
   $('#regQ').focus(); }
 function closeRegistrar(){ regEl.classList.add('hidden'); setPaused(false); }
@@ -10214,7 +10215,7 @@ function rallySimulate(policy, o){
   return o.dry ? {way:R.way, laps:R.laps, time:R.time, place:R.place, score:R.score, P:+R.car.P.toFixed(3), hits:R.hits, shard:R.way === 'backwards'} : rallyResult(R, 'simulate');
 }
 function sizeRally(){ const d = Math.min(window.devicePixelRatio || 1, 2), w = rallyCv.clientWidth || 640; rallyCv.width = Math.round(w * d); rallyCv.height = Math.round(w * 0.75 * d); }
-function openRally(){ if(rally.open || zeroing) return null; rally.open = true; rally.R = null; rallyEl.classList.remove('hidden'); setPaused(true); sizeRally(); sfx('ui'); return {open:true}; }
+function openRally(){ if(rally.open || zeroing) return null; if(cardUp()) return null; rally.open = true; rally.R = null; rallyEl.classList.remove('hidden'); setPaused(true); sizeRally(); sfx('ui'); return {open:true}; }
 function closeRally(){ if(!rally.open) return; rally.open = false; rally.R = null; rallyEl.classList.add('hidden'); setPaused(false); for(const k in rally.touch) rally.touch[k] = false; }
 function rallyStart(){ rally.R = rallyNew(); rally.acc = 0; state.hunt.rallyPlays++; persist(); rallySfx('beep'); }
 function rallyInput(){ const K = keys, T = rally.touch; return {th:((K.ArrowUp || K.KeyW || T.G) ? 1 : 0) - ((K.ArrowDown || K.KeyS || T.B) ? 1 : 0), st:((K.ArrowRight || K.KeyD || T.R) ? 1 : 0) - ((K.ArrowLeft || K.KeyA || T.L) ? 1 : 0)}; }
@@ -10469,7 +10470,7 @@ function refreshLook(){
   $('#lookPhotoState').textContent = lookImage() ? 'A photo is guiding this realm as well as the description.' : 'No photo set. The description alone decides the look.';
   $('#modelFast').classList.toggle('sel', modelPref() === 'fast'); $('#modelSharp').classList.toggle('sel', modelPref() === 'sharp');
 }
-function openLook(){ $('#lookText').value = promptText(); refreshLook(); dgRefreshLook(); lookEl.classList.remove('hidden'); setPaused(true); $('#lookText').focus(); }
+function openLook(){ if(cardUp()) return; $('#lookText').value = promptText(); refreshLook(); dgRefreshLook(); lookEl.classList.remove('hidden'); setPaused(true); $('#lookText').focus(); }
 function closeLook(){ lookEl.classList.add('hidden'); setPaused(false); }
 function setModel(m){ if(m === modelPref()) return; lsSet(MODEL_KEY, m); refreshLook(); if(ai.on){ aiStop(); setTimeout(aiStart, 300); } }
 $('#lookBtn').addEventListener('click', openLook);
@@ -13615,7 +13616,7 @@ function g1Draw(msg){
   const box = $('#g1Opts'); box.innerHTML = '';
   gate1.opts.forEach((o, i) => { const b = document.createElement('button'); b.className = 'g1-opt'; b.textContent = (i + 1) + '.  ' + o.text; b.addEventListener('click', () => g1Answer(i, 'played')); box.appendChild(b); });
 }
-function openGate1(){ if(gateOpen(0) || gate1.open || zeroing) return null; gate1.open = true; gate1.round = 0; gate1.opts = g1Options(); gate1El.classList.remove('hidden'); setPaused(true); g1Draw(); sfx('ui'); return {open:true}; }
+function openGate1(){ if(gateOpen(0) || gate1.open || zeroing) return null; if(cardUp()) return null; gate1.open = true; gate1.round = 0; gate1.opts = g1Options(); gate1El.classList.remove('hidden'); setPaused(true); g1Draw(); sfx('ui'); return {open:true}; }
 function closeGate1(){ if(!gate1.open) return; gate1.open = false; gate1El.classList.add('hidden'); setPaused(false); }
 // the rule: the i-th choice of the current round (0, 1 or 2); a wrong line restarts from the first
 function g1Answer(i, how){
@@ -13801,7 +13802,7 @@ function drawStarling(cv, S, time){
     txt('START: FLY AGAIN   ESC: LEAVE', 320, 310, 11, '#8890b8', 'center'); }
 }
 function sizeStarling(){ const d = Math.min(window.devicePixelRatio || 1, 2), w = starCv.clientWidth || 640; starCv.width = Math.round(w * d); starCv.height = Math.round(w * 0.75 * d); }
-function openStarling(){ if(starling.open || zeroing) return null; starling.open = true; starling.S = null; starEl.classList.remove('hidden'); setPaused(true); sizeStarling(); sfx('ui'); return {open:true}; }
+function openStarling(){ if(starling.open || zeroing) return null; if(cardUp()) return null; starling.open = true; starling.S = null; starEl.classList.remove('hidden'); setPaused(true); sizeStarling(); sfx('ui'); return {open:true}; }
 function closeStarling(){ if(!starling.open) return; starling.open = false; starling.S = null; starEl.classList.add('hidden'); setPaused(false); for(const k in starling.touch) starling.touch[k] = false; }
 function starStart(){ starling.S = starNew(); starling.acc = 0; state.hunt.starPlays++; persist(); }
 function starInput(){ const K = keys, T = starling.touch; return {mx:((K.ArrowRight || K.KeyD || T.R) ? 1 : 0) - ((K.ArrowLeft || K.KeyA || T.L) ? 1 : 0), fire:!!(K.Space || K.ArrowUp || K.KeyW || T.F)}; }
@@ -19268,7 +19269,7 @@ function denRenderShop(){
     list.appendChild(b); });
 }
 function denIcoCol(id){ const k = {rug:'#e0703a', floor:'#d9a95a', wall:'#7fd0ff'}; return id === 'fish-tank' ? '#5ce1e6' : id === 'plant-fern' || id === 'plant-fig' ? '#7fbf5a' : k[DECOR[id].kind]; }
-function denOpenShop(tab){ if(zeroing) return false; denTab = tab || denTab; denRenderShop(); denShopEl.classList.remove('hidden'); setPaused(true); const f = denShopEl.querySelector('button'); if(f) f.focus(); return true; }
+function denOpenShop(tab){ if(zeroing) return false; if(cardUp()) return false; denTab = tab || denTab; denRenderShop(); denShopEl.classList.remove('hidden'); setPaused(true); const f = denShopEl.querySelector('button'); if(f) f.focus(); return true; }
 function denCloseShop(){ denShopEl.classList.add('hidden'); setPaused(false); }
 document.getElementById('denClose').addEventListener('click', denCloseShop);
 document.getElementById('denTabBuy').addEventListener('click', () => { denTab = 'buy'; denRenderShop(); });
@@ -21365,6 +21366,8 @@ function wfOpen(){
   return true;
 }
 function wfClose(){ if(!wfCardEl) return; $('#wfQ').blur(); wfCardEl.classList.add('hidden'); if(!cardsOpen('wf')){ document.body.classList.remove('talking'); setPaused(false); } }
+// a card (a local's talk, the Wayfarer, the Questbook) is open: no overlay opens over it (a HUD button says so)
+function cardUp(){ const open = id => { const el = document.getElementById(id); return !!el && !el.classList.contains('hidden'); }; if(!(open('talk') || open('wfCard') || open('qbCard'))) return false; try{ toast('Close the open card first.', 1600); }catch(e){} return true; }
 // is any card that pauses the game open (other than `but`)? A card that closes only unpauses when none is left
 function cardsOpen(but){ const open = id => { const el = document.getElementById(id); return !!el && !el.classList.contains('hidden'); };
   return (but !== 'talk' && open('talk')) || (but !== 'wf' && open('wfCard')) || (but !== 'qb' && open('qbCard')) || open('ledger') || open('reg') || open('memo') || !!document.querySelector('.overlay:not(.hidden)'); }
