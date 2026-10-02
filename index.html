@@ -21914,7 +21914,7 @@ function qwPlace(R, origin){
     }
     if(pts.length >= R.count) break;
   } else {
-    for(let t = 0; t < 900 && pts.length < R.count; t++){ const a = q() * TAU, d = D.r0 + q() * (r1 - D.r0), x = ox + Math.sin(a) * d, z = oz + Math.cos(a) * d; if(ok(x, z)) add(x, z); }
+    for(const sc of [1, 1.6]) for(let t = 0; t < 700 && pts.length < R.count; t++){ const a = q() * TAU, d = D.r0 + q() * (r1 * sc - D.r0), x = ox + Math.sin(a) * d, z = oz + Math.cos(a) * d; if(ok(x, z)) add(x, z); }   /* little open ground near you: look a bit further out */
   }
   if(pts.length < R.count) return {ok:false, why, n:pts.length};
   return {ok:true, pts, origin:{x:ox, z:oz, g:G(ox, oz)}, why};
