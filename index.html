@@ -21730,6 +21730,74 @@ var QW_HOOKS = window.__hub.questwright = {
   clean:(o, mode) => cleanQuest(o, mode || 'clean'), text:(s, max, words) => qwText(s, max || 100, words || 18), describe:R => qwDescribe(R),
   kinds:QW_KINDS.slice(), items:Object.keys(QW_ITEMS), colors:Object.keys(QW_COLORS)
 };
+/* ---- the Questwright's brain path: any wording -> the recipe JSON (strict schema), then cleanQuest(o, 'strict'); any failure -> parseQuest ----
+   Same brain stack, gap, timeout and session cap as the locals and the Wayfarer (npcAIcfg): a canned test reply, the claude.ai sample, the Dreamer key. */
+var QW_SCHEMA = {type:'object', additionalProperties:false, required:['kind', 'realm', 'item', 'color', 'count', 'time_limit', 'difficulty', 'swim', 'title', 'riddles'], properties:{
+  kind:{type:'string', enum:QW_KINDS, description:'gather: collect items in any order; hidden: find items that only show when you are close; race: run through checkpoints in order; rings: pass through floating rings in order; riddle: follow markers in order, one short riddle each; escort: lead a small light past beacons; defend: keep a lantern lit by catching gloom moths before they reach it'},
+  realm:{type:'string', enum:['here'].concat(WORLD_ORDER), description:'where it happens: "here" for wherever the player is now, or one of Hub\'s realms by id'},
+  item:{type:'string', enum:Object.keys(QW_ITEMS)}, color:{type:'string', enum:Object.keys(QW_COLORS)},
+  count:{type:'integer', description:'how many items, checkpoints, rings, riddles, beacons or moths, 1 to 8'},
+  time_limit:{type:'integer', description:'seconds on the clock, 0 for none, else 30 to 600'},
+  difficulty:{type:'string', enum:QW_DIFF}, swim:{type:'boolean', description:'true only if the player asked to swim or search in water'},
+  title:{type:'string', description:'a short friendly title, at most 6 words'},
+  riddles:{type:'array', items:{type:'string'}, description:'only for kind riddle: one short, gentle riddle per marker (at most 14 words each), suitable for young children; otherwise an empty list'}}};
+var qwAI = {testResponse:null, lastRequest:null, why:'', path:''};
+function qwSystem(){
+  const here = state.world, W = WORLDS[here];
+  return 'You turn a player\'s description of a quest into a recipe for Hub, a game universe with its own invented culture. The game builds the quest only from the parts in the schema; you choose the parts that best match the words.\n' +
+    'The player is now in ' + (W ? W.name : 'a realm') + ' (id ' + here + '). Realms: ' + WORLD_ORDER.map(k => k + ' = ' + WORLDS[k].name).join(', ') + '. Use "here" unless the player names another realm.\n' +
+    'RULES: Everything must suit young children: gentle, kind, never scary, no violence. Never mention real-world brands, people, films, games, songs or places, and never ask for or include personal information. ' +
+    'Titles and riddles are short. Riddles are simple and cheerful and never about the Hunt, shards, gates or credits. You do not set any reward: the game does.\n' +
+    'Reply only with JSON matching this schema: ' + JSON.stringify(QW_SCHEMA) + '\n' +
+    'Example: "find three lost lanterns hidden in Lampblack\'s alleys" -> ' + JSON.stringify({kind:'hidden', realm:'lampblack', item:'lantern', color:'gold', count:3, time_limit:0, difficulty:'normal', swim:false, title:'The Lost Lanterns', riddles:[]});
+}
+async function qwFromAI(text){
+  text = scrubText(qwStrip(text)).slice(0, 240);
+  const off = why => { const R = parseQuest(text); qwAI.why = why; qwAI.path = 'offline'; return {rec:R, source:'offline', why, notes:qwNote.slice()}; };
+  const test = qwAI.testResponse, C = npcAIcfg;
+  const path = test != null ? 'test' : (dreamer.sample && !dreamer.failed) ? 'sample' : dreamer.key ? 'key' : null;
+  if(!path) return off('no AI');
+  if(C.calls >= C.cap) return off('rest');
+  const system = qwSystem(), messages = [{role:'user', content:text || 'a short quest'}];
+  const body = {model:NPC_MODEL, max_tokens:500, system, messages, output_config:{effort:'low', format:{type:'json_schema', schema:QW_SCHEMA}}, fallbacks:'default'};
+  const headers = {'content-type':'application/json', 'x-api-key':dreamer.key || 'test', 'anthropic-version':'2023-06-01', 'anthropic-dangerous-direct-browser-access':'true', 'anthropic-beta':'server-side-fallback-2026-07-01'};
+  const wait = C.gapMs - (performance.now() - C.lastT); if(wait > 0) await sleepMs(wait);
+  C.calls++; C.lastT = performance.now();
+  qwAI.lastRequest = path === 'sample' ? {path, modelTier:'quick', prompt:system + '\n\nPlayer: ' + messages[0].content}
+    : {path, url:'https://api.anthropic.com/v1/messages', headers:Object.assign({}, headers, {'x-api-key':'(hidden)'}), body:JSON.parse(JSON.stringify(body))};
+  const ctl = new AbortController(); let timer = null, j;
+  try{
+    const call = async () => {
+      if(path === 'test'){ if(test === 'hang') return new Promise(() => {}); if(test && test.__status) throw {code:'http_' + test.__status};
+        const t = JSON.parse(JSON.stringify(test)); return t && typeof t === 'object' && !t.content && !t.stop_reason ? {stop_reason:'end_turn', content:[{type:'text', text:JSON.stringify(t)}]} : t; }
+      if(path === 'sample'){ const o = await dreamer.sample.json(qwAI.lastRequest.prompt + '\nReply now with only the JSON object.', {modelTier:'quick', cache:false}); return {stop_reason:'end_turn', content:[{type:'text', text:JSON.stringify(o)}]}; }
+      const r = await fetch('https://api.anthropic.com/v1/messages', {method:'POST', headers, body:JSON.stringify(body), signal:ctl.signal});
+      if(!r.ok) throw {code:'http_' + r.status}; return r.json();
+    };
+    j = await Promise.race([call(), new Promise((res, rej) => { timer = setTimeout(() => { ctl.abort(); rej({code:'timeout'}); }, C.timeoutMs); })]);
+  }catch(e){ const code = (e && (e.code || e.name)) || 'network';
+    if(path === 'sample' && (code === 'not_granted' || code === 'sampling_disabled' || code === 'not_declared' || code === 'capability_disabled')) dreamer.failed = true;
+    return off(code === 'AbortError' ? 'timeout' : code); }
+  finally{ clearTimeout(timer); }
+  if(!j || typeof j !== 'object') return off('empty reply');
+  if(j.stop_reason !== 'end_turn') return off(j.stop_reason === 'refusal' ? 'refusal' : 'stop_reason ' + j.stop_reason);
+  const txt = (Array.isArray(j.content) ? j.content : []).filter(c => c && c.type === 'text').map(c => c.text || '').join('').trim();
+  let o = null; try{ o = JSON.parse(txt); }catch(e){ return off('invalid JSON'); }
+  if(!o || typeof o !== 'object' || Array.isArray(o)) return off('not an object');
+  for(const k of Object.keys(o)) if(!hasOwn(QW_SCHEMA.properties, k)) return off('unknown field ' + String(k).slice(0, 20));   // a reply that tries to set anything else (a reward, a shard) is not trusted at all
+  if(typeof o.count === 'number' && (o.count < 1 || o.count > 8)) qwNote = ['The count was brought into 1 to 8.'];
+  const v = cleanQuest(o, 'strict'); if(!v.ok) return off(v.why);
+  v.rec.seed = strHash('quest:' + text.toLowerCase());   // the quest's own seed comes from the player's words, never from the reply
+  qwAI.why = 'ok'; qwAI.path = 'claude';
+  return {rec:v.rec, source:'claude', why:'ok', notes:[]};
+}
+Object.assign(QW_HOOKS, {fromAI:text => qwFromAI(text), system:() => qwSystem(), schema:JSON.parse(JSON.stringify(QW_SCHEMA))});
+Object.defineProperties(QW_HOOKS, {
+  // a canned API reply instead of the network: a Messages API response, a bare recipe object, 'hang', or {__status:n}
+  testResponse:{get:() => qwAI.testResponse, set:v => { qwAI.testResponse = v == null ? null : v; }, enumerable:true},
+  lastRequest:{get:() => qwAI.lastRequest && JSON.parse(JSON.stringify(qwAI.lastRequest)), enumerable:true},
+  why:{get:() => qwAI.why, enumerable:true}, path:{get:() => qwAI.path, enumerable:true}
+});
 })();
 </script>
 </body>
