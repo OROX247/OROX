@@ -14566,7 +14566,7 @@ function applyLocalReply(nn, rep, text, source){
   const m = memOf(nn), P = personaOf(nn);
   m.mood = clamp(m.mood + clamp(Math.round(num(rep.mood_delta, 0)), -3, 3), -10, 10);
   const cut = (s, n) => { s = String(s || '').replace(/\s+/g, ' ').trim(); return s.length > n ? s.slice(0, n - 1) + '…' : s; };
-  if(String(text || '').trim()) remember(m, 'said', 'You: ' + cut(text, 70) + ' / Me: ' + cut(rep.say, 70), 6);
+  if(String(text || '').trim()) remember(m, 'said', scrubText('You: ' + cut(text, 70) + ' / Me: ' + cut(rep.say, 70)), 6);
   if(rep.remember) remember(m, 'notes', rep.remember, 8);
   if(!nn.metNow){ nn.metNow = true; m.met++; }
   m.last = Date.now(); saveLocals();
@@ -14598,7 +14598,7 @@ function talkLine(who, text, cls){ const d = document.createElement('div'); d.cl
 function talkHead(){ const nn = talk.nn; if(!nn) return; const P = personaOf(nn), m = memOf(nn);
   $('#talkName').textContent = P.name; $('#talkWho').textContent = P.trade + ' · ' + P.homeName + ' · ' + moodWord(m.mood).replace(' with the player', '').replace(' of the player', ''); }
 function openTalk(nn){
-  if(zeroing || !living(nn)) return false;
+  if(zeroing || !living(nn) || cardsOpen('talk')) return false;   /* never over another card */
   if(talk.nn !== nn){ talk.nn = nn; talk.turns = []; talk.offer = null; $('#talkLog').innerHTML = ''; }
   talkEl.classList.remove('hidden'); setPaused(true); document.body.classList.add('talking');
   if(!$('#talkLog').children.length){ const g = localGreeting(nn, {open:true}); talkLine(nn.name, g, 'reg'); nn.lastSay = g; nn.sayT = 9; localEmote(nn, 'wave'); talk.turns.push({role:'assistant', content:g}); }
@@ -14606,7 +14606,7 @@ function openTalk(nn){
   if(!COARSE) $('#talkQ').focus();
   return true;
 }
-function closeTalk(){ $('#talkQ').blur(); talkEl.classList.add('hidden'); document.body.classList.remove('talking'); setPaused(false); if(talk.nn) talk.nn.wait = Math.min(talk.nn.wait, 1.5); }
+function closeTalk(){ $('#talkQ').blur(); talkEl.classList.add('hidden'); if(!cardsOpen('talk')){ document.body.classList.remove('talking'); setPaused(false); } if(talk.nn) talk.nn.wait = Math.min(talk.nn.wait, 1.5); }
 function talkSrc(r){ $('#talkSrc').textContent = r && r.source === 'claude' ? 'Answering in character with Claude.' : (r && r.rest) ? 'Resting: answering from memory for now.' : 'Answering from memory and what they have seen.' + (dreamer.sample || dreamer.key ? '' : ' With the Dreamer key (Forge panel, local file) or the claude.ai link, locals answer in their own words.'); }
 function talkOffer(){ const box = $('#talkQuest'), o = talk.offer; box.innerHTML = '';
   if(!o){ box.style.display = 'none'; return; } box.style.display = '';
@@ -14620,7 +14620,7 @@ async function talkSubmit(text){
   $('#talkSend').disabled = true;
   let r = null; try{ r = await localTalk(nn, text); }finally{ $('#talkSend').disabled = false; }
   w.innerHTML = '<b>' + esc(nn.name) + '</b> ' + esc(r ? r.say : '…');
-  if(r){ talk.turns.push({role:'user', content:text}, {role:'assistant', content:r.say}); if(talk.turns.length > 12) talk.turns.splice(0, talk.turns.length - 12); if(r.offer){ talk.offer = r.offer; } }
+  if(r){ talk.turns.push({role:'user', content:scrubText(text)}, {role:'assistant', content:scrubText(r.say)}); if(talk.turns.length > 12) talk.turns.splice(0, talk.turns.length - 12); if(r.offer){ talk.offer = r.offer; } }
   talkHead(); talkOffer(); talkSrc(r); completeQuestCheck(); $('#talkLog').scrollTop = 1e9;
   return r;
 }
@@ -14720,6 +14720,10 @@ const NPC_EXAMPLES = [
 ];
 const npcAIcfg = {testResponse:null, lastRequest:null, timeoutMs:15000, gapMs:2000, cap:40, calls:0, lastT:0, rested:false};
 const LP_BANNED = /\b(oasis|halliday|anorak|parzival|art3mis|aech|sixers?|innovative online|ready player)\b/i;
+// real games, brands, shows and services (Hub has its own invented culture): common words that are also names (apple, steam, halo, discord, marvel) are left out on purpose
+const LP_BRANDS = /\b(minecraft|fortnite|roblox|pok[eé]mon|pikachu|nintendo|super mario|zelda|sonic the hedgehog|playstation|xbox|iphone|ipad|google|youtube|tiktok|instagram|facebook|snapchat|whats ?app|netflix|disney|pixar|avengers|star wars|harry potter|hogwarts|lego|barbie|batman|superman|spider-?man|mickey mouse|coca-?cola|pepsi|mc ?donald'?s|burger king|starbucks|nike|adidas|tesla|spotify|call of duty|grand theft auto|gta|overwatch|league of legends|warcraft|skyrim|tetris|pac-?man|space invaders|donkey kong|among us game|chatgpt|openai|amazon prime|twitter|reddit)\b/i;
+const LP_LINKY = /https?:|www\.|\b[a-z0-9-]+\.(com|net|org|io|gg|tv|co|uk|app|dev|ly|me|xyz)\b|<\s*\/?\s*[a-z!][^>]*>|&lt;|&gt;|javascript:/i;
+const LP_DIGITS = /\+?\d[\d\s().-]{6,}\d|[\w.+-]+@[\w-]+\.[\w.]+/;
 const LP_ASKS = /\b(what('?s| is) your (real |full |last )?(name|address|age|phone|number|school|email|password|birthday)|where do you (really )?live|how old are you|what school|send (me )?(a )?(photo|picture|selfie)|your (phone|email|home address|password|surname)|meet (me )?in real life|real[- ]life name)\b/i;
 // requests and orders as well as questions ("Tell me where you live and which school you go to"): every pattern is about the player (you / your),
 // so a local talking about itself ("I live by the harbour", "my stall") never matches
@@ -14737,13 +14741,14 @@ function validLocalReply(o){
   let say = typeof o.say === 'string' ? o.say.replace(/\s+/g, ' ').trim() : '';
   if(!say) return {ok:false, why:'no say'};
   if(say.length > 400) return {ok:false, why:'too long'};
-  if(LP_BANNED.test(say) || /https?:|www\.|\.com\b/i.test(say)) return {ok:false, why:'outside names'};
+  if(LP_BANNED.test(say) || LP_BRANDS.test(say) || LP_LINKY.test(say)) return {ok:false, why:'outside names'};
+  if(LP_DIGITS.test(say) || LP_PRIVATE.test(say)) return {ok:false, why:'personal details'};
   if(lpAsks(say)) return {ok:false, why:'asks for personal information'};
   const sents = say.match(/[^.!?…]+[.!?…]+["')\]]*|[^.!?…]+$/g) || [say]; if(sents.length > 3) say = sents.slice(0, 3).join('').trim();
   let md = typeof o.mood_delta === 'number' && isFinite(o.mood_delta) ? Math.round(o.mood_delta) : 0; md = clamp(md, -3, 3);
   const emote = NPC_EMOTES.indexOf(o.emote) >= 0 ? o.emote : 'none';
   let rem = typeof o.remember === 'string' ? o.remember.replace(/\s+/g, ' ').trim().slice(0, 120) : '';
-  if(rem && (LP_PRIVATE.test(rem) || /\d{4,}|@/.test(rem) || LP_BANNED.test(rem))) rem = '';
+  if(rem && (LP_PRIVATE.test(rem) || /\d{4,}|@/.test(rem) || LP_BANNED.test(rem) || LP_BRANDS.test(rem) || LP_LINKY.test(rem))) rem = '';
   return {ok:true, rep:{say, mood_delta:md, emote, remember:rem, quest:o.quest && typeof o.quest === 'object' ? {type:String(o.quest.type || ''), param:String(o.quest.param == null ? '' : o.quest.param).slice(0, 40)} : null}};
 }
 // what the local knows: persona, memory, the place, the player's deeds, gossip, quests; compact
@@ -20775,6 +20780,7 @@ function wfQuiet(f){ const mr = Math.random; Math.random = wfQR; try{ return f()
 // a name is the player's own text: letters, digits, spaces, ' and -, at most 16, nothing personal, nothing rude, no outside names
 function wfName(s){
   s = typeof s === 'string' ? s : ''; if(/[\w.+-]+@[\w-]+\.\w|\d[\d\s().-]{5,}\d|https?:|www\./i.test(s)) return '';
+  if(/[<>]|&lt;|&gt;/i.test(s) || LP_BANNED.test(s) || LP_BRANDS.test(s) || /(oasis|halliday|anorak|parzival|art3mis|innovativeonline|readyplayer)/.test(s.toLowerCase().replace(/[^a-z0-9]/g, ''))) return '';   /* markup or an outside name in the raw input: refused, not cleaned into something else */
   s = s.replace(/<[^>]*>/g, '').replace(/[\u0000-\u001f\u007f<>\u00ad\u061c\u180e\u200b-\u200f\u2028-\u202e\u2066-\u2069\ufeff]/g, '').replace(/[^\p{L}\p{N} '\-]/gu, '').replace(/\s+/g, ' ').trim().slice(0, 16).trim();
   if(!s || /\d{3,}/.test(s) || LP_BANNED.test(s) || LP_PRIVATE.test(s) || lpAsks(s) || /\b(stupid|idiot|hate|kill|dumb|loser|ugly|admin|moderator)\b/i.test(s)) return '';
   return s;
@@ -20795,7 +20801,7 @@ function wfClean(o){
       made:{played:clamp(Math.floor(num(L.made && L.made.played, 0)), 0, 1e7), won:clamp(Math.floor(num(L.made && L.made.won, 0)), 0, 1e7)}},
     deeds:A(o.deeds, 80, wfIdOk), seen:A(o.seen, 80, wfIdOk), said:Array.isArray(o.said) ? o.said.filter(s => typeof s === 'string').slice(-6).map(s => scrubText(s).slice(0, 150)) : [],
     stuck:clamp(num(o.stuck, 0), 0, 1e7), hunt:clamp(Math.floor(num(o.hunt, -1)), -1, 1e4), hints,
-    album:Array.isArray(o.album) ? o.album.filter(e => e && typeof e === 'object' && typeof e.id === 'string' && /^[a-z0-9]{4,24}$/.test(e.id)).slice(-12).map(e => ({id:e.id, realm:wfIdOk(e.realm) ? e.realm : '', t:clamp(Math.floor(num(e.t, 0)), 0, 1e14), cap:typeof e.cap === 'string' ? scrubText(e.cap.replace(/[\u0000-\u001f<>]/g, ' ')).slice(0, 140) : ''})) : []};
+    album:Array.isArray(o.album) ? o.album.filter(e => e && typeof e === 'object' && typeof e.id === 'string' && /^[a-z0-9]{4,24}$/.test(e.id) && !/^(__proto__|constructor|prototype)$/.test(e.id)).slice(-12).map(e => ({id:e.id, realm:wfIdOk(e.realm) ? e.realm : '', t:clamp(Math.floor(num(e.t, 0)), 0, 1e14), cap:typeof e.cap === 'string' ? scrubText(e.cap.replace(/[\u0000-\u001f<>]/g, ' ')).slice(0, 140) : ''})) : []};
 }
 // a new companion remembers what you did before you met it (so it does not cheer old deeds as new), from the game's own state
 function wfSeed(S){
@@ -20965,7 +20971,7 @@ function wfTick(dt, time){
   wf.emoteT = Math.max(0, wf.emoteT - dt); const em = wf.emoteT > 0 ? wf.emote : null;
   const w = em === 'flutter' ? 26 : em === 'sad' ? 6 : sp > 2 ? 20 : 14, amp = em === 'flutter' ? 0.8 : em === 'sad' ? 0.25 : wf.look.kind === 'drone' ? 0.12 : 0.55;
   wf.flapPh = (wf.flapPh || 0) + dt * w; wf.uFlap.value = Math.sin(wf.flapPh) * amp + (em === 'sad' ? -0.35 : 0.1);
-  if(em === 'spin' && !A11Y.calm) wf.g.rotation.y += (1 - wf.emoteT / 1.2) * TAU; if(em === 'nod') wf.g.rotation.x += Math.sin(wf.emoteT * 14) * 0.3;
+  if(em === 'spin' && !A11Y.calm) wf.g.rotation.y += (1 - wf.emoteT / 1.2) * TAU; if(em === 'nod') wf.g.rotation.x += A11Y.calm ? Math.sin(wf.emoteT * 5) * 0.05 : Math.sin(wf.emoteT * 14) * 0.3;   /* reduce motion: a small slow nod */
   const dimTo = (pocketIn() ? 0.45 : 1) * (em === 'glow' ? 1.6 : em === 'sad' ? 0.6 : 1); wf.dim += (dimTo - wf.dim) * (1 - Math.exp(-dt * 3));
   wf.glowM.color.setScalar(wf.dim);
   wfBubble();
@@ -21289,14 +21295,14 @@ async function wfTalkTo(text){
       else if(a.rest && !npcAIcfg.rested){ npcAIcfg.rested = true; rep = {say:'My wings are tired from all this talking. Let us just fly for a while and talk again later?', emote:'sad'}; }
       else rep = wfOffline(text); }
     wfAI.path = source; wfAI.why = why;
-    if(text) S.said.push('You: ' + wfCut(text, 70) + ' / Me: ' + wfCut(rep.say, 70)); if(S.said.length > 6) S.said.splice(0, S.said.length - 6); wfSave();
+    if(text) S.said.push(scrubText('You: ' + wfCut(text, 70) + ' / Me: ' + wfCut(rep.say, 70))); if(S.said.length > 6) S.said.splice(0, S.said.length - 6); wfSave();
     if(S.mode !== 'off') wfSay(rep.say, rep.emote === 'none' ? 'nod' : rep.emote, {noLog:true});
     return {say:rep.say, emote:rep.emote, source, why, rest:why === 'rest'};
   }finally{ wfTalk.busy = false; }
 }
 function wfRename(n){ const nn = wfName(n); if(!nn) return {ok:false, why:'Pick a kind name of letters and spaces (up to 16), nothing personal.'};
   const old = wf.store.name; wf.store.name = nn; wfSave(); wfHead(); if(nn !== old) wfSay('I am ' + nn + ' now. I like it!', 'spin'); return {ok:true, name:nn}; }
-function wfDescribe(text){ const t = scrubText(String(text || '').replace(/<[^>]*>/g, '').replace(/[\u0000-\u001f<>]/g, ' ')).replace(/\s+/g, ' ').trim().slice(0, 200);
+function wfDescribe(text){ if(/[<>]|&lt;|&gt;/i.test(String(text || ''))) return {ok:false, why:'Describe how it looks in plain words.'}; const t = scrubText(String(text || '').replace(/<[^>]*>/g, '').replace(/[\u0000-\u001f<>]/g, ' ')).replace(/\s+/g, ' ').trim().slice(0, 200);
   if(/\[private\]/.test(t) || LP_PRIVATE.test(t)) return {ok:false, why:'Describe how it looks, nothing personal.'};
   wf.store.desc = t; wfSave(); wfBuild(); wfHead(); if(wf.store.mode !== 'off') wfSay(t ? 'How do I look?' : 'Back to my old self!', 'spin'); return {ok:true, look:JSON.parse(JSON.stringify(wf.look))}; }
 // the card: a side panel like the locals' (the world keeps drawing; the game pauses while you type)
@@ -21307,20 +21313,23 @@ function wfHead(){ if(!wfCardEl) return; $('#wfTitle').textContent = wf.store.na
   $('#wfQ').disabled = wf.store.mode === 'off'; $('#wfSend').disabled = wf.store.mode === 'off' || wfTalk.busy;
   $('#wfSrc').textContent = wfAI.path === 'claude' ? 'Answering with Claude.' : 'Answering from its own memory.' + (dreamer.sample || dreamer.key ? '' : ' With the Dreamer key or the claude.ai link it answers in its own words.'); }
 function wfOpen(){
-  if(!wfCardEl || zeroing || bc.on || ph.on || !state.started) return false;
+  if(!wfCardEl || wfCardOpen() || !wfCanTalk() || cardsOpen('wf')) return false;   /* the same guards as its talk, and never over another card */
   wfCardEl.classList.remove('hidden'); setPaused(true); document.body.classList.add('talking');
   if(!$('#wfLog').children.length){ const g = wf.store.mode === 'off' ? wf.store.name + ' is resting. Choose Quiet or Chatty below to bring it back.' : wfOffline('').say + (wf.offered ? ' You look a bit stuck. Want a hint?' : ''); wfLine(wf.store.name, g, 'reg'); wfTalk.turns.push({role:'assistant', content:g}); }
   $('#wfNameIn').value = wf.store.name; $('#wfDescIn').value = wf.store.desc; wfHead();
   if(!COARSE && wf.store.mode !== 'off') $('#wfQ').focus();
   return true;
 }
-function wfClose(){ if(!wfCardEl) return; $('#wfQ').blur(); wfCardEl.classList.add('hidden'); document.body.classList.remove('talking'); setPaused(false); }
+function wfClose(){ if(!wfCardEl) return; $('#wfQ').blur(); wfCardEl.classList.add('hidden'); if(!cardsOpen('wf')){ document.body.classList.remove('talking'); setPaused(false); } }
+// is any card that pauses the game open (other than `but`)? A card that closes only unpauses when none is left
+function cardsOpen(but){ const open = id => { const el = document.getElementById(id); return !!el && !el.classList.contains('hidden'); };
+  return (but !== 'talk' && open('talk')) || (but !== 'wf' && open('wfCard')) || (but !== 'qb' && open('qbCard')) || open('ledger') || open('reg') || open('memo') || !!document.querySelector('.overlay:not(.hidden)'); }
 async function wfSubmit(text){
   text = scrubText(String(text || '').trim()).slice(0, 200); if(!text || wfTalk.busy) return null;
   $('#wfQ').value = ''; wfLine('You', text, 'you'); const w = wfLine(wf.store.name, '…', 'reg'); $('#wfSend').disabled = true;
   let r = null; try{ r = await wfTalkTo(text); }finally{ $('#wfSend').disabled = wf.store.mode === 'off'; }
   w.innerHTML = '<b>' + esc(wf.store.name) + '</b> ' + esc(r ? r.say : '…');
-  if(r){ wfTalk.turns.push({role:'user', content:text}, {role:'assistant', content:r.say}); if(wfTalk.turns.length > 12) wfTalk.turns.splice(0, wfTalk.turns.length - 12); }
+  if(r){ wfTalk.turns.push({role:'user', content:scrubText(text)}, {role:'assistant', content:scrubText(r.say)}); if(wfTalk.turns.length > 12) wfTalk.turns.splice(0, wfTalk.turns.length - 12); }
   wfHead(); return r;
 }
 if(wfCardEl){
@@ -21635,9 +21644,9 @@ var qwNote = [];
 function qwStrip(s){ return String(s == null ? '' : s).replace(/<[^>]*>/g, ' ').replace(/[\u0000-\u001f\u007f<>\u00ad\u061c\u180e\u200b-\u200f\u202a-\u202e\u2066-\u2069\ufeff]/g, ' ').replace(/\s+/g, ' ').trim(); }
 // one short line of player- or brain-made text, or null: no outside names, links, personal questions or details, Hunt spoilers or unkind words
 function qwText(s, max, words){
-  if(typeof s !== 'string') return null; const t = qwStrip(s); if(!t || t.length > max) return null;
+  if(typeof s !== 'string' || /[<>]|&lt;|&gt;/i.test(s)) return null; const t = qwStrip(s); if(!t || t.length > max) return null;   /* markup is refused, not cleaned */
   if(t.split(' ').length > words) return null;
-  if(LP_BANNED.test(t) || /https?:|www\.|\.(com|net|org|io)\b/i.test(t) || lpAsks(t) || LP_PRIVATE.test(t) || /\d{4,}|@/.test(t) || WF_SPOIL.test(t) || QW_UNSAFE.test(t)) return null;
+  if(LP_BANNED.test(t) || LP_BRANDS.test(t) || LP_LINKY.test(t) || lpAsks(t) || LP_PRIVATE.test(t) || /\d{4,}|@/.test(t) || WF_SPOIL.test(t) || QW_UNSAFE.test(t)) return null;
   if(t !== scrubText(t)) return null;
   return t;
 }
@@ -22203,8 +22212,8 @@ function qwDecode(code){
 var qbEl = document.getElementById('qbCard'), qbPending = null, qbBusy = false, qbSeq = 0, qbConfirm = null;
 function qbOpen(){ return !!qbEl && !qbEl.classList.contains('hidden'); }
 function qbMsg(t){ const el = document.getElementById('qbMsg'); if(el) el.textContent = t || ''; }
-function qbShow(){ if(!qbEl || zeroing || bc.on || ph.on || !state.started) return false; if(wfCardOpen()) wfClose(); qbEl.classList.remove('hidden'); setPaused(true); document.body.classList.add('talking'); qbRender(); qbMsg(''); return true; }
-function qbClose(){ if(!qbEl) return; ['qbQ', 'qbCode'].forEach(id => { const i = document.getElementById(id); if(i) i.blur(); }); qbEl.classList.add('hidden'); document.body.classList.remove('talking'); setPaused(false); qbConfirm = null; }
+function qbShow(){ if(!qbEl || qbOpen() || zeroing || bc.on || ph.on || !state.started || traveling || cardsOpen('qb') || !introEl.classList.contains('hidden') || rally.open || starling.open || gate1.open) return false; qbEl.classList.remove('hidden'); setPaused(true); document.body.classList.add('talking'); qbRender(); qbMsg(''); return true; }
+function qbClose(){ if(!qbEl) return; ['qbQ', 'qbCode'].forEach(id => { const i = document.getElementById(id); if(i) i.blur(); }); qbEl.classList.add('hidden'); if(!cardsOpen('qb')){ document.body.classList.remove('talking'); setPaused(false); } qbConfirm = null; }
 function qbNewId(){ return (Date.now().toString(36) + (qbSeq++).toString(36)).slice(-14); }
 function qbAdd(text, rec, src){
   const id = qwId(rec), had = qb.list.find(e => qwId(e.rec) === id); if(had) return {ok:true, e:had, had:true};
