@@ -19773,10 +19773,26 @@ function slotDelete(n){
 }
 function slotRename(n, name){ if(!(n >= 1 && n <= SLOT_N)) return {ok:false}; if(!slotCanSave()) return slotStaleNo(); const m = slotMeta(); m.slots[n].name = slotName(name); slotMetaSave(m); return {ok:true, name:m.slots[n].name}; }
 function slotExportText(n){ const i = slotInfo(n); if(i.empty) return null; return JSON.stringify({hub:SLOT_EXPORT_TAG, v:1, name:slotMeta().slots[n].name || i.name, exported:new Date().toISOString(), stores:slotData(n)}); }
+/* handing the player a file (a save export, a photo): on the claude.ai link the viewer blocks Blob links, so the page asks for the viewer's
+   downloads capability (the viewer confirms the name and size; a decline or any other refusal is a calm toast, never a retry); without it
+   (the local file) a plain Blob link with a download name. Resolves {ok, how:'claude'|'link', status | why}. */
+var dlCap = {tried:false, dl:null, last:null};
+async function saveFile(filename, data, mime){
+  let dl = null;
+  try{ if(window.claude && window.claude.use){ if(!dlCap.tried){ dlCap.tried = true; dlCap.dl = await window.claude.use('downloads'); } dl = dlCap.dl; } }catch(e){ dl = null; }
+  if(dl && typeof dl.save === 'function'){
+    try{ const r = await dl.save({filename, data}); dlCap.last = {how:'claude', file:filename, status:r && r.status}; return {ok:true, how:'claude', status:r && r.status}; }
+    catch(e){ const code = (e && e.code) || 'unavailable'; dlCap.last = {how:'claude', file:filename, why:code};
+      toast(code === 'declined' ? 'Not saved: the download was declined.' : code === 'rate_limited' ? 'A save is already waiting for your answer. Try again in a moment.' : code === 'too_large' ? 'That file is too big to save here.' : 'Saving files is not available here.', 3400);
+      return {ok:false, how:'claude', why:code}; } }
+  try{ const blob = data instanceof Blob ? data : new Blob([data], {type:mime || 'application/octet-stream'}), url = URL.createObjectURL(blob), a = document.createElement('a');
+    a.href = url; a.download = filename; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 4000); dlCap.last = {how:'link', file:filename}; return {ok:true, how:'link'}; }
+  catch(e){ dlCap.last = {how:'link', file:filename, why:'error'}; toast('Could not save the file.', 2400); return {ok:false, how:'link', why:'error'}; }
+}
 function slotExport(n){
   const txt = slotExportText(n); if(!txt){ toast('That slot is empty.', 2000); return null; }
   const file = 'hub-save-' + (slotInfo(n).label.replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '').toLowerCase() || ('slot-' + n)) + '.json';
-  try{ const url = URL.createObjectURL(new Blob([txt], {type:'application/json'})), a = document.createElement('a'); a.href = url; a.download = file; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 4000); }catch(e){}
+  saveFile(file, txt, 'application/json');   // the link path clicks at once (no await before it), so it still runs inside the button's click
   return {file, bytes:txt.length};
 }
 function slotImportText(n, txt, force){
@@ -20687,6 +20703,7 @@ var SND_HOOKS = {
       if(performance.now() < end) setTimeout(take, 40); else { try{ snd.master.disconnect(a); }catch(e){} res({rmsDb:n ? +(10 * Math.log10(sum / n + 1e-12)).toFixed(1) : null, peak:+peak.toFixed(3)}); } }; take(); }); }
 };
 Object.defineProperties(window.__hub, {sound:{value:SND_HOOKS}});
+Object.defineProperties(window.__hub, {saveFile:{value:(f, d, m) => saveFile(f, d, m)}, saveFileLast:{get:() => dlCap.last && Object.assign({}, dlCap.last)}, saveFileReset:{value:() => { dlCap.tried = false; dlCap.dl = null; dlCap.last = null; }}});   // the shared file saver (tests: inject window.claude.use('downloads'), then saveFileReset)
 
 
 /* ================= the Wayfarer: a small companion that travels with you (blueprint 5, 5a, 9, 11) =================
