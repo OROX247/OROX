@@ -378,6 +378,7 @@ body.a11y-calm #toast{ transform:translate(-50%,0) !important; }
 body.a11y-calm #blackFx{ transition:opacity 1.6s ease !important; }
 body.a11y-calm :is(#statPanel.bump, #idPanel.hurt){ animation:none !important; }
 body.a11y-calm #hurtFx{ display:none; }
+body.a11y-calm #fade{ background:#0b0a1c; }
 /* colour-blind cues: labels and patterns that only show with the cue setting */
 .cbx{ display:none; }
 body.a11y-cues .cbx{ display:inline; }
@@ -3153,7 +3154,7 @@ const A11Y = (() => { let o = null; try{ o = JSON.parse(slotLs.get(A11Y_KEY) || 
   return {text:[0, 1, 2].indexOf(o.text) >= 0 ? o.text : 0, contrast:b('contrast'), calm:b('calm'), captions:b('captions'), cues:b('cues'), toggleRun:b('toggleRun'), invertY:b('invertY'),
     keys:o.keys && typeof o.keys === 'object' && !Array.isArray(o.keys) ? o.keys : {}, runLatch:false}; })();
 // a short caption for an important sound (only while captions are on); safe to call from anywhere
-function caption(text, ms){ if(!A11Y.captions) return; const el = document.getElementById('caption'); if(!el) return; const d = document.createElement('div'); d.textContent = text; el.appendChild(d);
+function caption(text, ms){ if(!A11Y.captions) return; const el = document.getElementById('caption'); if(!el) return; const now = Date.now(); if(text === A11Y.lastCaption && now - (A11Y.capAt || 0) < 1500) return; A11Y.capAt = now; const d = document.createElement('div'); d.textContent = text; el.appendChild(d);
   while(el.children.length > 3) el.removeChild(el.firstChild); setTimeout(() => { if(d.parentNode) d.parentNode.removeChild(d); }, ms || 2600); A11Y.lastCaption = text; }
 
 /* ================= save ================= */
@@ -10972,7 +10973,7 @@ function buildDrift(){
 function driftSound(on, vol, cut){
   if(!snd.ctx || !drift) return; const c = snd.ctx, now = c.currentTime;
   if(!on || !snd.on){ if(drift.bus){ const b = drift.bus; b.gain.setTargetAtTime(0, now, 0.15); setTimeout(() => { try{ b.disconnect(); }catch(e){} }, 800); drift.bus = null; } return; }
-  if(!drift.bus){ const b = c.createGain(), lp = c.createBiquadFilter(); b.gain.value = 0; lp.type = 'lowpass'; lp.frequency.value = cut; lp.Q.value = 0.6; b.connect(lp); lp.connect(snd.master); b.lp = lp; drift.bus = b; drift.nextT = now + 0.08; }
+  if(!drift.bus){ caption('[Music from The Drift: "' + DRIFT.track + '"]', 4000); const b = c.createGain(), lp = c.createBiquadFilter(); b.gain.value = 0; lp.type = 'lowpass'; lp.frequency.value = cut; lp.Q.value = 0.6; b.connect(lp); lp.connect(snd.master); b.lp = lp; drift.bus = b; drift.nextT = now + 0.08; }
   const b = drift.bus; b.gain.setTargetAtTime(vol, now, 0.25); b.lp.frequency.setTargetAtTime(cut, now, 0.25);
   if(drift.nextT < now - 0.3) drift.nextT = now + 0.05;   // a long frame: pick the beat up again rather than play a burst of late notes
   const s16 = 60 / DRIFT.bpm / 4;
@@ -12180,6 +12181,7 @@ function buildChimes(){
   addBox(fx, fz, half + 0.12, 0.16, top - 0.2, top + B + 0.1, {a:Math.atan2(rz, rx), cam:false});
 }
 function chimeNote(t, when, soft){
+  { const i = chimes && chimes.tubes ? chimes.tubes.indexOf(t) : -1; if(i >= 0) caption('[Chime ' + (i + 1) + ': ' + 'CDEGACD'[i] + (i >= 5 ? ' high' : '') + ']', 1400); }   // Phase 4: captions
   if(!snd.ctx || !snd.on) return; const c = snd.ctx, at = c.currentTime + (when || 0), f = t.hz, v = soft ? 0.6 : 1;
   try{ tone('sine', f, f, 3.4, 0.085 * v, at); tone('sine', f * 2.76, f * 2.76, 1.3, 0.022 * v, at); tone('sine', f * 5.4, f * 5.4, 0.45, 0.009 * v, at); noiseHit(5200, 4, 0.03, 0.02 * v, at); }catch(e){}
 }
@@ -12481,7 +12483,7 @@ function monThink(m, dt, canHunt){
   }
   else if(m.mode === 'chase'){
     if(!canHunt || dH > D.leash || dP > D.aggro * 1.8 || (D.trench && dP > 4 && warHidden())){ m.mode = 'return'; }
-    else { if(d3 <= D.reach && m.cool <= 0){ m.mode = 'wind'; m.wind = 0; m.ax = p.x; m.az = p.z; m.ay = pCenter(); sfx('mwind'); }
+    else { if(d3 <= D.reach && m.cool <= 0){ m.mode = 'wind'; m.wind = 0; m.ax = p.x; m.az = p.z; m.ay = pCenter(); sfx('mwind'); caption('[' + (D.name || 'Something') + ' winds up to strike]', 1600); }
       else { const st = D.reach * 0.7; if(dP > st) monMove(m, p.x, p.z, D.run, dt); else { m.speed *= Math.exp(-dt * 8); m.yaw = lerpAngle(m.yaw, Math.atan2(dx, dz), 1 - Math.exp(-dt * 8)); } }
       if(D.fly) ty = p.y + 1.6; }
   }
@@ -12995,7 +12997,7 @@ function update(dt, time){
   if(bc.on) broadcastUpdate(dt, time);   // the Broadcast drives the camera (sets _t0/_t1) until it ends
   if(vr.on){ vrUpdate(dt); camera.getWorldPosition(camWorld); sky.position.copy(camWorld); sunLight.position.set(p.x + lightDir.x * 150, p.y + lightDir.y * 150, p.z + lightDir.z * 150); sunLight.target.position.set(p.x, p.y, p.z); sunLight.target.updateMatrixWorld(); if(gridSun) gridSun.lookAt(camWorld.x, gridSun.position.y, camWorld.z); waterNormal.offset.x += dt * 0.015; waterNormal.offset.y += dt * 0.01; }
   else {
-  if(bc.on) camera.position.copy(_t0); else { camera.position.lerp(_t0, 1 - Math.exp(-dt * 10)); clipCamera(); }
+  if(bc.on) camera.position.copy(_t0); else { const cy = camera.position.y; camera.position.lerp(_t0, 1 - Math.exp(-dt * 10)); if(A11Y.calm) camera.position.y = cy + (_t0.y - cy) * (1 - Math.exp(-dt * 3.5)); clipCamera(); }   // Phase 4: reduce motion softens the vertical follow
   const zv = [gym, drift].find(v => v && Math.hypot(p.x - v.x, p.z - v.z) < v.r);
   if(zv){   // inside the gym (or The Drift) the camera stays under the dome
     const dx = camera.position.x - zv.x, dz = camera.position.z - zv.z, d = Math.hypot(dx, dz), lim = zv.r - 0.5;
@@ -15552,6 +15554,7 @@ const BLACK = {speed:46, dark:2.4, wake:2.2};
 function merBlackout(how){
   if(!mer || mer.bo || state.hunt.blackout || state.hunt.won || state.world !== 'ashfall') return null;
   const D = MERIDIAN.dome, c = new V3(D.x, mer.domeY + D.h + 6, D.z);
+  caption('[A deep pulse rolls out from the Citadel]', 3500);   // Phase 4
   mer.bo = {t:0, how:how || 'played', stage:0, breath:artHas('second-breath'), c, hitT:c.distanceTo(new V3(p.x, p.y + 1, p.z)) / BLACK.speed};
   zeroing = true; p.speed = 0; jumpBuffer = 0; for(const k in keys) keys[k] = false;
   noRandom(() => { const s = new THREE.Mesh(new THREE.SphereGeometry(1, 64, 32), artShell(0xe8e4ff, 9)); s.position.copy(c); s.renderOrder = 6; s.scale.setScalar(0.1); mer.g.add(s); mer.bo.pulse = s; });
@@ -15561,9 +15564,9 @@ function merBlackout(how){
 }
 function merBlackoutStep(dt){
   const B = mer.bo; B.t += dt;
-  const r = B.t * BLACK.speed; if(B.pulse){ B.pulse.scale.setScalar(Math.max(0.1, r)); const u = B.pulse.material.uniforms; u.t.value = artRt.clock; u.op.value = 1.6 * (1 - smooth(B.hitT + 0.6, B.hitT + 2.2, B.t)); u.flash.value = 0.25; }
+  const r = B.t * BLACK.speed; if(B.pulse){ B.pulse.scale.setScalar(Math.max(0.1, r)); const u = B.pulse.material.uniforms; u.t.value = artRt.clock; u.op.value = (A11Y.calm ? 0.45 : 1.6) * (1 - smooth(B.hitT + 0.6, B.hitT + 2.2, B.t)); u.flash.value = A11Y.calm ? 0 : 0.25; }   // Phase 4: reduce motion
   if(mon) for(const m of mon.live) if(m.D.unit && m.mode !== 'dying' && B.c.distanceTo(_bA.set(m.x, m.y + 1, m.z)) < r) unitZero(m);
-  if(B.stage === 0 && B.t >= B.hitT){ B.stage = 1; sfx('zero'); me.g.visible = false; fxBurst(p.x, p.y + 1, p.z, 40, 0xffffff, {speed:3, size:0.12, life:0.9, grav:0}); $('#blackMsg').textContent = 'Every avatar on Ashfall zeroed out.'; $('#blackFx').classList.add('on'); }
+  if(B.stage === 0 && B.t >= B.hitT){ B.stage = 1; sfx('zero'); me.g.visible = false; fxBurst(p.x, p.y + 1, p.z, 40, 0xffffff, {speed:3, size:0.12, life:0.9, grav:0}); $('#blackMsg').textContent = 'Every avatar on Ashfall zeroed out.'; caption('[Silence. Every avatar on Ashfall zeroed out]', 4000); $('#blackFx').classList.add('on'); }
   if(B.stage === 1 && B.t >= B.hitT + BLACK.dark){ B.stage = 2;
     if(B.breath && artSecondBreath('the Blackout')){
       state.hunt.blackout = {t:Date.now(), breath:true}; persist(); huntState(); if(typeof localsNotice === 'function') localsNotice();
@@ -16043,7 +16046,7 @@ function warFlashes(){
 }
 function warUpdate(dt, time){
   if(!war || state.world !== 'warfront') return;
-  for(const f of war.flashes){ const u = (time + f.ph) % f.per, a = Math.exp(-u * 7) + (f.double ? 0.7 * Math.exp(-Math.abs(u - 0.32) * 12) * (u > 0.3 ? 1 : 0) : 0); f.s.material.opacity = Math.min(1, a * f.k); }
+  for(const f of war.flashes){ const u = (time + f.ph) % f.per, a = Math.exp(-u * 7) + (f.double ? 0.7 * Math.exp(-Math.abs(u - 0.32) * 12) * (u > 0.3 ? 1 : 0) : 0); f.s.material.opacity = A11Y.calm ? f.k * 0.16 * (0.5 + 0.5 * Math.sin(time * 0.4 + f.ph)) : Math.min(1, a * f.k); }   // Phase 4: reduce motion, no flashes
 }
 // down in a trench (cut more than 1.3 m deep where you stand, and on its floor): a clockwork sentry cannot see you. Warfront's own rule, as the locals say:
 // keep your head below the sandbags. Only monsters with trench:true (MON.warfront) read it.
