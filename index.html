@@ -4709,6 +4709,11 @@ function makeAvatar(o){
   g.traverse(m => { if(m.isMesh){ m.castShadow = !m.userData.noShadow; m.receiveShadow = true; } });
   flames.forEach(f => { f.castShadow = false; });
   g.traverse(m => m.layers.set(1));
+  /* fewer draw calls: on each bone, the parts that share a material are merged into one mesh on that bone, so the walk moves them exactly as
+     before (an avatar was ~50 meshes; the locals were most of every realm's draw calls). The cape, the wings, mesh ears and the jet flames move or
+     switch on their own and keep their meshes; parts under 7 cm stay apart from bigger ones, so perfNpc can still drop them for far locals. */
+  { const own = new Set([cape, wings].concat(ears.filter(e => e.isMesh), flames).filter(Boolean));
+    bakeStatic(g, {byParent:true, keep:o => own.has(o), small:o => { if(!o.geometry.boundingSphere) o.geometry.computeBoundingSphere(); return o.geometry.boundingSphere.radius * o.matrixWorld.getMaxScaleOnAxis() < 0.035; }}); }
   let tag = null;
   if(o.name){ tag = label(o.name, {small:true}); tag.position.y = 2.15; tag.scale.set(tag.scale.x / (S * W), tag.scale.y / S, 1); tag.layers.set(1); g.add(tag); }
   return {g, hips, spine, head, armL, armR, legL, legR, flames, suitM, plateM, trimM, visorM, eyeM, tag, cape, wings, tail, ears, blob, recipe:rc, S, W, rad:0.7 * W * S, amp:0, air:0, phase:Math.random() * TAU, seed:Math.random() * 10};
@@ -20230,7 +20235,7 @@ function perfNpc(a, x, z){
   const D = PERF.p.npcFar, d = Math.hypot(x - camWorld.x, z - camWorld.z), far = D > 0 && (a.perfFar ? d > D - 2 : d > D);
   if(far === !!a.perfFar) return; a.perfFar = far;
   if(!a.perfParts){ a.perfParts = []; a.g.updateMatrixWorld(true); a.g.traverse(o => { if(!o.isMesh || o === a.tag) return; if(!o.geometry.boundingSphere) o.geometry.computeBoundingSphere();
-    a.perfParts.push({o, cast:o.castShadow, ao:!!o.userData.noAO, small:o.geometry.boundingSphere.radius * o.matrixWorld.getMaxScaleOnAxis() < 0.035}); }); }
+    a.perfParts.push({o, cast:o.castShadow, ao:!!o.userData.noAO, small:o.userData.perfSmall !== undefined ? o.userData.perfSmall : o.geometry.boundingSphere.radius * o.matrixWorld.getMaxScaleOnAxis() < 0.035}); }); }
   for(const q of a.perfParts){ const o = q.o; if(far){ o.castShadow = false; o.userData.noAO = true; if(q.small){ q.vis = o.visible; o.visible = false; } } else { o.castShadow = q.cast; o.userData.noAO = q.ao; if(q.small && q.vis !== undefined) o.visible = q.vis; } }
 }
 function perfSave(){ try{ slotLs.set(PERF_KEY, JSON.stringify({v:1, mode:PERF.mode})); }catch(e){} }
