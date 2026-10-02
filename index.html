@@ -11450,12 +11450,12 @@ const POSTER_WALLS = {
     return [['drift', -0.40, 0xff4fa3], ['rally', -0.53, 0x5ce1e6], ['lampblack', -0.66, 0xff4fa3], ['loft', 0.40, 0x5ce1e6], ['starling', 0.53, 0xff4fa3], ['saltlark', 0.66, 0x5ce1e6]]
       .map(([id, d, rim]) => { const th = Math.PI + d; return {id, rim, x:D.x + Math.sin(th) * R, y:2.15, z:D.z + Math.cos(th) * R, ry:th, w:1.1, h:1.65}; }); },
   // the Spaceport: a cloth banner on an arm from every plaza lamp post (the same spots as BUILD.hub's lamps), printed on both sides, facing the
-  // middle of the plaza; its foot is 2.9 m up, over the tallest avatar (2.4 m), and the post itself is the solid part
+  // middle of the plaza; its foot is 3.02 m up, over the tallest avatar (2.4 m tall, 2.79 m to the tip of a halo or antenna), the arm under the lamp head, and the post itself is the solid part
   hub:() => { const L = [], ids = ['drift', 'rally', 'saltlark', 'starling', 'lampblack', 'loft', 'fennick', 'sky', 'rally', 'starling'];
     for(let i = 0; i < 6; i++){ const a = i / 6 * TAU + Math.PI / 6; L.push([Math.cos(a) * 11.5, Math.sin(a) * 11.5]); }
     [30, 65, 115, 150].forEach(deg => { const a = deg * Math.PI / 180; L.push([Math.cos(a) * 31, Math.sin(a) * 31]); });
     return L.map(([lx, lz], i) => { const d = Math.hypot(lx, lz), ux = -lz / d, uz = lx / d, off = 0.55;   // u: along the ring, so the cloth faces the middle
-      return {id:ids[i], kind:'banner', x:lx + ux * off, y:3.5, z:lz + uz * off, ry:Math.atan2(-lx, -lz), w:0.8, h:1.2, pole:[lx, lz], arm:[ux, uz]}; }); }
+      return {id:ids[i], kind:'banner', x:lx + ux * off, y:3.62, z:lz + uz * off, ry:Math.atan2(-lx, -lz), w:0.8, h:1.2, pole:[lx, lz], arm:[ux, uz]}; }); }
 };
 function posterAtlas(){
   const [cw, ch] = POSTER_CELL, rows = Math.ceil(POSTER_IDS.length / POSTER_COLS);
