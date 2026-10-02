@@ -21558,6 +21558,178 @@ if(phBarEl){
 }
 Object.assign(PH_HOOKS, {capture:o => phCapture(o), album:() => phAlbumList().then(L => L.map(e => ({id:e.id, realm:e.realm, cap:e.cap, hasThumb:!!e.thumb, thumbBytes:e.thumb ? e.thumb.length : 0}))), showAlbum:() => phAlbumShow(), captionOffline:() => phCapOffline()});
 Object.defineProperties(PH_HOOKS, {capWhy:{get:() => wfAI.capWhy || '', enumerable:true}});
+/* ================= the Questwright (U): describe a quest in words and the game builds it from safe parts =================
+   A quest is a recipe of buildable parts only: kind (QW_KINDS), where (a built-in realm, a forged realm on this device, or 'here'), item, colour,
+   count 1-8, time limit (0 or 30-600 s), difficulty, swim, title and up to eight short riddles, plus its own seed. parseQuest(text) reads the words
+   offline (like parseRealm); qwFromAI(text) asks a brain for the same JSON and cleanQuest(o, 'strict') must pass it, or parseQuest answers.
+   Rewards are set by the game (qwReward), never by a recipe. Everything here is var or a function declaration: buildWorld runs long before this section. */
+var QW_KINDS = ['gather', 'hidden', 'race', 'rings', 'riddle', 'escort', 'defend'];
+var QW_KIND_NAME = {gather:'Gather', hidden:'Find the hidden', race:'Race', rings:'Ring course', riddle:'Riddle trail', escort:'Escort the light', defend:'Defend the lantern'};
+var QW_KIND_ALIAS = {'find-hidden':'hidden', 'find hidden':'hidden', find:'hidden', collect:'gather', 'ring course':'rings', ring:'rings', 'ring-course':'rings', 'riddle trail':'riddle', 'riddle-trail':'riddle', riddles:'riddle', 'escort-light':'escort', 'escort light':'escort', 'defend-lantern':'defend', 'defend lantern':'defend'};
+var QW_ITEMS = {mushroom:{name:'glowing mushroom', col:'teal'}, lantern:{name:'lost lantern', col:'gold'}, shell:{name:'sea shell', col:'pink'}, crystal:{name:'crystal', col:'blue'}, star:{name:'fallen star', col:'gold'},
+  feather:{name:'feather', col:'white'}, gem:{name:'gem', col:'purple'}, orb:{name:'light orb', col:'teal'}, flower:{name:'moonflower', col:'pink'}};
+var QW_ITEM_WORDS = [['mushroom', /\b(mushrooms?|toadstools?|fung(i|us))\b/], ['lantern', /\b(lanterns?|lamps?)\b/], ['shell', /\b(shells?|seashells?|conch(es)?)\b/], ['crystal', /\b(crystals?|glass beads?)\b/],
+  ['star', /\b(stars?|starlights?)\b/], ['feather', /\b(feathers?|plumes?)\b/], ['gem', /\b(gems?|jewels?|treasures?|rub(y|ies)|emeralds?|sapphires?|pearls?)\b/], ['orb', /\b(orbs?|lights?|wisps?|fireflies|firefly|sparks?)\b/],
+  ['flower', /\b(flowers?|blossoms?|moonflowers?|petals?)\b/]];
+var QW_COLORS = {red:0xff5a4a, orange:0xff9a3c, gold:0xffd166, green:0x9dff6a, teal:0x5ce1e6, blue:0x5a8cff, purple:0xb18cff, pink:0xff7ac8, white:0xf2f4ff, silver:0xc8d2e0};
+var QW_COLOR_WORDS = [['red', /\b(red|crimson|scarlet)\b/], ['orange', /\b(orange|amber)\b/], ['gold', /\b(gold|golden|yellow)\b/], ['green', /\b(green|emerald|lime)\b/], ['teal', /\b(teal|cyan|turquoise|aqua)\b/],
+  ['blue', /\b(blue|azure|navy)\b/], ['purple', /\b(purple|violet|lilac|lavender)\b/], ['pink', /\b(pink|rose|rosy)\b/], ['white', /\b(white|pale|snowy)\b/], ['silver', /\b(silver|grey|gray)\b/]];
+var QW_DIFF = ['calm', 'normal', 'hard'];
+var QW_COUNT = {gather:5, hidden:3, race:5, rings:6, riddle:4, escort:3, defend:5};
+var QW_NUM = {one:1, two:2, three:3, four:4, five:5, six:6, seven:7, eight:8, nine:9, ten:10, eleven:11, twelve:12, dozen:12, a:1, an:1, single:1, pair:2, couple:2, few:3, handful:5};
+var QW_AUTO_T = {calm:300, normal:180, hard:120};
+// realm words: a name always wins; a plain place word only moves the quest when you stand in a built-in realm (on a planet or a forged realm "forest" means here)
+var QW_REALM_NAMES = [['hub', /\b(spaceport|hub spaceport|the plaza)\b/], ['campus', /\bcampus\b/], ['dunes', /\bglass dunes\b/], ['grid', /\bneon grid\b/], ['grove', /\bnight grove\b/], ['sky', /\bsky isles?\b/],
+  ['warfront', /\bwarfront\b/], ['lampblack', /\blampblack\b/], ['saltlark', /\bsaltlark( isle)?\b/], ['fennick', /\bfennick( bay)?\b/]];
+var QW_REALM_WORDS = [['dunes', /\b(desert|dunes?)\b/], ['grove', /\b(forest|woods?|woodland|pines?)\b/], ['lampblack', /\b(alleys?|city streets?|the city)\b/], ['saltlark', /\b(beach|lagoon|sandbars?)\b/],
+  ['fennick', /\b(harbou?r|fishing town)\b/], ['campus', /\b(school|marble hall)\b/], ['grid', /\bneon\b/], ['sky', /\bfloating isl(e|es|ands?)\b/], ['warfront', /\b(trench(es)?|bastion)\b/]];
+var QW_RIDDLES = {
+  sea:['I hum with the waves when you hold me to your ear. Look where the sand is soft.', 'I come in and go out twice a day, but I never leave the shore.', 'I wave all day and I have no hands.',
+    'Salt on my back and sand at my feet: look where the water and the dry land meet.', 'Gulls call above me. Follow their cries to the next light.', 'I shine on the water at night and never get wet.',
+    'I am full of holes, yet I bring the fish home.', 'I am blue at noon and silver at dusk. Walk along my edge.'],
+  forest:['I have rings but no fingers. Look where the old trees stand.', 'Small hat, pale stem, I like it damp. Look low beside the path.', 'I am soft and green and I carpet the roots.',
+    'Owls are awake while I sleep. Walk to where the shadows are deep.', 'I fall without a sound and cover the ground each autumn.', 'Tall and still, I hum when the wind comes through.',
+    'Follow the needles that never sew.', 'I whisper all night and say nothing at all.'],
+  night:['I light the way but have no flame.', 'I grow round, then thin, then round again.', 'I twinkle, but I have no eyes.', 'When the sun goes to bed, I keep watch overhead.',
+    'I am the sky\'s night-light, silver and round.', 'Count the bright dots above you, then go where the brightest one leads.', 'I am a little lamp with wings.', 'I am dark and soft and full of dreams.'],
+  city:['I stand on the corner all night with one bright eye.', 'I tick high on the tower and tell you when.', 'Puddles keep my picture. Look where the light shines twice.',
+    'I carry people and never get tired. Listen for my bell on the rails.', 'Many windows, one roof: find the door with the warm light.', 'Cats walk my roofs at night. Look up, then look down.',
+    'I am painted on the wall and I glow when it is dark.', 'I have steps but never walk.'],
+  desert:['I move without feet and build hills with the wind.', 'Hot all day and cold all night: look where the glass catches the light.', 'The wind writes on me and wipes it away.',
+    'I drink no water and stand tall with needles for leaves.', 'I shimmer far ahead. Walk on and see if I am real.', 'I sparkle like ice that will never melt.', 'I am the colour of honey and I slide when you climb.', 'I am a ship with no sea.'],
+  any:['Look for the glow: the next one is never far from the last.', 'I am round and I shine and I am waiting for you.', 'Walk where it is open and look where it is bright.',
+    'Every step is a clue. Keep your eyes on the light.', 'I am small and I am bright and I am tucked out of sight.', 'Listen for the hum, then follow it.', 'I am a little spark of happy. Find me!', 'The last one is the best one. Nearly there!']
+};
+var QW_THEME_WORDS = [['sea', /\b(sea|ocean|waves?|tides?|fish|shells?|beach|harbou?r|boats?)\b/], ['forest', /\b(forest|trees?|woods?|leaf|leaves|pines?|mushrooms?)\b/], ['night', /\b(stars?|moon|night|sky|owls?)\b/],
+  ['city', /\b(city|streets?|lamps?|alleys?|trams?|roofs?)\b/], ['desert', /\b(desert|sand|dunes?|glass|cactus)\b/]];
+var QW_REALM_THEME = {saltlark:'sea', fennick:'sea', grove:'forest', campus:'forest', lampblack:'city', grid:'city', dunes:'desert', sky:'night'};
+var QW_REALM_ITEM = {grove:'mushroom', saltlark:'shell', fennick:'shell', dunes:'crystal', lampblack:'lantern', grid:'orb', sky:'feather', campus:'flower', warfront:'star', hub:'gem'};
+// words a child should not meet in a player-made or brain-made quest (on top of the Living Locals filters and the Hunt spoiler filter)
+var QW_UNSAFE = /\b(kill\w*|murder\w*|blood\w*|gore|gory|dead|death|die|dies|dying|corpses?|guns?|knife|knives|weapons?|bombs?|drugs?|beer|wine|alcohol|drunk|cigarettes?|sex\w*|naked|nude|hate|hated|stupid|idiot|dumb|damn|hell|suicide|horror|terrif\w*|nightmares?)\b/i;
+var qwNote = [];
+function qwStrip(s){ return String(s == null ? '' : s).replace(/<[^>]*>/g, ' ').replace(/[\u0000-\u001f\u007f<>\u00ad\u061c\u180e\u200b-\u200f\u202a-\u202e\u2066-\u2069\ufeff]/g, ' ').replace(/\s+/g, ' ').trim(); }
+// one short line of player- or brain-made text, or null: no outside names, links, personal questions or details, Hunt spoilers or unkind words
+function qwText(s, max, words){
+  if(typeof s !== 'string') return null; const t = qwStrip(s); if(!t || t.length > max) return null;
+  if(t.split(' ').length > words) return null;
+  if(LP_BANNED.test(t) || /https?:|www\.|\.(com|net|org|io)\b/i.test(t) || lpAsks(t) || LP_PRIVATE.test(t) || /\d{4,}|@/.test(t) || WF_SPOIL.test(t) || QW_UNSAFE.test(t)) return null;
+  if(t !== scrubText(t)) return null;
+  return t;
+}
+function qwRealmOk(k){
+  if(typeof k !== 'string') return false; if(k === 'here') return true;
+  if(k === 'ashfall') return false;
+  if(WORLD_ORDER.indexOf(k) >= 0) return true;
+  return /^w:[a-z0-9_-]{1,40}$/i.test(k) && hasOwn(WORLDS, k) && !!WORLDS[k].custom;   // a forged realm that exists on this device
+}
+function qwItemName(R, n){ const b = QW_ITEMS[R.item].name; return n === 1 ? b : b + 's'; }
+function qwCap(s){ return s.replace(/(^|\s)([a-z])/g, (m, a, b) => a + b.toUpperCase()); }
+function qwNumWord(n){ return ['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight'][n] || String(n); }
+function qwAutoTitle(R, theme){
+  const N = qwCap(qwNumWord(R.count)), I = qwCap(qwItemName(R, R.count));
+  return R.kind === 'gather' ? N + ' ' + I : R.kind === 'hidden' ? 'Find the ' + qwCap(qwItemName(R, 2)) : R.kind === 'race' ? 'The ' + qwCap(QW_ITEMS[R.item].name) + ' Race'
+    : R.kind === 'rings' ? N + ' Ring Course' : R.kind === 'riddle' ? 'Riddles of the ' + qwCap(({sea:'sea', forest:'forest', night:'night', city:'city', desert:'desert'})[theme] || 'trail')
+    : R.kind === 'escort' ? 'Lead the Light' : 'Keep the Lantern Lit';
+}
+function qwTheme(t, realm){ for(const [k, re] of QW_THEME_WORDS) if(re.test(t)) return k; return QW_REALM_THEME[realm] || 'any'; }
+function qwRiddleFill(R, theme, have){
+  const pool = QW_RIDDLES[theme] || QW_RIDDLES.any, q = rng(R.seed ^ 0x5eed), out = have.slice(0, R.count), used = new Set(out);
+  const idx = pool.map((s, i) => i); for(let i = idx.length - 1; i > 0; i--){ const j = Math.floor(q() * (i + 1)); const t = idx[i]; idx[i] = idx[j]; idx[j] = t; }
+  for(const i of idx){ if(out.length >= R.count) break; if(!used.has(pool[i])){ out.push(pool[i]); used.add(pool[i]); } }
+  for(const s of QW_RIDDLES.any){ if(out.length >= R.count) break; if(!used.has(s)){ out.push(s); used.add(s); } }
+  return out;
+}
+// words -> recipe, offline. Same words, same recipe (the seed comes from the words).
+function parseQuest(text){
+  qwNote = [];
+  const raw = scrubText(qwStrip(text)).slice(0, 240), t = raw.toLowerCase().replace(/[’']/g, '\'');
+  const here = state.world, W = WORLDS[here] || {}, builtinHere = WORLD_ORDER.indexOf(here) >= 0;
+  const has = re => re.test(t);
+  // kind: the strongest verb wins (defend > escort > riddle > hidden > rings > gather > race)
+  let kind = has(/\b(defend|protect|guard|keep .{0,20}\b(lit|safe|burning))\b/) ? 'defend'
+    : has(/\b(escort|lead|guide|walk .{0,12}home|bring .{0,20}\b(light|lantern|wisp|orb)\b.{0,12}\b(home|back|safe))\b/) ? 'escort'
+    : has(/\b(riddles?|puzzles?|clues?)\b/) ? 'riddle'
+    : has(/\b(hidden|hide|lost|secret|treasure hunt|search for|seek)\b/) ? 'hidden'
+    : has(/\b(rings?|hoops?|loops?)\b/) && !has(/\b(collect|gather|pick)\b/) ? 'rings'
+    : has(/\b(collect\w*|gather\w*|pick(ing)? up|find|grab|bring)\b/) ? 'gather'
+    : has(/\b(race|racing|checkpoints?|sprint|dash|run)\b/) ? 'race' : 'gather';
+  // where
+  let realm = 'here', named = false;
+  for(const k of Object.keys(WORLDS)) if(/^w:/.test(k) && WORLDS[k].custom && WORLDS[k].name && WORLDS[k].name.length >= 3 && t.indexOf(WORLDS[k].name.toLowerCase()) >= 0){ realm = k; named = true; break; }
+  if(!named) for(const [k, re] of QW_REALM_NAMES) if(has(re)){ realm = k; named = true; break; }
+  if(!named && has(/\b(ashfall|citadel)\b/)){ qwNote.push('Ashfall is closed to player-made quests, so this one is set wherever you are.'); named = true; }
+  if(!named && builtinHere && !has(/\b(here|this (realm|planet|world|place))\b/)) for(const [k, re] of QW_REALM_WORDS) if(has(re)){ realm = k === here ? 'here' : k; break; }
+  if(realm === here) realm = 'here';
+  const rk = realm === 'here' ? here : realm;
+  // item: the first item word after the count or the verb, else the first one, else the realm's own
+  let item = null, best = 1e9; const cut = t.search(/\b(\d+|one|two|three|four|five|six|seven|eight|collect\w*|gather\w*|find|hidden|lost)\b/);
+  for(const [id, re] of QW_ITEM_WORDS){ const m = t.slice(Math.max(0, cut)).match(re); if(m && m.index < best){ best = m.index; item = id; } }
+  if(!item) for(const [id, re] of QW_ITEM_WORDS) if(has(re)){ item = id; break; }
+  if(kind === 'escort' || kind === 'defend') item = item === 'lantern' || item === 'orb' || item === 'star' ? item : 'lantern';
+  if(!item) item = QW_REALM_ITEM[rk] || 'gem';
+  let color = QW_ITEMS[item].col; for(const [c, re] of QW_COLOR_WORDS) if(has(re)){ color = c; break; }
+  // how many
+  let count = 0; const nm = t.match(/\b(\d{1,3})\b(?!\s*(minutes?|mins?|seconds?|secs?|m\b|s\b))/);
+  if(nm) count = +nm[1]; else { const w = t.match(/\b(one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|dozen|pair|couple|few|handful)\b(?!\s*(minutes?|mins?|seconds?|secs?))/); if(w) count = QW_NUM[w[1]]; }
+  if(!count) count = QW_COUNT[kind];
+  if(count > 8) qwNote.push('A quest holds at most eight, so this one has eight.');
+  count = clamp(Math.round(count), 1, 8);
+  // difficulty, time
+  const difficulty = has(/\b(calm|easy|gentle|relaxed|relaxing|cosy|cozy|little ones?|simple|peaceful|slow|quiet)\b/) ? 'calm' : has(/\b(hard|tricky|tough|difficult|expert|challenging|fiendish)\b/) ? 'hard' : 'normal';
+  let time = 0; const tm = t.match(/\b(\d+(?:\.\d+)?|one|two|three|four|five|six|seven|eight|nine|ten)\s*(minutes?|mins?|seconds?|secs?)\b/);
+  if(tm){ const v = /^\d/.test(tm[1]) ? +tm[1] : QW_NUM[tm[1]]; time = /^(m)/.test(tm[2]) ? v * 60 : v; }
+  else if(has(/\b(before (night|nightfall|dark|sunset|dusk|sundown|the bell|bedtime|dawn)|against the clock|timed|hurry|quick(ly)?|fast|in time)\b/) || ((kind === 'race' || kind === 'rings') && !has(/\b(no rush|no timer|untimed|take your time)\b/))) time = QW_AUTO_T[difficulty];
+  if(has(/\b(no rush|no timer|untimed|take your time)\b/) && !tm) time = 0;
+  if(time) time = clamp(Math.round(time), 30, 600);
+  const swim = has(/\b(swim|swimming|underwater|in the (sea|water|lake|bay|waves))\b/);
+  const R = {v:1, kind, realm, item, color, count, time, difficulty, swim, title:'', riddles:[], seed:strHash('quest:' + t)};
+  // a title of the player's own ("called X"), else the game's; riddles of the player's own in quotes, else the game's for its theme
+  const cm = raw.match(/\b(?:called|named|titled)\s+["“]?([^"“”.,!?]{2,40}?)(?=\s+(?:with|and|in|on|at|through|that|where|before|for)\b|["“”.,!?]|$)/i); const ttl = cm ? qwText(cm[1], 48, 8) : null;
+  const theme = qwTheme(t, rk);
+  R.title = ttl ? qwCap(ttl) : qwAutoTitle(R, theme);
+  if(kind === 'riddle'){ const own = []; raw.replace(/["“]([^"”]{6,100})["”]/g, (m, s) => { const ok = qwText(s, 100, 18); if(ok) own.push(ok); else qwNote.push('One of your riddles was left out.'); return m; }); R.riddles = qwRiddleFill(R, theme, own); }
+  return R;
+}
+// any recipe from outside the offline parser (a brain, a share code, a saved book) goes through here. mode 'strict': any bad text fails the whole
+// recipe (a brain's reply then falls back to the offline parser); mode 'clean': bad text is dropped and replaced by the game's own.
+function cleanQuest(o, mode){
+  if(!o || typeof o !== 'object' || Array.isArray(o)) return {ok:false, why:'not an object'};
+  const strict = mode === 'strict', g = k => hasOwn(o, k) ? o[k] : undefined;
+  let kind = typeof g('kind') === 'string' ? g('kind').toLowerCase().trim() : ''; if(hasOwn(QW_KIND_ALIAS, kind)) kind = QW_KIND_ALIAS[kind];
+  if(QW_KINDS.indexOf(kind) < 0) return {ok:false, why:'unknown kind'};
+  const realm = qwRealmOk(g('realm')) ? g('realm') : 'here', rk = realm === 'here' ? state.world : realm;
+  let item = typeof g('item') === 'string' && hasOwn(QW_ITEMS, g('item')) ? g('item') : (QW_REALM_ITEM[rk] || 'gem');
+  if((kind === 'escort' || kind === 'defend') && ['lantern', 'orb', 'star'].indexOf(item) < 0) item = 'lantern';
+  const color = typeof g('color') === 'string' && hasOwn(QW_COLORS, g('color')) ? g('color') : QW_ITEMS[item].col;
+  const cn = g('count'), count = typeof cn === 'number' && isFinite(cn) ? clamp(Math.round(cn), 1, 8) : QW_COUNT[kind];
+  const tv = g('time_limit') !== undefined ? g('time_limit') : g('time'), time = typeof tv === 'number' && isFinite(tv) && tv > 0 ? clamp(Math.round(tv), 30, 600) : 0;
+  const difficulty = QW_DIFF.indexOf(g('difficulty')) >= 0 ? g('difficulty') : 'normal';
+  const sd = g('seed'), R = {v:1, kind, realm, item, color, count, time, difficulty, swim:g('swim') === true, title:'', riddles:[], seed:0};
+  R.seed = typeof sd === 'number' && isFinite(sd) ? (Math.floor(Math.abs(sd)) >>> 0) : strHash('quest:' + JSON.stringify([kind, realm, item, color, count, time, difficulty, R.swim, g('title')]));
+  const dropped = [];
+  const ti = g('title'); let title = ti == null || ti === '' ? '' : qwText(ti, 48, 8);
+  if(ti != null && ti !== '' && !title){ if(strict) return {ok:false, why:'title fails the filters'}; dropped.push('title'); }
+  const theme = QW_REALM_THEME[rk] || 'any';
+  R.title = title ? qwCap(title) : qwAutoTitle(R, theme);
+  const rd = g('riddles'), own = [];
+  if(rd != null && !Array.isArray(rd)){ if(strict) return {ok:false, why:'riddles is not a list'}; dropped.push('riddles'); }
+  if(Array.isArray(rd)) for(const s of rd.slice(0, 12)){ const ok = qwText(s, 100, 18); if(ok){ if(own.length < count) own.push(ok); } else { if(strict) return {ok:false, why:'a riddle fails the filters'}; dropped.push('riddle'); } }
+  if(kind === 'riddle') R.riddles = qwRiddleFill(R, theme, own);
+  return {ok:true, rec:R, dropped};
+}
+// what the recipe says, in one line for the preview
+function qwDescribe(R){
+  const where = R.realm === 'here' ? 'wherever you are' : (WORLDS[R.realm] ? WORLDS[R.realm].name : R.realm);
+  const what = R.kind === 'gather' ? 'collect ' + qwNumWord(R.count) + ' ' + qwItemName(R, R.count) : R.kind === 'hidden' ? 'find ' + qwNumWord(R.count) + ' ' + qwItemName(R, R.count) + ' that are hidden'
+    : R.kind === 'race' ? 'race through ' + qwNumWord(R.count) + ' checkpoints' : R.kind === 'rings' ? 'pass through ' + qwNumWord(R.count) + ' rings in order' : R.kind === 'riddle' ? 'follow ' + qwNumWord(R.count) + ' riddles from marker to marker'
+    : R.kind === 'escort' ? 'lead a ' + QW_ITEMS[R.item].name + ' past ' + qwNumWord(R.count) + ' beacons' : 'keep a lantern lit against ' + qwNumWord(R.count) + ' gloom moths';
+  return R.title + ': ' + what + ', ' + where + (R.time ? ', ' + (R.time >= 60 ? Math.round(R.time / 6) / 10 + ' min' : R.time + ' s') + ' on the clock' : ', no clock') + ', ' + R.difficulty + (R.swim ? ', swimming allowed' : '') + '.';
+}
+var QW_HOOKS = window.__hub.questwright = {
+  parse:text => { const R = parseQuest(text); return {rec:R, notes:qwNote.slice(), says:qwDescribe(R)}; },
+  clean:(o, mode) => cleanQuest(o, mode || 'clean'), text:(s, max, words) => qwText(s, max || 100, words || 18), describe:R => qwDescribe(R),
+  kinds:QW_KINDS.slice(), items:Object.keys(QW_ITEMS), colors:Object.keys(QW_COLORS)
+};
 })();
 </script>
 </body>
