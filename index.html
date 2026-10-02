@@ -10841,12 +10841,20 @@ function audioInit(){
 }
 function noiseBuf(kind, sec){
   const c = snd.ctx, n = Math.floor(c.sampleRate * sec), b = c.createBuffer(1, n, c.sampleRate), d = b.getChannelData(0); let last = 0;
-  for(let i = 0; i < n; i++){ const w = Math.random() * 2 - 1; if(kind === 'brown'){ last = (last + 0.02 * w) / 1.02; d[i] = last * 3.5; } else d[i] = w; }
+  for(let i = 0; i < n; i++){ const w = sndRand() * 2 - 1; if(kind === 'brown'){ last = (last + 0.02 * w) / 1.02; d[i] = last * 3.5; } else d[i] = w; }
   return b;
 }
 let brownBuf = null, whiteBuf = null;
 const bufs = () => { if(!brownBuf){ brownBuf = noiseBuf('brown', 4); whiteBuf = noiseBuf('white', 1); } return {brownBuf, whiteBuf}; };
-function ambStop(){ snd.nodes.forEach(n => { try{ n.stop ? n.stop() : n.disconnect(); }catch(e){} }); snd.nodes = []; snd.timers.forEach(clearTimeout); snd.timers = []; }
+function ambStop(fade){   // Phase 4 part 3: with fade, the old bed (and its loops and music) glides out and is stopped once it is silent
+  const nodes = snd.nodes, sc = snd.scene, g = snd.amb, c = snd.ctx; snd.timers.forEach(clearTimeout); snd.nodes = []; snd.timers = []; snd.scene = null;
+  if(sc) sndSceneEnd(sc, nodes);
+  const F = {key:sc ? sc.key : snd.world, gain:g, mus:sc && sc.mus ? sc.mus.gain : null, nodes:nodes.length, until:0};
+  const kill = () => { nodes.forEach(n => { try{ n.stop ? n.stop() : n.disconnect(); }catch(e){} }); [g, F.mus].forEach(n => { if(n) try{ n.disconnect(); }catch(e){} }); const i = snd.fading.indexOf(F); if(i >= 0) snd.fading.splice(i, 1); };
+  if(fade && c && g){ const t = c.currentTime; [g, F.mus].forEach(n => { if(!n) return; n.gain.cancelScheduledValues(t); n.gain.setValueAtTime(n.gain.value, t); n.gain.linearRampToValueAtTime(0, t + SND_XF.out); });
+    F.until = t + SND_XF.out; snd.fading.push(F); setTimeout(kill, SND_XF.out * 1000 + 250); }
+  else kill();
+}
 function wind(cut, gain, rate, depth){
   const c = snd.ctx, src = c.createBufferSource(); src.buffer = bufs().brownBuf; src.loop = true;
   const f = c.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = cut; f.Q.value = 0.6;
@@ -10856,7 +10864,7 @@ function wind(cut, gain, rate, depth){
 }
 function hum(freqs, cut, gain, trem){
   const c = snd.ctx, f = c.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = cut; const g = c.createGain(); g.gain.value = gain; f.connect(g); g.connect(snd.amb);
-  freqs.forEach(fr => { const o = c.createOscillator(); o.type = 'sawtooth'; o.frequency.value = fr; o.detune.value = (Math.random() - 0.5) * 12; o.connect(f); o.start(); snd.nodes.push(o); });
+  freqs.forEach(fr => { const o = c.createOscillator(); o.type = 'sawtooth'; o.frequency.value = fr; o.detune.value = (sndRand() - 0.5) * 12; o.connect(f); o.start(); snd.nodes.push(o); });
   if(trem){ const lfo = c.createOscillator(), lg = c.createGain(); lfo.frequency.value = trem; lg.gain.value = gain * 0.4; lfo.connect(lg); lg.connect(g.gain); lfo.start(); snd.nodes.push(lfo); }
   snd.nodes.push(g);
 }
@@ -10884,19 +10892,22 @@ function booms(){
   snd.timers.push(setTimeout(one, 2000));
 }
 function ambience(key){
-  if(!snd.ctx) return; ambStop(); snd.world = key;
-  if(key === 'hub'){ wind(160, 0.35, 0.07, 0.4); hum([55, 82.5], 220, 0.025, 0.3); }
-  else if(key === 'dunes'){ wind(520, 0.5, 0.11, 0.6); wind(1400, 0.08, 0.23, 0.9); }
-  else if(key === 'grid'){ hum([55, 110, 165], 320, 0.05, 0.5); wind(90, 0.15, 0.05, 0.3); }
-  else if(key === 'grove'){ wind(260, 0.22, 0.09, 0.5); crickets(); }
-  else if(key === 'sky'){ wind(900, 0.3, 0.13, 0.7); chirps(); }
-  else if(key === 'ashfall'){ wind(220, 0.32, 0.09, 0.5); hum([41.2, 61.7], 140, 0.02, 0.3); }
-  else if(key === 'campus'){ wind(240, 0.16, 0.07, 0.4); chirps(); }
-  else if(key === 'warfront'){ wind(340, 0.34, 0.12, 0.6); wind(120, 0.18, 0.05, 0.4); booms(); }
-  else if(key === 'lampblack'){ lbRainSound(); wind(140, 0.14, 0.03, 0.5); lbTraffic(); }
-  else if(key === 'fennick'){ fbSeaSound(); wind(260, 0.15, 0.06, 0.5); fbGulls(); fbHorn(); }   // "Low Tide" from the music box in No. 9 is played by fbUpdate, louder by the house
-  else if(key === 'saltlark'){ slSurfSound(); wind(700, 0.1, 0.09, 0.6); slGulls(); }   // the Tidebell's steel drums are their own bus (slDrums), louder by the bar   // the jazz from The Low Hour is its own bus (lbJazz), louder by the club
-  else wind(300, 0.3, 0.1, 0.5);
+  if(!snd.ctx) return; ambStop(true); snd.world = key;   // Phase 4 part 3: the old realm's bed fades out over SND_XF.out while this one fades in
+  const c = snd.ctx, t = c.currentTime, sg = c.createGain(); sg.gain.setValueAtTime(0, t); sg.gain.linearRampToValueAtTime(0.55, t + SND_XF.in); sg.connect(snd.out); snd.amb = sg;
+  const sc = sndScene(key, sg), L = (name, f) => { const n0 = snd.nodes.length; try{ f(); }catch(e){} sc.layers.push({name, nodes:snd.nodes.slice(n0)}); };
+  if(key === 'hub'){ L('wind', () => wind(160, 0.35, 0.07, 0.4)); L('hum', () => hum([55, 82.5], 220, 0.025, 0.3)); }
+  else if(key === 'dunes'){ L('wind', () => wind(520, 0.5, 0.11, 0.6)); L('wind-high', () => wind(1400, 0.08, 0.23, 0.9)); }
+  else if(key === 'grid'){ L('hum', () => hum([55, 110, 165], 320, 0.05, 0.5)); L('wind', () => wind(90, 0.15, 0.05, 0.3)); }
+  else if(key === 'grove'){ L('wind', () => wind(260, 0.22, 0.09, 0.5)); L('crickets', crickets); }
+  else if(key === 'sky'){ L('wind', () => wind(900, 0.3, 0.13, 0.7)); L('chirps', chirps); }
+  else if(key === 'ashfall'){ L('wind', () => wind(220, 0.32, 0.09, 0.5)); L('hum', () => hum([41.2, 61.7], 140, 0.02, 0.3)); }
+  else if(key === 'campus'){ L('wind', () => wind(240, 0.16, 0.07, 0.4)); L('chirps', chirps); }
+  else if(key === 'warfront'){ L('wind', () => wind(340, 0.34, 0.12, 0.6)); L('wind-low', () => wind(120, 0.18, 0.05, 0.4)); L('booms', booms); }
+  else if(key === 'lampblack'){ L('rain', lbRainSound); L('wind', () => wind(140, 0.14, 0.03, 0.5)); L('traffic', lbTraffic); }
+  else if(key === 'fennick'){ L('sea', fbSeaSound); L('wind', () => wind(260, 0.15, 0.06, 0.5)); L('gulls', fbGulls); L('horn', fbHorn); }   // "Low Tide" from the music box in No. 9 is played by fbUpdate, louder by the house
+  else if(key === 'saltlark'){ L('surf', slSurfSound); L('wind', () => wind(700, 0.1, 0.09, 0.6)); L('gulls', slGulls); }   // the Tidebell's steel drums are their own bus (slDrums), louder by the bar   // the jazz from The Low Hour is its own bus (lbJazz), louder by the club
+  else L('wind', () => wind(300, 0.3, 0.1, 0.5));
+  sndSceneLayers(sc, L);   // Phase 4 part 3: the realm's extra bed layers (slow random drift), its spots and its music
 }
 function tone(type, f0, f1, dur, gain, t0, dest){
   if(!sndVoiceOk(dest)) return;   // Phase 4 part 3: nothing is scheduled while the sound is asleep, and ambient detail gives way at the voice cap
@@ -20065,7 +20076,7 @@ function sndMixer(){
   snd.outLP = c.createBiquadFilter(); snd.outLP.type = 'lowpass'; snd.outLP.frequency.value = 18000; snd.outLP.Q.value = 0.5;
   snd.out = G(1); snd.out.connect(snd.outLP); snd.outLP.connect(snd.ambBus);
   snd.indoor = G(1); snd.indoor.connect(snd.ambBus);
-  snd.amb = G(0.55); snd.amb.connect(snd.out);
+  snd.amb = null;   // each realm's bed makes its own scene gain (ambience)
   snd.duck = {amb:1, mus:1, dieg:1, why:''};
   if(!snd.on) sndMuteTo(true);   // muted from the start: the graph sleeps
 }
@@ -20111,6 +20122,7 @@ function sndTick(dt){
   const ms = performance.now() - t0; snd.ticks++; snd.tickMs += ms; if(ms > snd.tickMax) snd.tickMax = ms;
 }
 function sndTickMore(step){
+  sndSceneTick(step);
 }
 // the four sliders, in the Accessibility card next to the device profile (saved on this device, like it)
 function sndVolRender(){ for(const k in SND_VOL_DEF){ const i = document.getElementById('sndVol_' + k), v = document.getElementById('sndVolV_' + k); if(i) i.value = String(Math.round(sndVol[k] * 100)); if(v) v.textContent = Math.round(sndVol[k] * 100) + '%'; } }
@@ -20126,6 +20138,204 @@ function sndVolRender(){ for(const k in SND_VOL_DEF){ const i = document.getElem
     i.addEventListener('input', () => sndSetVol(k, i.value / 100)); row.appendChild(a); row.appendChild(i); row.appendChild(v); box.appendChild(row); });
   card.insertBefore(l, before); card.insertBefore(box, before); sndVolRender();
 })();
+/* ---- Phase 4 part 3: the soundscapes. Every realm keeps its old bed (wind, hum, surf...) and gains extra layers that drift slowly and at random,
+   one-shot details from fixed spots (panned and quietened by distance from the avatar, as the camera faces), and continuous positional loops
+   (a shuttle's roar, a tower's electric hum) that only exist while you are within their range. One row per realm in SCAPES. ---- */
+var SND_XF = {in:2.5, out:1.8};   // seconds: the crossfade on travel
+var sndRand = rng((strHash('hub-sound') ^ (Date.now() & 0xffffff)) >>> 0);   // sound only (never Math.random): varies per session on purpose
+var sndPinkBuf = null, sndXlog = [];
+function sndPink(){
+  if(sndPinkBuf) return sndPinkBuf; const c = snd.ctx, n = Math.floor(c.sampleRate * 4), b = c.createBuffer(1, n, c.sampleRate), d = b.getChannelData(0), r = rng(4243);
+  let b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0;
+  for(let i = 0; i < n; i++){ const w = r() * 2 - 1; b0 = 0.99886 * b0 + w * 0.0555179; b1 = 0.99332 * b1 + w * 0.0750759; b2 = 0.969 * b2 + w * 0.153852; b3 = 0.8665 * b3 + w * 0.3104856;
+    b4 = 0.55 * b4 + w * 0.5329522; b5 = -0.7616 * b5 - w * 0.016898; d[i] = (b0 + b1 + b2 + b3 + b4 + b5 + b6 + w * 0.5362) * 0.11; b6 = w * 0.115926; }
+  const k = Math.floor(c.sampleRate * 0.05); for(let i = 0; i < k; i++){ const u = i / k; d[i] = d[i] * u + d[n - k + i] * (1 - u); }   // no click where the loop wraps
+  return (sndPinkBuf = b);
+}
+function sndScene(key, gain){
+  const S = SCAPES[key] || SCAPES[/^[wp]:/.test(key) ? 'custom' : 'other'];
+  const sc = {key, S, r:rng((strHash('snd:' + key) ^ Math.floor(performance.now() * 7)) >>> 0), gain, drift:[], layers:[], loops:{}, cells:new Map(), next:{}, mus:null,
+    at:snd.ctx.currentTime, saver:sndSaver(), played:0, last:null, towers:null};
+  snd.scene = sc;
+  sndXlog.push({to:key, at:+sc.at.toFixed(2), fadeIn:SND_XF.in, fadeOut:SND_XF.out, fading:snd.fading.map(F => F.key)}); if(sndXlog.length > 40) sndXlog.shift();
+  return sc;
+}
+function sndSceneLayers(sc, L){
+  (sc.S.bed || []).forEach(B => { if(B.rich && sc.saver) return; L(B.n, () => sndLayer(sc, B)); });   // Battery saver: only the lighter layers
+  (sc.S.spots || []).forEach((P, i) => { sc.next[i] = sc.at + 1.5 + sc.r() * (P.every[0] || 3); });
+  if(typeof sndMusicStart === 'function') sndMusicStart(sc);
+}
+function sndSceneEnd(sc, nodes){ for(const k in sc.loops) sc.loops[k].nodes.forEach(n => nodes.push(n)); sc.loops = {}; if(sc.mus) sc.mus.nodes.forEach(n => nodes.push(n)); sc.dead = true; }
+// a bed layer: looped noise (or a few oscillators) through one filter and one gain; sndDrift glides level and colour to a new random value every few seconds
+function sndLayer(sc, B, o){   // o: {dest, nodes, drift} for a pocket's bed; the realm's bed by default
+  o = o || {dest:snd.amb, nodes:snd.nodes, drift:sc.drift};
+  const c = snd.ctx, r = sc.r, f = c.createBiquadFilter(), g = c.createGain(), made = [];
+  f.type = B.ft || 'lowpass'; f.Q.value = B.q || 0.7; f.frequency.value = Math.sqrt(B.f[0] * B.f[1]); g.gain.value = 0; f.connect(g); g.connect(o.dest);
+  if(B.osc) B.osc.forEach(fr => { const os = c.createOscillator(); os.type = B.type || 'sine'; os.frequency.value = fr; os.detune.value = (r() - 0.5) * 10; os.connect(f); os.start(); made.push(os); });
+  else { const s = c.createBufferSource(); s.buffer = B.src === 'pink' ? sndPink() : B.src === 'white' ? bufs().whiteBuf : bufs().brownBuf; s.loop = true; s.playbackRate.value = B.rate || 1; s.connect(f); s.start(c.currentTime, r() * 0.9); made.push(s); }
+  made.push(g); made.forEach(n => o.nodes.push(n));
+  const lay = {B, f, g, next:0}; sndDrift(sc, lay, true); o.drift.push(lay); return lay;
+}
+function sndDrift(sc, lay, first){
+  const c = snd.ctx, B = lay.B, r = sc.r, t = c.currentTime, k = B.every || [5, 12], T = k[0] + r() * (k[1] - k[0]);
+  let gv = B.g[0] + r() * (B.g[1] - B.g[0]); if(B.gust && r() < B.gust) gv = B.g[1] * (1.15 + r() * 0.4);   // now and then a gust or a swell
+  const fv = B.f[0] * Math.pow(B.f[1] / B.f[0], r());
+  lay.g.gain.setTargetAtTime(gv, t, first ? 1.0 : T * 0.3); lay.f.frequency.setTargetAtTime(fv, t, first ? 0.4 : T * 0.35); lay.next = t + T;
+}
+// where a sound at a fixed spot sits for the avatar's ears, facing the camera's way: gain (1 at ref metres or closer, fading to 0 at range) and pan
+function sndPlace(x, y, z, ref, range){
+  const dx = x - p.x, dz = z - p.z, dy = y == null ? 0 : y - (p.y + 1.5), hl = Math.hypot(dx, dz), d = Math.hypot(hl, dy);
+  const g = Math.min(1, ref / Math.max(ref, d)) * (1 - smooth(range * 0.7, range, d));
+  const e = camera.matrixWorld.elements, rl = Math.hypot(e[0], e[2]) || 1, pan = hl < 0.01 ? 0 : clamp((dx * e[0] + dz * e[2]) / (hl * rl), -1, 1) * Math.min(1, hl / 3) * 0.85;
+  return {g, pan, d};
+}
+function sndSpot(sc, kind, x, y, z, o){
+  const P = sndPlace(x, y, z, o.ref || 10, o.range || 60); if(P.g < 0.02) return false;
+  if(snd.voices >= sndCap() - 2){ snd.capped++; return false; }
+  const c = snd.ctx, g = c.createGain(); g.gain.value = P.g * (o.lvl || 1); g._opt = true;
+  if(c.createStereoPanner){ const pn = c.createStereoPanner(); pn.pan.value = P.pan; g.connect(pn); pn.connect(o.dest || snd.amb); } else g.connect(o.dest || snd.amb);
+  SPOT_FX[kind](c.currentTime + 0.03, g, sc.r, o);
+  sc.played++; sc.last = {kind, x:+x.toFixed(1), z:+z.toFixed(1), d:+P.d.toFixed(1), g:+P.g.toFixed(3), pan:+P.pan.toFixed(2)};
+  if(o.cap && A11Y.captions && !(sc.capAt > performance.now() - 45000)){ sc.capAt = performance.now(); caption(o.cap, 3200); }
+  return true;
+}
+// fixed spots on a lattice: the same cell always holds the same spots (seeded by realm, kind and cell), so they go on without end like the land
+function sndLattice(sc, P, i){
+  const out = [], Lt = P.lat, cs = Lt.cell, cx = Math.floor(p.x / cs), cz = Math.floor(p.z / cs), reach = Math.ceil(P.range / cs); let fresh = 0;
+  for(let a = cx - reach; a <= cx + reach; a++) for(let b = cz - reach; b <= cz + reach; b++){
+    const id = i + ':' + a + ':' + b; let pts = sc.cells.get(id);
+    if(!pts && ++fresh > 6) continue;   // at most six new cells a tick (the shore test reads G), the rest next time
+    if(!pts){ const r = rng(strHash('sndlat:' + sc.key + ':' + P.k + ':' + a + ':' + b)); pts = [];
+      for(let n = 0; n < (Lt.n || 1); n++){ const x = Lt.pt ? Lt.pt(a, b, n)[0] : (a + r()) * cs, z = Lt.pt ? Lt.pt(a, b, n)[1] : (b + r()) * cs; if(!Lt.ok || Lt.ok(x, z)) pts.push([x, z]); }
+      if(sc.cells.size > 400) sc.cells.clear(); sc.cells.set(id, pts); }
+    pts.forEach(q => out.push(q)); }
+  return out;
+}
+function sndSpotsTick(sc, t){
+  const S = sc.S; if(!S.spots || sndPocket()) return;   // the outside's details stop in a pocket (its own bed takes over)
+  S.spots.forEach((P, i) => { if(t < sc.next[i]) return; const ev = P.every, k = sc.saver ? 1.6 : 1; sc.next[i] = t + (ev[0] + sc.r() * (ev[1] - ev[0])) * k;
+    const all = P.pts || (P.lat ? sndLattice(sc, P, i) : P.fn ? P.fn(sc) : []), near = all.filter(q => Math.hypot(q[0] - p.x, q[1] - p.z) < P.range);
+    if(!near.length) return; const q = near[Math.floor(sc.r() * near.length)];
+    sndSpot(sc, P.k, q[0], q[2] != null ? q[2] : (P.y != null ? G(q[0], q[1]) + P.y : null), q[1], P); });
+}
+// continuous positional loops: made when the source comes within range, glided every tick, stopped once it is out of range or the scene ends
+function sndLoopsTick(sc, t){
+  (sc.S.loops || []).forEach(Lp => {
+    if(Lp.rich && sc.saver) return; const cur = sc.loops[Lp.k], q = sndPocket() ? null : Lp.find(sc), P = q ? sndPlace(q[0], q[1], q[2], Lp.ref, Lp.range) : null;
+    if(P && P.g > 0.02){
+      let L = cur; if(!L){ const c = snd.ctx, g = c.createGain(); g.gain.value = 0; const pn = c.createStereoPanner ? c.createStereoPanner() : null; if(pn){ g.connect(pn); pn.connect(snd.amb); } else g.connect(snd.amb);
+        L = sc.loops[Lp.k] = {g, pn, nodes:[], at:t}; L.nodes = Lp.make(snd.ctx, g, sc.r).concat([g]).concat(pn ? [pn] : []);
+        if(Lp.cap && A11Y.captions && !(sc['cap' + Lp.k] > performance.now() - 60000)){ sc['cap' + Lp.k] = performance.now(); caption(Lp.cap, 3200); } }
+      L.g.gain.setTargetAtTime(P.g * Lp.lvl, t, 0.3); if(L.pn) L.pn.pan.setTargetAtTime(P.pan, t, 0.3); L.d = P.d;
+    } else if(cur && (!P || P.g < 0.01)){ delete sc.loops[Lp.k]; cur.g.gain.setTargetAtTime(0, t, 0.15); setTimeout(() => cur.nodes.forEach(n => { try{ n.stop ? n.stop() : n.disconnect(); }catch(e){} }), 700); }
+  });
+}
+// which pocket the avatar is in (each one only counts in its own realm, so a pocket flag left over from a realm you left never mutes the next one)
+function sndPocket(){ const w = state.world; if(denRT && denRT.inside && w === 'hub') return 'den'; if(hollow && hollow.inside && w === 'dunes') return 'hollow'; if(corr && corr.inside && w === 'grid') return 'corr'; if(qa && qa.inside && qa.key === w) return 'qa'; return null; }
+function sndSceneTick(step){
+  const sc = snd.scene, c = snd.ctx; if(!sc) return; const t = c.currentTime;
+  if(sc.saver !== sndSaver()){ ambience(sc.key); return; }   // the device profile changed: rebuild the bed (lighter or richer), crossfaded
+  const PT = snd.part || (snd.part = {}), lap = (k, t0) => { const ms = performance.now() - t0; if(!(PT[k] >= ms)) PT[k] = +ms.toFixed(3); };   // the slowest tick of each part (perf hook)
+  let t0 = performance.now(); sc.drift.forEach(lay => { if(t >= lay.next) sndDrift(sc, lay); }); lap('drift', t0);
+  t0 = performance.now(); sndSpotsTick(sc, t); lap('spots', t0); t0 = performance.now(); sndLoopsTick(sc, t); lap('loops', t0);
+  t0 = performance.now(); if(typeof sndMusicTick === 'function') sndMusicTick(sc, t); lap('music', t0);
+  t0 = performance.now(); if(typeof sndSpaceTick === 'function') sndSpaceTick(sc, t); lap('space', t0);
+}
+/* ---- the one-shot details (all synthesised; t is the start time, d the spot's gain node, r the scene's rng) ---- */
+function sndChirp(t, d, r, base, n, gap, lvl){ for(let i = 0; i < n; i++){ const t0 = t + i * gap * (0.8 + r() * 0.5), f = base * (0.9 + r() * 0.25); tone('sine', f, f * (1.3 + r() * 0.4), 0.09 + r() * 0.05, lvl * (0.7 + r() * 0.5), t0, d); } }
+function sndBellNote(t, d, f, len, lvl){ [[1, 1], [2.0, 0.5], [2.76, 0.32], [5.4, 0.12], [0.5, 0.25]].forEach(([k, a]) => tone('sine', f * k, f * k, len / Math.sqrt(k), lvl * a, t, d)); }
+var SPOT_FX = {
+  bird(t, d, r){ const base = 2000 + r() * 1600; if(r() < 0.3){ for(let i = 0; i < 6 + Math.floor(r() * 6); i++) tone('sine', base * 1.2, base, 0.04, 0.03, t + i * 0.055, d); } else sndChirp(t, d, r, base, 2 + Math.floor(r() * 4), 0.15, 0.045); },
+  skybird(t, d, r){ const base = 2600 + r() * 1400; sndChirp(t, d, r, base, 1 + Math.floor(r() * 3), 0.22, 0.04); },
+  nightbird(t, d, r){ const f = 1300 + r() * 500, n = 2 + Math.floor(r() * 3); for(let i = 0; i < n; i++) tone('sine', f * (i % 2 ? 0.84 : 1), f * (i % 2 ? 0.8 : 1.05), 0.32, 0.03, t + i * 0.42, d); },
+  owl(t, d, r){ const f = 360 + r() * 50; [[0, 0.5], [0.62, 0.22], [0.9, 0.7]].forEach(([dt, L], i) => { if(i === 1 && r() < 0.4) return; tone('sine', f * 1.04, f * 0.94, L, 0.07, t + dt, d); tone('sine', f * 2.01, f * 1.9, L * 0.8, 0.008, t + dt, d); }); },
+  frog(t, d, r){ const n = 2 + Math.floor(r() * 4), f = 95 + r() * 40; for(let i = 0; i < n; i++){ tone('square', f, f * 0.9, 0.11, 0.012, t + i * 0.19, d); noiseHit(900, 4, 0.1, 0.01, t + i * 0.19, 600, d); } },
+  bell(t, d, r){ const f = [196, 220, 174.6][Math.floor(r() * 3)], n = 2 + Math.floor(r() * 4); for(let i = 0; i < n; i++) sndBellNote(t + i * 2.3, d, f * (i % 2 && r() < 0.5 ? 1.335 : 1), 5.5, 0.07); },
+  chime(t, d, r){ const sc = [293.66, 329.63, 369.99, 440, 493.88], a = Math.floor(r() * 3), b = a + 1 + Math.floor(r() * 2); [sc[a], sc[b]].forEach((f, i) => { tone('sine', f, f, 1.6, 0.05, t + i * 0.45, d); tone('sine', f * 2, f * 2, 0.8, 0.012, t + i * 0.45, d); }); },
+  grains(t, d, r){ const n = 14 + Math.floor(r() * 16), L = 1 + r() * 1.5; for(let i = 0; i < n; i++) noiseHit(5000 + r() * 3000, 2, 0.02, 0.012 * (1 - i / n) + 0.003, t + r() * L, 0, d); },
+  cry(t, d, r){ const f = 2300 + r() * 500; tone('sine', f, f * 0.62, 0.7, 0.04, t, d); tone('triangle', f * 1.5, f * 0.9, 0.5, 0.008, t, d); if(r() < 0.6) tone('sine', f * 0.95, f * 0.6, 0.6, 0.03, t + 0.9, d); },
+  zap(t, d, r){ const n = 3 + Math.floor(r() * 7); for(let i = 0; i < n; i++) noiseHit(2600 + r() * 4200, 3, 0.012 + r() * 0.02, 0.05 + r() * 0.04, t + r() * 0.35, 0, d); },
+  crackle(t, d, r){ const n = 4 + Math.floor(r() * 8); for(let i = 0; i < n; i++) noiseHit(900 + r() * 1800, 1.5, 0.015 + r() * 0.02, 0.03 + r() * 0.03, t + r() * 1.2, 0, d); },
+  rumble(t, d, r){ noiseHit(90 + r() * 40, 0.5, 3.5, 0.08, t, 45, d); tone('sine', 38 + r() * 8, 30, 3.2, 0.05, t, d); },
+  crow(t, d, r){ const n = 1 + Math.floor(r() * 3), f = 520 + r() * 120; for(let i = 0; i < n; i++){ tone('sawtooth', f, f * 0.82, 0.24, 0.01, t + i * 0.42, d); noiseHit(1300, 2, 0.2, 0.03, t + i * 0.42, 900, d); } },
+  whistle(t, d, r){ const f = 2300 + r() * 300, n = r() < 0.5 ? 1 : 2; for(let i = 0; i < n; i++) for(let k = 0; k < 9; k++) tone('sine', f * (k % 2 ? 1.06 : 1), f, 0.06, 0.03, t + i * 0.9 + k * 0.055, d); },
+  steam(t, d, r){ noiseHit(4200 + r() * 1500, 0.6, 1.8 + r() * 1.5, 0.05, t, 2400, d); noiseHit(500, 0.7, 1.2, 0.02, t, 300, d); },
+  drip(t, d, r){ const f = 1100 + r() * 900; tone('sine', f, f * 0.55, 0.09, 0.05, t, d); if(r() < 0.5) tone('sine', f * 1.3, f * 0.7, 0.07, 0.02, t + 0.3 + r() * 0.3, d); },
+  wave(t, d, r){ const L = 2.2 + r() * 1.6; noiseHit(500 + r() * 400, 0.5, L, 0.07 + r() * 0.04, t, 2200, d); noiseHit(4800, 0.8, L * 0.6, 0.015, t + L * 0.35, 2400, d); },
+  clink(t, d, r){ const f = 2900 + r() * 1200, n = 1 + Math.floor(r() * 3); for(let i = 0; i < n; i++){ tone('sine', f, f, 0.35, 0.025, t + i * (0.25 + r() * 0.3), d); tone('sine', f * 1.47, f * 1.47, 0.2, 0.01, t + i * 0.3, d); } },
+  creak(t, d, r){ const n = 9 + Math.floor(r() * 10), up = r() < 0.5; let at = t; for(let i = 0; i < n; i++){ const k = i / n; noiseHit(650 + r() * 250, 7, 0.012, 0.05, at, 0, d); at += up ? 0.035 - k * 0.022 : 0.012 + k * 0.026; }
+    tone('triangle', 120 + r() * 30, 100, at - t + 0.05, 0.01, t, d); },
+  flap(t, d, r){ const n = 3 + Math.floor(r() * 4); for(let i = 0; i < n; i++) noiseHit(700, 0.8, 0.07, 0.04, t + i * 0.13, 300, d); },
+  murmur(t, d, r){ const n = 3 + Math.floor(r() * 4); for(let i = 0; i < n; i++){ const f = 160 + r() * 120; tone('triangle', f, f * (0.9 + r() * 0.2), 0.25 + r() * 0.3, 0.008, t + i * 0.32 + r() * 0.1, d); } },
+};
+/* ---- the continuous loops ---- */
+function sndShuttle(c, g, r){   // a jet's broad roar: brown noise through a moving band plus a low tone
+  const s = c.createBufferSource(); s.buffer = bufs().brownBuf; s.loop = true; const f = c.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 380; f.Q.value = 0.6;
+  const o = c.createOscillator(); o.type = 'sawtooth'; o.frequency.value = 72 + r() * 10; const og = c.createGain(); og.gain.value = 0.04; const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 260;
+  const sg = c.createGain(); sg.gain.value = 0.9; s.connect(f); f.connect(sg); sg.connect(g); o.connect(lp); lp.connect(og); og.connect(g); s.start(c.currentTime, r() * 3); o.start(); return [s, o];
+}
+function sndTowerHum(c, g, r){   // mains hum with a slow flicker and a fizz on top
+  const out = [], lp = c.createBiquadFilter(), vg = c.createGain(); lp.type = 'lowpass'; lp.frequency.value = 520; vg.gain.value = 0.7; lp.connect(vg); vg.connect(g);
+  [60, 120, 180].forEach((f, i) => { const o = c.createOscillator(), og = c.createGain(); o.type = i ? 'sine' : 'sawtooth'; o.frequency.value = f; og.gain.value = [0.05, 0.03, 0.015][i]; o.connect(og); og.connect(lp); o.start(); out.push(o); });
+  const lfo = c.createOscillator(), lg = c.createGain(); lfo.frequency.value = 0.3 + r() * 0.5; lg.gain.value = 0.3; lfo.connect(lg); lg.connect(vg.gain); lfo.start(); out.push(lfo);
+  const s = c.createBufferSource(); s.buffer = bufs().whiteBuf; s.loop = true; const bp = c.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 6000; bp.Q.value = 1; const sg = c.createGain(); sg.gain.value = 0.006; s.connect(bp); bp.connect(sg); sg.connect(g); s.start(); out.push(s);
+  return out;
+}
+function sndLap(c, g, r){   // water against wood: pink noise with an irregular swell
+  const s = c.createBufferSource(); s.buffer = sndPink(); s.loop = true; const f = c.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 520; f.Q.value = 1.1;
+  const am = c.createGain(); am.gain.value = 0.5; const l1 = c.createOscillator(), l2 = c.createOscillator(), lg = c.createGain(); l1.frequency.value = 0.31 + r() * 0.1; l2.frequency.value = 0.53 + r() * 0.1; lg.gain.value = 0.25; l1.connect(lg); l2.connect(lg); lg.connect(am.gain);
+  s.connect(f); f.connect(am); am.connect(g); s.start(c.currentTime, r() * 3); l1.start(); l2.start(); return [s, l1, l2];
+}
+// the realm's fixed spots that come from what is built (read when a spot fires or a loop looks, never stored in the world)
+function sndTowers(sc){
+  if(!sc.towers){ const T = []; colliders.forEach(o => { if(o.r >= 2.2 && Math.hypot(o.x, o.z) < 220) T.push([o.x, o.z, (o.top || 6) * 0.5]); }); sc.towers = T; }
+  return sc.towers;
+}
+function sndNearest(list, maxD){ let best = null, bd = maxD; for(const q of list){ const d = Math.hypot(q[0] - p.x, q[1] - p.z); if(d < bd){ bd = d; best = q; } } return best; }   // list of [x, z, y]
+function sndShore(sea){ return (x, z) => { const h = G(x, z); return h > sea - 0.7 && h < sea + 0.5; }; }
+var SCAPES = {
+  hub:{bed:[{n:'concourse', src:'pink', ft:'bandpass', f:[240, 520], q:0.6, g:[0.012, 0.03], every:[6, 14], rich:true}, {n:'breeze', src:'pink', ft:'highpass', f:[2500, 5000], q:0.5, g:[0.002, 0.008], every:[4, 9], gust:0.15}],
+    spots:[{k:'bird', pts:[[20, -30], [-40, 20], [45, 35], [-30, -45], [10, 48], [-52, -8]], y:7, every:[5, 14], range:70, ref:10},
+      {k:'chime', pts:[[0, -40], [30, 10], [-30, 10]], y:8, every:[50, 120], range:130, ref:25},
+      {k:'murmur', pts:[[8, 6], [-9, 4], [4, -10], [-6, -12]], y:1.5, every:[7, 16], range:30, ref:5}],
+    loops:[{k:'shuttle', find:() => { let best = null, bd = 1e9; ships.forEach(s => { const e = s.g.matrixWorld.elements, d = Math.hypot(e[12] - p.x, e[14] - p.z, e[13] - p.y); if(d < bd){ bd = d; best = [e[12], e[13], e[14]]; } }); return best; },
+      range:340, ref:70, lvl:0.6, make:sndShuttle, cap:'[A shuttle passes overhead]'}]},
+  campus:{bed:[{n:'leaves', src:'pink', ft:'highpass', f:[1800, 3800], q:0.5, g:[0.003, 0.012], every:[3, 8], gust:0.2}, {n:'lawn', src:'brown', ft:'lowpass', f:[200, 400], g:[0.02, 0.05], every:[8, 16], rich:true}],
+    spots:[{k:'bird', lat:{cell:28, n:2, ok:(x, z) => x > 22 || Math.hypot(x, z) > 70}, y:7, every:[3, 9], range:55, ref:8},
+      {k:'bell', pts:[[0, 190], [-170, -120]], y:30, every:[80, 170], range:650, ref:120, cap:'[A bell rings across Campus]'}]},
+  dunes:{bed:[{n:'hiss', src:'white', ft:'highpass', f:[3000, 6500], q:0.4, g:[0.002, 0.009], every:[3, 7], gust:0.25}, {n:'low', src:'brown', ft:'lowpass', f:[60, 140], g:[0.05, 0.12], every:[10, 20], rich:true}],
+    spots:[{k:'grains', fn:() => [0, 1, 2, 3, 4, 5, 6].map(i => { const s = duneStone(i); return [s.x, s.z, G(s.x, s.z) + s.top * 0.6]; }), every:[6, 15], range:45, ref:6},
+      {k:'grains', lat:{cell:40, n:1}, y:0.5, every:[9, 20], range:40, ref:5},
+      {k:'cry', lat:{cell:120, n:1}, y:60, every:[40, 90], range:400, ref:60}]},
+  grid:{bed:[{n:'city', src:'pink', ft:'bandpass', f:[90, 220], q:0.8, g:[0.02, 0.05], every:[6, 14]}, {n:'buzz', osc:[120, 180.5], type:'sawtooth', ft:'lowpass', f:[300, 600], g:[0.002, 0.006], every:[5, 11], rich:true}],
+    spots:[{k:'zap', fn:sc => sndTowers(sc), every:[2, 6], range:40, ref:5}],
+    loops:[{k:'tower', find:sc => { const q = sndNearest(sndTowers(sc), 45); return q ? [q[0], q[2], q[1]] : null; }, range:45, ref:5, lvl:0.5, make:sndTowerHum}]},
+  grove:{bed:[{n:'leaves', src:'pink', ft:'highpass', f:[1500, 3200], g:[0.003, 0.01], every:[3, 8], gust:0.2}, {n:'brook', src:'pink', ft:'bandpass', f:[700, 1400], q:0.9, g:[0.004, 0.012], every:[2, 5], rich:true}],
+    spots:[{k:'owl', lat:{cell:50, n:1}, y:9, every:[18, 45], range:90, ref:15}, {k:'nightbird', lat:{cell:30, n:2}, y:6, every:[6, 16], range:60, ref:10},
+      {k:'frog', lat:{cell:40, n:1}, y:0.2, every:[7, 20], range:40, ref:6}]},
+  sky:{bed:[{n:'whistle', src:'pink', ft:'bandpass', f:[600, 1800], q:3, g:[0.002, 0.008], every:[4, 10], gust:0.2}, {n:'depth', src:'brown', ft:'lowpass', f:[80, 160], g:[0.04, 0.1], every:[8, 18], rich:true}],
+    spots:[{k:'skybird', fn:() => platforms.filter(s => s.r > 3).map(s => [s.x, s.z, s.top + 2]), every:[4, 10], range:60, ref:8},
+      {k:'flap', fn:() => platforms.filter(s => s.r > 3).map(s => [s.x, s.z, s.top + 3]), every:[10, 25], range:40, ref:6}]},
+  ashfall:{bed:[{n:'embers', src:'white', ft:'bandpass', f:[1800, 3500], q:1.2, g:[0.001, 0.004], every:[2, 5]}, {n:'deep', osc:[36.7, 55], type:'sine', ft:'lowpass', f:[120, 200], g:[0.01, 0.025], every:[10, 20], rich:true}],
+    spots:[{k:'crackle', lat:{cell:24, n:2}, y:0.5, every:[3, 8], range:30, ref:5}, {k:'rumble', lat:{cell:200, n:1}, y:0, every:[30, 70], range:500, ref:80}]},
+  warfront:{bed:[{n:'grass', src:'pink', ft:'highpass', f:[1600, 3200], g:[0.003, 0.01], every:[3, 8], gust:0.25}, {n:'canvas', src:'brown', ft:'bandpass', f:[150, 320], q:1, g:[0.004, 0.012], every:[2, 6], rich:true}],
+    spots:[{k:'crow', lat:{cell:60, n:1}, y:10, every:[14, 35], range:120, ref:15}, {k:'whistle', lat:{cell:150, n:1}, y:2, every:[30, 75], range:300, ref:40}]},
+  lampblack:{bed:[{n:'city', src:'brown', ft:'lowpass', f:[90, 180], g:[0.04, 0.08], every:[8, 16]}, {n:'gutters', src:'pink', ft:'bandpass', f:[900, 2000], q:1.2, g:[0.003, 0.008], every:[2, 6], rich:true}],
+    spots:[{k:'steam', lat:{cell:48, n:1, pt:(a, b) => [a * 48 + 2.5, b * 48 - 2.5]}, y:0.2, every:[8, 20], range:40, ref:6},
+      {k:'drip', lat:{cell:16, n:1}, y:3, every:[1.5, 4], range:14, ref:3}]},
+  saltlark:{bed:[{n:'lap', src:'pink', ft:'bandpass', f:[300, 700], q:0.8, g:[0.008, 0.025], every:[2, 5]}, {n:'breeze', src:'pink', ft:'highpass', f:[2500, 5000], g:[0.002, 0.007], every:[3, 8], gust:0.2, rich:true}],
+    spots:[{k:'wave', lat:{cell:30, n:3, ok:sndShore(0)}, y:0, every:[3, 8], range:70, ref:10},
+      {k:'clink', pts:[[-20, 10], [-24, 40], [-20, 70], [-22, 93]], y:4, every:[5, 14], range:35, ref:5}],
+    loops:[{k:'pier', find:() => { const P = SLK.pier; return Math.abs(p.x - (P.x0 + P.x1) / 2) < 30 ? [(P.x0 + P.x1) / 2, 0, clamp(p.z, P.z0, P.z1)] : null; }, range:25, ref:4, lvl:0.12, make:sndLap}]},
+  fennick:{bed:[{n:'lap', src:'pink', ft:'bandpass', f:[280, 600], q:0.8, g:[0.004, 0.014], every:[3, 7]}, {n:'rigging', src:'white', ft:'bandpass', f:[2500, 4500], q:2, g:[0.001, 0.003], every:[2, 5], rich:true}],
+    spots:[{k:'creak', fn:() => FB_BOATS.map(b => [b[0], b[1], G(b[0], b[1]) + 0.8]), every:[4, 11], range:45, ref:6},
+      {k:'clink', fn:() => FB_BOATS.map(b => [b[0], b[1], G(b[0], b[1]) + 4]), every:[6, 15], range:35, ref:5},
+      {k:'wave', lat:{cell:30, n:3, ok:sndShore(FB.sea)}, y:0, every:[5, 12], range:60, ref:10}],
+    loops:[{k:'pier', find:() => { const P = FB.pier; return Math.abs(p.x - (P.x0 + P.x1) / 2) < 25 && p.z > P.z0 - 10 ? [(P.x0 + P.x1) / 2, FB.sea, clamp(p.z, P.z0, P.z1)] : null; }, range:22, ref:4, lvl:0.08, make:sndLap}]},
+  custom:{bed:[{n:'air', src:'pink', ft:'lowpass', f:[200, 500], g:[0.01, 0.03], every:[6, 14]}, {n:'high', src:'pink', ft:'highpass', f:[2000, 4000], g:[0.001, 0.005], every:[4, 9], gust:0.2, rich:true}],
+    spots:[{k:'bird', lat:{cell:50, n:1}, y:8, every:[8, 20], range:60, ref:8}]},
+  other:{bed:[], spots:[]}
+};
 // test hooks (a tester can check all of this headless within minutes; see LESSONS)
 var SND_HOOKS = {
   init(){ audioInit(); return !!snd.ctx; },
@@ -20140,6 +20350,14 @@ var SND_HOOKS = {
   nodes(){ return {live:snd.live, voices:snd.voices, made:snd.made, capped:snd.capped, cap:sndCap(), bed:snd.nodes.length, timers:snd.timers.length}; },
   perf(){ return {ticks:snd.ticks, frames:snd.frames, avgTickMs:snd.ticks ? +(snd.tickMs / snd.ticks).toFixed(3) : 0, maxTickMs:+snd.tickMax.toFixed(3), perFrameMs:snd.frames ? +(snd.tickMs / snd.frames).toFixed(4) : 0, errors:snd.tickErr || 0, slowestPart:Object.assign({}, snd.part || {})}; },
   resetPerf(){ snd.ticks = 0; snd.frames = 0; snd.tickMs = 0; snd.tickMax = 0; snd.part = {}; },
+  // the realm's soundscape: its layers with node counts, spots, loops (made only within range), the crossfade log and the scenes still fading out
+  scene(){ const sc = snd.scene; if(!sc) return null; return {key:sc.key, saver:sc.saver, layers:sc.layers.map(L => ({name:L.name, nodes:L.nodes.length})), bedNodes:snd.nodes.length,
+    spots:(sc.S.spots || []).map(P => P.k), loops:Object.keys(sc.loops).map(k => ({k, nodes:sc.loops[k].nodes.length, d:sc.loops[k].d != null ? +sc.loops[k].d.toFixed(1) : null})), loopKinds:(sc.S.loops || []).map(L => L.k),
+    played:sc.played, last:sc.last, gain:+sc.gain.gain.value.toFixed(3), music:sc.mus ? {notes:sc.mus.notes, phrases:sc.mus.phrases, nodes:sc.mus.nodes.length} : null}; },
+  fading(){ return snd.fading.map(F => ({key:F.key, gain:F.gain ? +F.gain.gain.value.toFixed(3) : null, nodes:F.nodes})); },
+  xlog(){ return sndXlog.slice(); },
+  spot(kind, x, z, y){ const sc = snd.scene; if(!sc || !SPOT_FX[kind]) return false; return sndSpot(sc, kind, x, y == null ? G(x, z) + 1.5 : y, z, {ref:8, range:80}); },
+  place:(x, y, z, ref, range) => sndPlace(x, y, z, ref || 10, range || 60),
   // RMS level (dBFS) of the whole mix over ~ms, from an AnalyserNode tapped off the master (made on first use, removed after)
   level(ms){ return new Promise(res => { if(!snd.ctx) return res(null); const a = snd.ctx.createAnalyser(); a.fftSize = 2048; snd.master.connect(a); const buf = new Float32Array(a.fftSize); let sum = 0, n = 0, peak = 0;
     const end = performance.now() + (ms || 500), take = () => { a.getFloatTimeDomainData(buf); for(let i = 0; i < buf.length; i++){ sum += buf[i] * buf[i]; if(Math.abs(buf[i]) > peak) peak = Math.abs(buf[i]); } n += buf.length;
