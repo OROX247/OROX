@@ -6089,7 +6089,8 @@ function archText(x, text, X, Y, maxW, lh){
 const archTexCache = {};
 function archTex(key, w, h, draw){
   if(archTexCache[key]) return archTexCache[key];
-  const t = canvasTex(w, h, draw); t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping; SHARED_TEX.add(t); return (archTexCache[key] = t);
+  const t = canvasTex(w, h, draw); t.image = perfShrink(t.image);   // device profile: drawn down to texMax on Balanced and Battery saver (painted once, never repainted); High keeps every texel
+  t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping; SHARED_TEX.add(t); return (archTexCache[key] = t);
 }
 function fitFont(x, t, maxW, size, weight){ let s = size; do { x.font = weight + ' ' + s + 'px ' + SERIF; s -= 2; } while(s > 12 && x.measureText(t).width > maxW); }
 const SERIF = 'Georgia,"Times New Roman",serif', HAND = '"Segoe Print","Bradley Hand","Noteworthy",cursive';
@@ -11440,7 +11441,7 @@ function paintSkyPoster(x, w, h){ const q = rng(2153);
   x.strokeStyle = 'rgba(220,240,255,0.8)'; x.lineWidth = 4; x.beginPath(); x.moveTo(w * 0.5 + 70, h * 0.5 + 10); x.lineTo(w * 0.5 + 66, h * 0.5 + 160); x.stroke();
   x.textAlign = 'center'; x.lineWidth = 6; x.strokeStyle = '#1a3f6a'; x.fillStyle = '#ffffff'; x.font = '800 78px ' + POSTER_FONT; x.strokeText('SKY ISLES', w / 2, 104); x.fillText('SKY ISLES', w / 2, 104);
   x.fillStyle = '#123a62'; posterLine(x, 'islands that forgot how to fall', w / 2, 146, w - 70, 28, 'italic', SERIF);
-  x.fillStyle = '#1a3f6a'; posterLine(x, 'SECTOR ' + WORLDS.sky.sector + ' · MIND THE GAPS', w / 2, h - 34, w - 60, 24, '700', POSTER_FONT);
+  x.fillStyle = '#1a3f6a'; posterLine(x, 'SECTOR ' + WORLDS.sky.sector + ' · KEEP TO THE PLANKS', w / 2, h - 34, w - 60, 24, '700', POSTER_FONT);
   x.strokeStyle = '#1a3f6a'; x.lineWidth = 5; x.strokeRect(12, 12, w - 24, h - 24); }
 const POSTERS = {drift:paintDriftPoster, rally:paintRallyPoster, starling:paintStarlingPoster, loft:paintLoftPoster, saltlark:paintSaltlarkPoster, lampblack:paintLampblackPoster, fennick:paintFennickPoster, sky:paintSkyPoster};
 const POSTER_IDS = Object.keys(POSTERS);
@@ -11468,7 +11469,7 @@ function cultBuild(key){
   const mr = Math.random; Math.random = rng(9091);
   try{
     const mounts = L(), g = new THREE.Group(); g.name = 'posters'; world.add(g);
-    const tex = posterAtlas(), [cw, ch] = POSTER_CELL, W = tex.image.width, H = tex.image.height, art = [], back = [], rims = [], cloth = [], hw = [];
+    const tex = posterAtlas(), [cw, ch] = POSTER_CELL, W = POSTER_COLS * cw, H = Math.ceil(POSTER_IDS.length / POSTER_COLS) * ch, art = [], back = [], rims = [], cloth = [], hw = [];
     mounts.forEach(m => {
       const i = POSTER_IDS.indexOf(m.id); if(i < 0) return;
       const c0 = (i % POSTER_COLS) * cw, r0 = Math.floor(i / POSTER_COLS) * ch, u0 = (c0 + 1) / W, u1 = (c0 + cw - 1) / W, v1 = 1 - (r0 + 1) / H, v0 = 1 - (r0 + ch - 1) / H;
