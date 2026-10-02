@@ -455,3 +455,9 @@
 - Regression (t3/func.js, f1.js): scatter works in all three towns. Battery saver halves every kind and restores. Reduce motion is 0.4x. Life is hidden in the Den, corridor, Hollow and both arenas. Photo mode freezes creatures. Ashfall Blackout has no life. Streaming to outskirts keeps the same group (largest step 0.36 m). No page or console errors in any run.
 - Look: one 640x360 shot (t3/grove_moths.png, scratchpad only). The camera was 3.4 m from light 0 at cap height, and the glowing cap fills the frame and hides its own moths, so the shot does not show the moths. shots/life.jpg is kept. The moths' look at the real lights is still not checked on screen.
 - Testing: count flocks yourself; live.js counts only the flocks it found a standing spot for (Fennick 4 of 13). Most Fennick perches are over 9 m above any spot you can stand on within 5 m, so use forced headings at the bird's height to cover their routes. For a moth shot, put the camera below the cap or 6+ m away, not at cap height.
+
+## Tester: Dunes lizard dart fix (2026-10-02, HEAD 55c2550)
+- Result: PASS. t3/s3.js repro (copied to scratchpad/t4 with a dart counter): 0 crossings with scaring and 0 without (a8e57b2 on the same run: 5 and 2, the same lizards 17, 9 and 12 as before).
+- Lizards still move: 120 s of game time, HEAD 582 darts (34 scared) and 533 without scaring, against 599 (34) and 538 on a8e57b2. That is about 291 and 267 darts a minute, 1-3% fewer because blocked darts are now refused. Every scare still produces a flee.
+- dumpS vs a7f02f1 31/31 OK. No page or console errors. Not checked: the look on screen (no shot needed for a path-only change).
+- Testing: to count darts, compare each lizard's (x1, z1) before and after update(); a scared dart has dur = d / 5.5, so dur < d / 4 marks it.
