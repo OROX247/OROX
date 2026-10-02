@@ -3352,9 +3352,9 @@ const SOFTWARE_GL = /swiftshader|llvmpipe|software|mesa offscreen/i.test(GL_INFO
    size and the ground disc density are made with the realm (next travel) or once per session (surfaces, next load). */
 const PERF_KEY = 'hub-perf-v1';
 const PERF_PROFILES = {
-  high:{name:'High', pr:2, shadow:4096, box:58, ssao:2, bloom:1, dof:true, mirror:1024, grass:1, lod:1, tier:1, stream:3, fps:0, surf:1024, rings:1, texMax:4096},
-  balanced:{name:'Balanced', pr:1.5, shadow:2048, box:46, ssao:3, bloom:0.5, dof:false, mirror:512, grass:0.7, lod:0.8, tier:1, stream:3, fps:0, surf:512, rings:0.65, texMax:1024},
-  saver:{name:'Battery saver', pr:1.5, shadow:1024, box:38, ssao:0, bloom:0.35, dof:false, mirror:256, grass:0.45, lod:0.6, tier:0.7, stream:4, fps:30, surf:512, rings:0.65, texMax:1024}
+  high:{name:'High', pr:2, shadow:4096, box:58, ssao:2, bloom:1, dof:true, mirror:1024, grass:1, lod:1, tier:1, stream:3, fps:0, surf:1024, rings:1, texMax:4096, npcFar:0, stonePx:4096, aoFar:0, mirrorEvery:1},
+  balanced:{name:'Balanced', pr:1.5, shadow:2048, box:46, ssao:3, bloom:0.5, dof:false, mirror:512, grass:0.7, lod:0.8, tier:1, stream:3, fps:0, surf:512, rings:0.65, texMax:1024, npcFar:22, stonePx:512, aoFar:45, mirrorEvery:1},
+  saver:{name:'Battery saver', pr:1.5, shadow:1024, box:38, ssao:0, bloom:0.35, dof:false, mirror:256, grass:0.45, lod:0.6, tier:0.7, stream:4, fps:30, surf:512, rings:0.65, texMax:1024, npcFar:14, stonePx:512, aoFar:45, mirrorEvery:2}
 };
 const PERF_DEV = (() => {
   const nav = navigator, mem = +nav.deviceMemory || 0, cores = +nav.hardwareConcurrency || 0, sw = Math.min(screen.width || 0, screen.height || 0), gpu = GL_INFO || '';
@@ -5487,7 +5487,7 @@ BUILD.sky = (r, n) => {
 /* ================= Campus (Goal 8) ================= */
 // stone surfaces as tileable slab/block patterns: marble floor, marble wall blocks, pale walkway pavers. Seeded (fixed look), built once and shared.
 function stoneSet(o){
-  const N = o.px || 1024, M = 256, F = tileField(M, makeNoise(o.seed), 0.03, 5), F2 = tileField(M, makeNoise(o.seed + 1), 0.09, 4);
+  const N = Math.min(o.px || 1024, PERF.p.stonePx), M = 256, F = tileField(M, makeNoise(o.seed), 0.03, 5), F2 = tileField(M, makeNoise(o.seed + 1), 0.09, 4);
   const samp = (A, u, v) => { const fx = u * M, fy = v * M, x0 = Math.floor(fx), y0 = Math.floor(fy), tx = fx - x0, ty = fy - y0, a = (i, j) => A[((j % M + M) % M) * M + ((i % M + M) % M)];
     return lerp(lerp(a(x0, y0), a(x0 + 1, y0), tx), lerp(a(x0, y0 + 1), a(x0 + 1, y0 + 1), tx), ty); };
   const hash = n => { n = (n ^ 61) ^ (n >>> 16); n = Math.imul(n, 9); n ^= n >>> 4; n = Math.imul(n, 0x27d4eb2d); n ^= n >>> 15; return (n >>> 0) / 4294967296; };
@@ -5511,9 +5511,9 @@ function stoneSet(o){
     const rv = lerp(0.85, o.rough + (t2 - 0.5) * 0.08 + vv * 0.06, j) * 255; rough[k] = rough[k + 1] = rough[k + 2] = rv; rough[k + 3] = 255;
   }
   const put = (data, srgb) => canvasTex(N, N, x => { const im = x.createImageData(N, N); im.data.set(data); x.putImageData(im, 0, 0); }, srgb);
-  const H = 512, hf = new Float32Array(H * H);
+  const H = Math.min(512, N / 2), hf = new Float32Array(H * H);   // device profile: phones paint these at 512 (stonePx) with a 256 height field, its normals scaled to match
   for(let y = 0; y < H; y++) for(let x = 0; x < H; x++){ const u = x / H, v = y / H, c = cell(u, v); hf[y * H + x] = smooth(0, o.joint * 1.4, c.e) * 0.6 + samp(F2, u, v) * (o.bump || 0.05) + (c.r - 0.5) * 0.02; }
-  const out = {map:put(col), rough:put(rough, false), normal:normalTex(hf, H, o.nStrength || 6)};
+  const out = {map:put(col), rough:put(rough, false), normal:normalTex(hf, H, (o.nStrength || 6) * H / 512)};
   for(const k in out) SHARED_TEX.add(out[k]);
   return out;
 }
@@ -6757,6 +6757,7 @@ function makeWater(geo, o){
   const u = w.material.uniforms; u.size.value = o.size == null ? 4 : o.size; u.fogSunDir = {value:FOG_SUN}; u.fogSunColor = {value:FOG_SUNCOL}; u.fogParams = {value:FOG_PARAMS};
   w.material.transparent = o.alpha != null && o.alpha < 1; w.rotation.x = -Math.PI / 2; w.userData.lastFrame = -1; w.userData.noAO = true;
   w.shouldRender = (renderer, sc, cam) => { if(cam !== camera || w.userData.lastFrame === stats.frames) return false; w.userData.lastFrame = stats.frames;
+    if(PERF.p.mirrorEvery > 1 && w.userData.drawn && stats.frames % PERF.p.mirrorEvery) return false; w.userData.drawn = true;   // Battery saver: the mirror is redrawn every second frame (its texture and matrix stay a matched pair)
     const want = Math.min(PERF.p.mirror, qLevel >= 4 ? 256 : qLevel >= 2 ? 512 : 1024); if(w.renderTarget.width !== want) w.renderTarget.setSize(want, want / 2); return true; };
   waterMeshes.push(w); return w;
 }
@@ -10793,7 +10794,10 @@ function setupPost(){
     ssao.kernelRadius = 0.7; ssao.minDistance = 0.000006; ssao.maxDistance = 0.0007;
     ssao.normalRenderTarget.depthTexture.type = THREE.UnsignedIntType;
     ssao.setSize = function(W, H){ const k = PERF.p.ssao || 2; THREE.SSAOPass.prototype.setSize.call(this, Math.round(W / k), Math.round(H / k)); };   // device profile: half size on High, a third on Balanced
-    ssao.overrideVisibility = function(){ const cache = this._visibilityCache; this.scene.traverse(o => { cache.set(o, o.visible); if(o.isPoints || o.isLine || o.isSprite || o.userData.noAO) o.visible = false; }); };
+    const _aoV = new V3();   // device profile (Balanced): meshes farther than aoFar metres are left out of the normal pass (their AO is a pixel wide there)
+    const aoFar = o => { const D = PERF.p.aoFar; if(!D || !o.isMesh || o.isInstancedMesh || !o.visible) return false; const g = o.geometry; if(!g.boundingSphere) g.computeBoundingSphere();
+      return _aoV.copy(g.boundingSphere.center).applyMatrix4(o.matrixWorld).distanceTo(camWorld) - g.boundingSphere.radius * o.matrixWorld.getMaxScaleOnAxis() > D; };
+    ssao.overrideVisibility = function(){ const cache = this._visibilityCache; this.scene.traverse(o => { cache.set(o, o.visible); if(o.isPoints || o.isLine || o.isSprite || o.userData.noAO || aoFar(o)) o.visible = false; }); };
     ssao.render = function(r, writeBuffer, readBuffer){
       this.overrideVisibility(); this.renderOverride(r, this.normalMaterial, this.normalRenderTarget, 0x7777ff, 1.0); this.restoreVisibility();
       const u = this.ssaoMaterial.uniforms;
@@ -13113,6 +13117,7 @@ function update(dt, time){
     if(sp === 0 && nn.wait > 0.3){ for(const o of npcs){ if(o === nn) continue; const d = Math.hypot(o.x - nn.x, o.z - nn.z); if(d < 3.2 && d > 0.3){ nn.facing = lerpAngle(nn.facing, Math.atan2(o.x - nn.x, o.z - nn.z), 1 - Math.exp(-dt * 4)); if(nn.wait < 2.5 && Math.random() < dt * 0.3) nn.wait += 3; break; } } }
     nn.av.g.position.set(nn.x, G(nn.x, nn.z), nn.z); nn.av.g.rotation.y = nn.facing;
     animateAvatar(nn.av, dt, sp, true, time);
+    if(PERF.p.npcFar || nn.av.perfFar) perfNpc(nn.av, nn.x, nn.z);   /* device profile: far locals drop shadows, SSAO and their smallest parts */
     if(nn.gest) npcGesture(nn, dt);   // Living Locals: a gesture laid over the walk cycle, only while one plays
     if(playing && !nn.spoke && !pocketIn() && Math.hypot(nn.x - p.x, nn.z - p.z) < 3 && p.y - G(p.x, p.z) < 1){ nn.spoke = true; nn.wait = 3; nn.facing = Math.atan2(p.x - nn.x, p.z - nn.z); if(living(nn)){ const g = localGreeting(nn); nn.lastSay = g; nn.sayT = 7; localEmote(nn, 'wave'); toast(nn.name + ': ' + g + '   (E to talk)', 4200); } else toast(nn.name + ': ' + nn.line, 3600); }
   }
@@ -19927,6 +19932,15 @@ function perfNote(raw){
   if(ms > PERF.worst.ms) PERF.worst = {ms:Math.round(ms), at:state.world, frame:stats.frames};
   if(ms > 100){ PERF.stalls.push({ms:Math.round(ms), world:state.world, frame:stats.frames}); if(PERF.stalls.length > 20) PERF.stalls.shift(); }
 }
+// device profile (phones): a local farther than npcFar metres from the camera casts no shadow, is left out of SSAO and does not draw its smallest
+// parts (eyes, fingers, buttons: under 7 cm across, a pixel or two at that range). An avatar is ~50 meshes, so this is most of a crowd's draw calls.
+function perfNpc(a, x, z){
+  const D = PERF.p.npcFar, d = Math.hypot(x - camWorld.x, z - camWorld.z), far = D > 0 && (a.perfFar ? d > D - 2 : d > D);
+  if(far === !!a.perfFar) return; a.perfFar = far;
+  if(!a.perfParts){ a.perfParts = []; a.g.updateMatrixWorld(true); a.g.traverse(o => { if(!o.isMesh || o === a.tag) return; if(!o.geometry.boundingSphere) o.geometry.computeBoundingSphere();
+    a.perfParts.push({o, cast:o.castShadow, ao:!!o.userData.noAO, small:o.geometry.boundingSphere.radius * o.matrixWorld.getMaxScaleOnAxis() < 0.035}); }); }
+  for(const q of a.perfParts){ const o = q.o; if(far){ o.castShadow = false; o.userData.noAO = true; if(q.small){ q.vis = o.visible; o.visible = false; } } else { o.castShadow = q.cast; o.userData.noAO = q.ao; if(q.small && q.vis !== undefined) o.visible = q.vis; } }
+}
 function perfSave(){ try{ slotLs.set(PERF_KEY, JSON.stringify({v:1, mode:PERF.mode})); }catch(e){} }
 function perfApply(active){
   const P = PERF_PROFILES[active]; PERF.active = active; PERF.p = P; PERF.lastT = -1;
@@ -19935,6 +19949,7 @@ function perfApply(active){
   const S = qLevel >= 4 ? P.shadow / 2 : P.shadow; if(sunLight.shadow.mapSize.x !== S){ sunLight.shadow.mapSize.set(S, S); if(sunLight.shadow.map){ sunLight.shadow.map.dispose(); sunLight.shadow.map = null; } }
   const sc = sunLight.shadow.camera; if(sc.right !== P.box){ Object.assign(sc, {left:-P.box, right:P.box, top:P.box, bottom:-P.box}); sc.updateProjectionMatrix(); }
   grassMeshes.forEach(m => { if(m.userData.fullCount) perfGrass(m); });
+  npcs.forEach(nn => perfNpc(nn.av, nn.x, nn.z));
   updateLods();
   if(endless && endless.builtin) endless.pcx = 1e9;   // plan the streamed cells again with this profile's tier reach
 }
@@ -19982,7 +19997,8 @@ function perfMetrics(){
   return {mode:PERF.mode, active:PERF.active, device:Object.assign({}, PERF_DEV), q:qLevel, pixelRatio:renderer.getPixelRatio(), size:[innerWidth, innerHeight],
     shadow:{map:sh.mapSize.x, box:sunLight.shadow.camera.right * 2}, ssao:post.on && post.ssao.enabled, ssaoDiv:PERF.p.ssao, bloom:post.on && post.bloom.enabled, bloomScale:PERF.p.bloom, dof:!!(post.on && post.dof && post.dof.enabled),
     mirrors:waterMeshes.filter(w => w.parent).map(w => w.renderTarget.width), grass:grassMeshes.reduce((a, g) => a + g.count, 0), grassFull:grassMeshes.reduce((a, g) => a + (g.userData.fullCount || g.count), 0),
-    lod:PERF.p.lod, tier:PERF.p.tier, streamMs:PERF.p.stream, fpsCap:PERF.p.fps, capped:PERF.capped, fps:+stats.fps.toFixed(1), ms:+stats.ms.toFixed(1),
+    lod:PERF.p.lod, tier:PERF.p.tier, streamMs:PERF.p.stream, fpsCap:PERF.p.fps, mirrorEvery:PERF.p.mirrorEvery, aoFar:PERF.p.aoFar, stonePx:PERF.p.stonePx, texMax:PERF.p.texMax,
+    npcFar:PERF.p.npcFar, npcsFar:npcs.filter(nn => nn.av.perfFar).length + ' of ' + npcs.length, capped:PERF.capped, fps:+stats.fps.toFixed(1), ms:+stats.ms.toFixed(1),
     geometries:m.geometries, textures:m.textures, texMB:perfTexMB(), released:PERF.released || 0, firstFrameMs:Math.round(PERF.firstFrame), boot:PERF.boot || null, travel:PERF.travel || null, worst:Object.assign({}, PERF.worst), stalls:PERF.stalls.slice()};
 }
 Object.defineProperties(window.__hub, {
