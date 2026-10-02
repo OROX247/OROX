@@ -3184,7 +3184,7 @@ const SLOT_STORES = ['hub-universe-save-v2', 'hub-locals-v1', 'hub-den-v1', 'hub
 const SLOT_META = 'hub-slots-v1', SLOT_PENDING = 'hub-slot-pending', SLOT_N = 3;
 const slotKey = (n, k) => 'hub-slot' + n + ':' + k, slotStage = k => 'hub-slot-stage:' + k;
 const slotLs = {get(k){ try{ return localStorage.getItem(k); }catch(e){ return null; } }, set(k, v){ if(v == null) localStorage.removeItem(k); else localStorage.setItem(k, v); }};
-function slotName(s){ return typeof s === 'string' ? s.replace(/[\u0000-\u001f\u007f<>\u00ad\u061c\u180e\u200b-\u200f\u2028-\u202e\u2066-\u2069\ufeff]/g, '').replace(/\s+/g, ' ').trim().slice(0, 24) : ''; }
+function slotName(s){ return typeof s === 'string' ? s.normalize('NFKC').replace(/[\p{Cc}\p{Cf}<>\u180e\u2028\u2029]/gu, '').replace(/\s+/g, ' ').trim().slice(0, 24) : ''; }
 function slotMeta(){
   let o = null; try{ o = JSON.parse(slotLs.get(SLOT_META) || 'null'); }catch(e){}
   const m = {v:1, active:1, slots:{}}, src = o && typeof o === 'object' && o.slots && typeof o.slots === 'object' && !Array.isArray(o.slots) ? o.slots : null;
@@ -14734,21 +14734,64 @@ const LP_ASKS2 = new RegExp('\\b(' + [
   'how old (are )?you( are)?', '(photo|picture|pic|selfie|snap|video)s? of you(rself)?', '(send|share|post|show|upload|text|dm|give) (me |us )?(a |an |your )?(photo|picture|pic|selfie|snap|video|number|phone|e-?mail|address)',
   'meet (up|me|us|in person|irl|outside|for real)', 'meet(ing)? up', 'meet (me |us )?(at|by|near|outside) ', 'come (and )?(find|visit|see) (me|you) (at|in)', 'text me', 'e-?mail me', 'add me on'
 ].join('|') + ')\\b', 'i');
-const lpAsks = s => LP_ASKS.test(s) || LP_ASKS2.test(s);
+/* ---- one normaliser for every text check (replies, riddles, titles, share codes, names, scrubbing) ----
+   normKeep: NFKC, every format character gone (zero-width, joiners, soft hyphen, bidi controls), every Unicode digit as ASCII; case kept (what is shown).
+   normText: normKeep, accents dropped, Cyrillic/Greek lookalikes folded to Latin, lower case (what is checked). textRisk(raw) runs every check on the
+   normalised text, on a copy with spelled-out letters joined ("O.A.S.I.S") and on a letters-only squashed copy ("Mine craft"), and any hit refuses the
+   input: nothing is ever cleaned into something else. */
+function normKeep(s){
+  s = String(s == null ? '' : s).normalize('NFKC').replace(/[\p{Cf}͏ᅟᅠ឴឵᠎ㅤﾠ]/gu, '');
+  return s.replace(/\p{Nd}/gu, d => { if(d >= '0' && d <= '9') return d; const c = d.codePointAt(0); let n = 0; while(n < 200 && /\p{Nd}/u.test(String.fromCodePoint(c - n - 1))) n++; return String(n % 10); });
+}
+var NORM_FOLD = null;
+function normText(s){
+  if(!NORM_FOLD){ NORM_FOLD = Object.create(null); 'аa вb еe ёe кk мm нh оo рp сc тt уy хx іi їi јj ѕs ԁd ӏl ԛq ԝw ɡg ɑa ɩi αa βb εe ηn ιi κk μm νv οo ρp τt υu χx ωw ϲc ϳj'.split(' ').forEach(p => { NORM_FOLD[p[0]] = p[1]; }); }
+  return normKeep(s).normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().replace(/[^\x00-\x7f]/g, ch => NORM_FOLD[ch] || ch).replace(/[’‘`´ʼ]/g, '\'').normalize('NFC');
+}
+// outside names that are still clear once the spaces and dots between their letters are gone (long and distinctive only: "open air" must not read as a company)
+const LP_SQUASH = /(halliday|parzival|art3mis|innovativeonline|readyplayer|minecraft|fortnite|roblox|pokemon|pikachu|nintendo|playstation|youtube|tiktok|instagram|facebook|snapchat|whatsapp|netflix|hogwarts|harrypotter|starwars|spiderman|cocacola|mcdonald|starbucks|callofduty|overwatch|leagueoflegends|warcraft|chatgpt|donkeykong|spaceinvaders|grandtheftauto|supermario|mickeymouse)/;
+// secrecy from grown-ups, questions about the family, the player's age, school or home
+const LP_ASKS3 = new RegExp('\\b(' + [
+  '(don\'?t|do not|dont|never|no need to) (you )?(tell|show|let|ask) (your |ur |any )?(mum|mom|mommy|mummy|mother|dad|daddy|father|parents?|teachers?|anyone|anybody|any one|grown-?ups?|adults?|family|carers?|brothers?|sisters?|friends?)',
+  'our (little |special )?secrets?', 'keep (this|it|that|our chat|this chat) (a |our |just )?(little )?secret', '(it\'?s|this is|that\'?s) (just )?(our|a) (little )?secret', 'just between (us|you and me|the two of us)', 'secret (from|between) ', '(nobody|no one|no-one) (needs|has|ever has) to know',
+  '(what|who)(\'?s| is| are) (your|ur) (mum|mom|mommy|mummy|mother|dad|daddy|father|parents?|brothers?|sisters?|grandma|granny|grandad|grandpa|nan|family|teachers?|best friend)',
+  '(your|ur) (mum|mom|mother|dad|father|parents?|brothers?|sisters?|teachers?|family)(\'?s|s)? (names?|called|age|phone|number|address|work|job)', '(name|age|address) of (your|ur)', '(what|which)(\'?s| is)? (the )?name of (your|ur)',
+  '(when|what)(\'?s| is) (your|ur) birthday', 'what year (are|were) you born', 'where(\'?s| is| do| does) (your|ur) (school|house|home|flat|family|mum|mom|dad|parents?)', '(which|what) (street|road|town|city|village|area|school|class|year|grade)\\b[^.!?]{0,20}\\byou'
+].join('|') + ')\\b', 'i');
+// an invitation to a real place or a time, with or without the word "meet"
+const LP_PLACES = '(playground|park|my house|my place|my home|my flat|your house|school|school gates?|bus stop|library|shopping centre|shopping center|mall|cinema|car park|parking lot|swimming pool|sports centre|train station|corner shop)';
+const LP_INVITE = [new RegExp('\\b(come|go|be|see you|wait|meet|find me|i\'?ll be|i will be|let\'?s go|walk|run|bring|hang out)\\b[^.!?]{0,40}\\b(at|to|by|in|near|outside|behind|round) (the |my |our |your |that )?' + LP_PLACES + '\\b', 'i'),
+  /\b(see you|be there|be at|wait for me|come to|come over|i'?ll be)\b[^.!?]{0,30}\b(at|by|around|before|after) (\d{1,2}|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|noon|midnight|lunch|tea ?time)\b/i, /\bafter school\b/i];
+const lpInvite = t => LP_INVITE.some(re => re.test(t));
+const LP_NUMW = new Set(['zero', 'oh', 'nought', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'double', 'triple']);
+function numRun(t){ let run = 0, best = 0; for(const w of t.split(/[^a-z0-9]+/)){ if(!w) continue; if(LP_NUMW.has(w) || /^\d$/.test(w)) best = Math.max(best, ++run); else run = 0; } return best; }
+// '' when the text is fine, else why it is refused
+function textRisk(raw){
+  const s = String(raw == null ? '' : raw);
+  if(/[<>]|&lt;|&gt;|&#|javascript:/i.test(s)) return 'markup';
+  const t = normText(s), sq = t.replace(/[^a-z0-9]/g, ''), joined = t.replace(/\b([a-z0-9])[.\s\-_*·]+(?=[a-z0-9]\b)/g, '$1');
+  if(/[<>]|javascript:/.test(t)) return 'markup';
+  for(const x of [t, joined]) if(LP_BANNED.test(x) || LP_BRANDS.test(x)) return 'outside names';
+  if(LP_SQUASH.test(sq)) return 'outside names';
+  for(const x of [t, joined]) if(LP_LINKY.test(x) || /\b(dot|d0t) (com|net|org|co|uk|io|me)\b|\bat\b[^.!?]{0,30}\bdot\b/.test(x) || /@/.test(x)) return 'links or contact details';
+  if(LP_DIGITS.test(t) || LP_DIGITS.test(joined) || numRun(t) >= 5 || LP_PRIVATE.test(t)) return 'personal details';
+  if(LP_ASKS.test(t) || LP_ASKS2.test(t) || LP_ASKS3.test(t) || lpInvite(t)) return 'asks for personal information';
+  return '';
+}
+const lpAsks = s => { const t = normText(s); return LP_ASKS.test(t) || LP_ASKS2.test(t) || LP_ASKS3.test(t) || lpInvite(t); };
 // a reply from any brain must pass this, or the offline brain answers instead
 function validLocalReply(o){
   if(!o || typeof o !== 'object' || Array.isArray(o)) return {ok:false, why:'not an object'};
   let say = typeof o.say === 'string' ? o.say.replace(/\s+/g, ' ').trim() : '';
   if(!say) return {ok:false, why:'no say'};
   if(say.length > 400) return {ok:false, why:'too long'};
-  if(LP_BANNED.test(say) || LP_BRANDS.test(say) || LP_LINKY.test(say)) return {ok:false, why:'outside names'};
-  if(LP_DIGITS.test(say) || LP_PRIVATE.test(say)) return {ok:false, why:'personal details'};
-  if(lpAsks(say)) return {ok:false, why:'asks for personal information'};
+  { const why = textRisk(say); if(why) return {ok:false, why:why === 'markup' || why === 'links or contact details' ? 'outside names' : why}; }   /* the shared check on the normalised text */
+  say = normKeep(say);
   const sents = say.match(/[^.!?…]+[.!?…]+["')\]]*|[^.!?…]+$/g) || [say]; if(sents.length > 3) say = sents.slice(0, 3).join('').trim();
   let md = typeof o.mood_delta === 'number' && isFinite(o.mood_delta) ? Math.round(o.mood_delta) : 0; md = clamp(md, -3, 3);
   const emote = NPC_EMOTES.indexOf(o.emote) >= 0 ? o.emote : 'none';
   let rem = typeof o.remember === 'string' ? o.remember.replace(/\s+/g, ' ').trim().slice(0, 120) : '';
-  if(rem && (LP_PRIVATE.test(rem) || /\d{4,}|@/.test(rem) || LP_BANNED.test(rem) || LP_BRANDS.test(rem) || LP_LINKY.test(rem))) rem = '';
+  if(rem && (textRisk(rem) || /\d{4,}/.test(normKeep(rem)))) rem = ''; else rem = normKeep(rem);
   return {ok:true, rep:{say, mood_delta:md, emote, remember:rem, quest:o.quest && typeof o.quest === 'object' ? {type:String(o.quest.type || ''), param:String(o.quest.param == null ? '' : o.quest.param).slice(0, 40)} : null}};
 }
 // what the local knows: persona, memory, the place, the player's deeds, gossip, quests; compact
@@ -14774,7 +14817,8 @@ function localSystem(nn){
     'Examples (another local):\n' + NPC_EXAMPLES.map(e => 'Player: ' + e[0] + '\nReply: ' + JSON.stringify(e[1])).join('\n');
 }
 // the player's words are cleaned before they leave the device: nothing that looks like an email or a phone number goes out
-const scrubText = t => String(t || '').replace(/[\w.+-]+@[\w-]+\.[\w.]+/g, '[private]').replace(/\+?\d[\d\s().-]{6,}\d/g, '[private]');
+const scrubText = t => normKeep(t || '').replace(/[\w.+-]+@[\w-]+\.[\w.]+/g, '[private]').replace(/\+?\d[\d\s().-]{6,}\d/g, '[private]')
+  .replace(/\b(?:(?:zero|oh|nought|one|two|three|four|five|six|seven|eight|nine|double|triple|\d)[\s,.-]+){4,}(?:zero|oh|nought|one|two|three|four|five|six|seven|eight|nine|\d)\b/gi, '[private]');   /* (normKeep: Unicode digits and hidden characters too) */
 const sleepMs = ms => new Promise(r => setTimeout(r, ms));
 async function localAsk(nn, text){
   // returns {ok, rep, source, why}; never throws
@@ -20780,7 +20824,7 @@ function wfQuiet(f){ const mr = Math.random; Math.random = wfQR; try{ return f()
 // a name is the player's own text: letters, digits, spaces, ' and -, at most 16, nothing personal, nothing rude, no outside names
 function wfName(s){
   s = typeof s === 'string' ? s : ''; if(/[\w.+-]+@[\w-]+\.\w|\d[\d\s().-]{5,}\d|https?:|www\./i.test(s)) return '';
-  if(/[<>]|&lt;|&gt;/i.test(s) || LP_BANNED.test(s) || LP_BRANDS.test(s) || /(oasis|halliday|anorak|parzival|art3mis|innovativeonline|readyplayer)/.test(s.toLowerCase().replace(/[^a-z0-9]/g, ''))) return '';   /* markup or an outside name in the raw input: refused, not cleaned into something else */
+  if(textRisk(s) || /oasis|anorak/.test(normText(s).replace(/[^a-z0-9]/g, ''))) return ''; s = normKeep(s);   /* the shared check on the raw input: refused, never cleaned into something else */
   s = s.replace(/<[^>]*>/g, '').replace(/[\u0000-\u001f\u007f<>\u00ad\u061c\u180e\u200b-\u200f\u2028-\u202e\u2066-\u2069\ufeff]/g, '').replace(/[^\p{L}\p{N} '\-]/gu, '').replace(/\s+/g, ' ').trim().slice(0, 16).trim();
   if(!s || /\d{3,}/.test(s) || LP_BANNED.test(s) || LP_PRIVATE.test(s) || lpAsks(s) || /\b(stupid|idiot|hate|kill|dumb|loser|ugly|admin|moderator)\b/i.test(s)) return '';
   return s;
@@ -21302,7 +21346,7 @@ async function wfTalkTo(text){
 }
 function wfRename(n){ const nn = wfName(n); if(!nn) return {ok:false, why:'Pick a kind name of letters and spaces (up to 16), nothing personal.'};
   const old = wf.store.name; wf.store.name = nn; wfSave(); wfHead(); if(nn !== old) wfSay('I am ' + nn + ' now. I like it!', 'spin'); return {ok:true, name:nn}; }
-function wfDescribe(text){ if(/[<>]|&lt;|&gt;/i.test(String(text || ''))) return {ok:false, why:'Describe how it looks in plain words.'}; const t = scrubText(String(text || '').replace(/<[^>]*>/g, '').replace(/[\u0000-\u001f<>]/g, ' ')).replace(/\s+/g, ' ').trim().slice(0, 200);
+function wfDescribe(text){ if(textRisk(text)) return {ok:false, why:'Describe how it looks in plain words, nothing personal and no real names.'}; const t = scrubText(String(text || '').replace(/<[^>]*>/g, '').replace(/[\u0000-\u001f<>]/g, ' ')).replace(/\s+/g, ' ').trim().slice(0, 200);
   if(/\[private\]/.test(t) || LP_PRIVATE.test(t)) return {ok:false, why:'Describe how it looks, nothing personal.'};
   wf.store.desc = t; wfSave(); wfBuild(); wfHead(); if(wf.store.mode !== 'off') wfSay(t ? 'How do I look?' : 'Back to my old self!', 'spin'); return {ok:true, look:JSON.parse(JSON.stringify(wf.look))}; }
 // the card: a side panel like the locals' (the world keeps drawing; the game pauses while you type)
@@ -21644,9 +21688,9 @@ var qwNote = [];
 function qwStrip(s){ return String(s == null ? '' : s).replace(/<[^>]*>/g, ' ').replace(/[\u0000-\u001f\u007f<>\u00ad\u061c\u180e\u200b-\u200f\u202a-\u202e\u2066-\u2069\ufeff]/g, ' ').replace(/\s+/g, ' ').trim(); }
 // one short line of player- or brain-made text, or null: no outside names, links, personal questions or details, Hunt spoilers or unkind words
 function qwText(s, max, words){
-  if(typeof s !== 'string' || /[<>]|&lt;|&gt;/i.test(s)) return null; const t = qwStrip(s); if(!t || t.length > max) return null;   /* markup is refused, not cleaned */
+  if(typeof s !== 'string' || textRisk(s)) return null; const t = qwStrip(normKeep(s)); if(!t || t.length > max) return null;   /* the shared check: refused, not cleaned */
   if(t.split(' ').length > words) return null;
-  if(LP_BANNED.test(t) || LP_BRANDS.test(t) || LP_LINKY.test(t) || lpAsks(t) || LP_PRIVATE.test(t) || /\d{4,}|@/.test(t) || WF_SPOIL.test(t) || QW_UNSAFE.test(t)) return null;
+  const n = normText(t); if(/\d{4,}/.test(n) || WF_SPOIL.test(n) || QW_UNSAFE.test(n) || textRisk(t)) return null;
   if(t !== scrubText(t)) return null;
   return t;
 }
