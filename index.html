@@ -21564,7 +21564,8 @@ function lifeLizards(k, dt, t){
       if(scared || b.wait <= 0){ let a = scared ? Math.atan2(b.z - p.z, b.x - p.x) + (lifeR() - 0.5) * 0.9 : lifeR() * TAU, d = scared ? 2.2 + lifeR() * 1.6 : 0.4 + lifeR() * 1.1;
         if(!scared && Math.hypot(b.x - b.hx, b.z - b.hz) > 2.5) a = Math.atan2(b.hz - b.z, b.hx - b.x);
         const x1 = b.x + Math.cos(a) * d, z1 = b.z + Math.sin(a) * d;
-        if(k.free(x1, z1)){ b.x0 = b.x; b.z0 = b.z; b.x1 = x1; b.z1 = z1; b.t = 0; b.dur = d / (scared ? 5.5 : 3.2); b.yaw = Math.atan2(x1 - b.x, z1 - b.z); }
+        let clear = true; for(let s = 0.3; s < d && clear; s += 0.3) clear = k.free(b.x + Math.cos(a) * s, b.z + Math.sin(a) * s);
+        if(clear && k.free(x1, z1)){ b.x0 = b.x; b.z0 = b.z; b.x1 = x1; b.z1 = z1; b.t = 0; b.dur = d / (scared ? 5.5 : 3.2); b.yaw = Math.atan2(x1 - b.x, z1 - b.z); }
         b.wait = scared ? 0.6 : 1.5 + lifeR() * 5; } }
     const y = G(b.x, b.z); lifeSet(k, i, b.x, y, b.z, b.yaw, 0, 0, b.s);
     _lo.position.y = y + 0.03; _lo.rotation.set(0, b.yaw, 0); _lo.scale.set(0.13 * b.s, 1, 0.5 * b.s); _lo.updateMatrix(); k.sh.setMatrixAt(i, _lo.matrix); });
