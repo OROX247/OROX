@@ -3352,9 +3352,9 @@ const SOFTWARE_GL = /swiftshader|llvmpipe|software|mesa offscreen/i.test(GL_INFO
    size and the ground disc density are made with the realm (next travel) or once per session (surfaces, next load). */
 const PERF_KEY = 'hub-perf-v1';
 const PERF_PROFILES = {
-  high:{name:'High', pr:2, shadow:4096, box:58, ssao:2, bloom:1, dof:true, mirror:1024, grass:1, lod:1, tier:1, stream:3, fps:0, surf:1024, rings:1},
-  balanced:{name:'Balanced', pr:1.5, shadow:2048, box:46, ssao:3, bloom:0.5, dof:false, mirror:512, grass:0.7, lod:0.8, tier:1, stream:3, fps:0, surf:512, rings:0.65},
-  saver:{name:'Battery saver', pr:1.5, shadow:1024, box:38, ssao:0, bloom:0.35, dof:false, mirror:256, grass:0.45, lod:0.6, tier:0.7, stream:4, fps:30, surf:512, rings:0.65}
+  high:{name:'High', pr:2, shadow:4096, box:58, ssao:2, bloom:1, dof:true, mirror:1024, grass:1, lod:1, tier:1, stream:3, fps:0, surf:1024, rings:1, texMax:4096},
+  balanced:{name:'Balanced', pr:1.5, shadow:2048, box:46, ssao:3, bloom:0.5, dof:false, mirror:512, grass:0.7, lod:0.8, tier:1, stream:3, fps:0, surf:512, rings:0.65, texMax:1024},
+  saver:{name:'Battery saver', pr:1.5, shadow:1024, box:38, ssao:0, bloom:0.35, dof:false, mirror:256, grass:0.45, lod:0.6, tier:0.7, stream:4, fps:30, surf:512, rings:0.65, texMax:1024}
 };
 const PERF_DEV = (() => {
   const nav = navigator, mem = +nav.deviceMemory || 0, cores = +nav.hardwareConcurrency || 0, sw = Math.min(screen.width || 0, screen.height || 0), gpu = GL_INFO || '';
@@ -3372,6 +3372,16 @@ const PERF = (() => { let o = null; try{ o = JSON.parse(slotLs.get(PERF_KEY) || 
   const active = mode === 'auto' ? PERF_AUTO[PERF_DEV.cls] : mode;
   return {mode, active, p:PERF_PROFILES[active], built:PERF_PROFILES[active], lastT:-1, capped:0, firstFrame:0, worst:{ms:0, at:''}, stalls:[]}; })();
 const perfShadow = () => PERF.p.shadow;
+// a painted canvas larger than the profile's texture limit is drawn down once (same picture, fewer texels); only for textures that are never repainted
+function perfShrink(c){ const L = PERF.p.texMax, k = Math.min(1, L / Math.max(c.width, c.height)); if(k >= 1) return c;
+  const d = document.createElement('canvas'); d.width = Math.max(1, Math.round(c.width * k)); d.height = Math.max(1, Math.round(c.height * k)); const x = d.getContext('2d'); x.imageSmoothingQuality = 'high'; x.drawImage(c, 0, 0, d.width, d.height); return d; }
+// textures the realm being left used and the new one does not are released from the GPU (three.js uploads them again if they are ever drawn);
+// render-target textures (surfaces, mirrors, maps drawn on the GPU) have no picture on the CPU side, so they are never released here
+const perfReupload = t => { const im = t && t.image; if(!t || !t.isTexture || t.isCubeTexture || t.isVideoTexture || t.isCompressedTexture || !im) return false;
+  return (typeof HTMLCanvasElement !== 'undefined' && im instanceof HTMLCanvasElement) || (typeof HTMLImageElement !== 'undefined' && im instanceof HTMLImageElement) || (typeof ImageBitmap !== 'undefined' && im instanceof ImageBitmap) || !!(im.data && ArrayBuffer.isView(im.data)); };
+function perfTexSet(){ const set = new Set(), add = m => { if(!m) return; for(const k in m){ const v = m[k]; if(v && v.isTexture) set.add(v); } if(m.uniforms) for(const k in m.uniforms){ const v = m.uniforms[k] && m.uniforms[k].value; if(v && v.isTexture) set.add(v); } };
+  scene.traverse(o => { if(o.material) (Array.isArray(o.material) ? o.material : [o.material]).forEach(add); add(o.customDepthMaterial); add(o.customDistanceMaterial); }); return set; }
+function perfRelease(prev){ const now = perfTexSet(); let n = 0; prev.forEach(t => { if(!now.has(t) && perfReupload(t)){ t.dispose(); n++; } }); PERF.released = (PERF.released || 0) + n; return n; }
 const perfPR = () => Math.min(window.devicePixelRatio || 1, PERF.p.pr);
 renderer.setPixelRatio(perfPR());
 const MAX_ANISO = Math.min(16, renderer.capabilities.getMaxAnisotropy());
@@ -8252,6 +8262,7 @@ function updateHazards(time){
   }
 }
 function buildWorld(key){
+  const perfPrev = perfTexSet();   // Phase 4: what the realm being left drew, so anything only it used can leave the GPU at the end
   if(drift) driftSound(false);
   clearWorld();
   const W = WORLDS[key]; state.world = key; gravK = W.gravity || 1; if(explorer.dirty) saveExplorer();
@@ -8301,6 +8312,7 @@ function buildWorld(key){
   if(typeof aiPrompt === 'function') aiPrompt();
   $('#worldName').textContent = W.name;
   if(snd.ctx) ambience(key);
+  perfRelease(perfPrev);
 }
 
 /* ================= HUD ================= */
@@ -10502,7 +10514,7 @@ async function makeSeamless(blob){
 async function texFromBlob(entry){
   if(entry && entry.diff){
     // Poly Haven entries: 2k diffuse + normal, and roughness and ambient occlusion packed into one map (R = AO for aoMap, G = roughness for roughnessMap)
-    const d = await createImageBitmap(entry.diff), N = Math.min(2048, Math.max(1024, d.width)), map = canvasTex(N, N, x => x.drawImage(d, 0, 0, N, N));
+    const d = await createImageBitmap(entry.diff), N = Math.min(2048, PERF.p.texMax, Math.max(1024, d.width)), map = canvasTex(N, N, x => x.drawImage(d, 0, 0, N, N));
     let normal, arm = null, rough = false, ao = false;
     if(entry.nor){ const n = await createImageBitmap(entry.nor); normal = canvasTex(N, N, x => x.drawImage(n, 0, 0, N, N), false); }
     else normal = (await texFromBlob(entry.diff)).normal;
@@ -16484,7 +16496,7 @@ function lbPaint(W, H, draw){
   ex.fillStyle = '#000'; ex.fillRect(0, 0, W, H); hx.fillStyle = 'rgb(128,128,128)'; hx.fillRect(0, 0, W / 2, H / 2); hx.scale(0.5, 0.5);
   draw(cx, ex, hx, W, H);
   const hd = hx.getImageData(0, 0, W / 2, H / 2).data, hgt = new Float32Array(W / 2 * H / 2); for(let i = 0; i < hgt.length; i++) hgt[i] = hd[i * 4] / 255;
-  const tex = c => { const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = MAX_ANISO; t.encoding = THREE.sRGBEncoding; return t; };
+  const tex = c => { const t = new THREE.CanvasTexture(perfShrink(c)); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = MAX_ANISO; t.encoding = THREE.sRGBEncoding; return t; };   // device profile: half size on phones
   const out = {map:tex(cc), em:tex(ec), normal:lbNormal(hgt, W / 2, H / 2, 5)}; for(const k in out) SHARED_TEX.add(out[k]); return out;
 }
 const lbHex = (h, k) => { const c = hexArr(h); return 'rgb(' + c.map(v => Math.round(clamp(v * (k == null ? 1 : k), 0, 1) * 255)).join(',') + ')'; };
