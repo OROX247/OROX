@@ -153,6 +153,12 @@ body.photo > :not(#stage):not(#phBar):not(#phFrame):not(#caption):not(#phFlash):
 /* the Wayfarer's card: the same side card as a local's */
 #wfCard{ position:fixed; right:12px; bottom:calc(env(safe-area-inset-bottom,0px) + 16px); width:min(390px,calc(100vw - 24px)); z-index:10; padding:14px 16px 12px; max-height:calc(100vh - 32px); overflow:auto; }
 @media (min-width:600px){ #wfCard{ width:min(390px,48vw); } }
+#qbCard{ position:fixed; left:12px; bottom:calc(env(safe-area-inset-bottom,0px) + 16px); width:min(420px,calc(100vw - 24px)); z-index:10; padding:14px 16px 12px; max-height:calc(100vh - 32px); overflow:auto; box-sizing:border-box; }
+#qbCard.hidden{ display:none; } #qbCard .talk-head{ display:flex; align-items:baseline; gap:10px; } #qbCard .talk-head b{ font-size:20px; color:#9dff6a; } #qbCard .talk-head small{ flex:1; color:var(--muted); font-size:12px; }
+#qbCard .qb-rec{ margin:8px 0 4px; line-height:1.35; } #qbCard .qb-rid{ margin:4px 0 4px 18px; padding:0; font-size:13px; color:#ffd98a; } #qbCard .qb-pay, #qbCard .qb-src{ display:block; color:var(--muted); font-size:12px; }
+#qbCard .qb-h{ display:block; margin:10px 0 4px; } #qbCard .qb-none{ color:var(--muted); font-size:13px; margin:2px 0; } #qbCard .qb-row{ display:flex; align-items:center; gap:6px; flex-wrap:wrap; padding:5px 0; border-top:1px solid rgba(255,255,255,.08); }
+#qbCard .qb-t{ flex:1 1 180px; min-width:0; } #qbCard .qb-t b{ display:block; } #qbCard .qb-t small{ color:var(--muted); font-size:12px; } #qbCard .qb-row button{ padding:4px 9px; font-size:13px; }
+#qbCard #qbMsg{ display:block; min-height:1em; margin-top:4px; color:#ffd98a; }
 #wfCard.hidden{ display:none; } #wfCard .talk-head{ display:flex; align-items:baseline; gap:10px; } #wfCard .talk-head b{ font-size:20px; color:#ffd98a; } #wfCard .talk-head small{ flex:1; color:var(--muted); font-size:12px; }
 #wfClose{ border:none; background:none; color:#f3f0ff; font-size:20px; cursor:pointer; padding:0 4px; }
 #wfLog{ max-height:30vh; overflow:auto; display:grid; gap:6px; margin:8px 0; padding-right:4px; } #wfLog .reg-line{ font-size:14px; padding:6px 10px; }
@@ -354,7 +360,7 @@ body.bcast #hud, body.bcast #corner, body.bcast #roomCard, body.bcast #toast{ vi
   #corner .btns .hbtn{ flex:0 0 auto; font-size:12.5px; padding:6px 9px; clip-path:polygon(6px 0,100% 0,100% calc(100% - 6px),calc(100% - 6px) 100%,0 100%,0 6px); }
   #toast{ bottom:calc(env(safe-area-inset-bottom,0px) + 50px); }
   #roomCard{ bottom:calc(env(safe-area-inset-bottom,0px) + 48px); }
-  #talk, #wfCard{ bottom:calc(env(safe-area-inset-bottom,0px) + 46px); }
+  #talk, #wfCard, #qbCard{ bottom:calc(env(safe-area-inset-bottom,0px) + 46px); }
   body:has(#denBar:not(.hidden)) #corner .btns{ display:none; }
   #denBar{ bottom:calc(env(safe-area-inset-bottom,0px) + 4px); padding:6px 10px; gap:5px; font-size:13px; }
   #denBar small{ font-size:11px; margin-top:0; }
@@ -452,7 +458,7 @@ body.a11y-cues .hpbar.low i{ background:repeating-linear-gradient(135deg,rgba(0,
 
 <div id="corner">
   <canvas id="minimap" aria-label="Minimap"></canvas>
-  <div class="btns"><button class="hbtn" id="aiBtn" title="AI reality mode (R)">AI</button><button class="hbtn" id="lookBtn" title="Realm look (L)">Look</button><button class="hbtn" id="forgeBtn" title="Worldsmith: describe a realm (F)">Forge</button><button class="hbtn" id="rideBtn" style="display:none">Ride</button><button class="hbtn" id="sndBtn" title="Sound on/off (N)">Sound</button><button class="hbtn" id="shopBtn" style="display:none">Shop</button><button class="hbtn" id="vendBtn" style="display:none">Vend</button><button class="hbtn" id="enrolBtn" style="display:none">Enrol</button><button class="hbtn" id="archBtn" style="display:none">Inspect</button><button class="hbtn" id="hollowBtn" style="display:none">Knock</button><button class="hbtn" id="chimeBtn" style="display:none">Strike</button><button class="hbtn" id="ashBtn" style="display:none">Recite</button><button class="hbtn" id="denBtn" style="display:none" title="The Den (E; P decorates inside)">Den</button><button class="hbtn" id="qpBtn" style="display:none" title="Quest portal (E); Q leaves">Quest</button><button class="hbtn" id="talkBtn" style="display:none" title="Talk (E)">Talk</button><button class="hbtn" id="wfBtn" title="Your Wayfarer (Y)">Wayfarer</button><button class="hbtn" id="phBtn" title="Photo mode (O)">Photo</button><button class="hbtn" id="invBtn" title="Inventory (I)">Bag</button><button class="hbtn" id="mapBtn">Warp</button><button class="hbtn" id="helpBtn" aria-label="Avatar and controls">?</button></div>
+  <div class="btns"><button class="hbtn" id="aiBtn" title="AI reality mode (R)">AI</button><button class="hbtn" id="lookBtn" title="Realm look (L)">Look</button><button class="hbtn" id="forgeBtn" title="Worldsmith: describe a realm (F)">Forge</button><button class="hbtn" id="rideBtn" style="display:none">Ride</button><button class="hbtn" id="sndBtn" title="Sound on/off (N)">Sound</button><button class="hbtn" id="shopBtn" style="display:none">Shop</button><button class="hbtn" id="vendBtn" style="display:none">Vend</button><button class="hbtn" id="enrolBtn" style="display:none">Enrol</button><button class="hbtn" id="archBtn" style="display:none">Inspect</button><button class="hbtn" id="hollowBtn" style="display:none">Knock</button><button class="hbtn" id="chimeBtn" style="display:none">Strike</button><button class="hbtn" id="ashBtn" style="display:none">Recite</button><button class="hbtn" id="denBtn" style="display:none" title="The Den (E; P decorates inside)">Den</button><button class="hbtn" id="qpBtn" style="display:none" title="Quest portal (E); Q leaves">Quest</button><button class="hbtn" id="talkBtn" style="display:none" title="Talk (E)">Talk</button><button class="hbtn" id="wfBtn" title="Your Wayfarer (Y)">Wayfarer</button><button class="hbtn" id="qbBtn" title="Questbook: describe a quest (U)">Quests</button><button class="hbtn" id="phBtn" title="Photo mode (O)">Photo</button><button class="hbtn" id="invBtn" title="Inventory (I)">Bag</button><button class="hbtn" id="mapBtn">Warp</button><button class="hbtn" id="helpBtn" aria-label="Avatar and controls">?</button></div>
   <div id="artHud" hidden></div>
 </div>
 
@@ -669,6 +675,15 @@ body.a11y-cues .hpbar.low i{ background:repeating-linear-gradient(135deg,rgba(0,
   <div id="talkQuest" style="display:none"></div>
   <div class="reg-ask"><input id="talkQ" maxlength="200" autocomplete="off" placeholder="Say something…"><button id="talkSend">Say</button></div>
   <small id="talkSrc"></small>
+</div>
+<div id="qbCard" class="card hidden" role="dialog" aria-labelledby="qbTitle">
+  <div class="talk-head"><b id="qbTitle">Questbook</b><small>Describe a quest and the game builds it</small><button id="qbClose" aria-label="Close">×</button></div>
+  <div class="reg-ask"><input id="qbQ" maxlength="240" autocomplete="off" placeholder="collect five glowing mushrooms before night" aria-label="Describe a quest"><button id="qbMake">Make it</button></div>
+  <div id="qbPrev" aria-live="polite"></div>
+  <div class="wf-bar" id="qbPrevBar" hidden><button id="qbPlay">Play</button><button class="ghost" id="qbKeep">Keep</button></div>
+  <div id="qbList"></div>
+  <div class="reg-ask"><input id="qbCode" maxlength="2000" autocomplete="off" placeholder="Paste a quest code" aria-label="Quest code"><button id="qbImport">Import</button></div>
+  <small id="qbMsg" aria-live="polite"></small>
 </div>
 <div id="wfCard" class="card hidden" role="dialog" aria-labelledby="wfTitle">
   <div class="talk-head"><b id="wfTitle"></b><small id="wfWho"></small><button id="wfClose" aria-label="Close">×</button></div>
@@ -10267,6 +10282,7 @@ window.addEventListener('keydown', e => {
   if(!regEl.classList.contains('hidden')){ if(e.code === 'Escape') closeRegistrar(); return; }
   if(!talkEl.classList.contains('hidden')){ if(e.code === 'Escape'){ e.preventDefault(); closeTalk(); } else if(e.code === 'Enter' || (e.code === 'KeyE' && !e.repeat)){ e.preventDefault(); $('#talkQ').focus(); } return; }   // Living Locals: the conversation
   if(!memoEl.classList.contains('hidden')){ if(e.code === 'Escape' || e.code === 'Enter' || (e.code === 'KeyE' && !e.repeat)){ e.preventDefault(); closeMemo(); } return; }
+  if(qbOpen()){ if(e.code === 'Escape'){ e.preventDefault(); qbClose(); } return; }   // the Questbook (its text boxes take the letters)
   if(wfCardOpen()){ if(e.code === 'Escape'){ e.preventDefault(); wfClose(); } else if(e.code === 'Enter' || (e.code === 'KeyY' && !e.repeat)){ e.preventDefault(); if(!$('#wfQ').disabled) $('#wfQ').focus(); } return; }   // the Wayfarer's card
   if(slotsKey(e) || a11yPanelKey(e)) return;   // Phase 4: the Saves and Accessibility panels sit over the intro card
   if(!introEl.classList.contains('hidden')){ if(e.code === 'Enter' || (e.code === 'Escape' && state.started)){ e.preventDefault(); startGame(); } return; }
@@ -10287,6 +10303,7 @@ window.addEventListener('keydown', e => {
   if(e.code === 'KeyN'){ setMute(snd.on); return; }
   if(e.code === 'KeyY'){ e.preventDefault(); if(!e.repeat) wfOpen(); return; }   // talk to your Wayfarer
   if(e.code === 'KeyO'){ e.preventDefault(); if(!e.repeat) phEnter(); return; }   // photo mode
+  if(e.code === 'KeyU'){ e.preventDefault(); if(!e.repeat) qbShow(); return; }   // the Questbook
   if(e.code === 'KeyV'){ cycleView(); return; }
   if(e.code === 'KeyC'){ setCine(!post.cine); return; }
   if(e.code === 'Escape'){ if(dg.lens){ dgLens(false); return; } openIntro(); return; }
@@ -19919,7 +19936,7 @@ var KEY_ACTIONS = [
   ['view', 'Camera view', 'KeyV'], ['cine', 'Cinematic', 'KeyC'], ['sound', 'Sound on/off', 'KeyN'], ['lens', 'Dreamglass lens', 'KeyG'],
   ['ai', 'AI reality mode', 'KeyR'], ['look', 'Realm look', 'KeyL'], ['quit', 'Leave a quest', 'KeyQ'], ['decorate', 'Decorate (Den)', 'KeyP'],
   ['power1', 'Power: Bell Jar', 'KeyB'], ['power2', 'Power: Tide Shell', 'KeyT'], ['power3', 'Power: Window Lamp', 'KeyH'], ['power4', 'Power: Compass', 'KeyK'],
-  ['wayfarer', 'Talk to your Wayfarer', 'KeyY'], ['photo', 'Photo mode', 'KeyO']];
+  ['wayfarer', 'Talk to your Wayfarer', 'KeyY'], ['photo', 'Photo mode', 'KeyO'], ['questbook', 'Questbook', 'KeyU']];
 var KEY_DEF = Object.create(null); KEY_ACTIONS.forEach(a => { KEY_DEF[a[0]] = a[2]; });
 var KEY_OK = /^(Key[A-Z]|Digit[0-9]|Numpad[0-9]|Space|ShiftLeft|ShiftRight|Comma|Period|Slash|Semicolon|Quote|BracketLeft|BracketRight|Backslash|Minus|Equal|Backquote)$/;
 var KEYMAP = {rev:Object.create(null), orphan:Object.create(null)}, a11yListen = null;
@@ -21347,7 +21364,7 @@ function phWhyNot(){
   if(vr.on) return 'Photo mode is not available in VR.'; if(ai.on) return 'Turn AI reality mode (R) off first.';
   if(rally.open || starling.open || gate1.open || !seedEl.classList.contains('hidden')) return 'Finish the game on the screen first.';
   if(denRT && denRT.mode) return 'Finish decorating first.';
-  if(!playing || !introEl.classList.contains('hidden') || document.querySelector('.overlay:not(.hidden)') || !talkEl.classList.contains('hidden') || wfCardOpen() || !ledgerEl.classList.contains('hidden') || !regEl.classList.contains('hidden') || !memoEl.classList.contains('hidden')) return 'Close the open panel first.';
+  if(!playing || !introEl.classList.contains('hidden') || document.querySelector('.overlay:not(.hidden)') || !talkEl.classList.contains('hidden') || wfCardOpen() || qbOpen() || !ledgerEl.classList.contains('hidden') || !regEl.classList.contains('hidden') || !memoEl.classList.contains('hidden')) return 'Close the open panel first.';
   return null;
 }
 function phEnter(){
@@ -21718,7 +21735,7 @@ function cleanQuest(o, mode){
   const ti = g('title'); let title = ti == null || ti === '' ? '' : qwText(ti, 48, 8);
   if(ti != null && ti !== '' && !title){ if(strict) return {ok:false, why:'title fails the filters'}; dropped.push('title'); }
   const theme = QW_REALM_THEME[rk] || 'any';
-  R.title = title ? qwCap(title) : qwAutoTitle(R, theme);
+  R.title = title ? title.charAt(0).toUpperCase() + title.slice(1) : qwAutoTitle(R, theme);   /* (idempotent: a clean recipe cleans to itself) */
   const rd = g('riddles'), own = [];
   if(rd != null && !Array.isArray(rd)){ if(strict) return {ok:false, why:'riddles is not a list'}; dropped.push('riddles'); }
   if(Array.isArray(rd)) for(const s of rd.slice(0, 12)){ const ok = qwText(s, 100, 18); if(ok){ if(own.length < count) own.push(ok); } else { if(strict) return {ok:false, why:'a riddle fails the filters'}; dropped.push('riddle'); } }
@@ -21846,7 +21863,7 @@ function qwSpotWhy(x, z, o){
   const e = 1.2, gs = [G(x + e, z), G(x - e, z), G(x, z + e), G(x, z - e)];
   if(gs.some(v => !isFinite(v) || v < -900)) return 'edge';
   if(Math.max.apply(null, gs.map(v => Math.abs(v - g))) / e > 0.75) return 'steep';
-  const SE = ENDLESS[state.world]; if(SE && typeof SE.solidAt === 'function' && !SE.solidAt(x, z, 2)) return 'edge';
+  const SE = ENDLESS[state.world]; if(SE && typeof SE.solidAt === 'function' && !SE.solidAt(x, z, 2) && (state.world === 'sky' || !o.swim)) return state.world === 'sky' ? 'edge' : 'water';   /* sky: the isle's edge; elsewhere the realm's own dry-land test */
   if(!qwCellReady(x, z)) return 'unbuilt';
   const w = qwWet(x, z, g); if(w && !(o.swim && w === 'water')) return w;
   for(const s of qwSafe) if(Math.hypot(x - s.x, z - s.z) < s.r) return 'safe';
@@ -22165,6 +22182,85 @@ Object.defineProperties(QW_HOOKS, {
   book:{get:() => JSON.parse(JSON.stringify(qb)), enumerable:true},
   limits:{get:() => ({day:QW_DAY.wins, credits:QW_DAY.credits, max:QB_MAX}), enumerable:true},
   hud:{get:() => { const el = document.getElementById('qwPanel'); return el && el.style.display !== 'none' ? el.textContent : ''; }, enumerable:true}
+});
+/* ---- the Questbook (U or the Quests button): describe, preview, play, replay, delete; up to QB_MAX per save slot (hub-quests-v1 is in SLOT_STORES);
+   share a quest as a short code (HUBQ1- and the clean recipe in base64) and import one. A code is cleaned like a save import: slotSafe, then cleanQuest. */
+var QW_CODE_TAG = 'HUBQ1-';
+function qwCode(R){ const c = cleanQuest(R, 'clean'); if(!c.ok) return ''; const b = new TextEncoder().encode(JSON.stringify(qwShort(c.rec))); let s = ''; b.forEach(x => { s += String.fromCharCode(x); });
+  return QW_CODE_TAG + btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); }
+function qwDecode(code){
+  const s = String(code == null ? '' : code).replace(/\s+/g, '');
+  if(!s) return {ok:false, why:'Paste a quest code first.'};
+  if(s.length > 2000) return {ok:false, why:'That code is too long to be a quest.'};
+  const m = s.match(/^HUBQ1-([A-Za-z0-9_-]{4,})$/); if(!m) return {ok:false, why:'That is not a Hub quest code.'};
+  let o = null;
+  try{ const b = atob(m[1].replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((m[1].length + 3) % 4)), u = new Uint8Array(b.length); for(let i = 0; i < b.length; i++) u[i] = b.charCodeAt(i);
+    o = JSON.parse(new TextDecoder('utf-8', {fatal:true}).decode(u)); }catch(e){ return {ok:false, why:'That code is broken. Check it was copied whole.'}; }
+  if(!o || typeof o !== 'object' || Array.isArray(o)) return {ok:false, why:'That code has no quest in it.'};
+  const c = cleanQuest(qwLong(slotSafe(o)), 'clean'); if(!c.ok) return {ok:false, why:'That code has no quest the game can build.'};
+  return {ok:true, rec:c.rec, dropped:c.dropped};
+}
+var qbEl = document.getElementById('qbCard'), qbPending = null, qbBusy = false, qbSeq = 0, qbConfirm = null;
+function qbOpen(){ return !!qbEl && !qbEl.classList.contains('hidden'); }
+function qbMsg(t){ const el = document.getElementById('qbMsg'); if(el) el.textContent = t || ''; }
+function qbShow(){ if(!qbEl || zeroing || bc.on || ph.on || !state.started) return false; if(wfCardOpen()) wfClose(); qbEl.classList.remove('hidden'); setPaused(true); document.body.classList.add('talking'); qbRender(); qbMsg(''); return true; }
+function qbClose(){ if(!qbEl) return; ['qbQ', 'qbCode'].forEach(id => { const i = document.getElementById(id); if(i) i.blur(); }); qbEl.classList.add('hidden'); document.body.classList.remove('talking'); setPaused(false); qbConfirm = null; }
+function qbNewId(){ return (Date.now().toString(36) + (qbSeq++).toString(36)).slice(-14); }
+function qbAdd(text, rec, src){
+  const id = qwId(rec), had = qb.list.find(e => qwId(e.rec) === id); if(had) return {ok:true, e:had, had:true};
+  if(qb.list.length >= QB_MAX) return {ok:false, why:'The Questbook is full (' + QB_MAX + '). Delete one to make room.'};
+  const e = {id:qbNewId(), text:scrubText(qwStrip(text)).slice(0, 240), rec, src, made:Date.now(), plays:0, wins:0, best:null}; qb.list.push(e); qbSave(); return {ok:true, e};
+}
+function qbDel(id){ const i = qb.list.findIndex(e => e.id === id); if(i < 0) return false; qb.list.splice(i, 1); qbSave(); return true; }
+async function qbMake(text){
+  text = String(text || '').trim(); if(!text){ qbMsg('Describe a quest first, for example: collect five glowing mushrooms before night.'); return null; }
+  if(qbBusy) return null; qbBusy = true; qbMsg('The Questwright is thinking…'); const btn = document.getElementById('qbMake'); if(btn) btn.disabled = true;
+  try{ const r = await qwFromAI(text); qbPending = {text, rec:r.rec, src:r.source, notes:r.notes || []}; qbMsg(r.source === 'claude' ? '' : (r.notes || []).join(' ')); qbRender(); return qbPending; }
+  finally{ qbBusy = false; if(btn) btn.disabled = false; }
+}
+function qbPlay(rec, bookId){ const r = qwStart(rec, {bookId}); if(r.ok){ if(qbOpen()) qbClose(); } else qbMsg(r.why); return r; }
+function qbImport(code){ const d = qwDecode(code); if(!d.ok){ qbMsg(d.why); return d; }
+  const a = qbAdd('', d.rec, 'code'); if(!a.ok){ qbMsg(a.why); return a; }
+  qbPending = null; qbMsg((a.had ? 'You already have this one: ' : 'Imported: ') + d.rec.title + '.' + (d.dropped.length ? ' Some of its words were left out.' : '')); const ci = document.getElementById('qbCode'); if(ci) ci.value = ''; qbRender(); return {ok:true, id:a.e.id, rec:d.rec, dropped:d.dropped}; }
+function qbShare(id){ const e = qb.list.find(x => x.id === id); if(!e) return ''; const code = qwCode(e.rec), ci = document.getElementById('qbCode');
+  if(ci){ ci.value = code; try{ ci.select(); }catch(err){} }
+  try{ if(navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(code).catch(() => {}); }catch(err){}
+  qbMsg('The code for ' + e.rec.title + ' is in the box below. Give it to a friend to play the same quest.'); return code; }
+function qbEl2(tag, cls, text){ const d = document.createElement(tag); if(cls) d.className = cls; if(text != null) d.textContent = text; return d; }
+function qbRecipeEl(R){ const box = qbEl2('div', 'qb-rec'); box.appendChild(qbEl2('div', '', qwDescribe(R)));
+  if(R.kind === 'riddle'){ const ol = qbEl2('ol', 'qb-rid'); R.riddles.forEach(t => ol.appendChild(qbEl2('li', '', t))); box.appendChild(ol); }
+  const rw = qwReward(R); box.appendChild(qbEl2('small', 'qb-pay', 'Reward set by the game: ₵' + rw.credits + ' + ' + rw.xp + ' XP, once a day per quest (up to ' + QW_DAY.wins + ' quest rewards a day).')); return box; }
+function qbRender(){
+  if(!qbEl) return; const pv = document.getElementById('qbPrev'), bar = document.getElementById('qbPrevBar'), L = document.getElementById('qbList'); if(!pv || !L) return;
+  pv.textContent = ''; if(qbPending){ pv.appendChild(qbRecipeEl(qbPending.rec)); pv.appendChild(qbEl2('small', 'qb-src', qbPending.src === 'claude' ? 'Built by the Questwright from your words.' : 'Built from your words by the game.')); }
+  if(bar) bar.hidden = !qbPending;
+  L.textContent = ''; L.appendChild(qbEl2('b', 'qb-h', 'Your quests (' + qb.list.length + ' of ' + QB_MAX + ')'));
+  if(!qb.list.length) L.appendChild(qbEl2('p', 'qb-none', 'None yet. Describe one above and press Keep or Play.'));
+  qb.list.slice().reverse().forEach(e => { const row = qbEl2('div', 'qb-row'), R = e.rec;
+    const t = qbEl2('div', 'qb-t'); t.appendChild(qbEl2('b', '', R.title)); t.appendChild(qbEl2('small', '', (QW_KIND_NAME[R.kind] || R.kind) + ' · ' + (R.realm === 'here' ? 'anywhere' : WORLDS[R.realm] ? WORLDS[R.realm].name : R.realm) + ' · played ' + e.plays + ', won ' + e.wins + (e.best ? ', best ' + e.best + ' s' : ''))); row.appendChild(t);
+    const b = (txt, f, cls) => { const x = qbEl2('button', cls || 'ghost', txt); x.addEventListener('click', f); row.appendChild(x); return x; };
+    b(e.plays ? 'Replay' : 'Play', () => qbPlay(e.rec, e.id), 'main'); b('Code', () => qbShare(e.id));
+    b(qbConfirm === e.id ? 'Sure?' : 'Delete', () => { if(qbConfirm === e.id){ qbDel(e.id); qbConfirm = null; qbMsg('Deleted.'); } else { qbConfirm = e.id; qbMsg('Press Sure? to delete ' + R.title + '.'); } qbRender(); });
+    L.appendChild(row); });
+}
+if(qbEl){
+  document.getElementById('qbClose').addEventListener('click', qbClose);
+  document.getElementById('qbMake').addEventListener('click', () => qbMake(document.getElementById('qbQ').value));
+  document.getElementById('qbQ').addEventListener('keydown', e => { if(e.key === 'Enter'){ e.preventDefault(); qbMake(e.target.value); } });
+  document.getElementById('qbPlay').addEventListener('click', () => { const P = qbPending; if(!P) return; const a = qbAdd(P.text, P.rec, P.src); qbPending = null; qbRender(); qbPlay(a.ok ? a.e.rec : P.rec, a.ok ? a.e.id : null); });
+  document.getElementById('qbKeep').addEventListener('click', () => { if(!qbPending) return; const a = qbAdd(qbPending.text, qbPending.rec, qbPending.src); qbMsg(a.ok ? (a.had ? 'It is already in your Questbook.' : 'Kept.') : a.why); if(a.ok) qbPending = null; qbRender(); });
+  document.getElementById('qbImport').addEventListener('click', () => qbImport(document.getElementById('qbCode').value));
+  const hb = document.getElementById('qbBtn'); if(hb) hb.addEventListener('click', () => { if(qbOpen()) qbClose(); else qbShow(); });
+}
+Object.assign(QW_HOOKS, {
+  open:() => qbShow(), close:() => qbClose(), make:text => qbMake(text), keep:() => document.getElementById('qbKeep').click(), playPending:() => document.getElementById('qbPlay').click(),
+  add:(text, R) => { const c = cleanQuest(R, 'clean'); return c.ok ? qbAdd(text || '', c.rec, 'offline') : c; }, del:id => qbDel(id), play:id => { const e = qb.list.find(x => x.id === id); return e ? qbPlay(e.rec, e.id) : {ok:false, why:'no such quest'}; },
+  code:R => qwCode(R), decode:c => qwDecode(c), share:id => qbShare(id), importCode:c => qbImport(c), clean:(o, mode) => cleanQuest(o, mode || 'clean'), cleanBook:o => qbClean(o),
+  saved:() => { try{ return JSON.parse(localStorage.getItem(QB_KEY)); }catch(e){ return null; } }, reload:() => { qbLoad(); qbRender(); return JSON.parse(JSON.stringify(qb)); }
+});
+Object.defineProperties(QW_HOOKS, {
+  card:{get:() => ({open:qbOpen(), msg:(document.getElementById('qbMsg') || {}).textContent || '', preview:(document.getElementById('qbPrev') || {}).textContent || '', rows:[...document.querySelectorAll('#qbList .qb-row')].map(r => r.textContent)}), enumerable:true},
+  pending:{get:() => qbPending && JSON.parse(JSON.stringify(qbPending)), enumerable:true}
 });
 })();
 </script>
