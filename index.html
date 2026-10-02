@@ -347,6 +347,41 @@ body.bcast #hud, body.bcast #corner, body.bcast #roomCard, body.bcast #toast{ vi
 .intro-more{ display:flex; gap:8px; align-items:center; margin:0 0 10px; }
 .intro-more .ghost{ margin:0; width:auto; flex:1; }
 #slotNow{ color:var(--muted); font-size:13px; margin:0 0 6px; }
+/* Phase 4: accessibility */
+#a11y{ z-index:12; }
+.a11y-tog{ display:flex; justify-content:space-between; gap:10px; text-align:left; margin-top:8px; }
+.a11y-tog small{ display:block; color:var(--muted); font-weight:400; font-size:13px; margin-top:2px; }
+.a11y-tog b{ flex:0 0 auto; }
+.a11y-tog[aria-pressed="true"]{ border-color:var(--cyan); }
+.a11y-tog[aria-pressed="true"] b{ color:var(--cyan); }
+.a11y-text .ghost[aria-pressed="true"]{ border-color:var(--cyan); color:var(--cyan); }
+#a11yKeys{ display:grid; grid-template-columns:1fr 1fr; gap:4px 8px; }
+#a11yKeys button{ display:flex; justify-content:space-between; gap:8px; margin:0; padding:6px 9px; font-size:13px; text-align:left; }
+#a11yKeys button kbd{ font:700 13px 'Chakra Petch','Trebuchet MS',sans-serif; color:var(--gold); }
+#a11yKeys button.listen{ border-color:var(--gold); }
+#caption{ position:fixed; left:50%; transform:translateX(-50%); bottom:calc(env(safe-area-inset-bottom,0px) + 74px); z-index:9; display:flex; flex-direction:column; align-items:center; gap:4px; pointer-events:none; width:min(640px,92vw); }
+#caption div{ background:rgba(0,0,0,.82); color:#fff; padding:4px 12px; font:600 15px/1.35 'Chakra Petch','Trebuchet MS',sans-serif; text-align:center; }
+/* focus outlines on every panel button and field (a white ring with a dark edge reads on any background) */
+button:focus-visible, .warp-item:focus-visible, input:focus-visible, textarea:focus-visible, [tabindex]:focus-visible{ outline:3px solid #fff !important; outline-offset:2px; box-shadow:0 0 0 5px #07061a !important; }
+/* text size: the HUD, panels, toasts, the Ledger, chat cards, subtitles and captions */
+body.a11y-t1 :is(#hud, #corner, #toast, #talk, #denBar, .overlay > .card, .bc-sub, #caption, #zeroFx .panel, #blackFx > div, #artFx){ zoom:1.2; }
+body.a11y-t2 :is(#hud, #corner, #toast, #talk, #denBar, .overlay > .card, .bc-sub, #caption, #zeroFx .panel, #blackFx > div, #artFx){ zoom:1.45; }
+/* high contrast HUD */
+body.a11y-hc{ --panel:#000; --muted:#f0f0f0; --ink:#fff; }
+body.a11y-hc :is(.panel, .hbtn, #toast, #talk, .card, #caption div){ background:#000 !important; color:#fff !important; border:2px solid #fff !important; }
+body.a11y-hc .hbtn.on{ background:#ffe14a !important; color:#000 !important; }
+body.a11y-hc :is(.xpbar, .hpbar){ background:#444 !important; outline:1px solid #fff; }
+body.a11y-hc .ghost{ border-color:#fff; color:#fff; }
+/* reduce motion: no slides, shakes or flashes, gentler fades */
+body.a11y-calm :is(#toast, .xpbar i, .hpbar i, #zeroFx){ transition:opacity .5s linear !important; }
+body.a11y-calm #toast{ transform:translate(-50%,0) !important; }
+body.a11y-calm #blackFx{ transition:opacity 1.6s ease !important; }
+body.a11y-calm :is(#statPanel.bump, #idPanel.hurt){ animation:none !important; }
+body.a11y-calm #hurtFx{ display:none; }
+/* colour-blind cues: labels and patterns that only show with the cue setting */
+.cbx{ display:none; }
+body.a11y-cues .cbx{ display:inline; }
+body.a11y-cues .hpbar.low i{ background:repeating-linear-gradient(135deg,rgba(0,0,0,.55) 0 3px,transparent 3px 7px),linear-gradient(90deg,#ff3d5a,var(--pink)); }
 </style>
 </head>
 <body class="paused">
@@ -394,7 +429,7 @@ body.bcast #hud, body.bcast #corner, body.bcast #roomCard, body.bcast #toast{ vi
     <p class="controls mouse-only">WASD to move, Shift to run, Space to jump and Space again mid-air to boost. Drag to look, scroll to zoom. M warp, E ride / shop / vend (and read, ask and inspect in the Archive, south of the plaza), F Worldsmith (describe a realm and it is built; it goes on forever, with landmarks invented as you walk), X fight back (a pulse where tech works, a ward where only magic does), B T H K the powers of any artifacts you hold, I inventory, J Explorer Log (every star on the Warp map is a planet), V camera, C cinematic, N sound, Esc this panel. A VR button appears when a headset is connected.</p>
     <p class="controls touch-only">Left stick to move, Jump twice to boost, drag anywhere else to look. Warp is top right.</p>
     <p id="slotNow"></p>
-    <div class="intro-more"><button class="ghost" id="slotsBtn" aria-label="Saves: three save slots, import and export">Saves</button></div>
+    <div class="intro-more"><button class="ghost" id="slotsBtn" aria-label="Saves: three save slots, import and export">Saves</button><button class="ghost" id="a11yBtn" aria-label="Accessibility: text size, contrast, motion, captions, colour cues and keys">Accessibility</button></div>
     <button class="ghost" id="ledgerBtn" style="margin:0 0 10px">The Ashcombe Ledger</button>
     <button class="start" id="startBtn">Enter the Hub</button>
   </div>
@@ -412,6 +447,21 @@ body.bcast #hud, body.bcast #corner, body.bcast #roomCard, body.bcast #toast{ vi
   </div>
 </div>
 
+<div id="a11y" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="a11yTitle">
+  <div class="card">
+    <h2 id="a11yTitle">Accessibility</h2>
+    <p class="lede">These settings are saved on this device and apply to every save slot.</p>
+    <label class="field" id="a11yTextL">Text size</label>
+    <div class="look-row a11y-text" role="group" aria-labelledby="a11yTextL"><button class="ghost" data-text="0">Normal</button><button class="ghost" data-text="1">Large</button><button class="ghost" data-text="2">Extra large</button></div>
+    <div id="a11yToggles"></div>
+    <label class="field" id="a11yKeysL">Keys</label>
+    <p class="lede">Pick an action, then press the key you want for it (Esc cancels). A key that is already in use is refused. The arrow keys always move.</p>
+    <div id="a11yKeys" role="group" aria-labelledby="a11yKeysL"></div>
+    <p class="lede" id="a11yMsg" role="status" aria-live="polite"></p>
+    <div class="look-row"><button class="ghost" id="a11yKeysReset">Reset all keys</button><button class="ghost" id="a11yClose">Close</button></div>
+  </div>
+</div>
+<div id="caption" role="status" aria-live="polite"></div>
 <div id="warp" class="overlay hidden" role="dialog" aria-labelledby="warpTitle">
   <div class="card">
     <h2 id="warpTitle">Warp</h2>
@@ -3094,6 +3144,17 @@ const slotBoot = (() => {
 let slotTouchT = 0, slotTouchW = '';
 function slotTouch(world){ const now = Date.now(); if(now - slotTouchT < 5000 && world === slotTouchW) return; slotTouchT = now; slotTouchW = world;
   const m = slotMeta(); m.slots[m.active].played = now; if(typeof world === 'string') m.slots[m.active].realm = world.slice(0, 40); slotMetaSave(m); }
+
+// accessibility settings (Phase 4): saved per device in hub-a11y-v1, never part of a save slot. Read here, before anything that uses them;
+// the panel, the key remapping and the captions live in the Accessibility section at the end of the script.
+const A11Y_KEY = 'hub-a11y-v1';
+const A11Y = (() => { let o = null; try{ o = JSON.parse(slotLs.get(A11Y_KEY) || 'null'); }catch(e){}
+  o = o && typeof o === 'object' && !Array.isArray(o) ? o : {}; const b = k => o[k] === true;
+  return {text:[0, 1, 2].indexOf(o.text) >= 0 ? o.text : 0, contrast:b('contrast'), calm:b('calm'), captions:b('captions'), cues:b('cues'), toggleRun:b('toggleRun'), invertY:b('invertY'),
+    keys:o.keys && typeof o.keys === 'object' && !Array.isArray(o.keys) ? o.keys : {}, runLatch:false}; })();
+// a short caption for an important sound (only while captions are on); safe to call from anywhere
+function caption(text, ms){ if(!A11Y.captions) return; const el = document.getElementById('caption'); if(!el) return; const d = document.createElement('div'); d.textContent = text; el.appendChild(d);
+  while(el.children.length > 3) el.removeChild(el.firstChild); setTimeout(() => { if(d.parentNode) d.parentNode.removeChild(d); }, ms || 2600); A11Y.lastCaption = text; }
 
 /* ================= save ================= */
 const SAVE_KEY = 'hub-universe-save-v2';
@@ -10079,7 +10140,7 @@ window.addEventListener('keydown', e => {
   if(!regEl.classList.contains('hidden')){ if(e.code === 'Escape') closeRegistrar(); return; }
   if(!talkEl.classList.contains('hidden')){ if(e.code === 'Escape'){ e.preventDefault(); closeTalk(); } else if(e.code === 'Enter' || (e.code === 'KeyE' && !e.repeat)){ e.preventDefault(); $('#talkQ').focus(); } return; }   // Living Locals: the conversation
   if(!memoEl.classList.contains('hidden')){ if(e.code === 'Escape' || e.code === 'Enter' || (e.code === 'KeyE' && !e.repeat)){ e.preventDefault(); closeMemo(); } return; }
-  if(slotsKey(e)) return;   // Phase 4: the Saves panel sits over the intro card
+  if(slotsKey(e) || a11yPanelKey(e)) return;   // Phase 4: the Saves and Accessibility panels sit over the intro card
   if(!introEl.classList.contains('hidden')){ if(e.code === 'Enter' || (e.code === 'Escape' && state.started)){ e.preventDefault(); startGame(); } return; }
   if(!lookEl.classList.contains('hidden')){ if(e.code === 'Escape') closeLook(); return; }
   if(!xlogEl.classList.contains('hidden')){ if(e.code === 'Escape' || (e.code === 'KeyJ' && !(e.target && e.target.tagName === 'INPUT'))){ e.preventDefault(); closeXlog(); } return; }
@@ -10116,7 +10177,7 @@ canvas.addEventListener('pointerdown', e => { if(lookId !== null) return; lookId
 canvas.addEventListener('pointermove', e => {
   if(e.pointerId !== lookId) return;
   const s = e.pointerType === 'touch' ? 0.008 : 0.005;
-  cam.yaw -= (e.clientX - lx) * s; cam.pitch = clamp(cam.pitch + (e.clientY - ly) * s * 0.8, cam.view === 2 ? -1.1 : -0.15, 1.2);
+  cam.yaw -= (e.clientX - lx) * s; cam.pitch = clamp(cam.pitch + (e.clientY - ly) * s * 0.8 * (A11Y.invertY ? -1 : 1), cam.view === 2 ? -1.1 : -0.15, 1.2);
   lx = e.clientX; ly = e.clientY;
 });
 const endLook = e => { if(e.pointerId === lookId) lookId = null; };
@@ -12864,7 +12925,7 @@ function update(dt, time){
   const len = Math.hypot(fwd, side); if(len > 1){ fwd /= len; side /= len; }
   const sy = Math.sin(cam.yaw), cy = Math.cos(cam.yaw);
   const mx = -sy * fwd + cy * side, mz = -cy * fwd - sy * side, mag = Math.hypot(mx, mz), moving = mag > 0.05;
-  const running = keys.ShiftLeft || keys.ShiftRight || Math.hypot(joy.x, joy.y) > 0.95;
+  const running = keys.ShiftLeft || keys.ShiftRight || Math.hypot(joy.x, joy.y) > 0.95 || (A11Y.toggleRun && A11Y.runLatch);   // Phase 4: toggle-run
   const target = moving ? (running ? 9.5 : 5) * Math.min(1, mag) * slWadeK() * fbWadeK() : 0;   // slWadeK: wading and swimming on Saltlark Isle (1 everywhere else)
   p.speed += (target - p.speed) * (1 - Math.exp(-dt * 10));
   const prevY = p.y, dirx = moving ? mx / mag : Math.sin(p.facing), dirz = moving ? mz / mag : Math.cos(p.facing);
@@ -19643,6 +19704,113 @@ Object.defineProperties(window.__hub, {
     set noReload(v){ slotReloadHook = v ? () => { window.__slotReloads = (window.__slotReloads || 0) + 1; } : null; },
     reload:() => location.reload(),
     makeOldSave:o => { try{ localStorage.removeItem(SLOT_META); localStorage.removeItem(SLOT_PENDING); for(let n = 1; n <= SLOT_N; n++) SLOT_STORES.forEach(k => localStorage.removeItem(slotKey(n, k))); localStorage.setItem(SAVE_KEY, JSON.stringify(o)); return true; }catch(e){ return false; } }
+  })}
+});
+
+/* ================= accessibility (Phase 4) ================= */
+// A11Y (read at the top of the script) holds the settings; this section has the panel, the key remapping and the HUD's screen-reader labels.
+// Remapping is one capture-phase listener on window: a key bound to an action is turned into that action's default key (a synthetic event
+// marked __hubMapped), so every handler in the game keeps reading e.code / keys[...] as before; while you play, a default key whose action
+// has moved elsewhere does nothing. Text fields and the three cabinet games (Comet Rally, Starling, the First Gate) keep their own keys.
+var KEY_ACTIONS = [
+  ['forward', 'Move forward', 'KeyW'], ['back', 'Move back', 'KeyS'], ['left', 'Move left', 'KeyA'], ['right', 'Move right', 'KeyD'],
+  ['jump', 'Jump / boost', 'Space'], ['run', 'Run', 'ShiftLeft'], ['interact', 'Interact', 'KeyE'], ['attack', 'Fight back', 'KeyX'],
+  ['map', 'Warp map', 'KeyM'], ['inventory', 'Inventory', 'KeyI'], ['log', 'Explorer Log', 'KeyJ'], ['forge', 'Worldsmith', 'KeyF'],
+  ['view', 'Camera view', 'KeyV'], ['cine', 'Cinematic', 'KeyC'], ['sound', 'Sound on/off', 'KeyN'], ['lens', 'Dreamglass lens', 'KeyG'],
+  ['ai', 'AI reality mode', 'KeyR'], ['look', 'Realm look', 'KeyL'], ['quit', 'Leave a quest', 'KeyQ'], ['decorate', 'Decorate (Den)', 'KeyP'],
+  ['power1', 'Power: Bell Jar', 'KeyB'], ['power2', 'Power: Tide Shell', 'KeyT'], ['power3', 'Power: Window Lamp', 'KeyH'], ['power4', 'Power: Compass', 'KeyK']];
+var KEY_DEF = Object.create(null); KEY_ACTIONS.forEach(a => { KEY_DEF[a[0]] = a[2]; });
+var KEY_OK = /^(Key[A-Z]|Digit[0-9]|Numpad[0-9]|Space|ShiftLeft|ShiftRight|Comma|Period|Slash|Semicolon|Quote|BracketLeft|BracketRight|Backslash|Minus|Equal|Backquote)$/;
+var KEYMAP = {rev:Object.create(null), orphan:Object.create(null)}, a11yListen = null;
+function keyEff(a){ return hasOwn(A11Y.keys, a) ? A11Y.keys[a] : KEY_DEF[a]; }
+function keyName(c){ return !c ? '?' : c === 'Space' ? 'Space' : c === 'ShiftLeft' ? 'Left Shift' : c === 'ShiftRight' ? 'Right Shift' : /^Key/.test(c) ? c.slice(3) : /^Digit/.test(c) ? c.slice(5) : /^Numpad/.test(c) ? 'Num ' + c.slice(6) : c; }
+function keyChar(c){ return c === 'Space' ? ' ' : /^Shift/.test(c) ? 'Shift' : /^Key/.test(c) ? c.slice(3).toLowerCase() : c; }
+function keyClean(){   // saved bindings: known actions, allowed keys, no two actions on one key (a forged or stale map is cut back to the defaults)
+  const src = A11Y.keys, out = Object.create(null), used = Object.create(null);
+  KEY_ACTIONS.forEach(([a, , d]) => { const c = hasOwn(src, a) && typeof src[a] === 'string' && KEY_OK.test(src[a]) ? src[a] : d; if(c !== d) out[a] = c; });
+  let dup = false; KEY_ACTIONS.forEach(([a, , d]) => { const c = out[a] || d; if(used[c]) dup = true; used[c] = a; });
+  A11Y.keys = {}; if(!dup) for(const a in out) A11Y.keys[a] = out[a];
+}
+function keyRebuild(){ const rev = Object.create(null), orphan = Object.create(null);
+  KEY_ACTIONS.forEach(([a]) => { rev[keyEff(a)] = a; });
+  KEY_ACTIONS.forEach(([a, , d]) => { if(keyEff(a) !== d && !rev[d]) orphan[d] = 1; });
+  if(keyEff('run') !== 'ShiftLeft' && !rev.ShiftRight) orphan.ShiftRight = 1;
+  KEYMAP.rev = rev; KEYMAP.orphan = orphan; }
+function keyBind(a, code){
+  if(!hasOwn(KEY_DEF, a)) return {ok:false, why:'No such action.'};
+  if(typeof code !== 'string' || !KEY_OK.test(code)) return {ok:false, why:keyName(code) + ' cannot be used for an action. Pick a letter, number, Space or Shift.'};
+  const other = KEYMAP.rev[code];
+  if(other && other !== a) return {ok:false, why:keyName(code) + ' is already used for ' + KEY_ACTIONS.find(x => x[0] === other)[1] + '. Change that one first.', conflict:other};
+  if(code === KEY_DEF[a]) delete A11Y.keys[a]; else A11Y.keys[a] = code;
+  a11ySave(); keyRebuild(); return {ok:true, action:a, key:code};
+}
+function keyReset(){ A11Y.keys = {}; a11ySave(); keyRebuild(); }
+function a11yFree(){ return state.started && playing && introEl.classList.contains('hidden') && !document.querySelector('.overlay:not(.hidden)') && !bc.on && talkEl.classList.contains('hidden') && !(denRT && denRT.mode); }
+function a11yRunToggle(){ if(!A11Y.toggleRun || !a11yFree()) return; A11Y.runLatch = !A11Y.runLatch; toast(A11Y.runLatch ? 'Running (press ' + keyName(keyEff('run')) + ' again to walk)' : 'Walking', 1400); }
+function keyMapEvent(e){
+  if(e.__hubMapped) return;
+  if(a11yListen && e.type === 'keydown'){ e.preventDefault(); e.stopImmediatePropagation(); const a = a11yListen;
+    if(e.code === 'Escape'){ a11yListen = null; a11yMsg('Cancelled.'); renderA11y(); return; }
+    const r = keyBind(a, e.code); a11yListen = null; a11yMsg(r.ok ? KEY_ACTIONS.find(x => x[0] === a)[1] + ' is now ' + keyName(e.code) + '.' : r.why); renderA11y(); const b = document.querySelector('#a11yKeys [data-a="' + a + '"]'); if(b) b.focus(); return; }
+  const t = e.target; if(t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return;
+  if(rally.open || starling.open || gate1.open) return;
+  const a = KEYMAP.rev[e.code];
+  if(a){ const d = KEY_DEF[a];
+    if(a === 'run' && e.type === 'keydown' && !e.repeat) a11yRunToggle();
+    if(d !== e.code){ e.stopImmediatePropagation(); e.preventDefault();
+      const ev = new KeyboardEvent(e.type, {code:d, key:keyChar(d), repeat:e.repeat, bubbles:true, cancelable:true}); ev.__hubMapped = true; (t && t.dispatchEvent ? t : window).dispatchEvent(ev); }
+    return; }
+  if(e.code === 'ShiftRight' && keyEff('run') === 'ShiftLeft' && e.type === 'keydown' && !e.repeat) a11yRunToggle();
+  if(KEYMAP.orphan[e.code] && a11yFree()){ e.stopImmediatePropagation(); e.preventDefault(); }
+}
+window.addEventListener('keydown', keyMapEvent, true); window.addEventListener('keyup', keyMapEvent, true);
+// the panel
+var a11yEl = $('#a11y');
+var A11Y_TOGGLES = [['contrast', 'High-contrast HUD', 'Solid black panels, white text and outlines.'], ['calm', 'Reduce motion', 'A steadier camera, no flashes, gentler fades.'],
+  ['captions', 'Sound captions', 'Short captions for the Drift\'s music, monster wind-ups, the Blackout and chime notes.'], ['cues', 'Colour-blind cues', 'Shapes, patterns and labels wherever colour carries meaning.'],
+  ['toggleRun', 'Toggle run', 'Press the run key once to run and again to walk, instead of holding it.'], ['invertY', 'Invert camera up and down', 'Dragging up looks down.']];
+function a11ySave(){ try{ slotLs.set(A11Y_KEY, JSON.stringify({v:1, text:A11Y.text, contrast:A11Y.contrast, calm:A11Y.calm, captions:A11Y.captions, cues:A11Y.cues, toggleRun:A11Y.toggleRun, invertY:A11Y.invertY, keys:A11Y.keys})); }catch(e){} }
+function a11yApply(){ const b = document.body.classList; b.toggle('a11y-t1', A11Y.text === 1); b.toggle('a11y-t2', A11Y.text === 2); b.toggle('a11y-hc', A11Y.contrast); b.toggle('a11y-calm', A11Y.calm); b.toggle('a11y-cues', A11Y.cues);
+  if(!A11Y.toggleRun) A11Y.runLatch = false; if(!A11Y.captions){ const c = document.getElementById('caption'); if(c) c.textContent = ''; } }
+function a11ySet(k, v){
+  if(k === 'text'){ v = Math.floor(Number(v)); if(!(v >= 0 && v <= 2)) return {ok:false}; A11Y.text = v; }
+  else if(A11Y_TOGGLES.some(t => t[0] === k)) A11Y[k] = !!v; else return {ok:false, why:'No such setting.'};
+  a11ySave(); a11yApply(); if(!a11yEl.classList.contains('hidden')) renderA11y(); return {ok:true, k, v:A11Y[k]};
+}
+function a11yMsg(t){ $('#a11yMsg').textContent = t || ''; }
+function renderA11y(){
+  a11yEl.querySelectorAll('.a11y-text button').forEach(b => b.setAttribute('aria-pressed', String(+b.dataset.text === A11Y.text)));
+  const tg = $('#a11yToggles'); tg.textContent = '';
+  A11Y_TOGGLES.forEach(([k, name, desc]) => { const b = document.createElement('button'); b.className = 'ghost a11y-tog'; b.dataset.k = k; b.setAttribute('aria-pressed', String(A11Y[k]));
+    const l = document.createElement('span'); l.textContent = name; const s = document.createElement('small'); s.textContent = desc; l.appendChild(s); const st = document.createElement('b'); st.textContent = A11Y[k] ? 'On' : 'Off';
+    b.appendChild(l); b.appendChild(st); b.addEventListener('click', () => { a11ySet(k, !A11Y[k]); a11yMsg(name + (A11Y[k] ? ' on.' : ' off.')); const n = tg.querySelector('[data-k="' + k + '"]'); if(n) n.focus(); }); tg.appendChild(b); });
+  const kl = $('#a11yKeys'); kl.textContent = '';
+  KEY_ACTIONS.forEach(([a, name, d]) => { const b = document.createElement('button'); b.className = 'ghost' + (a11yListen === a ? ' listen' : ''); b.dataset.a = a;
+    const c = keyEff(a); b.setAttribute('aria-label', name + ': ' + keyName(c) + (c !== d ? ' (default ' + keyName(d) + ')' : '') + '. Press to change.');
+    const l = document.createElement('span'); l.textContent = name; const k = document.createElement('kbd'); k.textContent = a11yListen === a ? 'press a key…' : keyName(c) + (a === 'forward' || a === 'back' || a === 'left' || a === 'right' ? ' / arrow' : '');
+    b.appendChild(l); b.appendChild(k); b.addEventListener('click', () => { a11yListen = a; a11yMsg('Press the key for ' + name + ', or Esc to cancel.'); renderA11y(); const n = kl.querySelector('[data-a="' + a + '"]'); if(n) n.focus(); }); kl.appendChild(b); });
+}
+function openA11y(){ a11yListen = null; renderA11y(); a11yMsg(''); a11yEl.classList.remove('hidden'); $('#a11yClose').focus(); }
+function closeA11y(){ if(a11yEl.classList.contains('hidden')) return; a11yListen = null; a11yEl.classList.add('hidden'); const b = $('#a11yBtn'); if(b && !introEl.classList.contains('hidden')) b.focus(); }
+function a11yPanelKey(e){ if(a11yEl.classList.contains('hidden')) return false; if(e.code === 'Escape'){ e.preventDefault(); closeA11y(); } return true; }
+a11yEl.querySelectorAll('.a11y-text button').forEach(b => b.addEventListener('click', () => { a11ySet('text', +b.dataset.text); a11yMsg('Text size: ' + b.textContent + '.'); }));
+$('#a11yBtn').addEventListener('click', openA11y); $('#a11yClose').addEventListener('click', closeA11y);
+$('#a11yKeysReset').addEventListener('click', () => { keyReset(); a11yListen = null; renderA11y(); a11yMsg('All keys are back to their defaults.'); });
+// screen-reader names for the HUD buttons (the title says what each does) and the button row
+document.querySelectorAll('#corner .hbtn, #jumpBtn, #strikeBtn').forEach(b => { if(!b.getAttribute('aria-label')) b.setAttribute('aria-label', (b.title || b.textContent || '').trim()); });
+{ const r = document.querySelector('#corner .btns'); if(r){ r.setAttribute('role', 'toolbar'); r.setAttribute('aria-label', 'Game buttons'); } }
+keyClean(); keyRebuild(); a11yApply();
+Object.defineProperties(window.__hub, {
+  a11y:{get:() => ({
+    get state(){ return {text:A11Y.text, contrast:A11Y.contrast, calm:A11Y.calm, captions:A11Y.captions, cues:A11Y.cues, toggleRun:A11Y.toggleRun, invertY:A11Y.invertY, runLatch:A11Y.runLatch, keys:Object.assign({}, A11Y.keys), lastCaption:A11Y.lastCaption || null}; },
+    set:a11ySet, open:openA11y, close:closeA11y, saved:() => { try{ return JSON.parse(localStorage.getItem(A11Y_KEY)); }catch(e){ return 'unreadable'; } },
+    actions:() => KEY_ACTIONS.map(([a, name, d]) => ({a, name, def:d, key:keyEff(a)})), bind:keyBind, reset:keyReset, map:() => ({rev:Object.assign({}, KEYMAP.rev), orphan:Object.keys(KEYMAP.orphan)}),
+    caption:(t, ms) => caption(t, ms), captions:() => [...document.querySelectorAll('#caption div')].map(d => d.textContent),
+    // what each setting does right now, read from the page (for a tester)
+    effects:() => { const cs = s => { const el = document.querySelector(s); return el ? getComputedStyle(el) : null; }, b = document.body.classList;
+      return {bodyClass:[...b].filter(c => /^a11y/.test(c)), hudZoom:cs('#hud') && cs('#hud').zoom, toastZoom:cs('#toast') && cs('#toast').zoom, panelBg:cs('#hud .panel') && cs('#hud .panel').backgroundColor,
+        hurtFxDisplay:cs('#hurtFx') && cs('#hurtFx').display, cbxDisplay:(() => { const s = document.createElement('span'); s.className = 'cbx'; document.body.appendChild(s); const d = getComputedStyle(s).display; s.remove(); return d; })(),
+        hudLabels:[...document.querySelectorAll('#corner .hbtn')].filter(x => x.getAttribute('aria-label')).length + ' of ' + document.querySelectorAll('#corner .hbtn').length}; }
   })}
 });
 
