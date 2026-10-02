@@ -21750,14 +21750,14 @@ function parseQuest(text){
   if(!item) item = QW_REALM_ITEM[rk] || 'gem';
   let color = QW_ITEMS[item].col; for(const [c, re] of QW_COLOR_WORDS) if(has(re)){ color = c; break; }
   // how many
-  let count = 0; const nm = t.match(/\b(\d{1,3})\b(?!\s*(minutes?|mins?|seconds?|secs?|m\b|s\b))/);
-  if(nm) count = +nm[1]; else { const w = t.match(/\b(one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|dozen|pair|couple|few|handful)\b(?!\s*(minutes?|mins?|seconds?|secs?))/); if(w) count = QW_NUM[w[1]]; }
+  let count = 0; const nm = t.match(/\b(\d{1,3})\b(?![\s-]*(minutes?|mins?|seconds?|secs?|m\b|s\b))/);
+  if(nm) count = +nm[1]; else { const w = t.match(/\b(one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|dozen|pair|couple|few|handful)\b(?![\s-]*(minutes?|mins?|seconds?|secs?))/); if(w) count = QW_NUM[w[1]]; }
   if(!count) count = QW_COUNT[kind];
   if(count > 8) qwNote.push('A quest holds at most eight, so this one has eight.');
   count = clamp(Math.round(count), 1, 8);
   // difficulty, time
   const difficulty = has(/\b(calm|easy|gentle|relaxed|relaxing|cosy|cozy|little ones?|simple|peaceful|slow|quiet)\b/) ? 'calm' : has(/\b(hard|tricky|tough|difficult|expert|challenging|fiendish)\b/) ? 'hard' : 'normal';
-  let time = 0; const tm = t.match(/\b(\d+(?:\.\d+)?|one|two|three|four|five|six|seven|eight|nine|ten)\s*(minutes?|mins?|seconds?|secs?)\b/);
+  let time = 0; const tm = t.match(/\b(\d+(?:\.\d+)?|one|two|three|four|five|six|seven|eight|nine|ten)[\s-]*(minutes?|mins?|seconds?|secs?)\b/);
   if(tm){ const v = /^\d/.test(tm[1]) ? +tm[1] : QW_NUM[tm[1]]; time = /^(m)/.test(tm[2]) ? v * 60 : v; }
   else if(has(/\b(before (night|nightfall|dark|sunset|dusk|sundown|the bell|bedtime|dawn)|against the clock|timed|hurry|quick(ly)?|fast|in time)\b/) || ((kind === 'race' || kind === 'rings') && !has(/\b(no rush|no timer|untimed|take your time)\b/))) time = QW_AUTO_T[difficulty];
   if(has(/\b(no rush|no timer|untimed|take your time)\b/) && !tm) time = 0;
@@ -22052,7 +22052,7 @@ function qbPayClean(o){ o = o && typeof o === 'object' && !Array.isArray(o) ? o 
 function qbClean(o){
   o = o && typeof o === 'object' && !Array.isArray(o) ? o : {}; const list = [], seen = new Set();
   for(const e of Array.isArray(o.list) ? o.list.slice(0, 60) : []){
-    if(!e || typeof e !== 'object' || Array.isArray(e) || typeof e.id !== 'string' || !/^[a-z0-9]{4,16}$/.test(e.id) || seen.has(e.id)) continue;
+    if(!e || typeof e !== 'object' || Array.isArray(e) || typeof e.id !== 'string' || !/^[a-z0-9]{4,16}$/.test(e.id) || /^(__proto__|constructor|prototype)$/.test(e.id) || seen.has(e.id)) continue;
     const c = cleanQuest(e.rec, 'clean'); if(!c.ok) continue;
     const text = typeof e.text === 'string' ? scrubText(qwStrip(e.text)).slice(0, 240) : '';
     list.push({id:e.id, text, rec:c.rec, src:e.src === 'claude' || e.src === 'code' ? e.src : 'offline', made:clamp(Math.floor(num(e.made, 0)), 0, 1e14), plays:clamp(Math.floor(num(e.plays, 0)), 0, 1e6), wins:clamp(Math.floor(num(e.wins, 0)), 0, 1e6),
@@ -22064,8 +22064,9 @@ function qbClean(o){
 function qbLoad(){ let o = null; try{ const s = localStorage.getItem(QB_KEY); if(s) o = JSON.parse(s); }catch(e){} qb = qbClean(o); }
 function qbSave(){ if(!qb || !slotCanSave()) return; try{ localStorage.setItem(QB_KEY, JSON.stringify(qb)); }catch(e){} }
 qbLoad();
+function qwPayId(R){ return 'q' + strHash(JSON.stringify([R.kind, R.realm, R.count, R.time, R.difficulty, !!R.swim])).toString(36); }   /* what the quest asks of you, so a renamed or recoloured copy pays no more */
 function qwPay(R){
-  const P = qb.pay, today = qwDay(), id = qwId(R), rw = qwReward(R);
+  const P = qb.pay, today = qwDay(), id = qwPayId(R), rw = qwReward(R);
   if(P.day !== today){ P.day = today; P.n = 0; P.credits = 0; P.ids = []; }
   if(P.ids.indexOf(id) >= 0) return {credits:0, xp:0, why:'This quest already paid today. Play it again tomorrow for a reward.'};
   if(P.n >= QW_DAY.wins || P.credits >= QW_DAY.credits) return {credits:0, xp:0, why:'That is all the quest rewards for today. Quests still count; rewards come back tomorrow.'};
@@ -22138,6 +22139,7 @@ function qwWhyNot(R){
   if(state.world === 'ashfall') return 'Ashfall is closed to player-made quests.';
   if(R.realm !== 'here' && R.realm !== state.world) return 'This quest is set in ' + (WORLDS[R.realm] ? WORLDS[R.realm].name : 'another realm') + '. Warp there first (' + keyName(keyEff('map')) + '), then press Play.';
   if(traveling || zeroing) return 'Wait until you have arrived.';
+  if(ph.on) return 'Leave photo mode first.';
   if(pocketIn()) return 'Step back out into the open first.';
   if(trial.active || (qa && qa.inside) || rally.open || starling.open || gate1.open || bc.on) return 'Finish what you are doing first.';
   return '';
@@ -22227,7 +22229,7 @@ Object.assign(QW_HOOKS, {
         else if(S.kind === 'defend'){ let bd = 1e9; S.live.forEach(w => { const d = Math.hypot(w.x - p.x, w.z - p.z); if(d < bd){ bd = d; tx = w.x; tz = w.z; } }); }
         else if(S.kind === 'escort'){ const s = S.pts[S.i]; if(s && Math.hypot(p.x - S.light.x, p.z - S.light.z) < 8){ tx = s.x; tz = s.z; } }
         else { const s = S.pts[S.i]; if(s){ tx = s.x; tz = s.z; } } }
-      if(tx != null){ const dx = tx - p.x, dz = tz - p.z, d = Math.hypot(dx, dz), m = Math.min(d, sp * dt); p.x += dx / d * m; p.z += dz / d * m; const s = (S.pts || []).find(q => Math.hypot(q.x - p.x, q.z - p.z) < 0.01); p.y = Math.max(G(p.x, p.z), s ? s.g : -1e9); p.vy = 0; }
+      if(tx != null){ const dx = tx - p.x, dz = tz - p.z, d = Math.hypot(dx, dz), m = Math.min(d, sp * dt); if(d > 1e-6){ p.x += dx / d * m; p.z += dz / d * m; } const s = (S.pts || []).find(q => Math.hypot(q.x - p.x, q.z - p.z) < 0.01); p.y = Math.max(G(p.x, p.z), s ? s.g : -1e9); p.vy = 0; }
       update(dt, k * dt);
     }
     renderer.setAnimationLoop(frame); return {steps:k, running:!!qwRun, last:qwLast, t:+S.t.toFixed(1), got:S.got}; }
