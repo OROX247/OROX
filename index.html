@@ -3831,7 +3831,8 @@ function merge(geos){
    renderOrder, draw ranges, hidden things, meshes with children, and anything o.keep(obj) pins, with everything under it (things that move,
    flicker, are picked, LOD-switched or held by reference elsewhere). Collision never comes from meshes (colliders, boxes and platforms are
    data), so it is untouched. o.cell (metres): props are also split by the square cell their centre is in, so frustum culling still works.
-   o.same: materials that are equal in every property (a fresh glowM per prop) count as one. o.byParent: merge only among siblings, into
+   o.same: materials that are equal in every property (a fresh glowM per prop) count as one, except shared kit materials and o.own (photo slots),
+   which something may change later on their own. o.byParent: merge only among siblings, into
    their own parent (avatars: each bone keeps moving its own parts). LineSegments merge too (same rules, no shadows).
    Built with Math.random pointed at its own rng (three.js draws it for every uuid), so the locals' wander and every other draw stay put.
    `bakeOn = false` (__hub.bake = false, then rebuild the realm or the avatar) turns all of it off for tests. */
@@ -3883,7 +3884,7 @@ function bakeStatic(root, o){
   return bakeQuiet(() => {
     root.updateMatrixWorld(true);
     const inv = new THREE.Matrix4().copy(root.matrixWorld).invert(), bins = new Map(), mats = [], M = new THREE.Matrix4(), c = new V3(), keep = o.keep || (() => false);
-    const canon = m => { if(!o.same) return m; for(const k of mats) if(bakeSameMat(k, m)) return k; mats.push(m); return m; };
+    const canon = m => { if(!o.same || m.userData.shared || (o.own && o.own.has(m))) return m; for(const k of mats) if(bakeSameMat(k, m)) return k; mats.push(m); return m; };
     const walk = (n, pinned) => {
       for(const ch of n.children.slice()){
         if(n === root && o.only && !o.only.has(ch)) continue;
@@ -3930,9 +3931,10 @@ function bakePins(){
 var BAKE_REALMS = {grid:{cell:48}};
 function bakeRealm(key, from){
   const R = BAKE_REALMS[key]; if(!bakeOn || !R || !world) return 0;
-  const pins = bakePins(), keep = o => pins.has(o);
-  let n = bakeStatic(world, {only:new Set(from), cell:R.cell, same:true, keep});
-  if(key === 'grid' && drift) n += bakeStatic(drift.g, {same:true, keep});   // The Drift's walls, rim, bands, ribs and porch (not the floor, ball, specks or the sinking panel)
+  const pins = bakePins(), keep = o => pins.has(o), own = new Set();   // own: materials the photo slots may swap later keep their own identity
+  for(const k in slotMats) slotMats[k].forEach(e => own.add(e.mat));
+  let n = bakeStatic(world, {only:new Set(from), cell:R.cell, same:true, keep, own});
+  if(key === 'grid' && drift) n += bakeStatic(drift.g, {same:true, keep, own});   // The Drift's walls, rim, bands, ribs and porch (not the floor, ball, specks or the sinking panel)
   return n;
 }
 function capsule(r1, r2, len, seg){
