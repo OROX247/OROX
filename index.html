@@ -9292,7 +9292,7 @@ function renderVend(){
   VEND.forEach(v => {
     const d = ITEMS[v.id], r = RARITY[d.rarity], n = state.inv[v.id] || 0, b = document.createElement('button');
     b.className = 'inv-row'; b.style.setProperty('--r', r.col); b.dataset.id = v.id;
-    b.innerHTML = '<i class="ico ' + d.shape + '" style="--c:' + hexStr(d.col) + '"></i><span class="nm">' + esc(d.name) + (n ? ' <span class="rar">in bag: ' + n + '</span>' : '') + '<small>' + esc(d.desc) + '</small></span><span class="val">Buy <b>₵ ' + v.price + '</b></span>';
+    b.innerHTML = '<i class="ico ' + d.shape + '" style="--c:' + hexStr(d.col) + '"></i><span class="nm"><span class="rar cbx">' + r.name + '</span>' + esc(d.name) + (n ? ' <span class="rar">in bag: ' + n + '</span>' : '') + '<small>' + esc(d.desc) + '</small></span><span class="val">Buy <b>₵ ' + v.price + '</b></span>';
     b.addEventListener('click', () => buyVend(v.id)); list.appendChild(b);
   });
 }
@@ -10246,7 +10246,7 @@ function drawMap(){
   mx2.fillStyle = 'rgba(255,255,255,0.14)'; platforms.forEach(s => { o = T(s.x, s.z); mx2.beginPath(); mx2.arc(o[0], o[1], s.r * sc, 0, TAU); mx2.fill(); });
   portals.forEach(q => { o = T(q.x, q.z); mx2.strokeStyle = hexStr(PORTAL_COLORS[q.to]); mx2.lineWidth = 2.5; mx2.beginPath(); mx2.arc(o[0], o[1], 2.2 * sc, 0, TAU); mx2.stroke(); });
   mx2.fillStyle = '#ffd166'; coins.forEach(k => { o = T(k.g.position.x, k.g.position.z); mx2.beginPath(); mx2.arc(o[0], o[1], Math.max(2, 0.6 * sc), 0, TAU); mx2.fill(); });
-  pickups.forEach(q => { o = T(q.x, q.z); mx2.fillStyle = RARITY[ITEMS[q.id].rarity].col; mx2.beginPath(); mx2.arc(o[0], o[1], Math.max(2.5, 0.6 * sc), 0, TAU); mx2.fill(); });
+  pickups.forEach(q => { o = T(q.x, q.z); mx2.fillStyle = RARITY[ITEMS[q.id].rarity].col; if(A11Y.cues){ cbMark(mx2, o[0], o[1], Math.max(3, 0.75 * sc), ITEMS[q.id].rarity); return; } mx2.beginPath(); mx2.arc(o[0], o[1], Math.max(2.5, 0.6 * sc), 0, TAU); mx2.fill(); });   // Phase 4: a shape per rarity with colour-blind cues
   mx2.fillStyle = 'rgba(255,255,255,0.75)'; npcs.forEach(nn => { o = T(nn.x, nn.z); mx2.beginPath(); mx2.arc(o[0], o[1], Math.max(2, 0.5 * sc), 0, TAU); mx2.fill(); });
   const star = (x, z, col) => { o = T(x, z); mx2.fillStyle = col; mx2.beginPath(); mx2.moveTo(o[0], o[1] - 7); mx2.lineTo(o[0] + 5, o[1]); mx2.lineTo(o[0], o[1] + 7); mx2.lineTo(o[0] - 5, o[1]); mx2.fill(); };
   if(shardObj) star(shardObj.m.position.x, shardObj.m.position.z, hexStr(SHARD_COLORS[shardObj.id]));
@@ -10256,7 +10256,8 @@ function drawMap(){
   if(bike.g && !bike.riding){ o = T(bike.x, bike.z); mx2.fillStyle = '#5ce1e6'; mx2.beginPath(); mx2.arc(o[0], o[1], 3.5, 0, TAU); mx2.fill(); }
   if(trial.padPos){ o = T(trial.padPos.x, trial.padPos.z); mx2.strokeStyle = '#ffd166'; mx2.lineWidth = 2; mx2.beginPath(); mx2.arc(o[0], o[1], 4, 0, TAU); mx2.stroke(); }
   if(trial.active && trial.rings[trial.idx]){ const rg = trial.rings[trial.idx]; o = T(rg.x, rg.z); mx2.strokeStyle = '#9dff6a'; mx2.lineWidth = 2; mx2.beginPath(); mx2.arc(o[0], o[1], 5, 0, TAU); mx2.stroke(); }
-  hazards.forEach(hz => { o = T(hz.x, hz.z); mx2.strokeStyle = 'rgba(255,45,85,0.85)'; mx2.lineWidth = 1.5; mx2.beginPath(); mx2.arc(o[0], o[1], hz.L * sc, 0, TAU); mx2.stroke(); });
+  hazards.forEach(hz => { o = T(hz.x, hz.z); mx2.strokeStyle = 'rgba(255,45,85,0.85)'; mx2.lineWidth = 1.5; if(A11Y.cues) mx2.setLineDash([3, 3]); mx2.beginPath(); mx2.arc(o[0], o[1], hz.L * sc, 0, TAU); mx2.stroke(); mx2.setLineDash([]);
+    if(A11Y.cues){ mx2.fillStyle = '#fff'; mx2.font = 'bold 11px sans-serif'; mx2.textAlign = 'center'; mx2.textBaseline = 'middle'; mx2.fillText('!', o[0], o[1]); } });   // Phase 4: hazards dashed and marked ! with colour-blind cues
   bundles.forEach(bb => { if(bb.world === state.world) star(bb.x, bb.z, '#ff9f1c'); });
   if(endless) for(const ch of endless.chunks.values()){ const d = ch.dream; if(d && d.x != null) star(d.x, d.z, d.found ? 'rgba(177,140,255,0.45)' : '#b18cff'); }   // landmarks nearby: violet, faded once found
   const tip = T(p.x + Math.sin(p.facing) * 2.4, p.z + Math.cos(p.facing) * 2.4), ang = Math.atan2(tip[1] - c, tip[0] - c);
@@ -12677,7 +12678,9 @@ function monBarUpdate(dt){
 }
 function monMap(T, sc){
   if(!mon || pocketIn()) return;
-  for(const m of mon.live){ if(m.mode === 'dying') continue; const o = T(m.x, m.z); mx2.fillStyle = m.D.unit && !m.hostile ? '#b9b4d6' : m.hostile ? (m.mode === 'chase' || m.mode === 'wind' ? '#ff3b4e' : m.D.unit ? '#c9a6ff' : '#ff8a5c') : '#cfe8ff'; mx2.beginPath(); mx2.arc(o[0], o[1], Math.max(2.5, 0.7 * sc), 0, TAU); mx2.fill(); }
+  for(const m of mon.live){ if(m.mode === 'dying') continue; const o = T(m.x, m.z); mx2.fillStyle = m.D.unit && !m.hostile ? '#b9b4d6' : m.hostile ? (m.mode === 'chase' || m.mode === 'wind' ? '#ff3b4e' : m.D.unit ? '#c9a6ff' : '#ff8a5c') : '#cfe8ff';
+    if(A11Y.cues){ cbMark(mx2, o[0], o[1], Math.max(3.2, 0.85 * sc), m.hostile ? 'triangle' : m.D.unit ? 'square' : 'circle', m.hostile && (m.mode === 'chase' || m.mode === 'wind')); continue; }   // Phase 4: colour-blind cues
+    mx2.beginPath(); mx2.arc(o[0], o[1], Math.max(2.5, 0.7 * sc), 0, TAU); mx2.fill(); }
   for(const dr of mon.drops){ const o = T(dr.x, dr.z); mx2.fillStyle = '#ffd166'; mx2.fillRect(o[0] - 2, o[1] - 2, 4, 4); }
 }
 
@@ -17803,7 +17806,7 @@ QM.swim = {
     return log;
   },
   summary(S){ return {rings:S.next, of:SWIM.rings.length, passes:S.passes.slice()}; },
-  hud(S){ return '<b>Glowwater Ring Swim</b> Ring ' + Math.min(S.next + 1, SWIM.rings.length) + ' / ' + SWIM.rings.length + (S.state === 'won' ? ' · all through!' : ' · swim through the gold ring') + ' · ' + Math.max(0, SWIM.limit - S.t).toFixed(0) + ' s'; },
+  hud(S){ return '<b>Glowwater Ring Swim</b> Ring ' + Math.min(S.next + 1, SWIM.rings.length) + ' / ' + SWIM.rings.length + (S.state === 'won' ? ' · all through!' : A11Y.cues ? ' · swim through ring ' + (S.next + 1) + ' (marked NEXT)' : ' · swim through the gold ring') + ' · ' + Math.max(0, SWIM.limit - S.t).toFixed(0) + ' s'; },
   react(o, e, S){
     if(e.indexOf('ring:') === 0){ const k = +e.split(':')[1]; if(snd.ctx && snd.on) try{ const t = snd.ctx.currentTime; slPan(523.25 * Math.pow(2, [0, 2, 4, 5, 7, 9, 12][k] / 12), t, 0.06, 0.8); }catch(err){} if(S.state === 'run') toast('Ring ' + (k + 1) + '. On to ring ' + (k + 2) + '.', 1500); } },
   build(o){
@@ -17838,6 +17841,7 @@ QM.swim = {
   visual(o, dt, time){ const S = o.S; if(!S) return;
     o.rings.forEach((r, k) => { const done = k < S.next, cur = k === S.next && S.state === 'run', col = cur ? 0xffc84a : done ? 0x3a8890 : 0x5fd8e8;
       r.m.color.setHex(col); r.m.emissive.setHex(col); r.m.emissiveIntensity = cur ? 1.3 + 0.6 * Math.sin(time * 5) : done ? 0.25 : 0.6; r.gl.material.color.setHex(col); r.gl.material.opacity = cur ? 0.55 : done ? 0.08 : 0.22; r.t.scale.setScalar(cur ? 1 + 0.04 * Math.sin(time * 5) : 1); });
+    if(A11Y.cues && S.state === 'run' && o.rings[S.next]){ const t = o.rings[S.next].t; if(!o.cbNext){ o.cbNext = label('NEXT', {small:true}); t.parent.add(o.cbNext); } o.cbNext.visible = true; o.cbNext.position.set(t.position.x, t.position.y + SWIM.ring + 0.9, t.position.z); } else if(o.cbNext) o.cbNext.visible = false;   // Phase 4: colour-blind cues
   }
 };
 // on the beach west of the bar, facing the boardwalk
@@ -19318,7 +19322,7 @@ function denDrop(){ const M = denRT && denRT.mode; if(!M || !M.hold) return; con
 // the held piece's state through the real rule
 function denHeld(){ const H = denRT && denRT.mode && denRT.mode.hold; if(!H) return null; const c = denCheck(denStore.placed, H.e, H.idx, {player:denPlayerAt()}); return {id:H.id, idx:H.idx, e:Object.assign({}, H.e), ok:c.ok, why:c.why || ''}; }
 function denGhost(){ const H = denRT.mode && denRT.mode.hold; if(!H) return; denPose(H.ghost, H.e); const ok = denCheck(denStore.placed, H.e, H.idx, {player:denPlayerAt()}).ok, G0 = denGhostMats();
-  H.ghost.traverse(m => { if(m.isMesh && m.visible) m.material = m.name === 'foot' ? (ok ? G0.okF : G0.badF) : (ok ? G0.ok : G0.bad); }); H.ok = ok; denBar(); }
+  H.ghost.traverse(m => { if(m.isMesh && m.visible) m.material = m.name === 'foot' ? (ok ? G0.okF : A11Y.cues ? denCbMats().badF : G0.badF) : (ok ? G0.ok : A11Y.cues ? denCbMats().bad : G0.bad); });   /* Phase 4: a hatched ghost where it will not fit (colour-blind cues) */ H.ok = ok; denBar(); }
 function denNudge(dx, dz){ const H = denRT.mode && denRT.mode.hold; if(!H) return; const D = DECOR[H.id];
   if(D.kind === 'wall'){ const w = DEN_WALLS[H.e.wall], hw = H.e.r ? D.d : D.w, hh = H.e.r ? D.w : D.d, s = H.e.wall === 'east' ? 1 : -1; H.e.a = clamp(H.e.a + dx * s, 0, w - hw); H.e.b = clamp(H.e.b + dz, 0, DEN_NV - hh); }
   else { const fx = -Math.sin(cam.yaw), fz = -Math.cos(cam.yaw), ax = Math.abs(fx) > Math.abs(fz), f = ax ? [Math.sign(fx), 0] : [0, Math.sign(fz)], rgt = [-f[1], f[0]];
@@ -19359,7 +19363,7 @@ function denPieceAt(cx, cy){
 }
 function denBar(){
   if(!denRT || !denRT.mode) return; const H = denRT.mode.hold, t = document.getElementById('denBarText');
-  t.innerHTML = H ? '<b>' + esc(DECOR[H.id].name) + '</b> ' + (H.ok ? '<span class="ok">fits here</span>' : '<span class="no">' + esc(denCheck(denStore.placed, H.e, H.idx, {player:denPlayerAt()}).why || '') + '</span>') + '<small>' + (COARSE ? 'Tap where it goes · Turn · Place' : 'Mouse or arrows to move · R or wheel turns' + (DECOR[H.id].kind === 'wall' ? ' · Tab: next wall' : '') + ' · click or Enter places · Del stores · Esc cancels') + '</small>'
+  t.innerHTML = H ? '<b>' + esc(DECOR[H.id].name) + '</b> ' + (H.ok ? '<span class="ok"><span class="cbx">✓ </span>fits here</span>' : '<span class="no"><span class="cbx">✗ </span>' + esc(denCheck(denStore.placed, H.e, H.idx, {player:denPlayerAt()}).why || '') + '</span>') + '<small>' + (COARSE ? 'Tap where it goes · Turn · Place' : 'Mouse or arrows to move · R or wheel turns' + (DECOR[H.id].kind === 'wall' ? ' · Tab: next wall' : '') + ' · click or Enter places · Del stores · Esc cancels') + '</small>'
     : '<b>Decorating</b> <small>' + (COARSE ? 'Tap a piece to move it, or open Storage.' : 'Click a piece to pick it up, or open Storage (' + denStore.placed.length + ' placed). P or Done when finished.') + '</small>';
   ['denTurn', 'denPlace', 'denStoreBtn', 'denCancel'].forEach(id => { document.getElementById(id).style.display = H ? '' : 'none'; });
   document.getElementById('denStorage').style.display = H ? 'none' : ''; document.getElementById('denPlace').disabled = !(H && H.ok);
@@ -19816,6 +19820,26 @@ Object.defineProperties(window.__hub, {
         hudLabels:[...document.querySelectorAll('#corner .hbtn')].filter(x => x.getAttribute('aria-label')).length + ' of ' + document.querySelectorAll('#corner .hbtn').length}; }
   })}
 });
+
+// colour-blind cues (Phase 4, A11Y.cues): a shape for every colour that carries meaning on the minimap (rarity: circle, square, diamond,
+// triangle, star; monsters: triangle hostile, square watching Unit, circle wildlife, a white edge while one hunts you), a hatched ghost in the
+// Den where a piece will not fit, a NEXT tag over the next ring, and labels in panels (the .cbx spans)
+function cbMark(x, cx, cy, r, kind, edge){
+  const sh = kind === 'uncommon' ? 'square' : kind === 'rare' ? 'diamond' : kind === 'epic' ? 'triangle' : kind === 'artifact' ? 'star' : kind === 'common' ? 'circle' : kind;
+  x.beginPath();
+  if(sh === 'square') x.rect(cx - r * 0.85, cy - r * 0.85, r * 1.7, r * 1.7);
+  else if(sh === 'diamond'){ x.moveTo(cx, cy - r * 1.2); x.lineTo(cx + r, cy); x.lineTo(cx, cy + r * 1.2); x.lineTo(cx - r, cy); x.closePath(); }
+  else if(sh === 'triangle'){ x.moveTo(cx, cy - r * 1.2); x.lineTo(cx + r * 1.1, cy + r * 0.9); x.lineTo(cx - r * 1.1, cy + r * 0.9); x.closePath(); }
+  else if(sh === 'star'){ for(let i = 0; i < 10; i++){ const a = -Math.PI / 2 + i * Math.PI / 5, q = i % 2 ? r * 0.5 : r * 1.3; if(i) x.lineTo(cx + Math.cos(a) * q, cy + Math.sin(a) * q); else x.moveTo(cx + Math.cos(a) * q, cy + Math.sin(a) * q); } x.closePath(); }
+  else x.arc(cx, cy, r, 0, TAU);
+  x.fill(); if(edge){ x.strokeStyle = '#fff'; x.lineWidth = 1.5; x.stroke(); }
+}
+var cbStripeTex = null, denCbM = null;
+function cbStripes(){ if(!cbStripeTex){ const c = document.createElement('canvas'); c.width = c.height = 64; const x = c.getContext('2d'); x.fillStyle = '#fff';
+  for(let i = -64; i < 128; i += 16){ x.beginPath(); x.moveTo(i, 0); x.lineTo(i + 8, 0); x.lineTo(i + 8 - 64, 64); x.lineTo(i - 64, 64); x.closePath(); x.fill(); }
+  cbStripeTex = new THREE.CanvasTexture(c); cbStripeTex.wrapS = cbStripeTex.wrapT = THREE.RepeatWrapping; } return cbStripeTex; }
+function denCbMats(){ if(!denCbM) denCbM = {bad:new THREE.MeshBasicMaterial({color:C(0xff5a5a), map:cbStripes(), transparent:true, opacity:0.8, alphaTest:0.3, depthWrite:false}),
+  badF:new THREE.MeshBasicMaterial({color:C(0xff5a5a), map:cbStripes(), transparent:true, opacity:0.55, alphaTest:0.3, depthWrite:false, side:THREE.DoubleSide})}; return denCbM; }
 
 })();
 </script>
