@@ -20484,6 +20484,110 @@ var STEP_SAMPLES = {
   saltlark:[[0, -8, 'wood'], [-22, 40, 'wood'], [0, 30, 'water'], [-22, 93, 'stone']],
   fennick:[[0, 0, 'stone'], [52, 60, 'wood'], [-10, 60, 'mud'], [0, -30, 'stone'], [300, -300, 'grass']]
 };
+/* ---- Phase 4 part 3: spaces. Pockets (the Den, the Hollow, the hallway behind The Drift, the quest arenas) and a few interiors (the Archive, the
+   Campus hall and gym, The Drift, the Saltbox Arcade) each have a row in SPACES: how much of the outside you still hear and how muffled
+   (out, lp), a reverb (a ConvolverNode on a generated impulse response, verb seconds, wet send) and an optional bed of their own. Moving between
+   spaces glides all of it; the reverb is disconnected outdoors so it costs nothing there. Impulse responses are made a slice per tick. ---- */
+var SPACES = {
+  outside:{verb:0, out:1, lp:18000},
+  den:{verb:'S', wet:0.22, out:0.3, lp:650, bed:'room'},
+  hollow:{verb:'L', wet:0.42, out:0.03, lp:250, bed:'cave'},
+  corr:{verb:'M', wet:0.3, out:0, lp:300, bed:'hall'},
+  arena:{verb:'M', wet:0.28, out:0, lp:400, bed:'room'},
+  arenaOpen:{verb:0, out:0.8, lp:18000},
+  grotto:{verb:'L', wet:0.38, out:0.05, lp:300, bed:'cave'},
+  archive:{verb:'M', wet:0.28, out:0.35, lp:800, bed:'room'},
+  hall:{verb:'M', wet:0.26, out:0.35, lp:900, bed:'room'},
+  gym:{verb:'M', wet:0.24, out:0.4, lp:800},
+  drift:{verb:'S', wet:0.2, out:0.3, lp:700},
+  arcade:{verb:'S', wet:0.18, out:0.4, lp:900, bed:'room'}
+};
+var POCKET_BEDS = {
+  room:[{n:'room-tone', src:'brown', ft:'lowpass', f:[140, 220], g:[0.03, 0.05], every:[8, 16]}],
+  cave:[{n:'cave-air', src:'brown', ft:'lowpass', f:[90, 150], g:[0.05, 0.08], every:[6, 12]}, {n:'draught', src:'pink', ft:'bandpass', f:[220, 420], q:2, g:[0.003, 0.01], every:[3, 8], gust:0.2, rich:true}],
+  hall:[{n:'mains', osc:[50, 100], type:'sine', ft:'lowpass', f:[160, 240], g:[0.006, 0.012], every:[5, 10]}, {n:'room-tone', src:'brown', ft:'lowpass', f:[120, 180], g:[0.02, 0.035], every:[8, 14]}]
+};
+var sndSp = {id:'outside', bed:null, verbKey:null, wantWet:0, connected:false, offT:0, changes:0, log:[], warm:false, warming:false, todo:[], irMs:0};
+function sndSpaceNow(){
+  const pk = sndPocket(), w = state.world, x = p.x, z = p.z;
+  if(pk === 'qa') return w === 'sky' ? 'arenaOpen' : w === 'saltlark' ? 'grotto' : 'arena';
+  if(pk) return pk;
+  if(w === 'hub' && x > ARCHIVE.x0 && x < ARCHIVE.x1 && z > ARCHIVE.z0 && z < ARCHIVE.z1) return 'archive';
+  if(w === 'campus'){ const H = CAMPUS.hall; if(x > H.x0 && x < H.x1 && z > H.z0 && z < H.z1) return 'hall'; if(gym && Math.hypot(x - gym.x, z - gym.z) < gym.r) return 'gym'; }
+  if(w === 'grid' && drift && Math.hypot(x - drift.x, z - drift.z) < drift.r) return 'drift';
+  if(w === 'fennick' && fbIndoors()) return 'arcade';
+  return 'outside';
+}
+// the reverb: in -> one convolver per room size -> out -> master. Effects (footsteps included) and a pocket's bed feed it; the input is only
+// connected while a space wants it. Each convolver gets its buffer in idle time, because Chrome prepares the kernels on the main thread then.
+var sndConvs = {};
+function sndVerbInit(){
+  if(snd.verbIn) return; const c = snd.ctx; snd.verbIn = c.createGain(); snd.verbIn.gain.value = 0; snd.conv = null; snd.verbOut = c.createGain(); snd.verbOut.gain.value = 1;
+  snd.verbOut.connect(snd.master); snd.fx.connect(snd.verbIn); snd.indoor.connect(snd.verbIn);
+}
+var sndIRs = {}, SND_IR = {S:1.0, M:1.8, L:3.0};   // three room sizes (seconds); Battery saver uses S everywhere
+// an impulse response: decaying, darkening stereo noise with a few early reflections. All three are made at the first sound tick in small slices
+// from requestIdleCallback (about 2 ms each, never inside a frame's own work), so entering a room never costs a long frame
+function sndIRJob(key){ const c = snd.ctx, n = Math.floor(c.sampleRate * SND_IR[key]); return {key, n, i:0, b:c.createBuffer(2, n, c.sampleRate), r:[rng(strHash('ir:' + key)), rng(strHash('ir2:' + key))], lp:[0, 0]}; }
+function sndIRStep(job, budgetMs){
+  const c = snd.ctx, sr = c.sampleRate, n = job.n, t0 = performance.now();
+  while(job.i < n){ const end = Math.min(n, job.i + 4096);
+    for(let ch = 0; ch < 2; ch++){ const d = job.b.getChannelData(ch), r = job.r[ch]; let lp = job.lp[ch];
+      for(let i = job.i; i < end; i++){ const u = i / n, w = r() * 2 - 1; lp += (w - lp) * (0.2 + 0.7 * (1 - u)); d[i] = lp * Math.pow(1 - u, 2.4) * Math.min(1, i / (sr * 0.003)); }
+      job.lp[ch] = lp; }
+    job.i = end; if(performance.now() - t0 > budgetMs) break; }
+  if(job.i >= n){ for(let ch = 0; ch < 2; ch++){ const d = job.b.getChannelData(ch), r = job.r[ch]; for(let k = 0; k < 6; k++){ const at = Math.floor(sr * (0.006 + r() * 0.04)); if(at < n) d[at] += (r() < 0.5 ? -1 : 1) * (0.5 - k * 0.06); } }
+    sndIRs[job.key] = job.b; return true; }
+  return false;
+}
+function sndIRWarm(keys){
+  sndVerbInit(); const todo = sndSp.todo; keys.forEach(k => { if(!sndConvs[k] && todo.indexOf(k) < 0) todo.push(k); }); if(sndSp.warming || !todo.length) return; sndSp.warming = true;
+  const ric = window.requestIdleCallback ? f => requestIdleCallback(f, {timeout:400}) : f => setTimeout(() => f(null), 60);
+  let J = null; const step = dl => { const ms = dl && dl.timeRemaining ? Math.max(1, Math.min(4, dl.timeRemaining() - 1)) : 2, t0 = performance.now();
+    if(!J){ const k = todo[0]; J = sndIRs[k] ? {key:k, done:true} : sndIRJob(k); }
+    if(!J.done){ if(sndIRStep(J, ms)) J.done = true; }
+    else { const cv = snd.ctx.createConvolver(); cv.buffer = sndIRs[J.key]; cv.connect(snd.verbOut); sndConvs[J.key] = cv; todo.shift(); const k = J.key; J = null;   // the kernel is prepared here, in idle time
+      if(k === sndSp.verbKey && sndSp.wantWet) sndVerbSet(snd.ctx.currentTime); }
+    sndSp.irMs += performance.now() - t0; if(todo.length) ric(step); else sndSp.warming = false; };
+  ric(step);
+}
+function sndVerbTick(t){
+  if(!sndSp.wantWet && sndSp.connected && snd.conv && t > sndSp.offT){ try{ snd.verbIn.disconnect(snd.conv); }catch(e){} sndSp.connected = false; }   // outdoors: no convolver gets any input
+}
+function sndVerbSet(t){
+  const cv = sndConvs[sndSp.verbKey]; if(!cv) return;
+  if(snd.conv !== cv){ if(snd.conv && sndSp.connected){ try{ snd.verbIn.disconnect(snd.conv); }catch(e){} } snd.conv = cv; sndSp.connected = false; }
+  if(!sndSp.connected){ snd.verbIn.connect(cv); sndSp.connected = true; }
+  snd.verbIn.gain.setTargetAtTime(sndSp.wantWet, t + 0.05, 0.4);
+}
+function sndSpaceTo(id, t){
+  const S = SPACES[id] || SPACES.outside, saver = sndSaver(), c = snd.ctx; sndVerbInit();
+  sndSp.log.push({from:sndSp.id, to:id, at:+t.toFixed(2)}); if(sndSp.log.length > 30) sndSp.log.shift();
+  sndSp.id = id; sndSp.changes++;
+  snd.out.gain.setTargetAtTime(S.out, t, 0.45); snd.outLP.frequency.setTargetAtTime(S.lp, t, 0.35);
+  // reverb: fade the send out first, swap the impulse once it is silent, fade back in
+  const key = S.verb ? (saver ? 'S' : S.verb) : null;
+  sndSp.wantWet = key ? S.wet * (saver ? 0.8 : 1) : 0; snd.verbIn.gain.setTargetAtTime(0, t, 0.08);
+  if(key){ sndSp.verbKey = key;
+    if(sndConvs[key]){ if(snd.conv && snd.conv !== sndConvs[key] && sndSp.connected) setTimeout(() => { if(sndSp.verbKey === key && sndSp.wantWet) sndVerbSet(snd.ctx.currentTime); }, 300); else sndVerbSet(t); }
+    else sndIRWarm([key]); }   /* sndIRWarm connects it when it is made */
+  else sndSp.offT = t + 1.5;
+  // the pocket's own bed
+  const old = sndSp.bed; if(old){ sndSp.bed = null; old.gain.gain.setTargetAtTime(0, t, 0.3); setTimeout(() => old.nodes.forEach(n => { try{ n.stop ? n.stop() : n.disconnect(); }catch(e){} }), 1600); }
+  if(S.bed && POCKET_BEDS[S.bed] && snd.scene){ const g = c.createGain(); g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(1, t + 1.2); g.connect(snd.indoor); g._opt = true;
+    const B = {id, kind:S.bed, gain:g, nodes:[g], drift:[], next:t + 2};
+    POCKET_BEDS[S.bed].forEach(L => { if(L.rich && saver) return; sndLayer(snd.scene, L, {dest:g, nodes:B.nodes, drift:B.drift}); });
+    sndSp.bed = B; }
+}
+function sndSpaceTick(sc, t){
+  if(!sndSp.warm){ sndSp.warm = true; sndIRWarm(sndSaver() ? ['S'] : ['S', 'M', 'L']); }
+  const id = sndSpaceNow(); if(id !== sndSp.id) sndSpaceTo(id, t);
+  sndVerbTick(t);
+  const B = sndSp.bed; if(!B) return;
+  B.drift.forEach(lay => { if(t >= lay.next) sndDrift(sc, lay); });
+  if(B.kind === 'cave' && t >= B.next){ B.next = t + 1.2 + sc.r() * 3.5; const a = sc.r() * TAU, d = 2 + sc.r() * 7; sndSpot(sc, 'drip', p.x + Math.cos(a) * d, p.y + 2 + sc.r() * 2, p.z + Math.sin(a) * d, {ref:3, range:14, dest:B.gain}); }
+  else if(B.kind === 'room' && t >= B.next){ B.next = t + 14 + sc.r() * 30; const a = sc.r() * TAU; sndSpot(sc, 'creak', p.x + Math.cos(a) * 4, p.y + 1, p.z + Math.sin(a) * 4, {ref:3, range:14, dest:B.gain, lvl:0.4}); }
+}
 // test hooks (a tester can check all of this headless within minutes; see LESSONS)
 var SND_HOOKS = {
   init(){ audioInit(); return !!snd.ctx; },
@@ -20518,6 +20622,9 @@ var SND_HOOKS = {
   surfaceScan(cx, cz, half, stepM){ const out = {}; half = half || 60; stepM = stepM || 3; for(let x = -half; x <= half; x += stepM) for(let z = -half; z <= half; z += stepM){ const s = sndSurface((cx || 0) + x, (cz || 0) + z, null, {outside:true}); out[s] = (out[s] || 0) + 1; } return out; },
   steps(){ return {n:stepStats.n, by:Object.assign({}, stepStats.by), last:stepStats.last}; },
   stepNow(){ if(!snd.ctx) return null; stepSound(); return stepStats.last; },
+  space(){ const B = sndSp.bed; return {id:sndSp.id, now:sndSpaceNow(), out:snd.out ? +snd.out.gain.value.toFixed(3) : null, lp:snd.outLP ? Math.round(snd.outLP.frequency.value) : null,
+    verb:{key:sndSp.verbKey || null, wet:snd.verbIn ? +snd.verbIn.gain.value.toFixed(3) : 0, want:sndSp.wantWet, connected:sndSp.connected, irSeconds:snd.conv && snd.conv.buffer ? +snd.conv.buffer.duration.toFixed(2) : 0, made:Object.keys(sndConvs), idleMs:+sndSp.irMs.toFixed(1)},
+    bed:B ? {kind:B.kind, nodes:B.nodes.length, gain:+B.gain.gain.value.toFixed(3)} : null, changes:sndSp.changes, log:sndSp.log.slice(-8)}; },
   // RMS level (dBFS) of the whole mix over ~ms, from an AnalyserNode tapped off the master (made on first use, removed after)
   level(ms){ return new Promise(res => { if(!snd.ctx) return res(null); const a = snd.ctx.createAnalyser(); a.fftSize = 2048; snd.master.connect(a); const buf = new Float32Array(a.fftSize); let sum = 0, n = 0, peak = 0;
     const end = performance.now() + (ms || 500), take = () => { a.getFloatTimeDomainData(buf); for(let i = 0; i < buf.length; i++){ sum += buf[i] * buf[i]; if(Math.abs(buf[i]) > peak) peak = Math.abs(buf[i]); } n += buf.length;
