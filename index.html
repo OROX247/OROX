@@ -7959,6 +7959,7 @@ function coreSum(detail){
   if(mon && mon.root) skip.add(mon.root);   // Goal 16: monsters move (and their loot comes and goes)
   if(qwRun && qwRun.g) skip.add(qwRun.g);   /* the Questwright: a player-made quest is added after the core and taken away again */
   if(cult && cult.g) skip.add(cult.g);   /* Hub's own culture: the posters are added after the core */
+  if(life && life.g) skip.add(life.g);   /* ambient life moves and is added after the core */
   if(trial.pad) skip.add(trial.pad); trial.rings.forEach(rg => { if(rg.g) skip.add(rg.g); if(rg.m) skip.add(rg.m); });
   if(detail){ const list = []; sumObject(world, skip, list); return list; }
   return {world:sumObject(world, skip), terrain:mainTerrain ? hashNums(2166136261, mainTerrain.geometry.attributes.position.array, 7).toString(16) : null, centre:mainTerrain ? [mainTerrain.userData.terrain.cx, mainTerrain.userData.terrain.cz] : null};
@@ -8613,10 +8614,12 @@ function buildWorld(key){
   merBuild(key);   // Goal 18: Meridian's dome and pylons on Ashfall (no colliders, no rng; before monBuild so the Units keep clear of the glass)
   monBuild(key);   // Goal 16: the realm's monsters come last of all: their own rng, no colliders, nothing above moves
   camTopsFlush(true);   // the round colliders' heights for the camera, read from the props built on them (before the bake merges those props)
+  lifePrep(key);   /* ambient life: reads where the lights and the free ledges are (before the bake; it places nothing and draws no rng) */
   bakeRealm(key, bakeFrom);   // fewer draw calls: the core's static props merged per material, once everything is placed (no rng, nothing moves)
   bundles.forEach(b => { b.g = null; if(b.world === key) addBundleMesh(b); });
   if(ENDLESS[key] && !W.custom) startBuiltin(key);   // no boundaries (Goal 8a): the land goes on past the hand-made core
   camTopsFlush();   // and the far props that became solid just now
+  lifeBuild(key);   /* ambient life is built last of all: its own rng, no colliders, coreSum skips it */
   applyPhotos(key); autoReal(key);
   if(typeof aiPrompt === 'function') aiPrompt();
   $('#worldName').textContent = W.name;
@@ -13666,6 +13669,7 @@ function update(dt, time){
   portalCool -= dt;
   if(playing && portalCool <= 0 && !traveling && !zeroing && !pocketIn()) for(const q of portals){ if(Math.hypot(p.x - q.x, p.z - q.z) < 1.6 && p.y - G(p.x, p.z) < 2){ travel(q.to); break; } }
   wfTick(dt, time);   // the Wayfarer follows you (after the camera, so it can step out of its way)
+  lifeStep(dt);   /* ambient life: moths, sprites, kites, lizards, pigeons and gulls */
   qwTick(dt, time);   // a quest of the player's own (the Questwright), stepped with the real player
 }
 
@@ -21235,6 +21239,292 @@ var SND_HOOKS = {
 Object.defineProperties(window.__hub, {sound:{value:SND_HOOKS}});
 Object.defineProperties(window.__hub, {saveFile:{value:(f, d, m) => saveFile(f, d, m)}, saveFileLast:{get:() => dlCap.last && Object.assign({}, dlCap.last)}, saveFileReset:{value:() => { dlCap.tried = false; dlCap.dl = null; dlCap.last = null; }}});   // the shared file saver (tests: inject window.claude.use('downloads'), then saveFileReset)
 
+
+/* ================= ambient life: small creatures that make the realms feel lived in (blueprint 11 "Wonder", 11a) =================
+   Night Grove: moths round the glowing mushrooms. Neon Grid: data-sprites, little faceted lights that drift in schools. Sky Isles: big birds
+   circling on the thermals over the isles. Glass Dunes: sand lizards that sun themselves and dart off when you come close. Lampblack:
+   pigeons on the ledges, Fennick Bay and Saltlark: gulls on the quay and the posts; they scatter when you walk up and come back once you
+   have gone. Ashfall has none (nothing lives in the ash, before or after the Blackout); the Spaceport and the Campus keep their flocks.
+   Every kind is one InstancedMesh (the Grid's sprites add one Points for their halos): no shadows, no SSAO, no colliders, no camera solids,
+   not in pockets. Wings flap and tails wiggle in the vertex shader. Built last of all with Math.random pointed at its own rng; coreSum
+   skips it, so nothing in any realm moves. Battery saver shows half of them; Reduce motion slows them down. __hub.life for tests. */
+var life = null, lifeOn = true, lifePrepped = null, LIFE_T = {value:0}, lifeR = Math.random;
+var LIFE_RNG_SEED = 7171;
+const LIFE_KEYS = {grove:1, grid:1, sky:1, dunes:1, lampblack:1, fennick:1, saltlark:1};
+// geometry: parts tagged with a colour (or a colour function of the vertex), a part (0 always, 1 only when sitting, 2 only when flying)
+// and a wing weight (how far that vertex moves with the flap or the wiggle)
+function lifeGeo(parts){
+  let vc = 0, ic = 0; parts.forEach(q => { const g = q.g; vc += g.attributes.position.count; ic += g.index ? g.index.count : g.attributes.position.count; });
+  const pos = new Float32Array(vc * 3), nor = new Float32Array(vc * 3), col = new Float32Array(vc * 3), wing = new Float32Array(vc), part = new Float32Array(vc), idx = new Uint32Array(ic), c = new THREE.Color();
+  let vo = 0, io = 0;
+  parts.forEach(q => { const g = q.g; if(!g.attributes.normal) g.computeVertexNormals(); const P = g.attributes.position, N = g.attributes.normal;
+    for(let i = 0; i < P.count; i++){ const x = P.getX(i), y = P.getY(i), z = P.getZ(i), k = vo + i; pos[k * 3] = x; pos[k * 3 + 1] = y; pos[k * 3 + 2] = z; nor[k * 3] = N.getX(i); nor[k * 3 + 1] = N.getY(i); nor[k * 3 + 2] = N.getZ(i);
+      c.copy(C(typeof q.hex === 'function' ? q.hex(x, y, z) : q.hex)); col[k * 3] = c.r; col[k * 3 + 1] = c.g; col[k * 3 + 2] = c.b;
+      wing[k] = q.w ? (typeof q.w === 'function' ? q.w(x, y, z) : q.w) : 0; part[k] = q.part || 0; }
+    if(g.index) for(let i = 0; i < g.index.count; i++) idx[io++] = g.index.array[i] + vo; else for(let i = 0; i < P.count; i++) idx[io++] = i + vo;
+    vo += P.count; g.dispose(); });
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos, 3)); g.setAttribute('normal', new THREE.BufferAttribute(nor, 3));
+  g.setAttribute('color', new THREE.BufferAttribute(col, 3)); g.setAttribute('aWing', new THREE.BufferAttribute(wing, 1)); g.setAttribute('aPart', new THREE.BufferAttribute(part, 1)); g.setIndex(new THREE.BufferAttribute(idx, 1));
+  return g;
+}
+const lifeEll = (rx, ry, rz, x, y, z, rotx, ws, hs) => geoAt(new THREE.SphereGeometry(1, ws || 16, hs || 12), x, y, z, rx, ry, rz, rotx || 0);
+// a flat wing (or fin) from an outline in (span, back) metres, laid flat on y, mirrored for the left side
+function lifeWing(pts, side, x0, y0, z0){
+  const sh = new THREE.Shape(); pts.forEach(([a, b], i) => i ? sh.lineTo(a, b) : sh.moveTo(a, b));
+  const g = new THREE.ShapeGeometry(sh, 6); g.rotateX(Math.PI / 2);   // shape y -> +z (back of the wing towards -z below)
+  g.scale(side, 1, -1); g.translate(x0 * side, y0, z0); return g;
+}
+const lifeLerpHex = (a, b, t) => '#' + new THREE.Color(a).lerp(new THREE.Color(b), Math.max(0, Math.min(1, t))).getHexString();
+// a perching bird (pigeon or gull): a round body, a head with an eye and a beak, a tail, folded wings and legs when sitting, open wings when flying
+function lifeBirdGeo(K){
+  const s = K.s, parts = [], B = (g, hex, part, w) => parts.push({g, hex, part:part || 0, w});
+  B(lifeEll(0.085 * s, 0.08 * s, 0.145 * s, 0, 0.125 * s, 0, -0.28, 14, 10), (x, y, z) => y < 0.1 * s && z > -0.02 * s ? K.breast : K.body);
+  B(lifeEll(0.055 * s, 0.062 * s, 0.055 * s, 0, 0.18 * s, 0.075 * s, 0, 10, 7), K.neck);
+  B(lifeEll(0.047 * s, 0.047 * s, 0.052 * s, 0, 0.222 * s, 0.108 * s, 0, 12, 9), K.head);
+  B(geoAt(new THREE.ConeGeometry(0.012 * s, 0.04 * s * K.beakL, 8), 0, 0.212 * s, 0.17 * s + 0.02 * s * (K.beakL - 1), 1, 1, 1, Math.PI / 2), K.beak);
+  [-1, 1].forEach(e => B(lifeEll(0.0095 * s, 0.0095 * s, 0.006 * s, e * 0.034 * s, 0.232 * s, 0.13 * s, 0, 6, 4), K.eye));
+  B(geoAt(new THREE.BoxGeometry(0.075 * s, 0.014 * s, 0.13 * s), 0, 0.1 * s, -0.175 * s, 1, 1, 1, -0.3), (x, y, z) => z < -0.21 * s ? K.tip : K.tail);
+  [-1, 1].forEach(e => B(geoAt(new THREE.SphereGeometry(1, 10, 8), e * 0.06 * s, 0.145 * s, -0.05 * s, 0.024 * s, 0.05 * s, 0.155 * s, -0.25, e * 0.12), (x, y, z) => z < -0.15 * s ? K.tip : (Math.abs(z + 0.03 * s) < 0.012 * s || Math.abs(z + 0.07 * s) < 0.01 * s) ? K.bar : K.wing, 1));
+  [-1, 1].forEach(e => B(geoAt(new THREE.CylinderGeometry(0.0065 * s, 0.006 * s, 0.075 * s, 6), e * 0.026 * s, 0.035 * s, 0.01 * s), K.leg, 1));
+  const L = K.wingL * s, ch = 0.13 * s;
+  [-1, 1].forEach(e => B(lifeWing([[0, 0], [L * 0.45, -0.01 * s], [L * 0.85, 0.01 * s], [L, 0.04 * s], [L * 0.92, 0.075 * s], [L * 0.6, ch * 0.85], [L * 0.25, ch * 1.05], [0, ch]], e, 0.045 * s, 0.15 * s, 0.05 * s),
+    x => Math.abs(x) > 0.045 * s + L * 0.72 ? K.tip : K.wing, 2, x => Math.pow(Math.max(0, Math.abs(x) - 0.045 * s) / L, 1.25)));
+  return lifeGeo(parts);
+}
+const LIFE_BIRDS = {
+  pigeon:{s:1, wingL:0.3, beakL:0.9, body:0x7b7f8b, breast:0x8a8291, neck:0x4f7d72, head:0x5a5e6c, beak:0x2c2a2e, eye:0xd8761e, tail:0x5d6170, tip:0x2b2d34, wing:0x8e929d, bar:0x2e3038, leg:0xb5525a, flap:[0.075, 15]},
+  gull:{s:1.5, wingL:0.42, beakL:1.25, body:0xf3f3ef, breast:0xffffff, neck:0xf6f6f2, head:0xfafaf6, beak:0xe7b437, eye:0xe8d27a, tail:0xf0f0ec, tip:0x1e1f24, wing:0xa8b0b9, bar:0xa8b0b9, leg:0xd49784, flap:[0.12, 8.5]}
+};
+// a moth: a furry body, feathered antennae, broad forewings and rounded hindwings with an eyespot (always flying)
+function lifeMothGeo(){
+  const parts = [], B = (g, hex, part, w) => parts.push({g, hex, part:part || 0, w});
+  B(lifeEll(0.011, 0.011, 0.034, 0, 0, -0.006, 0, 10, 6), (x, y, z) => z < -0.02 ? 0x7a6a56 : 0xb7a68c);
+  B(lifeEll(0.01, 0.01, 0.01, 0, 0.002, 0.03, 0, 8, 6), 0x9b8a72);
+  [-1, 1].forEach(e => B(geoAt(new THREE.ConeGeometry(0.0035, 0.032, 5), e * 0.008, 0.012, 0.048, 1, 1, 1, 1.1, 0, -e * 0.45), 0x8a7a64));
+  const eye = (x, z, cx, cz, r) => Math.hypot(Math.abs(x) - cx, z - cz) < r;
+  [-1, 1].forEach(e => {
+    B(lifeWing([[0, 0], [0.03, -0.012], [0.062, -0.006], [0.066, 0.008], [0.05, 0.026], [0.02, 0.03], [0, 0.022]], e, 0.008, 0.004, 0.022),
+      (x, y, z) => eye(x, z, 0.044, 0.006, 0.009) ? 0x3a2c22 : Math.abs(x) > 0.058 ? 0x9e8d74 : 0xd6c8ad, 2, x => Math.min(1, Math.max(0, Math.abs(x) - 0.008) / 0.06));
+    B(lifeWing([[0, 0], [0.034, 0.004], [0.046, 0.022], [0.036, 0.042], [0.014, 0.046], [0, 0.03]], e, 0.006, 0.001, 0.004),
+      (x, y, z) => eye(x, z, 0.03, -0.026, 0.008) ? 0x2c2018 : eye(x, z, 0.03, -0.026, 0.012) ? 0xe7b25a : 0xc4b59a, 2, x => Math.min(1, Math.max(0, Math.abs(x) - 0.006) / 0.05) * 0.85);
+  });
+  return lifeGeo(parts);
+}
+// a soaring bird of the isles: long fingered wings and a fanned tail (always flying, mostly gliding)
+function lifeKiteGeo(){
+  const parts = [], B = (g, hex, part, w) => parts.push({g, hex, part:part || 0, w});
+  B(lifeEll(0.075, 0.07, 0.25, 0, 0, 0, 0, 16, 12), (x, y, z) => y < -0.02 ? 0xc9b493 : 0x6a4a31);
+  B(lifeEll(0.055, 0.055, 0.065, 0, 0.02, 0.25, 0, 14, 10), 0xd8cbb0);
+  B(geoAt(new THREE.ConeGeometry(0.018, 0.06, 8), 0, 0.01, 0.33, 1, 1, 1, Math.PI / 2), 0xe2b23c);
+  B(lifeWing([[-0.04, 0], [0.04, 0], [0.11, 0.2], [0.04, 0.24], [-0.04, 0.24], [-0.11, 0.2]], 1, 0, 0.01, -0.2), (x, y, z) => z < -0.4 ? 0x3a2a1c : 0x7c5636);   // the fanned tail, one piece across
+  const L = 0.78;
+  [-1, 1].forEach(e => B(lifeWing([[0, 0], [L * 0.5, -0.03], [L * 0.86, 0.0], [L, 0.05], [L * 0.97, 0.09], [L * 0.99, 0.12], [L * 0.93, 0.14], [L * 0.94, 0.17], [L * 0.86, 0.19], [L * 0.6, 0.24], [L * 0.25, 0.27], [0, 0.24]], e, 0.06, 0.02, 0.12),
+    (x, y, z) => Math.abs(x) > 0.06 + L * 0.82 ? 0x221a14 : z < 0.0 ? 0x5b3f2a : 0x7b5739, 2, x => Math.pow(Math.max(0, Math.abs(x) - 0.06) / L, 1.4)));
+  return lifeGeo(parts);
+}
+// a sand lizard: body, head, a long tail, four splayed legs; the wiggle runs down its spine
+function lifeLizardGeo(){
+  const parts = [], back = (x, y, z) => Math.sin(z * 70) > 0.55 && y > 0.02 ? 0x8a6a3e : y < 0.012 ? 0xe2cfa4 : 0xc7a467, B = (g, hex, w) => parts.push({g, hex, part:0, w});
+  B(lifeEll(0.032, 0.02, 0.085, 0, 0.022, 0, 0, 12, 8), back, z => 0);
+  B(lifeEll(0.022, 0.015, 0.034, 0, 0.026, 0.1, 0.12, 10, 7), back, 0.3);
+  [-1, 1].forEach(e => B(lifeEll(0.0045, 0.0045, 0.003, e * 0.018, 0.033, 0.112, 0, 6, 5), 0x1a1410, 0.3));
+  B(geoAt(new THREE.ConeGeometry(0.017, 0.2, 10, 4), 0, 0.016, -0.18, 1, 1, 1, -Math.PI / 2), back, (x, y, z) => Math.min(1.6, Math.max(0, -z - 0.06) * 7));
+  [[1, 0.045], [-1, 0.045], [1, -0.05], [-1, -0.05]].forEach(([e, z]) => B(geoAt(new THREE.CylinderGeometry(0.006, 0.005, 0.05, 6), e * 0.038, 0.012, z, 1, 1, 1, 0, 0, e * 1.25), 0xb69257, 0.2));
+  return lifeGeo(parts);
+}
+// the shared material: lit like everything else (fog, shadows received, environment), double-sided wings lit from above on both faces;
+// per instance iFl = (flap amount, flap rate, phase, 0 sitting / 1 flying)
+function lifeMat(o){
+  const m = std(0xffffff, {vertexColors:true, roughness:o.rough || 0.85, side:THREE.DoubleSide, emissive:C(o.em || 0)});
+  m.onBeforeCompile = sh => {
+    sh.uniforms.lifeT = LIFE_T;
+    sh.vertexShader = 'uniform float lifeT; attribute float aWing; attribute float aPart; attribute vec4 iFl;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n' +
+      ' if((aPart > 0.5 && aPart < 1.5 && iFl.w > 0.5) || (aPart > 1.5 && iFl.w < 0.5)) transformed = vec3(0.0);\n' +
+      (o.wiggle ? ' transformed.x += sin(transformed.z * 26.0 - lifeT * iFl.y + iFl.z) * iFl.x * aWing;\n'
+        : ' float lf = sin(lifeT * iFl.y + iFl.z); transformed.y += lf * iFl.x * aWing;' + (o.fold ? ' transformed.x *= 1.0 - ' + o.fold.toFixed(2) + ' * abs(lf) * aWing;' : '') + '\n'));
+    sh.fragmentShader = sh.fragmentShader.replace('#include <normal_fragment_begin>', 'float faceDirection = gl_FrontFacing ? 1.0 : - 1.0; vec3 normal = normalize( vNormal ); vec3 geometryNormal = normal;');
+    if(o.selfLit) sh.fragmentShader = sh.fragmentShader.replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n totalEmissiveRadiance += diffuseColor.rgb * ' + o.selfLit.toFixed(2) + ';');   // lit by the glow it circles
+  };
+  m.customProgramCacheKey = () => 'life' + (o.wiggle ? 'w' : 'f') + (o.fold || 0) + (o.selfLit || 0);
+  return m;
+}
+function lifeMesh(geo, mat, n){
+  const fl = new THREE.InstancedBufferAttribute(new Float32Array(n * 4), 4); fl.setUsage(THREE.DynamicDrawUsage); geo.setAttribute('iFl', fl);
+  const m = new THREE.InstancedMesh(geo, mat, n); m.instanceMatrix.setUsage(THREE.DynamicDrawUsage); m.castShadow = false; m.receiveShadow = true; m.frustumCulled = false; m.userData.noAO = true;
+  life.g.add(m); return m;
+}
+// read-only, before the bake merges the props: where the glowing lights are (moths) and which ledges are free and flat (perching birds)
+function lifePrep(key){
+  lifePrepped = null; if(!LIFE_KEYS[key] || !world || WORLDS[key].custom) return;
+  const out = {key, lights:[], perches:[]};
+  if(key === 'grove') world.traverse(o => { if(o.isSprite && o.material.map === glowTex && Math.hypot(o.position.x, o.position.z) < 58 && o.position.y - G(o.position.x, o.position.z) < 6) out.lights.push([o.position.x, o.position.y, o.position.z, o.material.color.getHex()]); });
+  if(key === 'lampblack' || key === 'fennick' || key === 'saltlark'){
+    const skip = new Set(); [lb, fb, sl].forEach(R => { if(R && R.skip && state.world === key) R.skip.forEach(o => skip.add(o)); });
+    npcs.forEach(n => skip.add(n.av.g)); coins.forEach(c => skip.add(c.g)); flyers.forEach(f => skip.add(f.m)); ships.forEach(s => skip.add(s.g)); portals.forEach(q => skip.add(q.g)); if(mon && mon.root) skip.add(mon.root); if(cult && cult.g) skip.add(cult.g);
+    const solid = [], bb = new THREE.Box3(), mw = new THREE.Matrix4(); world.updateMatrixWorld(true);
+    world.traverse(o => { if(!o.isMesh || o === mainTerrain || (o.isInstancedMesh && o.count > 400)) return; const M = o.material; if(!M || Array.isArray(M) || M.transparent || M.alphaTest > 0 || M.wireframe) return;
+      for(let s = o; s; s = s.parent) if(skip.has(s)) return;
+      if(!o.geometry.boundingBox) o.geometry.computeBoundingBox(); const box = new THREE.Box3();
+      if(o.isInstancedMesh) for(let i = 0; i < o.count; i++){ o.getMatrixAt(i, mw); mw.premultiply(o.matrixWorld); box.union(bb.copy(o.geometry.boundingBox).applyMatrix4(mw)); }
+      else box.copy(o.geometry.boundingBox).applyMatrix4(o.matrixWorld);
+      solid.push({o, box}); });   // world-space boxes, so each ray only meets the few meshes under it
+    const ray = new THREE.Raycaster(), dn = new V3(0, -1, 0), nm = new THREE.Matrix3(), nv = new V3(), cand = [], near = [], rq = rng(LIFE_RNG_SEED + 5), maxR = key === 'fennick' ? 120 : 75;
+    const minH = key === "lampblack" ? 1.6 : 0.5, okAt = (x, z, top) => { const g0 = G(x, z); return top - g0 >= minH && top - g0 <= 13 && Math.hypot(x, z) <= maxR && !portals.some(q => Math.hypot(q.x - x, q.z - z) < 6); };
+    const tryAt = (x, z, top) => { if(!okAt(x, z, top)) return null;
+      near.length = 0; for(const e of solid){ const B = e.box; if(x >= B.min.x && x <= B.max.x && z >= B.min.z && z <= B.max.z && B.max.y >= top - 0.5 && B.min.y <= top + 2.5) near.push(e.o); }
+      if(!near.length) return null;
+      ray.set(new V3(x, top + 2.5, z), dn); ray.far = 3.2; const h = ray.intersectObjects(near, false)[0]; if(!h || !h.face || Math.abs(h.point.y - top) > 0.45) return null;
+      nm.getNormalMatrix(h.object.matrixWorld); nv.copy(h.face.normal).applyMatrix3(nm).normalize(); if(nv.y < 0.82) return null;
+      return [x, h.point.y, z]; };
+    const edges = [];   // every long top edge of a box, and the top of every thin post, tried in an order of the life's own rng until there are enough
+    boxes.forEach(b => { if(b.hollow || b.den || b.cam === false || b.y1 - b.y0 < 0.6 || !okAt(b.x, b.z, b.y1)) return; const len = Math.max(b.hx, b.hz) - 0.3; if(len < 0.25) return;
+      (b.hx > b.hz ? [[0, b.hz - 0.12, 1, 0], [0, -b.hz + 0.12, 1, 0]] : [[b.hx - 0.12, 0, 0, 1], [-b.hx + 0.12, 0, 0, 1]]).forEach(e => edges.push({b, e, len})); });
+    colliders.forEach(c => { if(c.r <= 0.45 && c.ht != null && okAt(c.x, c.z, c.ht)) edges.push({c}); });
+    for(let i = edges.length - 1; i > 0; i--){ const j = Math.floor(rq() * (i + 1)); [edges[i], edges[j]] = [edges[j], edges[i]]; }
+    let rays = 0; const tryN = (x, z, top) => { rays++; return tryAt(x, z, top); };
+    for(let n = 0; n < edges.length && rays < 420 && cand.length < 40; n++){ const E = edges[n];
+      if(E.c){ const q = tryN(E.c.x, E.c.z, E.c.ht); if(q) cand.push([q.concat([0])]); continue; }
+      const {b, len} = E, [lx0, lz0, ux, uz] = E.e, row = [], m0 = Math.min(len, 1.5) * (rq() * 2 - 1), st = Math.max(-len, m0 - 0.84), end = Math.min(len, m0 + 0.84);
+      { const x = b.x + (lx0 + ux * m0) * b.c - (lz0 + uz * m0) * b.s, z = b.z + (lx0 + ux * m0) * b.s + (lz0 + uz * m0) * b.c; if(!tryN(x, z, b.y1)) continue; }   // the middle first: most edges are under a roof or a sill
+      for(let t = st; t <= end + 1e-6; t += 0.42){ const lx = lx0 + ux * t, lz = lz0 + uz * t, x = b.x + lx * b.c - lz * b.s, z = b.z + lx * b.s + lz * b.c, q = tryN(x, z, b.y1); if(q) row.push(q.concat([Math.atan2(ux * b.c - uz * b.s, ux * b.s + uz * b.c)])); }
+      if(row.length) cand.push(row); }
+    out.perches = cand; out.rays = rays;
+  }
+  lifePrepped = out;
+}
+function lifeBuild(key){
+  life = null; const P = lifePrepped; lifePrepped = null; if(!LIFE_KEYS[key] || !world || WORLDS[key].custom) return;
+  const mr = Math.random, q = rng(LIFE_RNG_SEED + key.length * 31 + key.charCodeAt(0)); Math.random = rng(LIFE_RNG_SEED);
+  try{
+    const g = new THREE.Group(); g.name = 'life'; world.add(g);
+    life = {g, key, t:0, kinds:[]}; lifeR = rng(LIFE_RNG_SEED + 99);
+    const K = life.kinds;
+    if(key === 'grove' && P && P.lights.length){   // moths: a few to every glowing light, in loose wobbling loops round it
+      const L = P.lights.slice().sort((a, b) => Math.hypot(a[0], a[2]) - Math.hypot(b[0], b[2])).slice(0, 12), n = L.length * 4, m = lifeMesh(lifeMothGeo(), lifeMat({rough:0.95, fold:0.45, selfLit:0.32}), n);
+      const mem = []; for(let i = 0; i < n; i++){ const l = L[i % L.length]; mem.push({l, a:q() * TAU, r:0.35 + q() * 0.75, w:(1.6 + q() * 1.8) * (q() < 0.5 ? -1 : 1), y:-0.4 + q() * 0.9, ph:q() * TAU, s:1.1 + q() * 0.6, k:2 + q() * 2}); }
+      K.push({kind:'moth', m, mem, step:lifeMoths});
+      const tint = new THREE.Color(); mem.forEach((b, i) => { m.geometry.attributes.iFl.setXYZW(i, 0.03, 34 + q() * 10, q() * TAU, 1); m.setColorAt(i, tint.setRGB(1, 1, 1).lerp(new THREE.Color(b.l[3]), 0.55)); });
+    }
+    if(key === 'grid'){   // data-sprites: faceted lights in small schools that wander the plaza, each with a soft halo
+      const n = 30, oct = new THREE.OctahedronGeometry(1, 0).toNonIndexed(), pa = oct.attributes.position, cl = new Float32Array(pa.count * 3);
+      oct.computeVertexNormals(); const nn = oct.attributes.normal; for(let i = 0; i < pa.count; i++){ const v = 0.55 + 0.45 * Math.max(0, nn.getY(i)) + 0.2 * Math.max(0, nn.getX(i)); cl.set([v, v, v], i * 3); }
+      oct.setAttribute('color', new THREE.BufferAttribute(cl, 3)); oct.scale(0.06, 0.12, 0.06);
+      const core = new THREE.InstancedMesh(oct, new THREE.MeshBasicMaterial({color:new THREE.Color(2.2, 2.2, 2.2), vertexColors:true}), n); core.frustumCulled = false; core.userData.noAO = true; core.instanceMatrix.setUsage(THREE.DynamicDrawUsage); g.add(core);
+      const hp = new Float32Array(n * 3), hc = new Float32Array(n * 3), hs = new Float32Array(n), hg = new THREE.BufferGeometry(); hg.setAttribute('position', new THREE.BufferAttribute(hp, 3)); hg.setAttribute('color', new THREE.BufferAttribute(hc, 3)); hg.setAttribute('aSize', new THREE.BufferAttribute(hs, 1));
+      const halo = new THREE.Points(hg, new THREE.ShaderMaterial({uniforms:{uH:{value:540}, fogD:{value:0}}, transparent:true, depthWrite:false, blending:THREE.AdditiveBlending,
+        vertexShader:'attribute vec3 color; attribute float aSize; uniform float uH, fogD; varying vec3 vC; varying float vF; void main(){ vec4 mv = modelViewMatrix * vec4(position, 1.0); gl_Position = projectionMatrix * mv; gl_PointSize = min(256.0, aSize * projectionMatrix[1][1] * uH * 0.5 / max(0.05, -mv.z)); float d = length(mv.xyz); vF = exp(-fogD * fogD * d * d); vC = color; }',
+        fragmentShader:'varying vec3 vC; varying float vF; void main(){ vec2 q = gl_PointCoord * 2.0 - 1.0; float r = dot(q, q); if(r > 1.0) discard; float a = exp(-r * 5.0) * (1.0 - r) * 0.55 + exp(-r * 40.0) * 0.5; gl_FragColor = vec4(vC * a * vF, 1.0); }'}));
+      halo.frustumCulled = false; halo.userData.noAO = true; g.add(halo);
+      const cols = [0x5ce1e6, 0xff4fa3, 0x5ce1e6, 0xb58cff], mem = [], schools = [];
+      for(let s = 0; s < 6; s++){ const a = s / 6 * TAU + q() * 0.6, d = 9 + q() * 26; schools.push({x:Math.cos(a) * d, z:Math.sin(a) * d, R:6 + q() * 8, wx:0.05 + q() * 0.05, wz:0.04 + q() * 0.05, ph:q() * TAU, h:1.3 + q() * 2.5, c:C(cols[s % cols.length])}); }
+      for(let i = 0; i < n; i++){ const S = schools[i % 6]; mem.push({S, a:q() * TAU, r:0.5 + q() * 1.3, w:(0.8 + q() * 1.2) * (q() < 0.5 ? -1 : 1), y:(q() - 0.5) * 1.2, ph:q() * TAU, spin:1.5 + q() * 2, s:0.8 + q() * 0.5}); hs[i] = 0.9 + q() * 0.5; }
+      K.push({kind:'sprite', m:core, halo, mem, step:lifeSprites});
+    }
+    if(key === 'sky'){   // birds of prey riding the thermals over the biggest isles
+      const pl = platforms.filter(s => s.r > 1.5 && Math.hypot(s.x, s.z) > 12).sort((a, b) => b.r - a.r).slice(0, 3), th = [{x:0, z:0, top:G(0, 0)}].concat(pl.map(s => ({x:s.x, z:s.z, top:s.top})));
+      for(let i = th.length; i < 4; i++) th.push({x:Math.cos(i * 2.1) * 38, z:Math.sin(i * 2.1) * 38, top:G(0, 0)}); const n = th.length * 3;
+      const m = lifeMesh(lifeKiteGeo(), lifeMat({rough:0.9}), n), mem = [];
+      for(let i = 0; i < n; i++){ const T = th[i % th.length]; mem.push({T, a:q() * TAU, r:10 + q() * 10, v:(6 + q() * 3) * (q() < 0.5 ? -1 : 1), h:T.top + 14 + q() * 10, hA:6 + q() * 8, hw:0.03 + q() * 0.04, ph:q() * TAU, s:0.9 + q() * 0.35});
+        m.geometry.attributes.iFl.setXYZW(i, 0, 5.5, q() * TAU, 1); }
+      K.push({kind:'kite', m, mem, step:lifeKites});
+    }
+    if(key === 'dunes'){   // sand lizards: sit, look about, dart a short way; run from you
+      const n = 22, m = lifeMesh(lifeLizardGeo(), lifeMat({rough:0.75, wiggle:true}), n), mem = [];
+      const sh = new THREE.InstancedMesh(new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({color:0x000000, map:glowTex, transparent:true, opacity:0.32, depthWrite:false, polygonOffset:true, polygonOffsetFactor:-2, polygonOffsetUnits:-4}), n);
+      sh.frustumCulled = false; sh.userData.noAO = true; sh.instanceMatrix.setUsage(THREE.DynamicDrawUsage); g.add(sh); m.castShadow = true;   // the sun is hard in the Dunes: a lizard throws its own shadow (and sits on a soft contact blob)
+      const free = (x, z) => !colliders.some(c => Math.hypot(c.x - x, c.z - z) < c.r + 0.3) && !boxes.some(b => boxHas(x, G(x, z) + 0.1, z, b, 0.3)) && !platforms.some(s => Math.hypot(s.x - x, s.z - z) < s.r + 0.3 && s.top > G(x, z) + 0.2) && !portals.some(p2 => Math.hypot(p2.x - x, p2.z - z) < 4);
+      for(let i = 0, tries = 0; i < n && tries < 400; tries++){ const a = q() * TAU, d = 6 + q() * 44, x = Math.cos(a) * d, z = Math.sin(a) * d; if(!free(x, z)) continue;
+        mem.push({hx:x, hz:z, x, z, x0:x, z0:z, x1:x, z1:z, yaw:q() * TAU, y0:0, y1:0, t:1, dur:0.3, wait:1 + q() * 5, s:1.1 + q() * 0.5, run:false}); i++; }
+      m.count = sh.count = mem.length; mem.forEach((b, i) => m.geometry.attributes.iFl.setXYZW(i, 0, 40, q() * TAU, 0));
+      K.push({kind:'lizard', m, sh, mem, step:lifeLizards, free});
+    }
+    if(P && P.perches.length){   // pigeons (Lampblack) and gulls (Fennick, Saltlark) on ledges and posts
+      const spec = LIFE_BIRDS[key === 'lampblack' ? 'pigeon' : 'gull'], rows = P.perches.slice(), mem = [], want = key === 'lampblack' ? 26 : 16, gap = key === 'lampblack' ? 0.42 : 0.84;
+      for(let i = rows.length - 1; i > 0; i--){ const j = Math.floor(q() * (i + 1)); [rows[i], rows[j]] = [rows[j], rows[i]]; }
+      const used = []; let flock = 0;
+      for(const row of rows){ if(mem.length >= want) break; const k = Math.min(row.length, 1 + Math.floor(q() * (key === 'lampblack' ? 5 : 3))), st = Math.floor(q() * Math.max(1, row.length - k + 1));
+        let any = false; for(let j = st; j < st + k && mem.length < want; j += (gap > 0.5 ? 2 : 1)){ const [x, y, z, ex] = row[j]; if(used.some(u => Math.hypot(u[0] - x, u[1] - z) < gap - 0.05)) continue; used.push([x, z]); any = true;
+          const face = ex + (q() < 0.5 ? Math.PI / 2 : -Math.PI / 2) + (q() - 0.5) * 0.8;
+          mem.push({x, y, z, flock, yaw:face, face, look:face, lookT:q() * 4, st:'sit', t:0, T:3.6 + q() * 1.2, dx:0, dz:1, away:0, hop:0, s:0.9 + q() * 0.25}); }
+        if(any) flock++; }
+      if(mem.length){ const m = lifeMesh(lifeBirdGeo(spec), lifeMat({rough:0.8}), mem.length); mem.forEach((b, i) => m.geometry.attributes.iFl.setXYZW(i, spec.flap[0], spec.flap[1], q() * TAU, 0));
+        K.push({kind:key === 'lampblack' ? 'pigeon' : 'gull', m, mem, spec, step:lifePerchers}); }
+    }
+    K.forEach(k => { k.n = k.mem.length; });
+    if(!K.length){ world.remove(g); life = null; return; }
+    lifeStep(0, true);
+  }finally{ Math.random = mr; }
+}
+const _lo = new THREE.Object3D();
+function lifeSet(k, i, x, y, z, yaw, pitch, roll, s){ _lo.position.set(x, y, z); _lo.rotation.set(pitch || 0, yaw || 0, roll || 0, 'YXZ'); _lo.scale.setScalar(s); _lo.updateMatrix(); k.m.setMatrixAt(i, _lo.matrix); }
+function lifeMoths(k, dt, t){
+  k.mem.forEach((b, i) => { if(i >= k.m.count) return; const l = b.l; b.a += dt * b.w * (0.7 + 0.5 * Math.sin(t * 1.3 + b.ph));
+    const r = b.r * (0.8 + 0.3 * Math.sin(t * 0.9 + b.ph * 3)), x = l[0] + Math.cos(b.a) * r + Math.sin(t * b.k + b.ph) * 0.12, z = l[2] + Math.sin(b.a) * r + Math.cos(t * b.k * 1.3 + b.ph) * 0.12, y = l[1] + b.y + Math.sin(t * b.k * 0.8 + b.ph) * 0.18;
+    lifeSet(k, i, x, y, z, Math.atan2(-Math.sin(b.a) * Math.sign(b.w), Math.cos(b.a) * Math.sign(b.w)), -0.25 + Math.sin(t * 3 + b.ph) * 0.2, -Math.sign(b.w) * 0.35, b.s); });
+}
+function lifeSprites(k, dt, t){
+  const hp = k.halo.geometry.attributes.position, hc = k.halo.geometry.attributes.color, c = new THREE.Color();
+  k.mem.forEach((b, i) => { const S = b.S, cx = S.x + Math.sin(t * S.wx + S.ph) * S.R, cz = S.z + Math.sin(t * S.wz * 1.37 + S.ph * 2) * S.R; b.a += dt * b.w;
+    const x = cx + Math.cos(b.a) * b.r, z = cz + Math.sin(b.a) * b.r, y = Math.max(0, G(x, z)) + S.h + b.y + Math.sin(t * 1.1 + b.ph) * 0.25, pulse = 0.75 + 0.25 * Math.sin(t * 2.3 + b.ph);
+    lifeSet(k, i, x, y, z, t * b.spin + b.ph, 0, 0, b.s); c.copy(S.c).multiplyScalar(pulse); k.m.setColorAt(i, c); hp.setXYZ(i, x, y, z); hc.setXYZ(i, c.r * 0.9, c.g * 0.9, c.b * 0.9); });
+  if(k.m.instanceColor) k.m.instanceColor.needsUpdate = true; hp.needsUpdate = true; hc.needsUpdate = true;
+  k.halo.geometry.setDrawRange(0, k.m.count);
+  const U = k.halo.material.uniforms; U.uH.value = renderer.getDrawingBufferSize(_lifeV2).y; U.fogD.value = scene.fog && scene.fog.density || 0;
+}
+const _lifeV2 = new V2();
+function lifeKites(k, dt, t){
+  const fl = k.m.geometry.attributes.iFl;
+  k.mem.forEach((b, i) => { b.a += dt * b.v / b.r; const T = b.T, x = T.x + Math.cos(b.a) * b.r, z = T.z + Math.sin(b.a) * b.r, y = b.h + Math.sin(t * b.hw + b.ph) * b.hA, sg = Math.sign(b.v);
+    const flap = Math.max(0, Math.sin(t * 0.21 + b.ph * 5) - 0.86) * 7; fl.setX(i, flap * 0.14);
+    lifeSet(k, i, x, y, z, Math.atan2(-Math.sin(b.a) * sg, Math.cos(b.a) * sg), Math.cos(t * b.hw + b.ph) * 0.08, sg * 0.38, b.s); });
+  fl.needsUpdate = true;
+}
+function lifeLizards(k, dt, t){
+  const fl = k.m.geometry.attributes.iFl;
+  k.mem.forEach((b, i) => { if(i >= k.m.count) return;
+    if(b.t < 1){ b.t = Math.min(1, b.t + dt / b.dur); const e = b.t * (2 - b.t); b.x = b.x0 + (b.x1 - b.x0) * e; b.z = b.z0 + (b.z1 - b.z0) * e; fl.setX(i, 0.012); }
+    else { fl.setX(i, 0); b.wait -= dt; const dp = Math.hypot(p.x - b.x, p.z - b.z), scared = dp < 3.4 && playing;
+      if(scared || b.wait <= 0){ let a = scared ? Math.atan2(b.z - p.z, b.x - p.x) + (lifeR() - 0.5) * 0.9 : lifeR() * TAU, d = scared ? 2.2 + lifeR() * 1.6 : 0.4 + lifeR() * 1.1;
+        if(!scared && Math.hypot(b.x - b.hx, b.z - b.hz) > 2.5) a = Math.atan2(b.hz - b.z, b.hx - b.x);
+        const x1 = b.x + Math.cos(a) * d, z1 = b.z + Math.sin(a) * d;
+        if(k.free(x1, z1)){ b.x0 = b.x; b.z0 = b.z; b.x1 = x1; b.z1 = z1; b.t = 0; b.dur = d / (scared ? 5.5 : 3.2); b.yaw = Math.atan2(x1 - b.x, z1 - b.z); }
+        b.wait = scared ? 0.6 : 1.5 + lifeR() * 5; } }
+    const y = G(b.x, b.z); lifeSet(k, i, b.x, y, b.z, b.yaw, 0, 0, b.s);
+    _lo.position.y = y + 0.03; _lo.rotation.set(0, b.yaw, 0); _lo.scale.set(0.13 * b.s, 1, 0.5 * b.s); _lo.updateMatrix(); k.sh.setMatrixAt(i, _lo.matrix); });
+  fl.needsUpdate = true; k.sh.instanceMatrix.needsUpdate = true; k.sh.count = k.m.count;
+}
+// perching birds: sit (turning their heads now and then); when you come within a few metres the whole group takes off up and away,
+// stays away while you are near, and flies back down the same path once you have gone
+function lifePerchers(k, dt, t){
+  const fl = k.m.geometry.attributes.iFl, near = 5.5, spook = new Set();
+  k.mem.forEach(b => { if(b.st === 'sit' && playing && Math.hypot(p.x - b.x, p.z - b.z) < near && Math.abs(p.y - b.y) < 9) spook.add(b.flock); });
+  k.mem.forEach((b, i) => { if(i >= k.m.count) return; let x = b.x, y = b.y, z = b.z, yaw = b.yaw, pitch = 0, s = b.s;
+    if(b.st === 'sit' && spook.has(b.flock)){ b.st = 'up'; b.t = lifeR() * 0.25; const a = Math.atan2(b.x - p.x, b.z - p.z) + (lifeR() - 0.5) * 1.2; b.dx = Math.sin(a); b.dz = Math.cos(a); fl.setW(i, 1); }
+    if(b.st === 'sit'){ b.lookT -= dt; if(b.lookT <= 0){ b.look = b.face + (lifeR() - 0.5) * 1.6; b.lookT = 1.5 + lifeR() * 4; if(lifeR() < 0.2) b.hop = 0.25; }
+      b.yaw += (b.look - b.yaw) * Math.min(1, dt * 8); yaw = b.yaw; if(b.hop > 0){ b.hop -= dt; y += Math.sin(Math.max(0, b.hop) / 0.25 * Math.PI) * 0.05; } }
+    else { if(b.st === 'up'){ b.t += dt; if(b.t >= b.T){ b.st = 'away'; b.away = 18 + lifeR() * 20; } }
+      else if(b.st === 'away'){ b.away -= dt; b.t = b.T; if(b.away <= 0 && Math.hypot(p.x - b.x, p.z - b.z) > 16) b.st = 'down'; }
+      else if(b.st === 'down'){ b.t -= dt; if(b.t <= 0){ b.t = 0; b.st = 'sit'; b.yaw = b.look = b.face; fl.setW(i, 0); } }
+      const u = Math.max(0, b.t), hz = 2.2 * u + 1.5 * u * u, vt = 2.8 * u - 0.12 * u * u; x += b.dx * hz; z += b.dz * hz; y += vt;
+      const back = b.st === 'down'; yaw = Math.atan2(b.dx, b.dz) + (back ? Math.PI : 0); pitch = (back ? 0.35 : -0.5) * Math.exp(-u * 0.8);
+      if(b.st === 'away' || u > b.T - 0.05) s = 0; else if(u > b.T - 0.6) s *= (b.T - u) / 0.6; }
+    lifeSet(k, i, x, y, z, yaw, pitch, 0, s); });
+  fl.needsUpdate = true;
+}
+function lifeStep(dt, force){
+  if(!life) return; const vis = lifeOn && !pocketIn() && state.world === life.key; life.g.visible = vis; if(!vis && !force) return;
+  const calm = A11Y.calm ? 0.4 : 1, saver = PERF.active === 'saver'; dt *= calm; life.t += dt; LIFE_T.value = life.t;
+  life.kinds.forEach(k => { const n = saver ? Math.ceil(k.n / 2) : k.n; if(k.m.count !== n) k.m.count = n; k.step(k, dt, life.t); k.m.instanceMatrix.needsUpdate = true; });
+}
+const LIFE_HOOKS = {
+  get on(){ return lifeOn; }, set on(v){ lifeOn = !!v; if(life) life.g.visible = lifeOn && !pocketIn(); },
+  off(){ LIFE_HOOKS.on = false; return LIFE_HOOKS.state; }, show(){ LIFE_HOOKS.on = true; return LIFE_HOOKS.state; },
+  get state(){ return life ? {on:lifeOn, key:life.key, visible:life.g.visible, kinds:life.kinds.map(k => ({kind:k.kind, n:k.n, shown:k.m.count, st:k.mem[0] && k.mem[0].st || null, flying:k.kind === 'pigeon' || k.kind === 'gull' ? k.mem.filter(b => b.st !== 'sit').length : null})),
+    meshes:(() => { let n = 0; life.g.traverse(o => { if(o.isMesh || o.isPoints) n++; }); return n; })()} : {on:lifeOn, key:null}; },
+  get group(){ return life && life.g; }, members:kind => { const k = life && life.kinds.find(x => x.kind === kind); return k ? k.mem.map(b => ({x:b.x, y:b.y, z:b.z, st:b.st})) : null; },
+  step:(dt, n) => { for(let i = 0; i < (n || 1); i++) lifeStep(dt || 0.05); return LIFE_HOOKS.state; }
+};
+Object.defineProperties(window.__hub, {life:{value:LIFE_HOOKS}});
 
 /* ================= the Wayfarer: a small companion that travels with you (blueprint 5, 5a, 9, 11) =================
    Your Wayfarer is a driftlamp, an invented palm-sized moth whose round belly glows like a lamp. It floats at your shoulder in every realm and
