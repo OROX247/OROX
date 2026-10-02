@@ -139,7 +139,11 @@ body.photo > :not(#stage):not(#phBar):not(#phFrame):not(#caption):not(#phFlash):
 .ph-row{ display:flex; flex-wrap:wrap; gap:6px 10px; align-items:center; } .ph-sl label{ display:flex; align-items:center; gap:6px; flex:1 1 150px; } .ph-sl input{ flex:1; min-width:70px; }
 #phFilters button, #phFrames button, .ph-go{ flex:1 1 auto; padding:6px 9px; border:1.5px solid rgba(255,255,255,.25); background:none; color:#f3f0ff; font:600 13px 'Chakra Petch','Trebuchet MS',sans-serif; cursor:pointer; }
 #phFilters button.on, #phFrames button.on{ border-color:#ffd166; color:#ffd166; } #phFilters button:disabled{ opacity:.4; } .ph-sp{ flex:1; } .ph-go.main{ background:linear-gradient(90deg,#ffd166,var(--pink)); color:var(--btn-ink); border:none; }
-#phHelp{ color:var(--muted); font-size:11.5px; }
+#phHelp{ color:var(--muted); font-size:11.5px; } #phMsg{ color:#ffd98a; font-size:12px; } #phMsg:empty{ display:none; }
+#phAlbum b{ color:#ffd98a; } #phAlbum small{ color:var(--muted); } .ph-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(112px,1fr)); gap:8px; margin-top:6px; }
+.ph-grid figure{ margin:0; } .ph-grid img, .ph-none{ display:block; width:100%; aspect-ratio:16/9; object-fit:cover; background:#1a1830; } .ph-none{ display:grid; place-items:center; font-size:11px; color:var(--muted); }
+.ph-grid figcaption{ font:italic 11.5px/1.3 Georgia,serif; color:#e9e4d8; margin-top:3px; }
+#phFlash{ position:fixed; inset:0; z-index:12; background:#fff; opacity:0; pointer-events:none; transition:opacity .16s; } #phFlash.on{ opacity:.55; transition:none; }
 #phFrame{ position:fixed; inset:0; pointer-events:none; z-index:3; display:none; } body.photo #phFrame{ display:block; }
 #phFrame.f-thin{ box-shadow:inset 0 0 0 12px #f4f1ea; } #phFrame.f-postcard{ box-shadow:inset 0 0 0 26px #efe6d2; }
 #phFrame.f-postcard::after{ content:attr(data-stamp); position:absolute; left:34px; top:30px; font:italic 18px Georgia,'Times New Roman',serif; color:#3a2f22; background:rgba(239,230,210,.85); padding:2px 8px; }
@@ -678,11 +682,14 @@ body.a11y-cues .hpbar.low i{ background:repeating-linear-gradient(135deg,rgba(0,
   <small id="wfSrc"></small>
 </div>
 <div id="phFrame" aria-hidden="true"></div>
+<div id="phFlash" aria-hidden="true"></div>
 <div id="phBar" class="panel hidden" role="dialog" aria-label="Photo mode">
   <div class="ph-row ph-sl"><label>Zoom <input type="range" id="phFov" min="15" max="90" step="1"></label><label>Focus <input type="range" id="phFocus" min="0.5" max="60" step="0.1"></label><label>Blur <input type="range" id="phBlur" min="0" max="1" step="0.01"></label><label>Exposure <input type="range" id="phEv" min="-1.5" max="1.5" step="0.1"></label></div>
   <div class="ph-row" id="phFilters" role="group" aria-label="Filter"><button data-f="none">Natural</button><button data-f="warm">Warm</button><button data-f="cool">Cool</button><button data-f="mono">Mono</button><button data-f="film">Film grain</button></div>
   <div class="ph-row" id="phFrames" role="group" aria-label="Frame"><button data-fr="none">No frame</button><button data-fr="thin">Thin</button><button data-fr="postcard">Postcard</button><button data-fr="wide">Wide</button><button data-fr="snapshot">Snapshot</button></div>
-  <div class="ph-row"><label><input type="checkbox" id="phMe"> You</label><label><input type="checkbox" id="phWf"> Wayfarer</label><label><input type="checkbox" id="phLocals"> Locals</label><label><input type="checkbox" id="phLabels"> Labels</label><label><input type="checkbox" id="phCap"> Caption</label><span class="ph-sp"></span><button id="phExitBtn" class="ph-go">Exit (Esc)</button></div>
+  <div class="ph-row"><label><input type="checkbox" id="phMe"> You</label><label><input type="checkbox" id="phWf"> Wayfarer</label><label><input type="checkbox" id="phLocals"> Locals</label><label><input type="checkbox" id="phLabels"> Labels</label><label><input type="checkbox" id="phCap"> Caption</label><span class="ph-sp"></span><button id="phShoot" class="ph-go main">Capture (Enter)</button><button id="phAlbumBtn" class="ph-go">Album</button><button id="phExitBtn" class="ph-go">Exit (Esc)</button></div>
+  <small id="phMsg" aria-live="polite"></small>
+  <div id="phAlbum" hidden></div>
   <small id="phHelp">W A S D move · Q / E down and up · drag or arrows to look · wheel zooms · H hides this bar · Esc leaves</small>
 </div>
 <div id="toast" class="panel" role="status"></div>
@@ -21204,15 +21211,16 @@ function wfSystem(){
     'Never mention real-world brands, people, films, games, songs or places. Never give away answers to the Hunt, its riddles, shards, gates or quests: say you will think about it and point them to the Ashcombe Ledger or the Registrar in the Archive. Never promise items, credits or rewards.\n' +
     'Reply only with JSON matching this schema: ' + JSON.stringify(WF_REPLY_SCHEMA) + '\nExample:\nPlayer: what do you think of this place?\nReply: {"say":"I love it here. The lights make my wings look pink!","emote":"flutter"}';
 }
-async function wfAsk(text){
+async function wfAsk(text, o){   // o: {system, messages} for a one-off task (the photo caption)
   const test = wfAI.testResponse, C = npcAIcfg;
   const path = test != null ? 'test' : (dreamer.sample && !dreamer.failed) ? 'sample' : dreamer.key ? 'key' : null;
   if(!path) return {ok:false, why:'no AI'};
   if(C.calls >= C.cap) return {ok:false, why:'rest', rest:true};
-  const messages = wfTalk.turns.slice(-6).filter((x, i) => !(i === 0 && x.role === 'assistant')).map(x => ({role:x.role, content:scrubText(String(x.content)).slice(0, 300)}));
+  let messages = wfTalk.turns.slice(-6).filter((x, i) => !(i === 0 && x.role === 'assistant')).map(x => ({role:x.role, content:scrubText(String(x.content)).slice(0, 300)}));
   if(messages.length && messages[messages.length - 1].role === 'user') messages.pop();
   messages.push({role:'user', content:scrubText(text) || '(says nothing)'});
-  const system = wfSystem(), body = {model:NPC_MODEL, max_tokens:300, system, messages, output_config:{effort:'low', format:{type:'json_schema', schema:WF_REPLY_SCHEMA}}, fallbacks:'default'};
+  if(o && o.messages) messages = o.messages.map(x => ({role:x.role, content:scrubText(String(x.content)).slice(0, 300)}));
+  const system = (o && o.system) || wfSystem(), body = {model:NPC_MODEL, max_tokens:300, system, messages, output_config:{effort:'low', format:{type:'json_schema', schema:WF_REPLY_SCHEMA}}, fallbacks:'default'};
   const headers = {'content-type':'application/json', 'x-api-key':dreamer.key || 'test', 'anthropic-version':'2023-06-01', 'anthropic-dangerous-direct-browser-access':'true', 'anthropic-beta':'server-side-fallback-2026-07-01'};
   const wait = C.gapMs - (performance.now() - C.lastT); if(wait > 0) await sleepMs(wait);
   C.calls++; C.lastT = performance.now();
@@ -21460,6 +21468,96 @@ var PH_HOOKS = {
   key:code => { phKey({code, target:null, repeat:false, preventDefault(){}}); return phState(); }
 };
 Object.defineProperties(window.__hub, {photo:{value:PH_HOOKS}});
+
+/* ---- the picture: capture (Enter), a PNG through saveFile, the album (the last 12 thumbnails, per save slot) and the Wayfarer's caption ----
+   The frame is rendered once more in the same task and copied straight off the canvas (no preserveDrawingBuffer, so nothing is kept between
+   frames the rest of the time), at the canvas's full resolution. The caption is the companion's: an AI line only when a brain is there and the
+   line passes the same filters as its talk (and is short), else one of its own. The album's list lives in the Wayfarer's store (so a save slot
+   carries it); the thumbnails are small JPEGs in IndexedDB under the slot's number. */
+var WF_PLACE_CAP = {hub:'The Spaceport, everyone passing through.', campus:'Campus on a bright day.', dunes:'Glass Dunes, warm glass under a patient sun.', grid:'Neon Grid after dark, every sign humming.',
+  grove:'Night Grove, where the mushrooms keep the lights on.', sky:'Sky Isles, with the whole sky underfoot.', ashfall:'Ashfall at dusk. We were brave.', warfront:'Warfront, between two points of the Long Match.',
+  lampblack:'Lampblack in the rain, lamps and all.', saltlark:'Saltlark Isle, in the golden hour that never ends.', fennick:'Fennick Bay in the mist, where it all began.'};
+var phSeq = 0;
+function phCapOffline(){ const w = state.world, P = wfPlace(w), Pc = P.charAt(0).toUpperCase() + P.slice(1), n = wf.store.album.length, who = pname();
+  const pool = [WF_PLACE_CAP[w] || Pc + ', just as we found it.', 'Us, in ' + P + '. Look at that light.', Pc + '. I held very still.', 'A good day in ' + P + ' with ' + who + '.'];
+  return pool[n % pool.length]; }
+async function phCaption(){
+  const off = phCapOffline(), brain = wfAI.testResponse != null || (dreamer.sample && !dreamer.failed) || dreamer.key;
+  if(!brain || wf.store.mode === 'off'){ wfAI.capWhy = brain ? 'off' : 'no AI'; return {text:off, source:'offline'}; }
+  const w = state.world, seen = [ph.show.player ? pname() : null, ph.show.wayfarer ? 'you, the Wayfarer' : null, ph.show.locals && npcs.length ? 'some locals' : null].filter(Boolean);
+  const system = wfSystem() + '\nTASK NOW: write the caption for a photo the player just took in ' + wfPlace(w) + (seen.length ? ', showing ' + wfList(seen) : '') + '. One short line of at most 12 words, warm and in your own voice, as "say".';
+  const a = await wfAsk('Write the caption for our photo.', {system, messages:[{role:'user', content:'Write the caption for our photo.'}]});
+  if(a.ok && a.rep.say.length <= 100 && (a.rep.say.match(/[.!?]/g) || []).length <= 2){ wfAI.capWhy = 'ok'; return {text:a.rep.say, source:'claude'}; }
+  wfAI.capWhy = a.ok ? 'too long' : a.why; return {text:off, source:'offline'};
+}
+// the frame, drawn round (or over) the shot at its full size; text is fitted to the space it has
+function phCompose(shot, frame, cap){
+  const W = shot.width, H = shot.height, k = Math.max(W, H) / 1280, by = wf.store.name;
+  const fit = (x, txt, max, px, style) => { let s = px; do { x.font = style.replace('$', Math.round(s * k)); s -= 1; } while(x.measureText(txt).width > max && s > 8); return txt; };
+  let c = shot, x;
+  if(frame === 'postcard' || frame === 'snapshot'){
+    const b = Math.round((frame === 'postcard' ? 34 : 24) * k), bot = frame === 'snapshot' ? Math.round(110 * k) : b;
+    c = document.createElement('canvas'); c.width = W + 2 * b; c.height = H + b + bot; x = c.getContext('2d');
+    x.fillStyle = frame === 'postcard' ? '#efe6d2' : '#faf8f2'; x.fillRect(0, 0, c.width, c.height); x.drawImage(shot, b, b);
+    x.fillStyle = 'rgba(0,0,0,0.18)'; x.fillRect(b, b + H, W, Math.max(1, Math.round(2 * k)));
+    if(frame === 'postcard'){ const st = 'Greetings from ' + wfPlace(state.world); x.fillStyle = 'rgba(239,230,210,0.88)'; fit(x, st, W * 0.6, 30, 'italic $px Georgia, serif'); const tw = x.measureText(st).width;
+      x.fillRect(b + 14 * k, b + 12 * k, tw + 20 * k, 44 * k); x.fillStyle = '#3a2f22'; x.textBaseline = 'middle'; x.fillText(st, b + 24 * k, b + 34 * k);
+      if(cap){ x.fillStyle = '#4a3f30'; x.textAlign = 'right'; fit(x, cap + ' (' + by + ')', W * 0.9, 20, 'italic $px Georgia, serif'); x.fillText(cap + ' (' + by + ')', c.width - b, c.height - b / 2); } }
+    else if(cap){ x.fillStyle = '#2a2622'; x.textAlign = 'center'; x.textBaseline = 'middle'; fit(x, cap, W * 0.92, 34, 'italic $px Georgia, serif'); x.fillText(cap, c.width / 2, b + H + bot * 0.42);
+      x.fillStyle = '#8a7f70'; fit(x, '- ' + by, W * 0.5, 20, '$px Georgia, serif'); x.fillText('- ' + by, c.width / 2, b + H + bot * 0.75); }
+    return c;
+  }
+  c = document.createElement('canvas'); c.width = W; c.height = H; x = c.getContext('2d'); x.drawImage(shot, 0, 0);
+  if(frame === 'thin'){ const t = Math.round(14 * k); x.strokeStyle = '#f4f1ea'; x.lineWidth = t * 2; x.strokeRect(0, 0, W, H); }
+  let capY = H - 26 * k, capCol = '#ffffff';
+  if(frame === 'wide'){ const bar = Math.max(0, Math.round((H - W / 2.39) / 2)); x.fillStyle = '#000'; x.fillRect(0, 0, W, bar); x.fillRect(0, H - bar, W, bar); if(bar > 30 * k) capY = H - bar / 2; }
+  if(cap){ x.textAlign = 'center'; x.textBaseline = 'middle'; fit(x, cap + ' (' + by + ')', W * 0.9, 26, 'italic $px Georgia, serif'); if(frame !== 'wide'){ x.shadowColor = 'rgba(0,0,0,0.75)'; x.shadowBlur = 6 * k; }
+    x.fillStyle = capCol; x.fillText(cap + ' (' + by + ')', W / 2, capY); x.shadowBlur = 0; }
+  return c;
+}
+// render the frame now and copy it off the canvas in the same task
+function phGrab(){
+  camera.updateMatrixWorld();
+  if(post.on && !vr.on){ updateSun(); renderMirrors(); post.composer.render(); dgAfter(); } else { renderMirrors(); renderer.render(scene, camera); }
+  const src = renderer.domElement, shot = document.createElement('canvas'); shot.width = src.width; shot.height = src.height; shot.getContext('2d').drawImage(src, 0, 0); return shot;
+}
+function phAlbumKey(id){ return 'photo:s' + SLOT_AT_LOAD + ':' + id; }
+async function phCapture(o){
+  o = o || {}; if(!ph.on || ph.busy) return null; ph.busy = true;
+  try{
+    const shot = phGrab();
+    const fl = document.getElementById('phFlash'); if(fl && !A11Y.calm){ fl.classList.add('on'); setTimeout(() => fl.classList.remove('on'), 160); }
+    if(snd.ctx && snd.on){ try{ noiseHit(2400, 1.2, 0.07, 0.06); tone('square', 1800, 900, 0.05, 0.02); }catch(e){} } caption('[Camera shutter]', 1500);
+    let cap = '', capSrc = 'none'; if(ph.caption && o.caption !== false){ const r = await phCaption(); cap = r.text; capSrc = r.source; }
+    const out = phCompose(shot, ph.frame, cap);
+    const d = new Date(), pad = n => String(n).padStart(2, '0'), name = 'hub-' + state.world.replace(/[^a-z0-9]+/gi, '-') + '-' + d.getFullYear() + pad(d.getMonth() + 1) + pad(d.getDate()) + '-' + pad(d.getHours()) + pad(d.getMinutes()) + pad(d.getSeconds()) + '.png';
+    // the album first (the list is saved at once, so leaving or reloading straight after still keeps it): a thumbnail in IndexedDB, the list
+    // (id, realm, time, caption) in the Wayfarer's store; the oldest goes past 12
+    const id = (Date.now().toString(36) + (++phSeq).toString(36)).slice(-16), th = document.createElement('canvas'), tw = 192; th.width = tw; th.height = Math.max(1, Math.round(tw * out.height / out.width));
+    th.getContext('2d').drawImage(out, 0, 0, th.width, th.height); const thumb = th.toDataURL('image/jpeg', 0.82);
+    const A = wf.store.album, gone = []; A.push({id, realm:state.world, t:Date.now(), cap}); while(A.length > 12) gone.push(A.shift()); wfSave();
+    let stored = false; try{ await idb.set(phAlbumKey(id), thumb); stored = true; }catch(e){} for(const g of gone){ try{ await idb.del(phAlbumKey(g.id)); }catch(e){} }
+    const blob = await canvasBlob(out, 'image/png'), saved = await saveFile(name, blob, 'image/png');
+    const msg = saved.ok ? (saved.how === 'claude' ? 'Saved ' + name + '.' : 'Saved ' + name + ' to your downloads.') : saved.why === 'declined' ? 'Not saved: the download was declined. It is still in the album.' : 'The picture could not be saved here. It is still in the album.';
+    const pm = document.getElementById('phMsg'); if(pm) pm.textContent = msg; if(!ph.on) toast(msg, 2400);
+    if(!document.getElementById('phAlbum').hidden) phAlbumShow();
+    return {name, w:out.width, h:out.height, shotW:shot.width, shotH:shot.height, bytes:blob ? blob.size : 0, saved, caption:cap, captionFrom:capSrc, id, thumbStored:stored, thumbBytes:thumb.length};
+  }finally{ ph.busy = false; }
+}
+async function phAlbumList(){ const out = []; for(const e of wf.store.album.slice().reverse()){ let t = null; try{ t = await idb.get(phAlbumKey(e.id)); }catch(x){} out.push({id:e.id, realm:e.realm, t:e.t, cap:e.cap, thumb:typeof t === 'string' && /^data:image\/jpeg;base64,/.test(t) ? t : null}); } return out; }
+async function phAlbumShow(){
+  const el = document.getElementById('phAlbum'); if(!el) return; el.hidden = false; el.innerHTML = '<b>Album</b> <small>(the last 12 on this save)</small>';
+  const L = await phAlbumList(); if(!L.length){ el.insertAdjacentHTML('beforeend', '<p>No pictures yet. Press Enter to take one.</p>'); return; }
+  const g = document.createElement('div'); g.className = 'ph-grid'; el.appendChild(g);
+  L.forEach(e => { const f = document.createElement('figure'); if(e.thumb){ const im = document.createElement('img'); im.src = e.thumb; im.alt = e.cap || ('A picture in ' + wfPlace(e.realm)); f.appendChild(im); } else { const s = document.createElement('div'); s.className = 'ph-none'; s.textContent = 'not on this device'; f.appendChild(s); }
+    const fc = document.createElement('figcaption'); fc.textContent = (e.cap || wfPlace(e.realm)); f.appendChild(fc); g.appendChild(f); });
+}
+if(phBarEl){
+  document.getElementById('phShoot').addEventListener('click', () => phCapture());
+  document.getElementById('phAlbumBtn').addEventListener('click', () => { const el = document.getElementById('phAlbum'); if(el.hidden) phAlbumShow(); else el.hidden = true; });
+}
+Object.assign(PH_HOOKS, {capture:o => phCapture(o), album:() => phAlbumList().then(L => L.map(e => ({id:e.id, realm:e.realm, cap:e.cap, hasThumb:!!e.thumb, thumbBytes:e.thumb ? e.thumb.length : 0}))), showAlbum:() => phAlbumShow(), captionOffline:() => phCapOffline()});
+Object.defineProperties(PH_HOOKS, {capWhy:{get:() => wfAI.capWhy || '', enumerable:true}});
 })();
 </script>
 </body>
