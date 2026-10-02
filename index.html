@@ -20689,7 +20689,7 @@ function wfClean(o){
   for(const k of Object.keys(tsrc)) if(wfIdOk(k) && typeof tsrc[k] === 'number' && isFinite(tsrc[k]) && tsrc[k] > 0) time[k] = Math.min(1e7, Math.floor(tsrc[k]));
   const hsrc = bareMap(o.hints), hints = Object.create(null); for(const k of Object.keys(hsrc)) if(wfIdOk(k)) hints[k] = clamp(Math.floor(num(hsrc[k], 0)), 0, 3);
   const desc = typeof o.desc === 'string' ? scrubText(o.desc.replace(/[\u0000-\u001f<>]/g, ' ')).replace(/\s+/g, ' ').trim().slice(0, 200) : '';
-  return {v:1, name:wfName(o.name) || WF_DEFAULT_NAME, desc, mode:WF_MODES.indexOf(o.mode) >= 0 ? o.mode : 'quiet',
+  return {v:1, name:wfName(o.name) || WF_DEFAULT_NAME, desc, mode:WF_MODES.indexOf(o.mode) >= 0 ? o.mode : 'quiet', greeted:o.greeted === true,
     log:{realms:A(L.realms, 40, wfIdOk), shards:A(L.shards, 3, s => ['dunes', 'grid', 'sky'].indexOf(s) >= 0), artifacts:A(L.artifacts, 10, s => wfIdOk(s) && hasOwn(ART, s)), quests:A(L.quests, 24, wfIdOk),
       landmarks:A(L.landmarks, 30, s => wfIdOk(s) && hasOwn(QUEST_LANDMARKS, s)), planets:clamp(Math.floor(num(L.planets, 0)), 0, 99999), time},
     deeds:A(o.deeds, 80, wfIdOk), seen:A(o.seen, 80, wfIdOk), said:Array.isArray(o.said) ? o.said.filter(s => typeof s === 'string').slice(-6).map(s => scrubText(s).slice(0, 150)) : [],
@@ -20834,10 +20834,11 @@ function wfBlockInfo(P){
 function wfTick(dt, time){
   if(!wf.g || !me) return;
   const S = wf.store, show = S.mode !== 'off' && !bc.on && !wf.hideTest;
+  if(wf.sayT > 0) wf.sayT -= dt; if((wf.slowT += dt) >= 1){ wf.slowT = 0; wfSlow(); }   /* the journey: log, comments, nudges (once a second) */
   wf.g.visible = show; if(!show){ wf.snap = true; wf.sayT = 0; return; }
   const h = me.recipe ? me.recipe.height : 1.8, sy = Math.sin(cam.yaw), cy = Math.cos(cam.yaw), fp = cam.view === 2;
   _wfR.set(cy, 0, -sy); _wfF.set(-sy, 0, -cy);
-  const bob = Math.sin(time * 1.7) * 0.05, sway = Math.sin(time * 0.63) * 0.08;
+  const calm = A11Y.calm ? 0.3 : 1, bob = Math.sin(time * 1.7) * 0.05 * calm, sway = Math.sin(time * 0.63) * 0.08 * calm;   /* reduce motion: a gentler float */
   if(fp) wf.T.set(p.x, p.y + h * 0.8 + bob, p.z).addScaledVector(_wfR, 0.7 + sway * 0.5).addScaledVector(_wfF, 0.9);
   else wf.T.set(p.x, p.y + h * 0.92 + 0.2 + bob, p.z).addScaledVector(_wfR, 0.7 + sway).addScaledVector(_wfF, 0.05);
   if(pocketIn()){ const top = (pocketFloor(p.x, p.z) || p.y) + 2.1; if(wf.T.y > top) wf.T.y = top; }
@@ -20863,11 +20864,12 @@ function wfTick(dt, time){
   wf.emoteT = Math.max(0, wf.emoteT - dt); const em = wf.emoteT > 0 ? wf.emote : null;
   const w = em === 'flutter' ? 26 : em === 'sad' ? 6 : sp > 2 ? 20 : 14, amp = em === 'flutter' ? 0.8 : em === 'sad' ? 0.25 : wf.look.kind === 'drone' ? 0.12 : 0.55;
   wf.flapPh = (wf.flapPh || 0) + dt * w; wf.uFlap.value = Math.sin(wf.flapPh) * amp + (em === 'sad' ? -0.35 : 0.1);
-  if(em === 'spin') wf.g.rotation.y += (1 - wf.emoteT / 1.2) * TAU; if(em === 'nod') wf.g.rotation.x += Math.sin(wf.emoteT * 14) * 0.3;
+  if(em === 'spin' && !A11Y.calm) wf.g.rotation.y += (1 - wf.emoteT / 1.2) * TAU; if(em === 'nod') wf.g.rotation.x += Math.sin(wf.emoteT * 14) * 0.3;
   const dimTo = (pocketIn() ? 0.45 : 1) * (em === 'glow' ? 1.6 : em === 'sad' ? 0.6 : 1); wf.dim += (dimTo - wf.dim) * (1 - Math.exp(-dt * 3));
   wf.glowM.color.setScalar(wf.dim);
   wfBubble();
 }
+function wfSetMode(m){ if(WF_MODES.indexOf(m) < 0) return false; wf.store.mode = m; if(m === 'off'){ wf.queue = []; wf.sayT = 0; } else wf.snap = true; wfSave(); return true; }
 function wfEmote(kind){ if(['flutter', 'glow', 'spin', 'nod', 'sad'].indexOf(kind) < 0) return; wf.emote = kind; wf.emoteT = kind === 'spin' ? 1.2 : 1.8; }
 // the speech bubble over the companion (its own element; the locals' bubbles are swept by localsBubbles)
 var wfBubbleEl = null;
@@ -20909,11 +20911,158 @@ var WF_HOOKS = {
     return {before:b0, after:{seg:+after.seg.toFixed(3), camD:+after.camD.toFixed(3), centre:after.centre, blocks:after.blocks}}; },
   describe(text){ wf.store.desc = scrubText(String(text || '').replace(/[\u0000-\u001f<>]/g, ' ')).replace(/\s+/g, ' ').trim().slice(0, 200); wfSave(); wfBuild(); return WF_HOOKS.look; },
   lookOf:t => wfLookOf(t),
-  setMode(m){ if(WF_MODES.indexOf(m) < 0) return false; wf.store.mode = m; wfSave(); return true; },
+  setMode:m => wfSetMode(m),
   emote:k => wfEmote(k),
   clean:o => wfClean(o), saved(){ try{ return JSON.parse(localStorage.getItem(WF_KEY)); }catch(e){ return null; } }, key:WF_KEY
 };
 Object.defineProperties(window.__hub, {wayfarer:{value:WF_HOOKS}});
+/* ---- the journey: the log, the comments (rare) and the gated nudges ----
+   Once a second the companion reads the game's own state: the realm you are in, time spent there (favourite places), shards, artifacts,
+   quest portals cleared, planets charted, landmarks reached and new deeds. What is new goes in its log, and some of it gets a comment.
+   Quiet: only big moments, at most one comment every 90 s. Chatty: more, every 25 s. Off: nothing, and it stays away. Comments wait while
+   anything else needs you (a conversation, a cabinet, the Broadcast, a quest arena, the hallway, photo mode). */
+var WF_PLACE = {hub:'the Spaceport', campus:'Campus', dunes:'Glass Dunes', grid:'Neon Grid', grove:'Night Grove', sky:'Sky Isles', ashfall:'Ashfall', warfront:'Warfront', lampblack:'Lampblack', saltlark:'Saltlark Isle', fennick:'Fennick Bay'};
+var WF_ARRIVE = {
+  hub:'The Spaceport! Every portal hums a different note. I like the green one.',
+  campus:'Campus. Marble halls, green hills, and somewhere a bell for Orbital Maths.',
+  dunes:'Glass Dunes. Warm sand and singing glass. My lamp looks pale next to this sun.',
+  grid:'Neon Grid. So many lights! I feel quite plain. Mind the lasers on the plaza.',
+  grove:'Night Grove. At last, somewhere my lamp is useful. The fireflies are waving at me.',
+  sky:'Sky Isles. Islands in the air, and I am the only one here who does not need to jump.',
+  ashfall:'Ashfall. It is very quiet here. Stay close, and I will stay bright.',
+  warfront:'Warfront. Banners, mud and a war that is only a game. Keep your head below the sandbags.',
+  lampblack:'Lampblack. Rain on the lamps and music somewhere. My wings will get wet, but it is worth it.',
+  saltlark:'Saltlark Isle! Warm water, white sand and a golden hour that never ends. I could live here.',
+  fennick:'Fennick Bay. The Architect grew up here. Everything feels remembered, even the mist.'};
+var WF_VIEWS = {
+  archive:'The Archive. So many rooms, so many memories. Lyle kept everything.',
+  vault:'The old vault in the middle of the plaza. Everyone walks past it and nobody looks down.',
+  hollow:'The Hollow\'s door. Cool air comes up from under the sand.',
+  drift:'The Drift! I can feel the floor wanting to let go of me.',
+  chimes:'The chimes on the highest isle. Look down: the whole sky is below us.',
+  bastion:'The top of the Old Bastion. You can see both lines from here, and nobody is winning.',
+  lighthouse:'The end of the pier. Look at the light on the water. Shall we stay a moment?',
+  vesperine:'The Hotel Vesperine. Rain, neon and a doorman who never seems to sleep.',
+  'no-nine':'No. 9 Lantern Row. The lamp in the window is always lit.',
+  saltbox:'The Saltbox Arcade. It smells of salt and warm wires.'};
+var WF_HINTS = {
+  ledger:['Have you been inside the Archive on the Spaceport? Old buildings keep old secrets.', 'The Registrar in the Archive keeps a book called the Ashcombe Ledger. Lyle wrote his riddles in it.', 'The Archive is south of the Spaceport plaza. Ask the Registrar for the Ledger, then read it slowly.'],
+  amber:['The Ledger has a riddle about Glass Dunes. Read it again, slowly. Lyle chose every word.', 'In Glass Dunes the sun never moves. What else never moves there? The Registrar can quote you the right page.', 'Count the standing stones the way the Ledger counts them, and think about where light ends. The Archive\'s rooms remember the dunes too.'],
+  'amber-cab':['That racing cabinet under the dunes does not want an ordinary win. What does the Ledger say about the game?', 'Ask the Registrar about Comet Rally. Lyle liked games that hide a second way to win.', 'One of the Archive\'s rooms remembers a race. Find the small detail hidden there, then try the last lap again.'],
+  rose:['The Ledger\'s riddle about Neon Grid talks about a place where the floor lets go of you. The locals there know it.', 'The Drift is more than a dance floor. Lyle asked you to pay attention, so look at every wall.', 'Some doors only open for the brave. Ask the Registrar about The Drift, and visit the Archive room about Mara.'],
+  cyan:['The Ledger\'s Sky Isles riddle is a piece of music, not a map.', 'Lyle\'s lullaby has a name in the Ledger. Something on the highest isle of Sky Isles can play it.', 'Someone in Fennick Bay still plays that lullaby. Listen carefully, then count the chimes from the longest.'],
+  field:['The locals have been talking about the glass over the Citadel. Listen to the gossip on the Spaceport.', 'Glass gives way to glass, they say. Is there anything made of glass in your bag, or in the Hoard?', 'The Ledger and the locals both know about the Bell Jar. Ask the Registrar about it.'],
+  gate1:['The First Gate wants words back. Do you remember the Architect\'s Last Broadcast?', 'You can watch the Broadcast again from the brass screen by the Archive\'s door.', 'Watch the Broadcast once more and listen to every line, in order.'],
+  gate2:['The Second Gate is a game. The Ledger says who wrote it, and for whom.', 'Ask the Registrar about Starling. There is a high score waiting to be beaten.', 'One of the Archive\'s rooms remembers Starling. Practise; the birds come in waves.'],
+  gate3:['The Third Gate is a walk down a street Lyle knew well. The Ledger has something to say about it.', 'Ask the Registrar about Lantern Row. Lyle wrote about what really matters.', 'Read the Ledger\'s pages about Lyle\'s childhood again, and think about what he would have wanted.'],
+  vault:['All three gates are open. The vault waits at the end of Lantern Row.', 'Walk Lantern Row to its end. The vault wants all three shards together.', 'The vault is at the end of the Row behind the Third Gate.']};
+var WF_GAP = {quiet:90, chatty:25}, WF_HINT_AFTER = {quiet:600, chatty:360};   // seconds: between comments; of play without Hunt progress before a nudge is offered
+Object.assign(wf, {queue:[], nextAt:0, slowT:0, deedT:0, saveT:0, lastW:null, offered:false, arrivals:0, gapTest:null, hintTest:null});
+function wfKeyName(){ return keyName(hasOwn(KEY_DEF, 'wayfarer') ? keyEff('wayfarer') : 'KeyY'); }
+function wfGate(){ return wf.hintTest != null ? wf.hintTest : WF_HINT_AFTER[wf.store.mode] || WF_HINT_AFTER.quiet; }
+function wfPlace(k){ return WF_PLACE[k] || (WORLDS[k] ? WORLDS[k].name : 'here'); }
+// can it speak up now? never over something that needs you
+function wfCanTalk(){ return state.started && playing && !traveling && !zeroing && !bc.on && !ph.on && talkEl.classList.contains('hidden') && introEl.classList.contains('hidden') && !document.querySelector('.overlay:not(.hidden)')
+  && !rally.open && !starling.open && !gate1.open && !(qa && qa.inside) && !(corr && corr.inside) && !(denRT && denRT.mode) && !wfCardOpen(); }
+function wfCardOpen(){ const c = document.getElementById('wfCard'); return !!c && !c.classList.contains('hidden'); }
+// say something now: the bubble, a soft chirp, and a caption (when captions are on)
+function wfSay(text, emote){
+  text = String(text || '').replace(/\s+/g, ' ').trim(); if(!text) return;
+  wf.sayText = text; wf.sayT = clamp(2.5 + text.length * 0.065, 4, 11); wfEmote(emote || 'flutter');
+  caption(wf.store.name + ': ' + text, Math.round(wf.sayT * 1000));
+  if(snd.ctx && snd.on){ try{ const t = snd.ctx.currentTime; tone('sine', 1320, 1760, 0.18, 0.03, t); tone('sine', 1975, 1975, 0.16, 0.018, t + 0.09); }catch(e){} }
+  if(wfCardOpen() && typeof wfLine === 'function') wfLine(wf.store.name, text, 'reg');
+  wf.said = (wf.said || 0) + 1;
+}
+// a comment, queued: o.big passes in quiet mode; o.force (the first hello, a nudge) passes in any mode but off; each id is said once
+function wfComment(id, text, o){
+  o = o || {}; const S = wf.store; if(!text || S.mode === 'off') return false;
+  if(!o.again){ if(S.seen.indexOf(id) >= 0) return false; S.seen.push(id); if(S.seen.length > 80) S.seen.splice(0, S.seen.length - 80); }
+  if(S.mode === 'quiet' && !o.big && !o.force) return false;
+  wf.queue.push({id, text, emote:o.emote, t:performance.now(), force:!!o.force}); if(wf.queue.length > 3) wf.queue.splice(0, wf.queue.length - 3);
+  return true;
+}
+function wfFlush(){
+  const now = performance.now(); wf.queue = wf.store.mode === 'off' ? [] : wf.queue.filter(c => now - c.t < 90000);   // stale comments are dropped, not saved up (and all of them when it is off)
+  if(!wf.queue.length || !wfCanTalk() || wf.sayT > 0) return;
+  if(now < wf.nextAt && !wf.queue[0].force) return;
+  const c = wf.queue.shift(); wfSay(c.text, c.emote); wf.nextAt = now + 1000 * (wf.gapTest != null ? wf.gapTest : WF_GAP[wf.store.mode] || 90);
+}
+function wfDeedLine(d){
+  const id = d.id, sh = {dunes:'Amber', grid:'Rose', sky:'Cyan'};
+  if(/^shard:/.test(id)) return 'The ' + sh[id.slice(6)] + ' Shard! I knew you could do it. My lamp will not stop flickering.';
+  if(id === 'artifact:breath-spent') return 'The Second Breath broke instead of you. I am so glad you are still here.';
+  if(/^artifact:/.test(id)){ const a = id.slice(9); return hasOwn(ITEMS, a) ? ITEMS[a].name + '! The only one in all of Hub, and it is yours. I will help you keep it safe.' : null; }
+  return {seed:'You held the Seed. Hub is yours to look after now, and I will help.', 'meridian:units':'Those grey Units are watching us. Stay close to me.', 'meridian:field-up':'A dome of glass over the Citadel. The locals on the Spaceport might know a way through.',
+    'meridian:field':'The dome is gone! Glass gave way to glass.', 'meridian:blackout':'Everything went dark, and then there you were again. Please never do that to me again.', 'meridian:zeroed':'One less grey Unit staring at us.',
+    'qp:1':'A quest portal cleared! I am writing that one down.', 'qp:6':'Every quest portal in Hub! My log is running out of pages.', 'chart:1':'A new planet on our map. I wonder what it will be called in a hundred years.',
+    'zero:1':'You zeroed out. I waited for you by the portal. Let us go and get your things back.', 'hunt:1':'You saw off your first monster. I hid behind your ear the whole time.', 'hunt:25':'So many monsters seen off. You are getting a reputation.',
+    helper:'You helped a local with a favour. That was kind.', coins:'Every coin in Hub! I counted every one with you.', campus:'A Campus student now! I will carry your pencils.', rally:'You played Comet Rally. Those comets are faster than they look.'}[id] || (/^den/.test(id) ? 'Your Den is looking lovely.' : null);
+}
+// the stage of the Hunt a nudge is about (null once the Seed is won): the shard of the realm you are in comes first
+function wfHuntStage(){
+  const H = state.hunt, A = state.archive, sh = state.shards; if(H.won) return null;
+  if(!A.ledger) return 'ledger';
+  const need = []; if(!sh.has('dunes')) need.push(H.door ? 'amber-cab' : 'amber'); if(!sh.has('grid')) need.push('rose'); if(!sh.has('sky')) need.push('cyan');
+  if(need.length){ const here = {dunes:'amber', grid:'rose', sky:'cyan'}[state.world]; return need.find(n => here && n.indexOf(here) === 0) || need[0]; }
+  if(fieldUp()) return 'field';
+  if(!H.gates[0]) return 'gate1'; if(!H.gates[1]) return 'gate2'; if(!H.gates[2]) return 'gate3';
+  return 'vault';
+}
+// a hint, only once the Hunt has stalled for the mode's time; three levels per stage, each a little plainer, never the answer itself
+function wfHint(o){
+  o = o || {}; const S = wf.store, st = wfHuntStage();
+  if(!st) return {ok:false, why:'done', say:'There is nothing left to find in the Hunt. Now we just explore, for fun.'};
+  const gate = wfGate();
+  if(S.stuck < gate && !o.force){ const mins = Math.max(1, Math.ceil((gate - S.stuck) / 60)); return {ok:false, why:'gated', wait:mins, say:'Not yet! Keep trying a little longer; you are closer than you think. Ask me again in about ' + mins + (mins === 1 ? ' minute.' : ' minutes.')}; }
+  const lv = Math.min(2, S.hints[st] || 0), say = WF_HINTS[st][lv];
+  S.hints[st] = Math.min(3, lv + 1); S.stuck = 0; wf.offered = false; wfSave();
+  return {ok:true, stage:st, level:lv, say};
+}
+// once a second: what is new since the last look
+function wfSlow(){
+  const S = wf.store, L = S.log, w = state.world; if(!state.started || traveling || !WORLDS[w]) return;
+  let dirty = false; const planet = /^p:/.test(w) || !!WORLDS[w].planet;
+  if(!S.greeted && S.mode !== 'off'){ S.greeted = true; dirty = true; wfComment('hello', 'Hello, ' + pname() + '! I am ' + S.name + ', your Wayfarer. I will fly with you everywhere. Press ' + wfKeyName() + ' if you want to talk.', {force:true, emote:'spin'}); }
+  if(w !== wf.lastW){ wf.lastW = w;
+    if(planet){ if(wf.store.seen.indexOf('planet:' + w) < 0) wfComment('planet:' + w, 'A planet off the star map! Nobody has ever flown over this exact spot before.', {big:true, emote:'spin'}); }
+    else if(L.realms.indexOf(w) < 0){ L.realms.push(w); dirty = true; wfComment('arrive:' + w, WF_ARRIVE[w] || 'A brand-new world, made from words. Let us see what is out there.', {big:true, emote:'spin'}); }
+    else if(S.mode === 'chatty' && (wf.arrivals++ % 2)) wfComment('back:' + w, 'Back in ' + wfPlace(w) + '. I remember the way.', {again:true}); }
+  if(playing && !ph.on){ L.time[w] = (L.time[w] || 0) + 1; if(++wf.saveT >= 20){ wf.saveT = 0; dirty = true; } }
+  state.shards.forEach(k => { if(L.shards.indexOf(k) < 0){ L.shards.push(k); dirty = true; } });
+  if(state.art && state.art.won) ART_ORDER.forEach(id => { if(state.art.won[id] && L.artifacts.indexOf(id) < 0){ L.artifacts.push(id); dirty = true; } });
+  QP_ORDER.forEach(k => { if(state.qp[k] && state.qp[k].wins > 0 && L.quests.indexOf('qp:' + k) < 0){ L.quests.push('qp:' + k); dirty = true; if(S.mode === 'chatty') wfComment('qp:' + k, (QPORTALS[k] ? QPORTALS[k].name : 'That quest') + ', cleared! I wrote it in my log.', {}); } });
+  try{ lp().quests.forEach(q => { if(q.state === 'done' && q.id && L.quests.indexOf('fav:' + q.id) < 0 && wfIdOk('fav:' + q.id)){ L.quests.push('fav:' + q.id); dirty = true; } }); }catch(e){}
+  const np = Object.keys(explorer.planets || {}).length; if(np > L.planets){ L.planets = np; dirty = true; }
+  if(!pocketIn()) for(const id of Object.keys(QUEST_LANDMARKS)){ const Q = QUEST_LANDMARKS[id]; if(Q.realm !== w || L.landmarks.indexOf(id) >= 0) continue; let at = null; try{ at = Q.at(); }catch(e){}
+    if(at && Math.hypot(p.x - at.x, p.z - at.z) < at.r + 2){ L.landmarks.push(id); dirty = true; wfComment('view:' + id, (WF_VIEWS[id] || 'What a view.') + (S.seen.indexOf('photo-tip') < 0 ? ' A good spot for a photo, if you like (' + keyName(hasOwn(KEY_DEF, 'photo') ? keyEff('photo') : 'KeyO') + ').' : ''), {big:true, emote:'glow'}); if(S.seen.indexOf('photo-tip') < 0) S.seen.push('photo-tip'); } }
+  if((wf.deedT += 1) >= 3){ wf.deedT = 0; let D = []; try{ D = deedsNow(); }catch(e){}
+    for(const d of D) if(S.deeds.indexOf(d.id) < 0){ S.deeds.push(d.id); dirty = true; const line = wfDeedLine(d); if(line) wfComment('deed:' + d.id, line, {big:d.big, emote:/^(shard|artifact|seed)/.test(d.id) ? 'spin' : 'flutter'}); }
+    if(S.deeds.length > 80) S.deeds.splice(0, S.deeds.length - 80); }
+  const sc = wfHuntScore();
+  if(sc !== S.hunt){ S.hunt = sc; S.stuck = 0; wf.offered = false; dirty = true; }
+  else if(playing && !ph.on && !state.hunt.won) S.stuck++;
+  if(!wf.offered && S.mode !== 'off' && S.stuck >= wfGate() && wfHuntStage()){ wf.offered = true; wfComment('hint-offer', 'I have been thinking about the Hunt. If you would like a nudge, press ' + wfKeyName() + ' and ask me for a hint.', {force:true, again:true, emote:'glow'}); }
+  wfFlush();
+  if(dirty) wfSave();
+}
+// the log as words: where you have been together, what you found, and the favourite places (most time spent)
+function wfLogSummary(){
+  const L = wf.store.log, fav = Object.keys(L.time).filter(k => WORLDS[k]).sort((a, b) => L.time[b] - L.time[a]).slice(0, 3);
+  return {realms:L.realms.filter(k => WORLDS[k]).map(wfPlace), shards:L.shards.map(k => ({dunes:'Amber', grid:'Rose', sky:'Cyan'})[k] + ' Shard'), artifacts:L.artifacts.map(id => ITEMS[id] ? ITEMS[id].name : id),
+    quests:L.quests.filter(q => /^qp:/.test(q)).map(q => QPORTALS[q.slice(3)] ? QPORTALS[q.slice(3)].name : q.slice(3)), favours:L.quests.filter(q => /^fav:/.test(q)).length, planets:L.planets,
+    landmarks:L.landmarks.map(id => QUEST_LANDMARKS[id] ? QUEST_LANDMARKS[id].name : id), favourites:fav.map(k => ({realm:wfPlace(k), minutes:Math.round(L.time[k] / 60)}))};
+}
+Object.assign(WF_HOOKS, {
+  log:() => wfLogSummary(),
+  slow(n){ n = n || 1; for(let i = 0; i < n; i++) wfSlow(); return {queue:wf.queue.map(c => c.id), saying:wf.sayT > 0 ? wf.sayText : null, stuck:wf.store.stuck, offered:wf.offered}; },   // the once-a-second check, now
+  pace(gapS, hintS){ wf.gapTest = gapS == null ? null : +gapS; wf.hintTest = hintS == null ? null : +hintS; return {gap:wf.gapTest, hintAfter:wfGate()}; },   // test only: shorter gaps
+  stuck(sec){ if(sec != null){ wf.store.stuck = Math.max(0, +sec); wf.offered = false; } return wf.store.stuck; },
+  hint:o => wfHint(o), stage:() => wfHuntStage(), huntScore:() => wfHuntScore(),
+  say(text, emote){ wfSay(text, emote); return wf.sayText; },
+  quiet(){ wf.sayT = 0; wf.nextAt = 0; return true; },
+  canTalk:() => wfCanTalk(), get queue(){ return wf.queue.map(c => ({id:c.id, text:c.text})); }, get said(){ return wf.said || 0; }
+});
 })();
 </script>
 </body>
