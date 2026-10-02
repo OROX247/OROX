@@ -3824,6 +3824,117 @@ function merge(geos){
   if(anyUv) out.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
   return out;
 }
+/* ================= static batching: fewer draw calls, the same picture =================
+   bakeStatic(root, o) merges the plain static meshes under root that share a material (and shadow flags, layers, userData, culling flag and
+   attribute set) into one mesh each. Every part is transformed into place first and every attribute is copied as it is (position, normal,
+   uv, uv2, colour), so the look is unchanged (lesson 58). Left alone: instanced, skinned, morphed, transparent, custom depth or render hooks,
+   renderOrder, draw ranges, hidden things, meshes with children, and anything o.keep(obj) pins, with everything under it (things that move,
+   flicker, are picked, LOD-switched or held by reference elsewhere). Collision never comes from meshes (colliders, boxes and platforms are
+   data), so it is untouched. o.cell (metres): props are also split by the square cell their centre is in, so frustum culling still works.
+   o.same: materials that are equal in every property (a fresh glowM per prop) count as one. o.byParent: merge only among siblings, into
+   their own parent (avatars: each bone keeps moving its own parts). LineSegments merge too (same rules, no shadows).
+   Built with Math.random pointed at its own rng (three.js draws it for every uuid), so the locals' wander and every other draw stay put.
+   `bakeOn = false` (__hub.bake = false, then rebuild the realm or the avatar) turns all of it off for tests. */
+var bakeOn = true, bakeQR = null, bakeStat = {in:0, out:0};
+var BAKE_MSKIP = {uuid:1, id:1, version:1, name:1, _listeners:1};
+function bakeQuiet(f){ if(!bakeQR) bakeQR = rng(6161); const mr = Math.random; Math.random = bakeQR; try{ return f(); } finally{ Math.random = mr; } }
+function bakeSameVal(x, y){
+  if(x === y) return true;
+  if(typeof x === 'number' && typeof y === 'number') return x !== x && y !== y;
+  if(!x || !y || typeof x !== 'object' || typeof y !== 'object' || x.constructor !== y.constructor || x.isTexture || x.isMaterial) return false;
+  if(typeof x.equals === 'function') return x.equals(y);
+  if(Array.isArray(x) || x.constructor === Object){ try{ return JSON.stringify(x) === JSON.stringify(y); }catch(e){ return false; } }
+  return false;
+}
+function bakeSameMat(a, b){
+  if(a === b) return true;
+  if(a.constructor !== b.constructor || a.isShaderMaterial) return false;
+  const ka = Object.keys(a).filter(k => !BAKE_MSKIP[k]), kb = Object.keys(b).filter(k => !BAKE_MSKIP[k]);
+  if(ka.length !== kb.length) return false;
+  for(const k of ka) if(!(k in b) || !bakeSameVal(a[k], b[k])) return false;
+  return true;
+}
+// one geometry from many that carry the same attributes (already in the merged mesh's frame); indexed or not, the output is indexed
+function bakeMerge(geos){
+  const names = Object.keys(geos[0].attributes); let vc = 0, ic = 0;
+  geos.forEach(g => { vc += g.attributes.position.count; ic += g.index ? g.index.count : g.attributes.position.count; });
+  const out = new THREE.BufferGeometry(), idx = vc > 65535 ? new Uint32Array(ic) : new Uint16Array(ic);
+  names.forEach(n => { const a0 = geos[0].attributes[n], arr = new a0.array.constructor(vc * a0.itemSize); let o = 0;
+    geos.forEach(g => { const a = g.attributes[n]; arr.set(a.array.subarray(0, a.count * a.itemSize), o); o += a.count * a.itemSize; });
+    out.setAttribute(n, new THREE.BufferAttribute(arr, a0.itemSize, a0.normalized)); });
+  let vo = 0, io = 0;
+  geos.forEach(g => { const n = g.attributes.position.count;
+    if(g.index){ const s = g.index.array; for(let i = 0; i < g.index.count; i++) idx[io++] = s[i] + vo; } else for(let i = 0; i < n; i++) idx[io++] = i + vo;
+    vo += n; });
+  out.setIndex(new THREE.BufferAttribute(idx, 1)); return out;
+}
+// may this object be merged? (the object itself; pins on ancestors are checked by the caller)
+function bakeable(o){
+  if(!(o.isMesh || o.isLineSegments) || o.isInstancedMesh || o.isSkinnedMesh || o.children.length || !o.visible || o.renderOrder) return false;
+  if(o.customDepthMaterial || o.customDistanceMaterial || o.onBeforeRender !== THREE.Object3D.prototype.onBeforeRender || o.onAfterRender !== THREE.Object3D.prototype.onAfterRender) return false;
+  const m = o.material, g = o.geometry; if(!m || Array.isArray(m) || m.transparent || !m.visible || !g || !g.isBufferGeometry) return false;
+  if(o.morphTargetInfluences || Object.keys(g.morphAttributes).length || g.drawRange.start !== 0 || g.drawRange.count !== Infinity) return false;
+  const at = g.attributes; if(!at.position || at.tangent || (o.isMesh && !at.normal)) return false;
+  for(const n in at) if(at[n].isInterleavedBufferAttribute || at[n].isInstancedBufferAttribute) return false;
+  return true;
+}
+function bakeStatic(root, o){
+  if(!bakeOn || !root) return 0; o = o || {};
+  return bakeQuiet(() => {
+    root.updateMatrixWorld(true);
+    const inv = new THREE.Matrix4().copy(root.matrixWorld).invert(), bins = new Map(), mats = [], M = new THREE.Matrix4(), c = new V3(), keep = o.keep || (() => false);
+    const canon = m => { if(!o.same) return m; for(const k of mats) if(bakeSameMat(k, m)) return k; mats.push(m); return m; };
+    const walk = (n, pinned) => {
+      for(const ch of n.children.slice()){
+        if(n === root && o.only && !o.only.has(ch)) continue;
+        const pin = pinned || !ch.visible || keep(ch);
+        if(!pin && bakeable(ch)){
+          const g = ch.geometry, mat = canon(ch.material); let cell = '';
+          if(o.cell && !o.byParent){ if(!g.boundingSphere) g.computeBoundingSphere(); c.copy(g.boundingSphere.center).applyMatrix4(ch.matrixWorld); cell = Math.floor(c.x / o.cell) + ',' + Math.floor(c.z / o.cell); }
+          let ud = null; try{ ud = JSON.stringify(ch.userData); }catch(e){}
+          const sm = o.small ? !!o.small(ch) : null;
+          if(ud !== null){ const k = [o.byParent ? ch.parent.id : '', ch.isMesh ? 'M' : 'L', mat.id, ch.castShadow ? 1 : 0, ch.receiveShadow ? 1 : 0, ch.frustumCulled ? 1 : 0, ch.layers.mask, Object.keys(g.attributes).sort().join('/'), ud, sm, cell].join('|');
+            let b = bins.get(k); if(!b){ b = {mat, parent:o.byParent ? ch.parent : root, list:[], src:ch, sm}; bins.set(k, b); } b.list.push(ch); }
+        }
+        if(ch.children.length) walk(ch, pin);
+      }
+    };
+    walk(root, false);
+    let made = 0, gone = 0;
+    bins.forEach(b => {
+      if(b.list.length < 2) return;
+      const pinv = b.parent === root ? inv : new THREE.Matrix4().copy(b.parent.matrixWorld).invert();
+      const geos = b.list.map(m => { if(o.byParent) M.copy(m.matrix); else M.multiplyMatrices(pinv, m.matrixWorld); const g2 = m.geometry.clone(); g2.applyMatrix4(M);
+        if(M.determinant() < 0 && m.isMesh){ if(!g2.index){ const n = g2.attributes.position.count, a = new (n > 65535 ? Uint32Array : Uint16Array)(n); for(let i = 0; i < n; i++) a[i] = i; g2.setIndex(new THREE.BufferAttribute(a, 1)); }
+          const ix = g2.index.array; for(let i = 0; i + 2 < ix.length; i += 3){ const t = ix[i + 1]; ix[i + 1] = ix[i + 2]; ix[i + 2] = t; } }   // a mirrored part keeps its front faces
+        return g2; });
+      const s = b.src, out = s.isMesh ? new THREE.Mesh(bakeMerge(geos), b.mat) : new THREE.LineSegments(bakeMerge(geos), b.mat);
+      geos.forEach(g => g.dispose());
+      out.castShadow = s.castShadow; out.receiveShadow = s.receiveShadow; out.frustumCulled = s.frustumCulled; out.layers.mask = s.layers.mask; out.userData = JSON.parse(JSON.stringify(s.userData)); out.userData.baked = b.list.length;
+      if(o.small) out.userData.perfSmall = b.sm;   // perfNpc's far-local rule (drop parts under 7 cm) reads this, as the parts were small one by one
+      out.geometry.computeBoundingSphere();
+      b.list.forEach(m => m.parent.remove(m)); b.parent.add(out); made++; gone += b.list.length;
+    });
+    bakeStat.in += gone; bakeStat.out += made; return gone - made;
+  });
+}
+// what a realm's runtime code holds by reference (it moves, fades, flickers, switches LOD or is swapped): never merged
+function bakePins(){
+  const s = new Set(), add = o => { if(o) s.add(o); };
+  coreFollow.forEach(f => add(f.o)); dgScreens.forEach(d => { add(d.mesh); add(d.panel); }); spinners.forEach(q => add(q.o)); floaters.forEach(f => add(f.o));
+  lods.forEach(e => { add(e.hi); add(e.lo); }); grassMeshes.forEach(add); waterMeshes.forEach(add); add(mainTerrain); add(gridSun); hazards.forEach(h => add(h.g));
+  if(drift) [drift.floor, drift.ball, drift.panel, drift.specks].forEach(add);
+  return s;
+}
+// the realms whose static props are batched (each one's builder was read for what it moves or keeps; add a realm only after the same check)
+var BAKE_REALMS = {grid:{cell:48}};
+function bakeRealm(key, from){
+  const R = BAKE_REALMS[key]; if(!bakeOn || !R || !world) return 0;
+  const pins = bakePins(), keep = o => pins.has(o);
+  let n = bakeStatic(world, {only:new Set(from), cell:R.cell, same:true, keep});
+  if(key === 'grid' && drift) n += bakeStatic(drift.g, {same:true, keep});   // The Drift's walls, rim, bands, ribs and porch (not the floor, ball, specks or the sinking panel)
+  return n;
+}
 function capsule(r1, r2, len, seg){
   seg = seg || 6; const pts = [];
   for(let i = 0; i <= seg; i++){ const a = -Math.PI / 2 + i / seg * Math.PI / 2; pts.push(new V2(Math.max(0.0005, Math.cos(a) * r1), Math.sin(a) * r1 - len / 2)); }
@@ -8355,7 +8466,9 @@ function buildWorld(key){
   G = key === 'grid' ? (x, z) => Math.max(0, hf(x, z)) : key === 'warfront' ? warG : key === 'saltlark' ? slG : key === 'fennick' ? fbG : W.custom ? (x, z) => { const h = hf(x, z); return waterBody && waterBody.kind !== 'ice' ? Math.max(h, waterBody.level - 0.75) : h; } : hf;
   W.portals.forEach(addPortal);
   if(W.planet) addBeacon(W.portals[0]);
+  const bake0 = world.children.length;
   if(W.custom) customBuild(W.custom)(r, noise); else BUILD[key](r, noise);
+  const bakeFrom = world.children.slice(bake0);   // what the realm's own builder made (static batching works on these, see bakeRealm)
   if(W.stars && !W.custom) addStars(r, 1400);
   // coins
   const coinGeo = new THREE.CylinderGeometry(0.34, 0.34, 0.07, 40); coinGeo.rotateX(Math.PI / 2);
@@ -8383,6 +8496,7 @@ function buildWorld(key){
   denOnBuild(key);   // Goal 21: the Den's lift on the Spaceport goes up after the late portals: no pad, no rng, one box, nothing above moves
   merBuild(key);   // Goal 18: Meridian's dome and pylons on Ashfall (no colliders, no rng; before monBuild so the Units keep clear of the glass)
   monBuild(key);   // Goal 16: the realm's monsters come last of all: their own rng, no colliders, nothing above moves
+  bakeRealm(key, bakeFrom);   // fewer draw calls: the core's static props merged per material, once everything is placed (no rng, nothing moves)
   bundles.forEach(b => { b.g = null; if(b.world === key) addBundleMesh(b); });
   if(ENDLESS[key] && !W.custom) startBuiltin(key);   // no boundaries (Goal 8a): the land goes on past the hand-made core
   applyPhotos(key); autoReal(key);
@@ -13824,7 +13938,7 @@ document.querySelectorAll('#starling .rally-touch button').forEach(b => { const 
 window.addEventListener('resize', () => { if(starling.open) sizeStarling(); });
 $('#ashBtn').addEventListener('click', () => { if(ashNear) ashAct(); });
 // hooks for the tester (headless checks) and for debugging; not used by the game itself
-window.__hub = { state, p, cam, post, stats, WORLDS, scene, renderer, camera, sunLight, hemi, gl:GL_INFO, softwareGL:SOFTWARE_GL, travel, buildWorld, startGame, setPaused, degrade, parseDescription, makeFromWords, rebuildPlayer, cleanRecipe, snd, sfx, setMute, bike, mountBike, dismountBike, keys, update, trial, trialStart, COURSES, get me(){ return me; }, freezeQuality(){ warm = 1e9; }, get qLevel(){ return qLevel; }, get world(){ return state.world; }, get envRT(){ return envRT; },
+window.__hub = { state, p, cam, post, stats, WORLDS, scene, renderer, camera, sunLight, hemi, gl:GL_INFO, softwareGL:SOFTWARE_GL, travel, buildWorld, startGame, setPaused, degrade, parseDescription, makeFromWords, rebuildPlayer, cleanRecipe, snd, sfx, setMute, bike, mountBike, dismountBike, keys, update, trial, trialStart, COURSES, get me(){ return me; }, freezeQuality(){ warm = 1e9; }, get bake(){ return bakeOn; }, set bake(v){ bakeOn = !!v; }, bakeStat:() => Object.assign({}, bakeStat), bakeStatic:(root, o) => bakeStatic(root, o), get qLevel(){ return qLevel; }, get world(){ return state.world; }, get envRT(){ return envRT; },
   damage(n){ return hurt(n, 'test'); }, get hazards(){ return hazards.map(h => ({x:h.x, z:h.z, L:h.L})); },
   get bundles(){ return bundles.map(b => ({id:b.id, world:b.world, x:b.x, y:b.y, z:b.z, credits:b.credits, items:b.items.map(i => Object.assign({}, i)), why:b.why})); }, get zeroing(){ return zeroing; }, get hp(){ return state.hp; }, get maxHp(){ return maxHp(); }, get level(){ return lvlOf(state.xp); },
   ITEMS, RARITY, get inv(){ return Object.assign({}, state.inv); }, giveItem(id, n){ return giveItem(id, n); }, sell(id){ return sellItem(id); }, useItem, openInventory, closeInventory, openShop, closeShop,
