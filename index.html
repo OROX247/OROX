@@ -366,6 +366,10 @@ button:focus-visible, .warp-item:focus-visible, input:focus-visible, textarea:fo
 /* text size: the HUD, panels, toasts, the Ledger, chat cards, subtitles and captions */
 body.a11y-t1 :is(#hud, #corner, #toast, #talk, #denBar, .overlay > .card, .bc-sub, #caption, #zeroFx .panel, #blackFx > div, #artFx){ zoom:1.2; }
 body.a11y-t2 :is(#hud, #corner, #toast, #talk, #denBar, .overlay > .card, .bc-sub, #caption, #zeroFx .panel, #blackFx > div, #artFx){ zoom:1.45; }
+body.a11y-t1 .overlay > .card{ max-width:calc(100% / 1.2) !important; } body.a11y-t2 .overlay > .card{ max-width:calc(100% / 1.45) !important; }
+body:is(.a11y-t1, .a11y-t2) .overlay > .card{ box-sizing:border-box; min-width:0 !important; overflow-wrap:break-word; }
+body:is(.a11y-t1, .a11y-t2) .overlay > .card :is(*){ max-width:100%; min-width:0; box-sizing:border-box; }
+body:is(.a11y-t1, .a11y-t2) .overlay > .card :is(.look-row, .intro-more){ flex-wrap:wrap; }
 /* high contrast HUD */
 body.a11y-hc{ --panel:#000; --muted:#f0f0f0; --ink:#fff; }
 body.a11y-hc :is(.panel, .hbtn, #toast, #talk, .card, #caption div){ background:#000 !important; color:#fff !important; border:2px solid #fff !important; }
@@ -3103,7 +3107,7 @@ const SLOT_STORES = ['hub-universe-save-v2', 'hub-locals-v1', 'hub-den-v1', 'hub
 const SLOT_META = 'hub-slots-v1', SLOT_PENDING = 'hub-slot-pending', SLOT_N = 3;
 const slotKey = (n, k) => 'hub-slot' + n + ':' + k, slotStage = k => 'hub-slot-stage:' + k;
 const slotLs = {get(k){ try{ return localStorage.getItem(k); }catch(e){ return null; } }, set(k, v){ if(v == null) localStorage.removeItem(k); else localStorage.setItem(k, v); }};
-function slotName(s){ return typeof s === 'string' ? s.replace(/[\u0000-\u001f\u007f<>]/g, '').replace(/\s+/g, ' ').trim().slice(0, 24) : ''; }
+function slotName(s){ return typeof s === 'string' ? s.replace(/[\u0000-\u001f\u007f<>\u200b-\u200f\u2028-\u202e\u2066-\u2069\ufeff]/g, '').replace(/\s+/g, ' ').trim().slice(0, 24) : ''; }
 function slotMeta(){
   let o = null; try{ o = JSON.parse(slotLs.get(SLOT_META) || 'null'); }catch(e){}
   const m = {v:1, active:1, slots:{}}, src = o && typeof o === 'object' && o.slots && typeof o.slots === 'object' && !Array.isArray(o.slots) ? o.slots : null;
@@ -3115,7 +3119,7 @@ function slotMeta(){
   }
   return m;
 }
-function slotMetaSave(m){ try{ slotLs.set(SLOT_META, JSON.stringify(m)); }catch(e){} }
+function slotMetaSave(m){ if(slotStale) return; try{ slotLs.set(SLOT_META, JSON.stringify(m)); }catch(e){} }
 // the boot step: carry out a queued switch, never throwing (a broken switch leaves the slot in play as it was)
 const slotBoot = (() => {
   const out = {did:null, err:null};
@@ -3141,6 +3145,14 @@ const slotBoot = (() => {
   }
   return out;
 })();
+// two windows on different slots (fix after 60851f1): the page remembers the slot it loaded; once another window switches slot, imports into it or
+// queues a switch (storage events on hub-slots-v1 / hub-slot-pending), or the live slot no longer matches, this page never writes a store again
+// and asks for a reload (slotStaleCard, in the Saves section)
+const SLOT_AT_LOAD = slotMeta().active;
+var slotStale = false;   // var: slotMetaSave can run inside slotBoot, above this line
+function slotCanSave(){ if(slotStale) return false; if(slotMeta().active !== SLOT_AT_LOAD){ slotGoneStale(); return false; } return true; }
+function slotGoneStale(){ if(slotStale) return; slotStale = true; try{ slotStaleCard(); }catch(e){} }
+window.addEventListener('storage', e => { if(e.key === SLOT_PENDING && e.newValue != null) slotGoneStale(); else if(e.key === SLOT_META || e.key === null){ if(slotMeta().active !== SLOT_AT_LOAD) slotGoneStale(); } });
 // last played and the realm, for the Saves panel (written at most every 5 s, or at once when the realm changes)
 let slotTouchT = 0, slotTouchW = '';
 function slotTouch(world){ const now = Date.now(); if(now - slotTouchT < 5000 && world === slotTouchW) return; slotTouchT = now; slotTouchW = world;
@@ -3186,6 +3198,7 @@ const state = {
 };
 // state.recipe is filled in once the recipe schema below is defined (see loadRecipe)
 function persist(){
+  if(!slotCanSave()) return;
   try{ localStorage.setItem(SAVE_KEY, JSON.stringify({coins:[...state.coins], shards:[...state.shards], visited:[...state.visited],
     name:state.name, color:state.color, visor:state.visor, xp:state.xp, credits:state.credits, won:state.won, look:state.look, lookSeed:state.lookSeed, lookPath:state.lookPath, recipe:state.recipe, owned:[...state.owned], mute:state.mute, best:state.best, inv:state.inv, picked:[...state.picked], fuel:Math.round(state.fuel * 10) / 10, enrolled:state.enrolled, archive:{ledger:state.archive.ledger, rooms:[...state.archive.rooms], found:[...state.archive.found], broadcast:state.archive.broadcast}, hunt:state.hunt, qp:state.qp, kills:state.kills, art:state.art})); }catch(e){}
   slotTouch(state.world);   // Phase 4: last played and realm for the Saves panel
@@ -6442,7 +6455,7 @@ function realmLook(r){
 }
 const WS_KEY = 'hub-realms-v1';
 let realms = []; try{ realms = JSON.parse(localStorage.getItem(WS_KEY) || '[]'); if(!Array.isArray(realms)) realms = []; realms = realms.filter(cleanRealmRec); }catch(e){ realms = []; }   // Phase 4: a forged record (no id, no text) is dropped instead of stopping the load
-function saveRealms(){ try{ localStorage.setItem(WS_KEY, JSON.stringify(realms.slice(-26))); }catch(e){} }
+function saveRealms(){ if(!slotCanSave()) return; try{ localStorage.setItem(WS_KEY, JSON.stringify(realms.slice(-26))); }catch(e){} }
 function realmKey(rl){ return 'w:' + rl.id; }
 function registerRealm(rl){
   const rec = parseRealm(rl.text), L = realmLook(rec), key = realmKey(rl), sector = 2 + (realms.indexOf(rl) + 26) % 26;
@@ -6544,7 +6557,7 @@ function rollPlanet(star){
 }
 let explorer = (() => { try{ const o = JSON.parse(lsGet(PLANET_KEY) || '{}'); if(!(o && typeof o === 'object' && o.planets && typeof o.planets === 'object')) return {planets:bareMap(null)};
   const pl = bareMap(o.planets); for(const k in pl){ const e = pl[k]; if(!/^\d+-\d+$/.test(k) || !e || typeof e !== 'object' || e.id !== k || typeof e.name !== 'string') delete pl[k]; } o.planets = pl; return o; }catch(e){ return {planets:bareMap(null)}; } })();   // charted planets only (a forged entry is dropped)
-function saveExplorer(){ try{ localStorage.setItem(PLANET_KEY, JSON.stringify(explorer)); }catch(e){} explorer.dirty = false; }
+function saveExplorer(){ if(!slotCanSave()) return; try{ localStorage.setItem(PLANET_KEY, JSON.stringify(explorer)); }catch(e){} explorer.dirty = false; }
 // everything about a planet: from the chart when it has been seen (never changes again), else rolled from the star
 function planetSpec(id){
   const star = starById(id); if(!star) return null;
@@ -7387,7 +7400,7 @@ function dreamsOf(key){
   if(!dreamStore){ let o = null; try{ o = JSON.parse(lsGet(DREAMS_KEY) || '{}'); }catch(e){} dreamStore = bareMap(o);
     for(const k in dreamStore){ const m = dreamStore[k] = bareMap(dreamStore[k]); for(const c in m){ const d = m[c]; if(!d || typeof d !== 'object' || typeof d.text !== 'string' || typeof d.name !== 'string') delete m[c]; } } }   // a forged dream is dropped (and dreamt again)
   return dreamStore[key] || (dreamStore[key] = bareMap(null)); }
-function saveDreams(){ try{ for(const k in dreamStore){ const o = dreamStore[k], ks = Object.keys(o); if(ks.length > 400) ks.slice(0, ks.length - 400).forEach(x => { if(!o[x].found) delete o[x]; }); } localStorage.setItem(DREAMS_KEY, JSON.stringify(dreamStore)); }catch(e){} }
+function saveDreams(){ if(!dreamStore || !slotCanSave()) return; try{ for(const k in dreamStore){ const o = dreamStore[k], ks = Object.keys(o); if(ks.length > 400) ks.slice(0, ks.length - 400).forEach(x => { if(!o[x].found) delete o[x]; }); } localStorage.setItem(DREAMS_KEY, JSON.stringify(dreamStore)); }catch(e){} }
 // many glows in one draw (sprites are one draw call each): additive points sized in metres, like glow()
 let glowCloudMat = null;
 function glowCloud(list, op){
@@ -9569,6 +9582,7 @@ function bcMusicStop(){
 function bcCatmull(a, b, c, d, u){ const u2 = u * u, u3 = u2 * u; return 0.5 * (2 * b + (-a + c) * u + (2 * a - 5 * b + 4 * c - d) * u2 + (-a + 3 * b - 3 * c + d) * u3); }
 function bcPathAt(t, out0, out1){
   const P = BC_PATH, n = P.length; let i = 0; while(i < n - 2 && t >= P[i + 1][0]) i++;
+  if(A11Y.calm){ const K = P[Math.max(0, i - (i % 2))]; out0.set(K[1][0], K[1][1], K[1][2]); out1.set(K[2][0], K[2][1], K[2][2]); return; }   // Reduce motion: half as many shots, each held still
   const u = clamp((t - P[i][0]) / (P[i + 1][0] - P[i][0]), 0, 1), e = u * u * (3 - 2 * u), s = u * 0.35 + e * 0.65;   // eased, but never stopping dead between shots
   const A = P[Math.max(0, i - 1)], B = P[i], Cc = P[i + 1], D = P[Math.min(n - 1, i + 2)];
   out0.set(bcCatmull(A[1][0], B[1][0], Cc[1][0], D[1][0], s), bcCatmull(A[1][1], B[1][1], Cc[1][1], D[1][1], s), bcCatmull(A[1][2], B[1][2], Cc[1][2], D[1][2], s));
@@ -14283,7 +14297,7 @@ function lp(){ const k = playerKey(); let P = localsStore.players[k];
   if(!P || typeof P !== 'object') P = localsStore.players[k] = {};
   if(!P.locals || typeof P.locals !== 'object' || Object.getPrototypeOf(P.locals) !== null) P.locals = bareMap(P.locals);   /* once: later calls keep the same object */ P.gossip = Array.isArray(P.gossip) ? P.gossip : []; P.deedsSeen = Array.isArray(P.deedsSeen) ? P.deedsSeen : [];
   P.quests = Array.isArray(P.quests) ? P.quests : []; P.zeros = num(P.zeros, 0); P.qseq = num(P.qseq, 0); return P; }
-function saveLocals(){ try{ localStorage.setItem(LOCALS_KEY, JSON.stringify(localsStore)); }catch(e){} }
+function saveLocals(){ if(!slotCanSave()) return; try{ localStorage.setItem(LOCALS_KEY, JSON.stringify(localsStore)); }catch(e){} }
 function memOf(nn){ const P = lp(), id = localId(nn); let m = P.locals[id];
   if(!m){ m = P.locals[id] = {met:0, mood:LP_TEMPERS[personaOf(nn).temper].base, said:[], notes:[], promises:[], reacted:[], thanks:[], last:0}; }
   ['said', 'notes', 'promises', 'reacted', 'thanks'].forEach(k => { if(!Array.isArray(m[k])) m[k] = []; }); m.mood = clamp(num(m.mood, 0), -10, 10); m.met = num(m.met, 0); return m; }
@@ -18502,7 +18516,7 @@ const FB_MEMS = [
 ];
 const FB_KEY = 'hub-fennick-v1';
 let fbMem = (() => { try{ const o = JSON.parse(lsGet(FB_KEY) || '{}'); return {found:Array.isArray(o.found) ? o.found.filter((id, i, a) => FB_MEMS.some(m => m.id === id) && a.indexOf(id) === i) : [], all:!!o.all}; }catch(e){ return {found:[], all:false}; } })();
-const fbMemSave = () => { try{ localStorage.setItem(FB_KEY, JSON.stringify(fbMem)); }catch(e){} };
+const fbMemSave = () => { if(!slotCanSave()) return; try{ localStorage.setItem(FB_KEY, JSON.stringify(fbMem)); }catch(e){} };
 let fbNear = null;
 function fbMemNear(){
   if(!fb || state.world !== 'fennick' || (qa && qa.inside) || pocketIn() || traveling) return null;
@@ -19004,7 +19018,7 @@ function denClean(o){
   return out;
 }
 var denStore = (() => { try{ return denClean(JSON.parse(lsGet(DEN_KEY) || '{}')); }catch(e){ return denClean(null); } })();
-function denSave(){ try{ localStorage.setItem(DEN_KEY, JSON.stringify({v:1, own:denStore.own, placed:denStore.placed.map(e => e.wall ? {id:e.id, wall:e.wall, a:e.a, b:e.b, r:e.r} : {id:e.id, a:e.a, b:e.b, r:e.r})})); }catch(e){} }
+function denSave(){ if(!slotCanSave()) return; try{ localStorage.setItem(DEN_KEY, JSON.stringify({v:1, own:denStore.own, placed:denStore.placed.map(e => e.wall ? {id:e.id, wall:e.wall, a:e.a, b:e.b, r:e.r} : {id:e.id, a:e.a, b:e.b, r:e.r})})); }catch(e){} }
 // buying: whole credits from state.credits, one at a time, never past the item's limit
 function denBuy(id){
   const D = denItem(id); if(!D) return {ok:false, why:'Not in the catalogue.'};
@@ -19533,6 +19547,13 @@ var SLOT_EXPORT_TAG = 'hub-save-slot', SLOT_MAX_BYTES = 4000000;
 var slotsEl = $('#slots'), slotConfirm = null;
 function slotRead(n, k){ return slotMeta().active === n ? slotLs.get(k) : slotLs.get(slotKey(n, k)); }
 function slotEmpty(n){ return SLOT_STORES.every(k => slotRead(n, k) == null); }
+function slotStaleCard(){
+  if(document.getElementById('slotStale')) return;
+  const d = document.createElement('div'); d.id = 'slotStale'; d.className = 'overlay'; d.setAttribute('role', 'alertdialog'); d.setAttribute('aria-modal', 'true'); d.setAttribute('aria-labelledby', 'slotStaleT');
+  d.innerHTML = '<div class="card"><h2 id="slotStaleT">Save slot changed</h2><p class="lede">Another window changed save slot. Reload to continue.</p><p class="lede">Nothing more is saved from this window.</p><button class="start" id="slotStaleGo">Reload</button></div>';
+  d.style.zIndex = 99; document.body.appendChild(d); try{ setPaused(true); }catch(e){}
+  const b = document.getElementById('slotStaleGo'); b.addEventListener('click', () => location.reload()); b.focus();
+}
 function slotFlush(){ try{ persist(); }catch(e){} try{ saveLocals(); }catch(e){} try{ denSave(); }catch(e){} try{ fbMemSave(); }catch(e){} try{ saveExplorer(); }catch(e){} try{ saveDreams(); }catch(e){} try{ saveRealms(); }catch(e){} }
 function slotInfo(n){
   const m = slotMeta(), s = m.slots[n], o = {n, active:m.active === n, label:s.name || ('Slot ' + n), name:'', level:0, credits:0, shards:0, realm:'', realmName:'', played:s.played, empty:slotEmpty(n), ok:true};
@@ -19595,7 +19616,7 @@ function slotCleanMain(c){
   if(c.recipe != null){ try{ out.recipe = cleanRecipe(c.recipe); }catch(e){ out.recipe = null; } }
   return out;
 }
-function cleanRealmRec(rl){ return !!rl && typeof rl === 'object' && !Array.isArray(rl) && typeof rl.id === 'string' && /^[a-z0-9_-]{1,40}$/i.test(rl.id) && typeof rl.text === 'string' && rl.text.length <= 600 && (rl.name == null || typeof rl.name === 'string'); }
+function cleanRealmRec(rl){ return !!rl && typeof rl === 'object' && !Array.isArray(rl) && typeof rl.id === 'string' && /^[a-z0-9_-]{1,40}$/i.test(rl.id) && ['__proto__', 'constructor', 'prototype'].indexOf(rl.id) < 0 && typeof rl.text === 'string' && rl.text.length <= 600 && (rl.name == null || typeof rl.name === 'string'); }
 // write a whole slot (stores = {key: value}, missing keys are cleared). The slot in play is only ever written through a reload (staged).
 function slotWrite(n, stores, name, reload){
   const m = slotMeta();
