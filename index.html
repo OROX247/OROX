@@ -20254,8 +20254,8 @@ function sndLoopsTick(sc, t){
     if(Lp.rich && sc.saver) return; const cur = sc.loops[Lp.k], q = sndPocket() ? null : Lp.find(sc), P = q ? sndPlace(q[0], q[1], q[2], Lp.ref, Lp.range) : null;
     if(P && P.g > 0.02){
       let L = cur; if(!L){ const c = snd.ctx, g = c.createGain(); g.gain.value = 0; const pn = c.createStereoPanner ? c.createStereoPanner() : null; if(pn){ g.connect(pn); pn.connect(snd.amb); } else g.connect(snd.amb);
-        L = sc.loops[Lp.k] = {g, pn, nodes:[], at:t}; L.nodes = Lp.make(snd.ctx, g, sc.r).concat([g]).concat(pn ? [pn] : []);
-        if(Lp.cap && A11Y.captions && !(sc['cap' + Lp.k] > performance.now() - 60000)){ sc['cap' + Lp.k] = performance.now(); caption(Lp.cap, 3200); } }
+        L = sc.loops[Lp.k] = {g, pn, nodes:[], at:t}; L.nodes = Lp.make(snd.ctx, g, sc.r).concat([g]).concat(pn ? [pn] : []); }
+      if(Lp.cap && A11Y.captions && (Lp.capNear == null ? L.at === t : P.d < Lp.capNear) && !(sc['cap' + Lp.k] > performance.now() - 60000)){ sc['cap' + Lp.k] = performance.now(); caption(Lp.cap, 3200); }   /* capNear: only when the source is really close (the shuttle), not whenever the far loop starts */
       L.g.gain.setTargetAtTime(P.g * Lp.lvl, t, 0.3); if(L.pn) L.pn.pan.setTargetAtTime(P.pan, t, 0.3); L.d = P.d;
     } else if(cur && (!P || P.g < 0.01)){ delete sc.loops[Lp.k]; cur.g.gain.setTargetAtTime(0, t, 0.15); setTimeout(() => cur.nodes.forEach(n => { try{ n.stop ? n.stop() : n.disconnect(); }catch(e){} }), 700); }
   });
@@ -20329,7 +20329,7 @@ var SCAPES = {
       {k:'chime', pts:[[0, -40], [30, 10], [-30, 10]], y:8, every:[50, 120], range:130, ref:25},
       {k:'murmur', pts:[[8, 6], [-9, 4], [4, -10], [-6, -12]], y:1.5, every:[7, 16], range:30, ref:5}],
     loops:[{k:'shuttle', find:() => { let best = null, bd = 1e9; ships.forEach(s => { const q = s.g.position, d = Math.hypot(q.x - p.x, q.z - p.z, q.y - p.y); if(d < bd){ bd = d; best = [q.x, q.y, q.z]; } }); return best; },   /* the position update() moves (matrixWorld lags until the next render) */
-      range:340, ref:50, lvl:0.45, make:sndShuttle, cap:'[A shuttle passes overhead]'}]},   /* a far roar most of the time, louder as one passes near */
+      range:340, ref:50, lvl:0.45, make:sndShuttle, cap:'[A shuttle passes overhead]', capNear:150}]},   /* the ships pass 140-210 m from the plaza: only the close part of a pass is captioned */   /* a far roar most of the time, louder as one passes near */
   campus:{bed:[{n:'leaves', src:'pink', ft:'highpass', f:[1800, 3800], q:0.5, g:[0.003, 0.012], every:[3, 8], gust:0.2}, {n:'lawn', src:'brown', ft:'lowpass', f:[200, 400], g:[0.02, 0.05], every:[8, 16], rich:true}],
     spots:[{k:'bird', lat:{cell:28, n:2, ok:(x, z) => x > 22 || Math.hypot(x, z) > 70}, y:7, every:[3, 9], range:55, ref:8},
       {k:'bell', pts:[[0, 190], [-170, -120]], y:30, every:[80, 170], range:650, ref:120, cap:'[A bell rings across Campus]'}]},
