@@ -21355,43 +21355,100 @@ function lifeMesh(geo, mat, n){
   const m = new THREE.InstancedMesh(geo, mat, n); m.instanceMatrix.setUsage(THREE.DynamicDrawUsage); m.castShadow = false; m.receiveShadow = true; m.frustumCulled = false; m.userData.noAO = true;
   life.g.add(m); return m;
 }
-// read-only, before the bake merges the props: where the glowing lights are (moths) and which ledges are free and flat (perching birds)
+// a perching bird u seconds after take-off: hz metres out along its route, vt up (c: how steeply it climbs). LIFE_FLY_U are the knots a route is tested at (4.8 s is the longest flight)
+var LIFE_FLY_U = [0, 0.35, 0.8, 1.4, 2.1, 2.9, 3.8, 4.8], LIFE_ROUTES = 12, LIFE_CLIMB = [1, 1.7];
+function lifeHz(u){ return 2.2 * u + 1.5 * u * u; }
+function lifeVt(u, c){ return c * (2.8 * u - 0.12 * u * u); }
+// read-only, before the bake merges the props: where the glowing lights are (moths), which ledges are free and flat and which way a bird can fly
+// off each of them without meeting a wall (perching birds), and the boxes of the solid meshes the other creatures keep out of
 function lifePrep(key){
   lifePrepped = null; if(!LIFE_KEYS[key] || !world || WORLDS[key].custom) return;
-  const out = {key, lights:[], perches:[]};
-  if(key === 'grove') world.traverse(o => { if(o.isSprite && o.material.map === glowTex && Math.hypot(o.position.x, o.position.z) < 58 && o.position.y - G(o.position.x, o.position.z) < 6) out.lights.push([o.position.x, o.position.y, o.position.z, o.material.color.getHex()]); });
-  if(key === 'lampblack' || key === 'fennick' || key === 'saltlark'){
-    const skip = new Set(); [lb, fb, sl].forEach(R => { if(R && R.skip && state.world === key) R.skip.forEach(o => skip.add(o)); });
-    npcs.forEach(n => skip.add(n.av.g)); coins.forEach(c => skip.add(c.g)); flyers.forEach(f => skip.add(f.m)); ships.forEach(s => skip.add(s.g)); portals.forEach(q => skip.add(q.g)); if(mon && mon.root) skip.add(mon.root); if(cult && cult.g) skip.add(cult.g);
-    const solid = [], bb = new THREE.Box3(), mw = new THREE.Matrix4(); world.updateMatrixWorld(true);
-    world.traverse(o => { if(!o.isMesh || o === mainTerrain || (o.isInstancedMesh && o.count > 400)) return; const M = o.material; if(!M || Array.isArray(M) || M.transparent || M.alphaTest > 0 || M.wireframe) return;
-      for(let s = o; s; s = s.parent) if(skip.has(s)) return;
+  const out = {key, lights:[], perches:[], obst:[]}, t0 = performance.now();
+  const skip = new Set(); [lb, fb, sl].forEach(R => { if(R && R.skip && state.world === key) R.skip.forEach(o => skip.add(o)); });
+  npcs.forEach(n => skip.add(n.av.g)); coins.forEach(c => skip.add(c.g)); flyers.forEach(f => skip.add(f.m)); ships.forEach(s => skip.add(s.g)); portals.forEach(q => skip.add(q.g)); if(mon && mon.root) skip.add(mon.root); if(cult && cult.g) skip.add(cult.g); if(me && me.g) skip.add(me.g);
+  const skipped = o => { for(let s = o; s; s = s.parent) if(skip.has(s)) return true; return false; };
+  world.updateMatrixWorld(true);
+  if(key === 'grove'){ const v = new V3(); world.traverse(o => { if(!o.isSprite || o.material.map !== glowTex || o.scale.x < 1 || skipped(o)) return; o.getWorldPosition(v);   // world positions: most glows sit at the origin of their mushroom's group
+    if(Math.hypot(v.x, v.z) < 58 && v.y - G(v.x, v.z) < 6) out.lights.push([v.x, v.y, v.z, o.material.color.getHex(), []]); });
+    const bx = new THREE.Box3(); world.traverse(o => { if(!o.isMesh || o.isInstancedMesh || o === mainTerrain) return; const M = o.material; if(!M || Array.isArray(M) || M.transparent || M.alphaTest > 0 || skipped(o)) return;   // the caps and posts the moths must not fly through
+      if(!o.geometry.boundingBox) o.geometry.computeBoundingBox(); bx.copy(o.geometry.boundingBox).applyMatrix4(o.matrixWorld); if(bx.max.x - bx.min.x > 20 || bx.max.z - bx.min.z > 20) return;
+      out.lights.forEach(l => { if(bx.distanceToPoint(v.set(l[0], l[1], l[2])) < 2.6) l[4].push([bx.min.x - 0.08, bx.max.x + 0.08, bx.min.y - 0.08, bx.max.y + 0.08, bx.min.z - 0.08, bx.max.z + 0.08]); }); }); }
+  else {
+    const solid = [], bb = new THREE.Box3(), mw = new THREE.Matrix4(), rocks = key === 'dunes';
+    world.traverse(o => { if(!o.isMesh || o === mainTerrain || (o.isInstancedMesh && o.count > (rocks ? 3000 : 400))) return; const M = o.material; if(!M || Array.isArray(M) || M.transparent || M.alphaTest > 0 || M.wireframe || skipped(o)) return;
       if(!o.geometry.boundingBox) o.geometry.computeBoundingBox(); const box = new THREE.Box3();
-      if(o.isInstancedMesh) for(let i = 0; i < o.count; i++){ o.getMatrixAt(i, mw); mw.premultiply(o.matrixWorld); box.union(bb.copy(o.geometry.boundingBox).applyMatrix4(mw)); }
-      else box.copy(o.geometry.boundingBox).applyMatrix4(o.matrixWorld);
-      solid.push({o, box}); });   // world-space boxes, so each ray only meets the few meshes under it
-    const ray = new THREE.Raycaster(), dn = new V3(0, -1, 0), nm = new THREE.Matrix3(), nv = new V3(), cand = [], near = [], rq = rng(LIFE_RNG_SEED + 5), maxR = key === 'fennick' ? 120 : 75;
-    const minH = key === "lampblack" ? 1.6 : 0.5, okAt = (x, z, top) => { const g0 = G(x, z); return top - g0 >= minH && top - g0 <= 13 && Math.hypot(x, z) <= maxR && !portals.some(q => Math.hypot(q.x - x, q.z - z) < 6); };
-    const tryAt = (x, z, top) => { if(!okAt(x, z, top)) return null;
-      near.length = 0; for(const e of solid){ const B = e.box; if(x >= B.min.x && x <= B.max.x && z >= B.min.z && z <= B.max.z && B.max.y >= top - 0.5 && B.min.y <= top + 2.5) near.push(e.o); }
-      if(!near.length) return null;
-      ray.set(new V3(x, top + 2.5, z), dn); ray.far = 3.2; const h = ray.intersectObjects(near, false)[0]; if(!h || !h.face || Math.abs(h.point.y - top) > 0.45) return null;
-      nm.getNormalMatrix(h.object.matrixWorld); nv.copy(h.face.normal).applyMatrix3(nm).normalize(); if(nv.y < 0.82) return null;
-      return [x, h.point.y, z]; };
-    const edges = [];   // every long top edge of a box, and the top of every thin post, tried in an order of the life's own rng until there are enough
-    boxes.forEach(b => { if(b.hollow || b.den || b.cam === false || b.y1 - b.y0 < 0.6 || !okAt(b.x, b.z, b.y1)) return; const len = Math.max(b.hx, b.hz) - 0.3; if(len < 0.25) return;
-      (b.hx > b.hz ? [[0, b.hz - 0.12, 1, 0], [0, -b.hz + 0.12, 1, 0]] : [[b.hx - 0.12, 0, 0, 1], [-b.hx + 0.12, 0, 0, 1]]).forEach(e => edges.push({b, e, len})); });
-    colliders.forEach(c => { if(c.r <= 0.45 && c.ht != null && okAt(c.x, c.z, c.ht)) edges.push({c}); });
-    for(let i = edges.length - 1; i > 0; i--){ const j = Math.floor(rq() * (i + 1)); [edges[i], edges[j]] = [edges[j], edges[i]]; }
-    let rays = 0; const tryN = (x, z, top) => { rays++; return tryAt(x, z, top); };
-    for(let n = 0; n < edges.length && rays < 420 && cand.length < 40; n++){ const E = edges[n];
-      if(E.c){ const q = tryN(E.c.x, E.c.z, E.c.ht); if(q) cand.push([q.concat([0])]); continue; }
-      const {b, len} = E, [lx0, lz0, ux, uz] = E.e, row = [], m0 = Math.min(len, 1.5) * (rq() * 2 - 1), st = Math.max(-len, m0 - 0.84), end = Math.min(len, m0 + 0.84);
-      { const x = b.x + (lx0 + ux * m0) * b.c - (lz0 + uz * m0) * b.s, z = b.z + (lx0 + ux * m0) * b.s + (lz0 + uz * m0) * b.c; if(!tryN(x, z, b.y1)) continue; }   // the middle first: most edges are under a roof or a sill
-      for(let t = st; t <= end + 1e-6; t += 0.42){ const lx = lx0 + ux * t, lz = lz0 + uz * t, x = b.x + lx * b.c - lz * b.s, z = b.z + lx * b.s + lz * b.c, q = tryN(x, z, b.y1); if(q) row.push(q.concat([Math.atan2(ux * b.c - uz * b.s, ux * b.s + uz * b.c)])); }
-      if(row.length) cand.push(row); }
-    out.perches = cand; out.rays = rays;
+      if(o.isInstancedMesh) for(let i = 0; i < o.count; i++){ o.getMatrixAt(i, mw); mw.premultiply(o.matrixWorld); bb.copy(o.geometry.boundingBox).applyMatrix4(mw); box.union(bb); if(rocks) out.obst.push([bb.min.x, bb.max.x, bb.min.y, bb.max.y, bb.min.z, bb.max.z]); }
+      else { box.copy(o.geometry.boundingBox).applyMatrix4(o.matrixWorld); if(rocks) out.obst.push([box.min.x, box.max.x, box.min.y, box.max.y, box.min.z, box.max.z]); }
+      if(!rocks && box.max.x - box.min.x < 150 && box.max.z - box.min.z < 150) out.obst.push([box.min.x, box.max.x, box.min.y, box.max.y, box.min.z, box.max.z]);
+      if(!o.isInstancedMesh || o.count <= 400) solid.push({o, box}); });   // world-space boxes, so each ray only meets the few meshes under it
+    if(rocks) out.obst = out.obst.filter(r => r[1] - r[0] < 12 && r[5] - r[4] < 12 && r[3] - G((r[0] + r[1]) / 2, (r[4] + r[5]) / 2) > 0.08);   // stones and props a lizard must run round
+    else out.obst = out.obst.filter(r => r[3] - G((r[0] + r[1]) / 2, (r[4] + r[5]) / 2) > 0.25);
+    if(key === 'lampblack' || key === 'fennick' || key === 'saltlark'){
+      const ray = new THREE.Raycaster(), dn = new V3(0, -1, 0), nm = new THREE.Matrix3(), nv = new V3(), cand = [], near = [], rq = rng(LIFE_RNG_SEED + 5), maxR = key === 'fennick' ? 120 : 75;
+      const minH = key === "lampblack" ? 1.6 : 0.5, okAt = (x, z, top) => { const g0 = G(x, z); return top - g0 >= minH && top - g0 <= 13 && Math.hypot(x, z) <= maxR && !portals.some(q => Math.hypot(q.x - x, q.z - z) < 6); };
+      const tryAt = (x, z, top) => { if(!okAt(x, z, top)) return null;
+        near.length = 0; for(const e of solid){ const B = e.box; if(x >= B.min.x && x <= B.max.x && z >= B.min.z && z <= B.max.z && B.max.y >= top - 0.5 && B.min.y <= top + 2.5) near.push(e.o); }
+        if(!near.length) return null;
+        ray.set(new V3(x, top + 2.5, z), dn); ray.far = 3.2; const h = ray.intersectObjects(near, false)[0]; if(!h || !h.face || Math.abs(h.point.y - top) > 0.45) return null;
+        nm.getNormalMatrix(h.object.matrixWorld); nv.copy(h.face.normal).applyMatrix3(nm).normalize(); if(nv.y < 0.82) return null;
+        return [x, h.point.y, z]; };
+      const edges = [];   // every long top edge of a box, and the top of every thin post, tried in an order of the life's own rng until there are enough
+      boxes.forEach(b => { if(b.hollow || b.den || b.cam === false || b.y1 - b.y0 < 0.6 || !okAt(b.x, b.z, b.y1)) return; const len = Math.max(b.hx, b.hz) - 0.3; if(len < 0.25) return;
+        (b.hx > b.hz ? [[0, b.hz - 0.12, 1, 0], [0, -b.hz + 0.12, 1, 0]] : [[b.hx - 0.12, 0, 0, 1], [-b.hx + 0.12, 0, 0, 1]]).forEach(e => edges.push({b, e, len})); });
+      colliders.forEach(c => { if(c.r <= 0.45 && c.ht != null && okAt(c.x, c.z, c.ht)) edges.push({c}); });
+      for(let i = edges.length - 1; i > 0; i--){ const j = Math.floor(rq() * (i + 1)); [edges[i], edges[j]] = [edges[j], edges[i]]; }
+      let rays = 0; const tryN = (x, z, top) => { rays++; return tryAt(x, z, top); };
+      for(let n = 0; n < edges.length && rays < 420 && cand.length < 40; n++){ const E = edges[n];
+        if(E.c){ const q = tryN(E.c.x, E.c.z, E.c.ht); if(q) cand.push([q.concat([0])]); continue; }
+        const {b, len} = E, [lx0, lz0, ux, uz] = E.e, row = [], m0 = Math.min(len, 1.5) * (rq() * 2 - 1), st = Math.max(-len, m0 - 0.84), end = Math.min(len, m0 + 0.84);
+        { const x = b.x + (lx0 + ux * m0) * b.c - (lz0 + uz * m0) * b.s, z = b.z + (lx0 + ux * m0) * b.s + (lz0 + uz * m0) * b.c; if(!tryN(x, z, b.y1)) continue; }   // the middle first: most edges are under a roof or a sill
+        for(let t = st; t <= end + 1e-6; t += 0.42){ const lx = lx0 + ux * t, lz = lz0 + uz * t, x = b.x + lx * b.c - lz * b.s, z = b.z + lx * b.s + lz * b.c, q = tryN(x, z, b.y1); if(q) row.push(q.concat([Math.atan2(ux * b.c - uz * b.s, ux * b.s + uz * b.c)])); }
+        if(row.length) cand.push(row); }
+      // the way out: from every perch, LIFE_ROUTES headings, each tried at a gentle and then a steep climb along the real flight curve against the unbaked meshes.
+      // A 6 m grid of their boxes keeps each segment to the few meshes it passes; a mesh gets its own 3 m triangle grid (world space, either face counts) the first
+      // time a segment meets it: Raycaster tests every triangle of a mesh and was 4x slower here. Only cells within 50 m of the perches are binned.
+      // A perch with no clear way out is dropped.
+      const CELL = 6, TC = 3, cells = new Map(), ck = (i, j) => i * 4096 + j;
+      let ax0 = 1e9, ax1 = -1e9, az0 = 1e9, az1 = -1e9; cand.forEach(row => row.forEach(q => { ax0 = Math.min(ax0, q[0]); ax1 = Math.max(ax1, q[0]); az0 = Math.min(az0, q[2]); az1 = Math.max(az1, q[2]); }));
+      ax0 -= 50; ax1 += 50; az0 -= 50; az1 += 50;   // the flights stay within 46 m of their perch: nothing outside this is binned
+      const ci0 = Math.floor(ax0 / CELL), ci1 = Math.floor(ax1 / CELL), cj0 = Math.floor(az0 / CELL), cj1 = Math.floor(az1 / CELL), ti0 = Math.floor(ax0 / TC), ti1 = Math.floor(ax1 / TC), tj0 = Math.floor(az0 / TC), tj1 = Math.floor(az1 / TC);
+      solid.forEach((e, n) => { const B = e.box;
+        for(let i = Math.max(ci0, Math.floor(B.min.x / CELL)); i <= Math.min(ci1, Math.floor(B.max.x / CELL)); i++) for(let j = Math.max(cj0, Math.floor(B.min.z / CELL)); j <= Math.min(cj1, Math.floor(B.max.z / CELL)); j++){ const k = ck(i, j); let L = cells.get(k); if(!L) cells.set(k, L = []); L.push(n); } });
+      const seen = new Uint32Array(solid.length), tv = new V3(), mi = new THREE.Matrix4(), mm = new THREE.Matrix4(), tg = new Map(); let stamp = 0, segs = 0;
+      const gridOf = o => { let T = tg.get(o); if(T) return T; const g = o.geometry, P = g.attributes.position, I = g.index, nv = P.count, nt = (I ? I.count : nv) / 3, n = o.isInstancedMesh ? o.count : 1;
+        const F = new Float32Array(nt * n * 9), W = new Float32Array(nv * 3), tc = new Map(); let t = 0;
+        for(let k = 0; k < n; k++){ if(o.isInstancedMesh){ o.getMatrixAt(k, mi); mm.multiplyMatrices(o.matrixWorld, mi); } else mm.copy(o.matrixWorld);
+          for(let i = 0; i < nv; i++){ tv.fromBufferAttribute(P, i).applyMatrix4(mm); W[i * 3] = tv.x; W[i * 3 + 1] = tv.y; W[i * 3 + 2] = tv.z; }
+          for(let f = 0; f < nt; f++, t++){ const o9 = t * 9; let x0 = 1e9, x1 = -1e9, z0 = 1e9, z1 = -1e9;
+            for(let v = 0; v < 3; v++){ const q = (I ? I.getX(f * 3 + v) : f * 3 + v) * 3; F[o9 + v * 3] = W[q]; F[o9 + v * 3 + 1] = W[q + 1]; F[o9 + v * 3 + 2] = W[q + 2]; x0 = Math.min(x0, W[q]); x1 = Math.max(x1, W[q]); z0 = Math.min(z0, W[q + 2]); z1 = Math.max(z1, W[q + 2]); }
+            for(let i = Math.max(ti0, Math.floor(x0 / TC)); i <= Math.min(ti1, Math.floor(x1 / TC)); i++) for(let j = Math.max(tj0, Math.floor(z0 / TC)); j <= Math.min(tj1, Math.floor(z1 / TC)); j++){ const kk = ck(i, j); let L = tc.get(kk); if(!L) tc.set(kk, L = []); L.push(t); } } }
+        T = {F, tc, st:new Uint32Array(t), s:0}; tg.set(o, T); return T; };
+      const triHit = (T, ax, ay, az, bx, by, bz) => { const s = ++T.s, F = T.F, dx = bx - ax, dy = by - ay, dz = bz - az;   // either side, like a bird would meet it
+        for(let i = Math.floor(Math.min(ax, bx) / TC); i <= Math.floor(Math.max(ax, bx) / TC); i++) for(let j = Math.floor(Math.min(az, bz) / TC); j <= Math.floor(Math.max(az, bz) / TC); j++){ const L = T.tc.get(ck(i, j)); if(!L) continue;
+          for(const t of L){ if(T.st[t] === s) continue; T.st[t] = s; const o = t * 9;
+            const e1x = F[o + 3] - F[o], e1y = F[o + 4] - F[o + 1], e1z = F[o + 5] - F[o + 2], e2x = F[o + 6] - F[o], e2y = F[o + 7] - F[o + 1], e2z = F[o + 8] - F[o + 2];
+            const px = dy * e2z - dz * e2y, py = dz * e2x - dx * e2z, pz = dx * e2y - dy * e2x, det = e1x * px + e1y * py + e1z * pz; if(Math.abs(det) < 1e-12) continue;
+            const inv = 1 / det, sx = ax - F[o], sy = ay - F[o + 1], sz = az - F[o + 2], u = (sx * px + sy * py + sz * pz) * inv; if(u < 0 || u > 1) continue;
+            const qx = sy * e1z - sz * e1y, qy = sz * e1x - sx * e1z, qz = sx * e1y - sy * e1x, v = (dx * qx + dy * qy + dz * qz) * inv; if(v < 0 || u + v > 1) continue;
+            const tt = (e2x * qx + e2y * qy + e2z * qz) * inv; if(tt > 1e-4 && tt <= 1) return true; } }
+        return false; };
+      const segHit = (ax, ay, az, bx, by, bz) => { segs++; stamp++; const x0 = Math.min(ax, bx) - 0.2, x1 = Math.max(ax, bx) + 0.2, y0 = Math.min(ay, by) - 0.2, y1 = Math.max(ay, by) + 0.2, z0 = Math.min(az, bz) - 0.2, z1 = Math.max(az, bz) + 0.2;
+        for(let i = Math.floor(x0 / CELL); i <= Math.floor(x1 / CELL); i++) for(let j = Math.floor(z0 / CELL); j <= Math.floor(z1 / CELL); j++){ const L = cells.get(ck(i, j)); if(L) for(const n of L){ if(seen[n] === stamp) continue; seen[n] = stamp; const e = solid[n], B = e.box;
+          if(B.max.x < x0 || B.min.x > x1 || B.max.y < y0 || B.min.y > y1 || B.max.z < z0 || B.min.z > z1) continue;
+          if(triHit(gridOf(e.o), ax, ay, az, bx, by, bz)) return true; } }
+        return false; };
+      const routesAt = (x, y, z) => { const r = [];
+        for(let d = 0; d < LIFE_ROUTES; d++){ const a = d / LIFE_ROUTES * TAU, dx = Math.sin(a), dz = Math.cos(a);
+          for(const c of LIFE_CLIMB){ let ok = true, lx = x, ly = y + 0.12, lz = z;
+            for(let j = 1; j < LIFE_FLY_U.length && ok; j++){ const u = LIFE_FLY_U[j], hz = lifeHz(u), nx = x + dx * hz, ny = y + 0.12 + lifeVt(u, c), nz = z + dz * hz;
+              if(ny < G(nx, nz) + 0.6 || segHit(lx, ly, lz, nx, ny, nz)) ok = false; lx = nx; ly = ny; lz = nz; }
+            if(ok){ r.push([a, c]); break; } } }
+        return r; };
+      out.perches = cand.map(row => row.filter(q => (q[4] = routesAt(q[0], q[1], q[2])).length)).filter(row => row.length);
+      out.rays = rays; out.segs = segs; out.cut = cand.reduce((n, r) => n + r.length, 0) - out.perches.reduce((n, r) => n + r.length, 0);
+    }
   }
+  out.ms = performance.now() - t0;
   lifePrepped = out;
 }
 function lifeBuild(key){
@@ -21402,8 +21459,14 @@ function lifeBuild(key){
     life = {g, key, t:0, kinds:[]}; lifeR = rng(LIFE_RNG_SEED + 99);
     const K = life.kinds;
     if(key === 'grove' && P && P.lights.length){   // moths: a few to every glowing light, in loose wobbling loops round it
-      const L = P.lights.slice().sort((a, b) => Math.hypot(a[0], a[2]) - Math.hypot(b[0], b[2])).slice(0, 12), n = L.length * 4, m = lifeMesh(lifeMothGeo(), lifeMat({rough:0.95, fold:0.45, selfLit:0.32}), n);
-      const mem = []; for(let i = 0; i < n; i++){ const l = L[i % L.length]; mem.push({l, a:q() * TAU, r:0.35 + q() * 0.75, w:(1.6 + q() * 1.8) * (q() < 0.5 ? -1 : 1), y:-0.4 + q() * 0.9, ph:q() * TAU, s:1.1 + q() * 0.6, k:2 + q() * 2}); }
+      const hits = (l, r, y) => { const r0 = r * 0.8 - 0.13, r1 = r * 1.1 + 0.13, y0 = l[1] + y - 0.19, y1 = l[1] + y + 0.19;   // does a moth's whole wobbling ring (radius r, height y) meet a cap or post near its light?
+        return l[4].some(o => { if(o[3] < y0 || o[2] > y1) return false; const nx = Math.max(o[0], Math.min(l[0], o[1])) - l[0], nz = Math.max(o[4], Math.min(l[2], o[5])) - l[2], fx = Math.max(Math.abs(o[0] - l[0]), Math.abs(o[1] - l[0])), fz = Math.max(Math.abs(o[4] - l[2]), Math.abs(o[5] - l[2]));
+          return Math.hypot(nx, nz) <= r1 && Math.hypot(fx, fz) >= r0; }); };
+      const ground = (l, r) => { let g = -1e9; for(let k = 0; k < 12; k++){ const a = k / 12 * TAU; for(const rr of [r * 0.8 - 0.13, r * 1.1 + 0.13]) g = Math.max(g, G(l[0] + Math.cos(a) * rr, l[2] + Math.sin(a) * rr)); } return g; };
+      const room = l => { const o = []; for(let r = 0.4; r < 1.75; r += 0.15){ const g = ground(l, r); for(let y = -0.4; y < 1.25; y += 0.2) if(l[1] + y - 0.19 > g + 0.2 && !hits(l, r, y)) o.push([r, y]); } return o; };   // the clear rings round a light, all 0.2 m or more over the ground; a light with too few is left dark
+      const L = P.lights.map(l => l.concat([room(l)])).filter(l => l[5].length >= 4).sort((a, b) => Math.hypot(a[0], a[2]) - Math.hypot(b[0], b[2])).slice(0, 12), n = L.length * 4, m = lifeMesh(lifeMothGeo(), lifeMat({rough:0.95, fold:0.45, selfLit:0.32}), n);
+      const mem = []; for(let i = 0; i < n; i++){ const l = L[i % L.length], [r, y] = l[5][Math.floor(q() * l[5].length)];
+        mem.push({l, a:q() * TAU, r, w:(1.6 + q() * 1.8) * (q() < 0.5 ? -1 : 1), y, ph:q() * TAU, s:1.1 + q() * 0.6, k:2 + q() * 2}); }
       K.push({kind:'moth', m, mem, step:lifeMoths});
       const tint = new THREE.Color(); mem.forEach((b, i) => { m.geometry.attributes.iFl.setXYZW(i, 0.03, 34 + q() * 10, q() * TAU, 1); m.setColorAt(i, tint.setRGB(1, 1, 1).lerp(new THREE.Color(b.l[3]), 0.55)); });
     }
@@ -21418,7 +21481,11 @@ function lifeBuild(key){
         fragmentShader:'varying vec3 vC; varying float vF; void main(){ vec2 q = gl_PointCoord * 2.0 - 1.0; float r = dot(q, q); if(r > 1.0) discard; float a = exp(-r * 5.0) * (1.0 - r) * 0.55 + exp(-r * 40.0) * 0.5; gl_FragColor = vec4(vC * a * vF, 1.0); }'}));
       halo.frustumCulled = false; halo.userData.noAO = true; g.add(halo);   // the halo fades out from 2.6 m to 0.6 m in front of the camera and is never wider than 0.24 of the screen height (256 px at 1080p, as before), so a sprite you walk into is not a blown-out blob
       const cols = [0x5ce1e6, 0xff4fa3, 0x5ce1e6, 0xb58cff], mem = [], schools = [];
-      for(let s = 0; s < 6; s++){ const a = s / 6 * TAU + q() * 0.6, d = 9 + q() * 26; schools.push({x:Math.cos(a) * d, z:Math.sin(a) * d, R:6 + q() * 8, wx:0.05 + q() * 0.05, wz:0.04 + q() * 0.05, ph:q() * TAU, h:1.3 + q() * 2.5, c:C(cols[s % cols.length])}); }
+      const ob = P ? P.obst : [], clear = S => { const m = S.R + 1.8 + 0.5, y0 = Math.max(0, G(S.x, S.z)) + S.h - 1.3, y1 = y0 + 2.6;   // a school's centre wanders a square of half-side R, its sprites 1.8 m round it, 0.85 m up and down
+        return !ob.some(r => r[1] > S.x - m && r[0] < S.x + m && r[5] > S.z - m && r[4] < S.z + m && r[3] > y0 && r[2] < y1); };
+      for(let s = 0; s < 6; s++){ let S = null; for(let k = 0; k < 40; k++){ const a = s / 6 * TAU + q() * 0.6 + (k > 9 ? q() * TAU : 0), d = 9 + q() * 26 + (k > 19 ? q() * 20 : 0);
+          S = {x:Math.cos(a) * d, z:Math.sin(a) * d, R:(6 + q() * 8) * (k > 29 ? 0.5 : 1), wx:0.05 + q() * 0.05, wz:0.04 + q() * 0.05, ph:q() * TAU, h:1.3 + q() * 2.5, c:C(cols[s % cols.length])}; if(clear(S)) break; }   // keep the schools out of the blocks
+        schools.push(S); }
       for(let i = 0; i < n; i++){ const S = schools[i % 6]; mem.push({S, a:q() * TAU, r:0.5 + q() * 1.3, w:(0.8 + q() * 1.2) * (q() < 0.5 ? -1 : 1), y:(q() - 0.5) * 1.2, ph:q() * TAU, spin:1.5 + q() * 2, s:0.8 + q() * 0.5}); hs[i] = 0.9 + q() * 0.5; }
       K.push({kind:'sprite', m:core, halo, mem, step:lifeSprites});
     }
@@ -21426,7 +21493,14 @@ function lifeBuild(key){
       const pl = platforms.filter(s => s.r > 1.5 && Math.hypot(s.x, s.z) > 12).sort((a, b) => b.r - a.r).slice(0, 3), th = [{x:0, z:0, top:G(0, 0)}].concat(pl.map(s => ({x:s.x, z:s.z, top:s.top})));
       for(let i = th.length; i < 4; i++) th.push({x:Math.cos(i * 2.1) * 38, z:Math.sin(i * 2.1) * 38, top:G(0, 0)}); const n = th.length * 3;
       const m = lifeMesh(lifeKiteGeo(), lifeMat({rough:0.9}), n), mem = [];
-      for(let i = 0; i < n; i++){ const T = th[i % th.length]; mem.push({T, a:q() * TAU, r:10 + q() * 10, v:(6 + q() * 3) * (q() < 0.5 ? -1 : 1), h:T.top + 14 + q() * 10, hA:6 + q() * 8, hw:0.03 + q() * 0.04, ph:q() * TAU, s:0.9 + q() * 0.35});
+      const ob = P ? P.obst : [], under = (T, r) => { let top = -1e9; const r0 = r - 2.5, r1 = r + 2.5;   // the highest thing under a ring of radius r (wingspan and wobble 2.5 m either side)
+        ob.forEach(o => { const nx = Math.max(o[0], Math.min(T.x, o[1])), nz = Math.max(o[4], Math.min(T.z, o[5])), fx = Math.max(Math.abs(o[0] - T.x), Math.abs(o[1] - T.x)), fz = Math.max(Math.abs(o[4] - T.z), Math.abs(o[5] - T.z));
+          if(Math.hypot(nx - T.x, nz - T.z) <= r1 && Math.hypot(fx, fz) >= r0) top = Math.max(top, o[3]); });
+        platforms.forEach(s => { const d = Math.hypot(s.x - T.x, s.z - T.z); if(d - s.r <= r1 && d + s.r >= r0) top = Math.max(top, s.top); });
+        for(let k = 0; k < 32; k++){ const a = k / 32 * TAU; for(const rr of [r0, r, r1]) top = Math.max(top, G(T.x + Math.cos(a) * rr, T.z + Math.sin(a) * rr)); }
+        return top; };
+      for(let i = 0; i < n; i++){ const T = th[i % th.length], b = {T, a:q() * TAU, r:10 + q() * 10, v:(6 + q() * 3) * (q() < 0.5 ? -1 : 1), h:T.top + 14 + q() * 10, hA:6 + q() * 8, hw:0.03 + q() * 0.04, ph:q() * TAU, s:0.9 + q() * 0.35};
+        b.h = Math.max(b.h, under(T, b.r) + 4 + b.hA); mem.push(b);   // the lowest dip stays 4 m over the tallest crown or spire under the ring
         m.geometry.attributes.iFl.setXYZW(i, 0, 5.5, q() * TAU, 1); }
       K.push({kind:'kite', m, mem, step:lifeKites});
     }
@@ -21434,7 +21508,8 @@ function lifeBuild(key){
       const n = 22, m = lifeMesh(lifeLizardGeo(), lifeMat({rough:0.75, wiggle:true}), n), mem = [];
       const sh = new THREE.InstancedMesh(new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({color:0x000000, map:glowTex, transparent:true, opacity:0.32, depthWrite:false, polygonOffset:true, polygonOffsetFactor:-2, polygonOffsetUnits:-4}), n);
       sh.frustumCulled = false; sh.userData.noAO = true; sh.instanceMatrix.setUsage(THREE.DynamicDrawUsage); g.add(sh); m.castShadow = true;   // the sun is hard in the Dunes: a lizard throws its own shadow (and sits on a soft contact blob)
-      const free = (x, z) => !colliders.some(c => Math.hypot(c.x - x, c.z - z) < c.r + 0.3) && !boxes.some(b => boxHas(x, G(x, z) + 0.1, z, b, 0.3)) && !platforms.some(s => Math.hypot(s.x - x, s.z - z) < s.r + 0.3 && s.top > G(x, z) + 0.2) && !portals.some(p2 => Math.hypot(p2.x - x, p2.z - z) < 4);
+      const ob = P ? P.obst : [], free = (x, z) => !colliders.some(c => Math.hypot(c.x - x, c.z - z) < c.r + 0.3) && !boxes.some(b => boxHas(x, G(x, z) + 0.1, z, b, 0.3)) && !platforms.some(s => Math.hypot(s.x - x, s.z - z) < s.r + 0.3 && s.top > G(x, z) + 0.2) && !portals.some(p2 => Math.hypot(p2.x - x, p2.z - z) < 4)
+        && !ob.some(r => x > r[0] - 0.25 && x < r[1] + 0.25 && z > r[4] - 0.25 && z < r[5] + 0.25 && r[3] > G(x, z) + 0.08);   // and the stones (instanced rocks are not colliders)
       for(let i = 0, tries = 0; i < n && tries < 400; tries++){ const a = q() * TAU, d = 6 + q() * 44, x = Math.cos(a) * d, z = Math.sin(a) * d; if(!free(x, z)) continue;
         mem.push({hx:x, hz:z, x, z, x0:x, z0:z, x1:x, z1:z, yaw:q() * TAU, y0:0, y1:0, t:1, dur:0.3, wait:1 + q() * 5, s:1.1 + q() * 0.5, run:false}); i++; }
       m.count = sh.count = mem.length; mem.forEach((b, i) => m.geometry.attributes.iFl.setXYZW(i, 0, 40, q() * TAU, 0));
@@ -21445,9 +21520,9 @@ function lifeBuild(key){
       for(let i = rows.length - 1; i > 0; i--){ const j = Math.floor(q() * (i + 1)); [rows[i], rows[j]] = [rows[j], rows[i]]; }
       const used = []; let flock = 0;
       for(const row of rows){ if(mem.length >= want) break; const k = Math.min(row.length, 1 + Math.floor(q() * (key === 'lampblack' ? 5 : 3))), st = Math.floor(q() * Math.max(1, row.length - k + 1));
-        let any = false; for(let j = st; j < st + k && mem.length < want; j += (gap > 0.5 ? 2 : 1)){ const [x, y, z, ex] = row[j]; if(used.some(u => Math.hypot(u[0] - x, u[1] - z) < gap - 0.05)) continue; used.push([x, z]); any = true;
+        let any = false; for(let j = st; j < st + k && mem.length < want; j += (gap > 0.5 ? 2 : 1)){ const [x, y, z, ex, routes] = row[j]; if(used.some(u => Math.hypot(u[0] - x, u[1] - z) < gap - 0.05)) continue; used.push([x, z]); any = true;
           const face = ex + (q() < 0.5 ? Math.PI / 2 : -Math.PI / 2) + (q() - 0.5) * 0.8;
-          mem.push({x, y, z, flock, yaw:face, face, look:face, lookT:q() * 4, st:'sit', t:0, T:3.6 + q() * 1.2, dx:0, dz:1, away:0, hop:0, s:0.9 + q() * 0.25}); }
+          mem.push({x, y, z, flock, yaw:face, face, look:face, lookT:q() * 4, st:'sit', t:0, T:3.6 + q() * 1.2, dx:0, dz:1, c:1, routes, away:0, hop:0, s:0.9 + q() * 0.25}); }
         if(any) flock++; }
       if(mem.length){ const m = lifeMesh(lifeBirdGeo(spec), lifeMat(key === 'lampblack' ? {rough:0.8, rim:[0.13, 0.125, 0.11]} : {rough:0.8}), mem.length); mem.forEach((b, i) => m.geometry.attributes.iFl.setXYZW(i, spec.flap[0], spec.flap[1], q() * TAU, 0));
         K.push({kind:key === 'lampblack' ? 'pigeon' : 'gull', m, mem, spec, step:lifePerchers}); }
@@ -21501,13 +21576,14 @@ function lifePerchers(k, dt, t){
   const fl = k.m.geometry.attributes.iFl, near = 5.5, spook = new Set();
   k.mem.forEach(b => { if(b.st === 'sit' && playing && Math.hypot(p.x - b.x, p.z - b.z) < near && Math.abs(p.y - b.y) < 9) spook.add(b.flock); });
   k.mem.forEach((b, i) => { if(i >= k.m.count) return; let x = b.x, y = b.y, z = b.z, yaw = b.yaw, pitch = 0, s = b.s;
-    if(b.st === 'sit' && spook.has(b.flock)){ b.st = 'up'; b.t = lifeR() * 0.25; const a = Math.atan2(b.x - p.x, b.z - p.z) + (lifeR() - 0.5) * 1.2; b.dx = Math.sin(a); b.dz = Math.cos(a); fl.setW(i, 1); }
+    if(b.st === 'sit' && spook.has(b.flock)){ b.st = 'up'; b.t = lifeR() * 0.25; const a0 = Math.atan2(b.x - p.x, b.z - p.z); let best = b.routes[0], bs = -9;   // off along the clear way out nearest to "away from you"
+      for(const r of b.routes){ const sc = Math.cos(r[0] - a0) + lifeR() * 0.6; if(sc > bs){ bs = sc; best = r; } } b.dx = Math.sin(best[0]); b.dz = Math.cos(best[0]); b.c = best[1]; fl.setW(i, 1); }
     if(b.st === 'sit'){ b.lookT -= dt; if(b.lookT <= 0){ b.look = b.face + (lifeR() - 0.5) * 1.6; b.lookT = 1.5 + lifeR() * 4; if(lifeR() < 0.2) b.hop = 0.25; }
       b.yaw += (b.look - b.yaw) * Math.min(1, dt * 8); yaw = b.yaw; if(b.hop > 0){ b.hop -= dt; y += Math.sin(Math.max(0, b.hop) / 0.25 * Math.PI) * 0.05; } }
     else { if(b.st === 'up'){ b.t += dt; if(b.t >= b.T){ b.st = 'away'; b.away = 18 + lifeR() * 20; } }
       else if(b.st === 'away'){ b.away -= dt; b.t = b.T; if(b.away <= 0 && Math.hypot(p.x - b.x, p.z - b.z) > 16) b.st = 'down'; }
       else if(b.st === 'down'){ b.t -= dt; if(b.t <= 0){ b.t = 0; b.st = 'sit'; b.yaw = b.look = b.face; fl.setW(i, 0); } }
-      const u = Math.max(0, b.t), hz = 2.2 * u + 1.5 * u * u, vt = 2.8 * u - 0.12 * u * u; x += b.dx * hz; z += b.dz * hz; y += vt;
+      const u = Math.max(0, b.t), hz = lifeHz(u), vt = lifeVt(u, b.c); x += b.dx * hz; z += b.dz * hz; y += vt;   // back down the same route
       const back = b.st === 'down'; yaw = Math.atan2(b.dx, b.dz) + (back ? Math.PI : 0); pitch = (back ? 0.35 : -0.5) * Math.exp(-u * 0.8);
       if(b.st === 'away' || u > b.T - 0.05) s = 0; else if(u > b.T - 0.6) s *= (b.T - u) / 0.6; }
     lifeSet(k, i, x, y, z, yaw, pitch, 0, s); });
