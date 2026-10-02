@@ -3751,9 +3751,10 @@ const phys = (c, o) => { const q = Object.assign({color:C(c), roughness:0.4, met
 const glowM = (c, i) => std(c, {emissive:C(c), emissiveIntensity:i == null ? 2 : i, roughness:0.4});
 let world = null;
 let buildParent = null;   // when set, everything built goes into this group (endless-realm chunks) instead of straight into the world
+var camPend = [];   // props built since the camera last read their heights (camTopsFlush)
 function mk(geo, mat, x, y, z, parent){
   const m = new THREE.Mesh(geo, mat); m.position.set(x || 0, y || 0, z || 0); m.castShadow = true; m.receiveShadow = true;
-  ((parent !== world && parent) || buildParent || world).add(m); return m;   // an explicit `world` inside a streamed cell means the cell
+  ((parent !== world && parent) || buildParent || world).add(m); camPend.push(m); return m;   // an explicit `world` inside a streamed cell means the cell
 }
 function glow(color, size, x, y, z, parent, op){
   const s = new THREE.Sprite(new THREE.SpriteMaterial({map:glowTex, color:C(color), transparent:true, opacity:op == null ? 0.8 : op, blending:THREE.AdditiveBlending, depthWrite:false, fog:false}));
@@ -3769,7 +3770,7 @@ function instanced(geo, mat, mats, colors, cast){
   const m = new THREE.InstancedMesh(geo, mat, mats.length);
   mats.forEach((mm, i) => { m.setMatrixAt(i, mm); if(colors) m.setColorAt(i, colors[i]); });
   m.instanceMatrix.needsUpdate = true; if(m.instanceColor) m.instanceColor.needsUpdate = true;
-  m.castShadow = cast !== false; m.receiveShadow = true; m.frustumCulled = false; (buildParent || world).add(m); return m;
+  m.castShadow = cast !== false; m.receiveShadow = true; m.frustumCulled = false; (buildParent || world).add(m); camPend.push({mats, geo, mat, grp:buildParent || world}); return m;
 }
 /* level of detail: a near and a far version of the same prop, measured from the camera's world position (camWorld, so it works on the VR rig too).
    Hysteresis: switch to far beyond d + h, back to near inside d, so walking back and forth at the line never flickers.
@@ -3783,7 +3784,7 @@ function lodInstanced(hiGeo, loGeo, mat, mats, cols, d, h, o){
   const mk2 = g => { const m = new THREE.InstancedMesh(g, mat, n); m.castShadow = o.cast !== false; m.receiveShadow = true; m.frustumCulled = false; if(o.noAO) m.userData.noAO = true; if(o.depth) m.customDepthMaterial = o.depth;
     if(cols) m.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(n * 3), 3); grp.add(m); return m; };
   const e = {kind:'inst', hi:mk2(hiGeo), lo:mk2(loGeo), mats, cols, pos:mats.map(M => new V3().setFromMatrixPosition(M)), d, h, far:new Uint8Array(n), n, grp};
-  lods.push(e); lodStep(e, camWorld); lodFill(e); return e;
+  lods.push(e); lodStep(e, camWorld); lodFill(e); camPend.push({mats, geo:hiGeo, mat, grp}); return e;
 }
 function lodFill(e){
   let a = 0, b = 0;
@@ -5212,7 +5213,8 @@ function giveShard(id, why){
 }
 function addPlatform(x, z, rad, top, mesh, bottom){ platforms.push({x, z, r:rad, top, bottom:bottom || 0}); return mesh; }
 /* solid boxes (Goal 8): walls and furniture, turned only about y. The local x axis points along (c, s) in world x/z.
-   The player is pushed out where heights overlap (or always, for full:true furniture, so nobody lands inside a desk); cam:false boxes do not stop the camera. */
+   The player is pushed out where heights overlap (or always, for full:true furniture, so nobody lands inside a desk); cam:false boxes never block the camera's view,
+   they only keep it from ending up inside them (camHit). */
 function addBox(x, z, hx, hz, y0, y1, o){ const a = (o && o.a) || 0, b = Object.assign({x, z, hx, hz, y0, y1, c:Math.cos(a), s:Math.sin(a)}, o || {}); boxes.push(b); return b; }
 const aabb = (x0, x1, y0, y1, z0, z1, o) => addBox((x0 + x1) / 2, (z0 + z1) / 2, (x1 - x0) / 2, (z1 - z0) / 2, y0, y1, o);
 // the nearest point outside box b grown by m, or null when (px, pz) is already outside
@@ -5247,16 +5249,103 @@ function boxGeo(list, tile){
   return g;
 }
 // pull the camera in front of any wall between it and the player (never through a wall, never above a roof)
-function clipCamera(){
-  if(!boxes.length || cam.view === 2) return;
-  const ox = _t1.x, oy = _t1.y, oz = _t1.z, dx = camera.position.x - ox, dy = camera.position.y - oy, dz = camera.position.z - oz;
-  let t = 1; for(const b of boxes) if(b.cam !== false){ const k = rayBoxT(ox, oy, oz, dx, dy, dz, b, 0.3); if(k < t) t = k; }
-  if(t < 1){ const k = Math.max(0, t - 0.02); camera.position.set(ox + dx * k, oy + dy * k, oz + dz * k); }
-  // pressed right up behind the avatar (a wall behind you), hide it rather than fill the screen with the back of its head
-  const close = t < 1 && Math.hypot(dx, dy, dz) * t < 1.1;
-  if(close !== camHid && !zeroing){ camHid = close; me.g.visible = !close; }
+/* camera collision (a GTA-like spring arm): the line from your head to where the camera wants to be is tested against the solid world the game already
+   keeps for walking (boxes, round colliders with their heights, platforms), the camera-only solids (camSolids: things you may walk through but the
+   camera must not, such as banners), the ground (or a pocket's floor) and a pocket's ceiling. Everything is grown by CAM_R, so the camera stops that far
+   short of the first hit. It pulls in at once and eases back out (camArmStep); clipCamera then keeps the followed camera on the clear part of the line.
+   No meshes are ray-cast: a frame costs a pass over those lists (the nearest are found from bounding boxes) and up to ~40 ground heights. */
+const CAM_R = 0.3;
+let camColl = true, camArm = -1, camArmL = 0, camSolids = [];
+/* how tall is a round collider? colliders are only x, z and r (all walking needs), so every prop built (mk, instanced, lodInstanced) is noted in
+   camPend, and camTopsFlush (after a realm's build, else at the next camera test: after a streamed cell or a pocket) gives each new collider the top
+   of the props standing right on its centre that are about its size (a trunk, a post, a rock; not the canopy, not the terrain): c.ht.
+   A collider can also say it itself: h, metres above its ground. */
+const _cb = new THREE.Box3(), _cm = new THREE.Matrix4(), _cv = new V3();
+// the top of one prop, in world space (for a collider made right with its prop)
+function propTop(o){ o.updateWorldMatrix(true, false); if(!o.geometry.boundingBox) o.geometry.computeBoundingBox(); return _cb.copy(o.geometry.boundingBox).applyMatrix4(o.matrixWorld).max.y; }
+function camTopsFlush(keep){   // keep: props that found no collider wait for the next flush (a realm's far props become solid only when its endless land starts)
+  const L = camPend; camPend = []; const cells = new Map(), key = (i, j) => i * 100003 + j;
+  for(const c of colliders) if(c.ht === undefined){ c.ht = null; const k = key(Math.round(c.x), Math.round(c.z)); let a = cells.get(k); if(!a) cells.set(k, a = []); a.push(c); }
+  if(!cells.size){ if(keep) camPend = L; return; }
+  const at = (x, z) => { const i0 = Math.round(x), j0 = Math.round(z); for(let i = i0 - 1; i <= i0 + 1; i++) for(let j = j0 - 1; j <= j0 + 1; j++){ const a = cells.get(key(i, j)); if(a) for(const c of a) if(Math.abs(c.x - x) < 0.1 && Math.abs(c.z - z) < 0.1) return c; } return null; };
+  const fit = (c, b, wide) => { if(Math.max(b.max.x - b.min.x, b.max.z - b.min.z) / 2 <= (wide ? c.r + 6 : Math.max(3 * c.r, c.r + 2)) && (c.ht == null || b.max.y > c.ht)) c.ht = b.max.y; };   // an instance is a prop placed right there (a leaning palm, a spreading dead tree); a plain mesh must be about the collider's size
+  const fx = m => { m = Array.isArray(m) ? m[0] : m; return !m || (m.transparent && !m.depthWrite); };   // light, glow and haze are not solid
+  for(const e of L){
+    if(e.isMesh){ if(!e.parent || !e.geometry || fx(e.material)) continue; e.updateWorldMatrix(true, false); _cv.setFromMatrixPosition(e.matrixWorld); const c = at(_cv.x, _cv.z); if(!c){ if(keep) camPend.push(e); continue; }
+      if(!e.geometry.boundingBox) e.geometry.computeBoundingBox(); fit(c, _cb.copy(e.geometry.boundingBox).applyMatrix4(e.matrixWorld)); }
+    else { if(!e.grp || fx(e.mat)) continue; e.grp.updateWorldMatrix(true, false); const P = e.grp.matrixWorld; let bb = null;
+      if(keep) camPend.push(e);   // (an instanced set is kept whole: some of its instances may stand on colliders still to come)
+      for(const M of e.mats){ _cm.multiplyMatrices(P, M); _cv.setFromMatrixPosition(_cm); const c = at(_cv.x, _cv.z); if(!c) continue; if(!bb){ if(!e.geo.boundingBox) e.geo.computeBoundingBox(); bb = e.geo.boundingBox; } fit(c, _cb.copy(bb).applyMatrix4(_cm), true); } }
+  }
 }
-let camHid = false, zgHinted = false;
+// where the segment o -> o + d first enters the upright cylinder (centre x, z, radius r, from y0 to y1), as a fraction 0..1 (1 = never; a start inside is ignored)
+function rayCylT(ox, oy, oz, dx, dy, dz, x, z, r, y0, y1){
+  let t0 = 0, t1 = 1; const fx = ox - x, fz = oz - z, a = dx * dx + dz * dz, c = fx * fx + fz * fz - r * r;
+  if(a < 1e-12){ if(c > 0) return 1; }
+  else { const b = fx * dx + fz * dz, D = b * b - a * c; if(D < 0) return 1; const q = Math.sqrt(D), ta = (-b - q) / a, tb = (-b + q) / a; if(ta > t0) t0 = ta; if(tb < t1) t1 = tb; if(t0 > t1) return 1; }
+  if(Math.abs(dy) < 1e-9){ if(oy < y0 || oy > y1) return 1; }
+  else { let ta = (y0 - oy) / dy, tb = (y1 - oy) / dy; if(ta > tb){ const t = ta; ta = tb; tb = t; } if(ta > t0) t0 = ta; if(tb < t1) t1 = tb; if(t0 > t1) return 1; }
+  return t0 > 0 ? t0 : 1;
+}
+const boxHas = (x, y, z, b, m) => { const dx = x - b.x, dz = z - b.z; return y > b.y0 - m && y < b.y1 + m && Math.abs(dx * b.c + dz * b.s) < b.hx + m && Math.abs(-dx * b.s + dz * b.c) < b.hz + m; };
+// a round collider's top: its own h (above its ground), else the props on it (camTopsFlush), else a rock's (about 1.2 x its radius)
+const colTop = (c, HI) => { if(c.cy1 == null){ const g = HI ? pocketFloor(c.x, c.z) : G(c.x, c.z); c.cy0 = g - 0.6; c.cy1 = c.h != null ? g + c.h : c.ht != null && c.ht > g + 0.3 ? c.ht : g + clamp(c.r * 1.2, 0.6, 2.4); } return c.cy1; };
+// the first solid along o -> o + d (camera radius included), as a fraction 0..1 (1 = clear)
+function camHit(ox, oy, oz, dx, dy, dz){
+  if(camPend.length) camTopsFlush();
+  const HI = pocketIn(), m = CAM_R, ex = ox + dx, ey = oy + dy, ez = oz + dz;
+  const x0 = Math.min(ox, ex) - m, x1 = Math.max(ox, ex) + m, z0 = Math.min(oz, ez) - m, z1 = Math.max(oz, ez) + m, ylo = Math.min(oy, ey) - m, yhi = Math.max(oy, ey) + m;
+  let t = 1;
+  const box = b => { const e = b.hx + b.hz; if(b.x + e < x0 || b.x - e > x1 || b.z + e < z0 || b.z - e > z1 || b.y1 < ylo || b.y0 > yhi) return;
+    const k = rayBoxT(ox, oy, oz, dx, dy, dz, b, m); if(k < t && (b.cam !== false || boxHas(ex, ey, ez, b, m))) t = k; };   // cam:false furniture never blocks the view, the camera just never ends up inside it
+  for(const b of boxes) if(!HI || b.hollow) box(b);
+  for(const b of camSolids) if(!!b.hollow === HI) box(b);
+  for(const c of colliders){ if(!!c.hollow !== HI || (c.bike && bike.riding)) continue; const r = c.r + m; if(c.x + r < x0 || c.x - r > x1 || c.z + r < z0 || c.z - r > z1) continue;
+    const top = colTop(c, HI); if(top + m < ylo || c.cy0 > yhi) continue; const k = rayCylT(ox, oy, oz, dx, dy, dz, c.x, c.z, r, c.cy0, top + m); if(k < t) t = k; }
+  if(!HI) for(const s of platforms){ let r = s.cr || s.r; if(s.rAt){ if(s.camR == null){ let w = 0; for(let i = 0; i <= 12; i++) w = Math.max(w, s.rAt((s.top - s.bottom) * i / 12)); s.camR = w; } r = s.camR; }
+    r += m; if(s.x + r < x0 || s.x - r > x1 || s.z + r < z0 || s.z - r > z1 || s.top + m < ylo || s.bottom > yhi) continue;
+    let k = rayCylT(ox, oy, oz, dx, dy, dz, s.x, s.z, r, s.bottom, s.top + m); if(k >= t) continue;
+    if(s.rAt){ const L = Math.hypot(dx, dy, dz), st = 0.15 / Math.max(L, 0.15); let hit = 1;   // a carved column: walk on from the hull to its real outline
+      for(let u = k; u < t; u += st){ const y = oy + dy * u; if(y > s.top + m || y < s.bottom) continue; if(Math.hypot(ox + dx * u - s.x, oz + dz * u - s.z) < s.rAt(clamp(y - s.bottom, 0, s.top - s.bottom)) + m){ hit = u; break; } }
+      k = hit; }
+    if(k < t) t = k; }
+  // the ground (or the pocket's floor): stepped along the line, the crossing found by halving
+  const flo = (x, z) => (HI ? pocketFloor(x, z) : G(x, z)) + m + 0.1, L = Math.hypot(dx, dy, dz), n = Math.min(16, Math.ceil(L * t));   // a height a metre
+  let prev = 0;
+  for(let i = 1; i <= n; i++){ const u = i / n * t; if(oy + dy * u < flo(ox + dx * u, oz + dz * u)){ let a = prev, b = u; for(let j = 0; j < 4; j++){ const h = (a + b) / 2; if(oy + dy * h < flo(ox + dx * h, oz + dz * h)) b = h; else a = h; } t = a; break; } prev = u; }
+  // a pocket's ceiling: the arenas that have one, and the hallway
+  const top = (qa && qa.inside && qa.M.ceil ? qa.A.y + qa.M.ceil - 0.25 : corr && corr.inside ? CORR.y + CORR.h - 0.2 + (oz - CORR.z0 > CORR.zoneC ? 0.6 : 0) : Infinity) - m;   // (the follow's own clamp, less the camera's radius)
+  if(dy > 0 && oy < top && oy + dy * t > top) t = (top - oy) / dy;
+  // an arena under a dome (M.dome, from the arena's corner: centre, radius, height): where the line leaves the dome, shrunk by the camera's radius
+  if(HI && qa && qa.inside && qa.M.dome){ const D = qa.M.dome, a = D.r - m, b = D.h - m, px = ox - qa.A.x - D.x, py = oy - qa.A.y - D.y, pz = oz - qa.A.z - D.z;
+    const A2 = (dx * dx + dz * dz) / (a * a) + dy * dy / (b * b), B2 = 2 * ((px * dx + pz * dz) / (a * a) + py * dy / (b * b)), C2 = (px * px + pz * pz) / (a * a) + py * py / (b * b) - 1;
+    if(C2 < 0 && A2 > 1e-12){ const u = (-B2 + Math.sqrt(B2 * B2 - 4 * A2 * C2)) / (2 * A2); if(u < t) t = Math.max(0, u); } }
+  return t;
+}
+// once a frame, before the follow: the arm may only reach as far as the first hit; it snaps in, and eases out (about a third of a second) once clear
+function camArmStep(dt){
+  if(!camColl || cam.view === 2){ camArm = -1; return; }
+  const dx = _t0.x - _t1.x, dy = _t0.y - _t1.y, dz = _t0.z - _t1.z, L = Math.hypot(dx, dy, dz); if(L < 1e-3) return;
+  const hit = camHit(_t1.x, _t1.y, _t1.z, dx, dy, dz) * L;
+  if(camArm < 0 || hit <= camArm || camArm >= camArmL - 1e-3) camArm = hit;   // pulled in, or already at full length (zooming stays as quick as before)
+  else camArm = Math.min(hit, camArm + (hit - camArm) * (1 - Math.exp(-dt * 3)));
+  camArmL = L;
+  if(camArm < L){ const k = camArm / L; _t0.set(_t1.x + dx * k, _t1.y + dy * k, _t1.z + dz * k); }
+}
+function clipCamera(){
+  if(cam.view === 2) return;
+  const ox = _t1.x, oy = _t1.y, oz = _t1.z, dx = camera.position.x - ox, dy = camera.position.y - oy, dz = camera.position.z - oz;
+  let t = 1;
+  if(camColl) t = camHit(ox, oy, oz, dx, dy, dz);
+  else if(boxes.length) for(const b of boxes) if(b.cam !== false){ const k = rayBoxT(ox, oy, oz, dx, dy, dz, b, 0.3); if(k < t) t = k; }   // collision off (__hub.camCollide(false)): only the walls, as before
+  if(t < 1){ const k = camColl ? t : Math.max(0, t - 0.02); camera.position.set(ox + dx * k, oy + dy * k, oz + dz * k); if(camColl && camArm >= 0) camArm = Math.min(camArm, Math.hypot(dx, dy, dz) * k); }
+  // pressed right up behind the avatar (a wall behind you), hide it rather than fill the screen with the back of its head (a little hysteresis, so it never flickers)
+  const d = Math.hypot(dx, dy, dz) * t, close = camColl ? (camHid ? d < 1.25 : d < 1.1) : t < 1 && d < 1.1;
+  if(close !== camHid && !zeroing){ camHid = close; me.g.visible = !close; }
+  else if(camColl && camHid && me.g.visible && !zeroing) me.g.visible = false;   // (a view change showed it again while the camera is still pressed in)
+  camTagOff = camColl && (camTagOff ? d < 2.5 : d < 2.2);   // pulled in close, your own name tag would sit across the top of the view (archiveUpdate hides it)
+}
+let camHid = false, camTagOff = false, zgHinted = false;
 
 /* ================= Campus layout (Goal 8) ================= */
 // fixed plan in metres: the marble hall (walk-in, hall + classroom), the zero-g gym dome, the east woods with a clearing kept empty for The Hollow, and the walkways
@@ -5352,7 +5441,7 @@ BUILD.hub = (r, n) => {
       fragmentShader:'uniform float time; uniform vec3 color; varying vec3 vN; varying vec3 vV; varying float vY; void main(){ float f = pow(1.0 - abs(dot(normalize(vN), normalize(vV))), 2.2); float b = 0.5 + 0.5 * sin(vY * 7.0 - time * 2.5); gl_FragColor = vec4(color * (0.6 + f * 1.6 + b * 0.3), f * 0.8 + b * 0.08 + 0.04); }'
     }));
     field.position.y = 3; world.add(field);
-    colliders.push({x:0, z:0, r:3.3});
+    colliders.push({x:0, z:0, r:3.3, h:6});
   }
   const darkMetal = std(0x23252e, {metalness:0.85, roughness:0.35});
   ['dunes','grid','sky'].forEach((id, i) => {
@@ -5504,7 +5593,7 @@ BUILD.dunes = (r, n) => {
     const cnt = 3 + Math.floor(r() * 4);
     for(let j = 0; j < cnt; j++) cmats.push(new THREE.Matrix4().multiplyMatrices(parent, mat4((r() - 0.5) * 0.8, 0, (r() - 0.5) * 0.8, (r() - 0.5) * 0.9, r() * TAU, (r() - 0.5) * 0.9, 0.6 + r() * 0.8)));
     glow(0x7fdcff, 3.5 * k, s[0], y + 1.2 * k, s[1], world, 0.3);
-    colliders.push({x:s[0], z:s[1], r:0.9 * k});
+    colliders.push({x:s[0], z:s[1], r:0.9 * k, ht:y + 2 * k});
   }
   instanced(crystalGeo, phys(0x9be7ff, {roughness:0.05, metalness:0.1, clearcoat:1, transparent:true, opacity:0.85, emissive:C(0x1f8fb3), emissiveIntensity:0.9, envMapIntensity:1.5}), cmats);
   const rocks = [];
@@ -7005,7 +7094,7 @@ function addCrystals(r, hex, count){
     const k = 0.8 + r() * 0.9, y = G(s[0], s[1]) - 0.15; parent.copy(mat4(s[0], y, s[1], 0, r() * TAU, 0, k));
     const cnt = 3 + Math.floor(r() * 4);
     for(let j = 0; j < cnt; j++) cmats.push(new THREE.Matrix4().multiplyMatrices(parent, mat4((r() - 0.5) * 0.8, 0, (r() - 0.5) * 0.8, (r() - 0.5) * 0.9, r() * TAU, (r() - 0.5) * 0.9, 0.6 + r() * 0.8)));
-    glow(hex, 3.5 * k, s[0], y + 1.2 * k, s[1], world, 0.3); colliders.push({x:s[0], z:s[1], r:0.9 * k});
+    glow(hex, 3.5 * k, s[0], y + 1.2 * k, s[1], world, 0.3); colliders.push({x:s[0], z:s[1], r:0.9 * k, ht:y + 2 * k});
   }
   instanced(crystalGeo, phys(hex, {roughness:0.05, metalness:0.1, transparent:true, opacity:0.85, emissive:C(hex), emissiveIntensity:0.5, envMapIntensity:1.5}), cmats);
 }
@@ -7683,7 +7772,7 @@ function startBuiltin(key){
   const T = endless.terrain && endless.terrain.geometry.attributes;
   if(T) endless.home = {pos:T.position.array.slice(), nor:T.normal.array.slice(), col:T.color.array.slice(), uv:T.uv.array.slice()};   // the core's own ground, restored exactly when you come back
   // far hand-made props become solid now, after coins, NPCs, pickups and the vendor are placed, so nothing in the core moves
-  coreSolids.forEach(c => { if(c.kind === 'mesa') solidMesa(c.x, c.z, c.w, c.h, c.y0, c.o); else if(c.kind === 'box') addBox(c.x, c.z, c.hx, c.hz, c.y0, c.y1, {a:c.a, full:c.full, cam:c.cam}); else if(c.kind === 'round') colliders.push({x:c.x, z:c.z, r:c.r}); else if(S.solid) S.solid(c); });
+  coreSolids.forEach(c => { if(c.kind === 'mesa') solidMesa(c.x, c.z, c.w, c.h, c.y0, c.o); else if(c.kind === 'box') addBox(c.x, c.z, c.hx, c.hz, c.y0, c.y1, {a:c.a, full:c.full, cam:c.cam}); else if(c.kind === 'round') colliders.push({x:c.x, z:c.z, r:c.r, h:c.h}); else if(S.solid) S.solid(c); });
   endless.follow = coreFollow.map(f => ({o:f.o, bx:f.o.position.x, bz:f.o.position.z, snap:f.snap}));
   endless.kit = S.kit ? S.kit() : {};
   { const t = performance.now(); (endless.kit.warm || []).forEach(f => f()); endless.kitMs = performance.now() - t; }   // heavy shapes are made with the realm, inside the travel fade, never while walking
@@ -7725,7 +7814,7 @@ function cellHeights(c){
 }
 function buildPart(E, c, ti){
   const tier = E.style.tiers[ti], g = new THREE.Group(); g.name = c.key + ' ' + tier.name; E.root.add(g);
-  const c0 = colliders.length, p0 = platforms.length, s0 = spinners.length, b0 = boxes.length, t0 = performance.now();
+  const c0 = colliders.length, p0 = platforms.length, s0 = spinners.length, b0 = boxes.length, k0 = camSolids.length, t0 = performance.now();
   c.local = ti ? c.locals[ti - 1].slice() : bigOf(E, c.cx, c.cz).map(b => ({x:b.x, z:b.z, r:b.r}));
   buildParent = g;
   try{ const ctx = cellCtx(E, c, ti + 1); if(tier.dream) cellDream(ctx); else tier.build.call(E.style, ctx, E.kit); }
@@ -7734,7 +7823,7 @@ function buildPart(E, c, ti){
   g.traverse(o => { o.userData.cast0 = o.castShadow; o.userData.ao0 = !o.userData.noAO; });
   lods.forEach(e => { if(e.grp === g && e.kind === 'inst') e.lo.userData.cast0 = false; });   // far copies sit outside the shadow box anyway
   const ms = performance.now() - t0; if(ms > 4) E.slow.push(c.key + ' ' + tier.name + ' ' + ms.toFixed(1)); if(E.slow.length > 20) E.slow.shift();
-  const part = {g, cols:colliders.slice(c0), plats:platforms.slice(p0), spins:spinners.slice(s0), boxes:boxes.slice(b0), detail:null};
+  const part = {g, cols:colliders.slice(c0), plats:platforms.slice(p0), spins:spinners.slice(s0), boxes:boxes.slice(b0), csol:camSolids.slice(k0), detail:null};
   partDetail(part, Math.max(Math.abs(c.cx - E.pcx), Math.abs(c.cz - E.pcz)) <= 1); return part;
 }
 // only the 3x3 cells around you cast shadows (the sun's shadow box is 116 m across) and take part in ambient occlusion; the rest draw once
@@ -7743,7 +7832,7 @@ function dropPart(E, part){
   if(!part) return; E.root.remove(part.g);
   part.g.traverse(o => { if(o.geometry && !SHARED_GEO.has(o.geometry)) o.geometry.dispose(); if(o.material) (Array.isArray(o.material) ? o.material : [o.material]).forEach(m => { if(m.userData.shared) return; if(m.map && !SHARED_TEX.has(m.map)) m.map.dispose(); m.dispose(); }); });
   const del = (arr, list) => { if(!list.length) return arr; const S = new Set(list); return arr.filter(x => !S.has(x)); };
-  colliders = del(colliders, part.cols); platforms = del(platforms, part.plats); spinners = del(spinners, part.spins); boxes = del(boxes, part.boxes);
+  colliders = del(colliders, part.cols); platforms = del(platforms, part.plats); spinners = del(spinners, part.spins); boxes = del(boxes, part.boxes); camSolids = del(camSolids, part.csol || []);
   lods = lods.filter(e => e.grp !== part.g); E.dropped++;
   if(grassMeshes.length){ const gone = new Set(); part.g.traverse(o => gone.add(o)); grassMeshes = grassMeshes.filter(m => !gone.has(m)); }
 }
@@ -7941,7 +8030,7 @@ ENDLESS.dunes = {
         if(at){ const parts = [], n = 5 + Math.floor(q() * 5), M = new THREE.Matrix4();
           for(let i = 0; i < n; i++){ const a = i / n * TAU + (q() - 0.5) * 0.4, d = 5 + q() * 2, x = at[0] + Math.cos(a) * d, z = at[1] + Math.sin(a) * d, h = 1 + q() * 3.5, y = G(x, z) - 0.6 - q();
             const g = new THREE.CylinderGeometry(0.5, 0.55, h + 1, 12, 3), pa = g.attributes.position; for(let v = 0; v < pa.count; v++) if(pa.getY(v) > 0) pa.setY(v, pa.getY(v) - q() * h * 0.35 * (pa.getX(v) > 0 ? 1 : 0.3)); g.computeVertexNormals();
-            M.makeRotationFromEuler(new THREE.Euler((q() - 0.5) * 0.25, q() * TAU, (q() - 0.5) * 0.25)).setPosition(x, y + (h + 1) / 2, z); parts.push(g.applyMatrix4(M)); colliders.push({x, z, r:0.7}); }
+            M.makeRotationFromEuler(new THREE.Euler((q() - 0.5) * 0.25, q() * TAU, (q() - 0.5) * 0.25)).setPosition(x, y + (h + 1) / 2, z); parts.push(g.applyMatrix4(M)); colliders.push({x, z, r:0.7, ht:y + h + 1}); }
           for(let i = 0; i < 3; i++){ const a = q() * TAU, d = 8 + q() * 3, x = at[0] + Math.cos(a) * d, z = at[1] + Math.sin(a) * d, w = 2.5 + q() * 3, h = 1.2 + q() * 1.5;
             M.makeRotationFromEuler(new THREE.Euler((q() - 0.5) * 0.3, q() * TAU, (q() - 0.5) * 0.2)).setPosition(x, G(x, z) + h / 2 - 0.7, z); parts.push(new THREE.BoxGeometry(w, h, 0.7).applyMatrix4(M)); colliders.push({x, z, r:w / 2}); }
           mk(merge(parts), k.ruinM); c.local.push({x:at[0], z:at[1], r:11}); } }
@@ -8389,8 +8478,8 @@ function campusHallGeo(){ const parts = [];
   return merge(parts); }
 // the hall's solid parts, for a hall at (x, y, z) turned by ry
 function campusHallSolids(list, x, y, z, ry){ const cs = Math.cos(ry), sn = Math.sin(ry), at = (lx, lz) => [x + lx * cs + lz * sn, z - lx * sn + lz * cs];
-  const b = at(0, 10); list.push({kind:'box', x:b[0], z:b[1], hx:13, hz:10, y0:y - 1, y1:y + 9, a:-ry}); const d = at(-24, 8); list.push({kind:'round', x:d[0], z:d[1], r:8.2});
-  for(let c = -2.5; c <= 2.5; c++){ const p2 = at(c * 4.2, -3); list.push({kind:'round', x:p2[0], z:p2[1], r:0.7}); } }
+  const b = at(0, 10); list.push({kind:'box', x:b[0], z:b[1], hx:13, hz:10, y0:y - 1, y1:y + 9, a:-ry}); const d = at(-24, 8); list.push({kind:'round', x:d[0], z:d[1], r:8.2, h:9});
+  for(let c = -2.5; c <= 2.5; c++){ const p2 = at(c * 4.2, -3); list.push({kind:'round', x:p2[0], z:p2[1], r:0.7, h:7.5}); } }
 ENDLESS.campus = {
   core:CAMPUS_OUT + 10, home:R + 12, dreamOdds:0.08, dreamR:2,
   words:'the endless green hills of a school planet in bright late morning: identical marble campuses on the hills, broadleaf woods, meadows',
@@ -8409,7 +8498,7 @@ ENDLESS.campus = {
     {name:'far', r:8, build(c, k){
       for(const s of bigOf(c.E, c.cx, c.cz)){ const h = mk(k.hall, k.hallM, s.x, s.y - 1, s.z); h.rotation.y = s.ry; h.castShadow = true;
         const fc = mk(new THREE.BoxGeometry(30, 0.3, 16), k.paveM, 0, 0, 0); fc.position.set(s.x - Math.sin(s.ry) * 12, s.y - 0.1, s.z - Math.cos(s.ry) * 12); fc.rotation.y = s.ry; fc.castShadow = false;
-        const sol = []; campusHallSolids(sol, s.x, s.y - 1, s.z, s.ry); sol.forEach(o => { if(o.kind === 'box') addBox(o.x, o.z, o.hx, o.hz, o.y0, o.y1, {a:o.a}); else colliders.push({x:o.x, z:o.z, r:o.r}); }); } }},
+        const sol = []; campusHallSolids(sol, s.x, s.y - 1, s.z, s.ry); sol.forEach(o => { if(o.kind === 'box') addBox(o.x, o.z, o.hx, o.hz, o.y0, o.y1, {a:o.a}); else colliders.push({x:o.x, z:o.z, r:o.r, h:o.h}); }); } }},
     // mid: woods (broadleaf with some pines), thick in places and open in others
     {name:'mid', r:4, build(c, k){
       const q = c.q, trees = [], pines = [], n = this.n;
@@ -8482,7 +8571,7 @@ function buildWorld(key){
   const W = WORLDS[key]; state.world = key; gravK = W.gravity || 1; if(explorer.dirty) saveExplorer();
   world = new THREE.Group(); scene.add(world);
   if(camHid){ camHid = false; if(!zeroing) me.g.visible = true; }
-  grassMeshes = []; lods = []; slotMats = {}; mainTerrain = null; coreSolids = []; coreFollow = []; boxes = []; desk = null; gym = null; floaters = []; p.zeroG = false; colliders = []; platforms = []; coins = []; portals = []; spinners = []; npcs = []; shardObj = null; vault = null; gridSun = null; fireflies = null; shopKiosk = null; forgeStand = null; vendor = null; archive = null; archRoom = -1; hollow = null; drift = null; corr = null; ash = null; qa = null; qpList = []; qpNear = null; $('#qpPanel').style.display = 'none'; if(chimes && chimes.play) chimeWin(true); chimes = null; if(rally.open) closeRally(); rally.tex = null; rally.cab = null; rally.trophy = null; hazards = []; burst = null; pickups = []; bike.g = null; bike.riding = false; bike.near = false; engineStop(); $('#rideBtn').style.display = 'none'; trial.active = false; trial.rings = []; trial.pad = null; trial.padPos = null; $('#trialPanel').style.display = 'none';
+  grassMeshes = []; lods = []; slotMats = {}; mainTerrain = null; coreSolids = []; coreFollow = []; boxes = []; camSolids = []; camPend = []; desk = null; gym = null; floaters = []; p.zeroG = false; colliders = []; platforms = []; coins = []; portals = []; spinners = []; npcs = []; shardObj = null; vault = null; gridSun = null; fireflies = null; shopKiosk = null; forgeStand = null; vendor = null; archive = null; archRoom = -1; hollow = null; drift = null; corr = null; ash = null; qa = null; qpList = []; qpNear = null; $('#qpPanel').style.display = 'none'; if(chimes && chimes.play) chimeWin(true); chimes = null; if(rally.open) closeRally(); rally.tex = null; rally.cab = null; rally.trophy = null; hazards = []; burst = null; pickups = []; bike.g = null; bike.riding = false; bike.near = false; engineStop(); $('#rideBtn').style.display = 'none'; trial.active = false; trial.rings = []; trial.pad = null; trial.padPos = null; $('#trialPanel').style.display = 'none';
   const r = rng(W.seed), noise = makeNoise(W.seed * 7 + 1);
   waterBody = null; if(weatherFx){ scene.remove(weatherFx.pts); weatherFx.geo.dispose(); weatherFx.pts.material.dispose(); weatherFx = null; } clearSkyProps(); flyers = []; ships = []; endless = null; buildParent = null; chunkAt = null; waterMeshes.forEach(w => { if(w.renderTarget) w.renderTarget.dispose(); }); waterMeshes = [];
   applyLook(W);
@@ -8523,9 +8612,11 @@ function buildWorld(key){
   cultBuild(key);   /* Hub's own culture: posters on walls that are already solid; its own rng, no colliders, coreSum skips it */
   merBuild(key);   // Goal 18: Meridian's dome and pylons on Ashfall (no colliders, no rng; before monBuild so the Units keep clear of the glass)
   monBuild(key);   // Goal 16: the realm's monsters come last of all: their own rng, no colliders, nothing above moves
+  camTopsFlush(true);   // the round colliders' heights for the camera, read from the props built on them (before the bake merges those props)
   bakeRealm(key, bakeFrom);   // fewer draw calls: the core's static props merged per material, once everything is placed (no rng, nothing moves)
   bundles.forEach(b => { b.g = null; if(b.world === key) addBundleMesh(b); });
   if(ENDLESS[key] && !W.custom) startBuiltin(key);   // no boundaries (Goal 8a): the land goes on past the hand-made core
+  camTopsFlush();   // and the far props that became solid just now
   applyPhotos(key); autoReal(key);
   if(typeof aiPrompt === 'function') aiPrompt();
   $('#worldName').textContent = W.name;
@@ -9614,12 +9705,12 @@ let archNear = null, archRoom = -1, cardTimer = 0;
 const ARCH_DOOR_OPEN = Math.PI - 0.1;
 const ledgerEl = $('#ledger'), regEl = $('#reg'), memoEl = $('#memo');
 function archiveUpdate(dt){
-  if(!archive || state.world !== 'hub'){ if(archNear){ archNear = null; $('#archBtn').style.display = 'none'; } if(me.tag) me.tag.visible = !pocketIn() && !driftSafe() && chimeNear == null && !ashIndoors() && !fbIndoors(); return; }   // indoors (the Hollow, The Drift, its hallway) your own name tag would fill the view
+  if(!archive || state.world !== 'hub'){ if(archNear){ archNear = null; $('#archBtn').style.display = 'none'; } if(me.tag) me.tag.visible = !pocketIn() && !driftSafe() && chimeNear == null && !ashIndoors() && !fbIndoors() && !camTagOff; return; }   // indoors (the Hollow, The Drift, its hallway) your own name tag would fill the view
   const A = ARCHIVE, px = p.x, pz = p.z, cp = camera.position;
   // the rooms are built the first time you come near (one a frame), so the Spaceport loads exactly as fast as before
   if(Math.hypot(px, pz - 77) < 60 && !pocketIn()){ const k = archive.rooms.findIndex(R => !R.built); if(k >= 0) archiveBuildRoom(k); }   // not from a pocket overhead (the Den, Goal 21)
   const inB = px > A.x0 - 0.3 && px < A.x1 + 0.3 && pz > A.z0 - 0.3 && pz < A.z1 + 0.3, camIn = cp.x > A.x0 && cp.x < A.x1 && cp.z > A.z0 && cp.z < A.z1;
-  archive.inside = inB; if(me.tag) me.tag.visible = !inB && !pocketIn();
+  archive.inside = inB; if(me.tag) me.tag.visible = !inB && !pocketIn() && !camTagOff;
   // Goal 10: the first time you walk into the entrance hall, the Architect's Last Broadcast plays (once; replay it from the brass screen by the door)
   if(inB && playing && !state.archive.broadcast && !bc.on && Math.abs(px) < A.hall - 0.6 && pz > A.z0 + 0.9 && pz < A.z0 + 8) playBroadcast('first');   // indoors the camera is close and your own name tag would fill the view
   let at = -1;
@@ -11249,7 +11340,7 @@ function buildDrift(){
   driftDancers().forEach(([words, lx, lz, y0, ph]) => {
     const av = makeAvatar({recipe:parseDescription(words)}); av.g.position.set(D.x + lx, y0, D.z + lz); av.g.rotation.y = Math.PI; world.add(av.g);
     drift.dancers.push({av, x:D.x + lx, z:D.z + lz, y0, ph, floor:y0 === 0});
-    if(y0 === 0) colliders.push({x:D.x + lx, z:D.z + lz, r:0.45});
+    if(y0 === 0) colliders.push({x:D.x + lx, z:D.z + lz, r:0.45, h:2});
   });
   // the rear wall: a panel with a hairline of rose light round it. It sinks into the floor when you come to it (see driftUpdate)
   const pw = 2 * D.back.w + 0.3, panel = mk(new THREE.BoxGeometry(pw, D.back.h, D.t + 0.1), phys(0x0d0a16, {roughness:0.28, metalness:0.5, normalMap:detailNormal, normalScale:new V2(0.2, 0.2)}), 0, D.back.h / 2, D.r + D.t / 2, g0);
@@ -11481,6 +11572,7 @@ function cultBuild(key){
         const [px, pz] = m.pole, [ux, uz] = m.arm, ay = m.y + m.h / 2 + 0.02, len = 0.55 + m.w / 2 + 0.04;
         hw.push(new THREE.CylinderGeometry(0.022, 0.022, len, 8).rotateZ(Math.PI / 2).rotateY(-Math.atan2(uz, ux)).translate(px + ux * len / 2, ay, pz + uz * len / 2));
         hw.push(new THREE.CylinderGeometry(0.1, 0.1, 0.1, 12).translate(px, ay, pz));   // the collar round the post
+        camSolids.push({x:m.x, z:m.z, hx:m.w / 2 + 0.04, hz:0.02, y0:m.y - m.h / 2 - 0.05, y1:m.y + m.h / 2 + 0.05, c:Math.cos(m.ry), s:-Math.sin(m.ry)});   // you walk under it, the camera stops at the cloth
         return; }
       art.push(face().translate(0, 0, 0.012).applyMatrix4(M));
       back.push(new THREE.BoxGeometry(m.w + 0.12, m.h + 0.12, 0.05).translate(0, 0, -0.02).applyMatrix4(M));
@@ -11873,7 +11965,7 @@ function addQuestPortal(key){
   const g = new THREE.Group(); g.position.set(d.x, y0, d.z); g.rotation.y = yaw; g.name = 'questPortal'; world.add(g);
   const door = qpDoor(g, qpLook(key), d.col), c = Math.cos(yaw), s = Math.sin(yaw);
   // the two piers are solid; the opening is not
-  [-1, 1].forEach(k => colliders.push({x:d.x + k * 1.4 * c, z:d.z - k * 1.4 * s, r:0.62}));
+  [-1, 1].forEach(k => colliders.push({x:d.x + k * 1.4 * c, z:d.z - k * 1.4 * s, r:0.62, h:4})); archCam(d.x, y0, d.z, c, s, false);
   const q = Object.assign({key, d, g, x:d.x, z:d.z, y:y0, yaw, c, s, armed:true, title:null, sub:null}, door);
   qpList.push(q); qpLabels(q); return q;
 }
@@ -11938,11 +12030,13 @@ function qaBuild(q){
   M.build(o); g.visible = false; return o;
 }
 // a way-out door inside an arena: the same arch, lit white-blue; walking into it leaves (no reward if the mission is still running)
+// the arch over a quest doorway, to the camera: the crown and the two haunches (the piers are round colliders); the opening stays clear
+function archCam(x, y, z, c, s, hollow){ [[0, 0.62, 3.85, 4.9], [-1.16, 0.52, 3.3, 4.6], [1.16, 0.52, 3.3, 4.6]].forEach(([u, hx, y0, y1]) => camSolids.push({x:x + u * c, z:z - u * s, hx, hz:0.38, y0:y + y0, y1:y + y1, c, s:-s, hollow})); }
 function qaExit(o, lx, lz, yaw, look){
   const g = new THREE.Group(); g.position.set(o.A.x + lx, o.A.y + (o.M.floor ? o.M.floor(lx, lz) : 0), o.A.z + lz); g.rotation.y = yaw; o.g.add(g);
   const door = qpDoor(g, look, 0x9fd8ff, {noBase:true}); door.em.visible = door.eg.visible = false;
   const l = label('Way out', {small:true, edge:'#9fd8ff', fg:'#dff3ff'}); l.position.y = door.top + 0.5; g.add(l);
-  const c = Math.cos(yaw), s = Math.sin(yaw); [-1, 1].forEach(k => colliders.push({x:g.position.x + k * 1.4 * c, z:g.position.z - k * 1.4 * s, r:0.62, hollow:true}));
+  const c = Math.cos(yaw), s = Math.sin(yaw); [-1, 1].forEach(k => colliders.push({x:g.position.x + k * 1.4 * c, z:g.position.z - k * 1.4 * s, r:0.62, hollow:true, h:4})); archCam(g.position.x, g.position.y, g.position.z, c, s, true);
   o.exits.push(Object.assign({x:g.position.x, z:g.position.z, y:g.position.y, yaw, c, s, g}, door));
 }
 function qaUpdate(dt, time){
@@ -12295,7 +12389,7 @@ function lantSolve(lit){ const n = LANT.n; let best = null;
   return best; }
 const lantPos = k => { const a = k / LANT.n * TAU; return {x:Math.sin(a) * LANT.ring, z:Math.cos(a) * LANT.ring}; };
 QM.lantern = {
-  start:[0, -8.6, 0], ceil:LANT.dome, view:[0, 2, 0.25, 0.5, 7.5],
+  start:[0, -8.6, 0], ceil:LANT.dome, dome:{x:0, y:0.5, z:0, r:LANT.r + 1.5, h:LANT.dome + 0.5}, view:[0, 2, 0.25, 0.5, 7.5],   // dome: the camera stays under the starry dome
   light:{sky:0x5a6fb0, ground:0x0a0c10, i:0.42, fog:0x03060e, fd:0.018},
   init(att){ const q = rng(3700 + att * 13); let lit, sol;
     do { lit = []; for(let k = 0; k < LANT.n; k++) lit.push(q() < 0.5); sol = lantSolve(lit); } while(!sol || sol.length < 3 || sol.length > 5);
@@ -12340,7 +12434,7 @@ QM.lantern = {
     const trunks = [], caps = [], capM = std(0x9affd0, {emissive:C(0x5affb0), emissiveIntensity:1.6, roughness:0.5}), stemM = std(0xd8e8d0, {roughness:0.8}), capList = [];
     for(let k = 0; k < 26; k++){ const a = (k + q() * 0.6) / 26 * TAU, rr = R - 0.6 - q() * 1.2, x = Math.sin(a) * rr, z = Math.cos(a) * rr, rad = 0.32 + q() * 0.3; if(Math.abs(x) < 2.2 && z < 0) continue;
       const tg = new THREE.CylinderGeometry(rad * 0.75, rad * 1.15, LANT.dome + 1, 14, 6); const pa = tg.attributes.position; for(let i = 0; i < pa.count; i++){ const yy = pa.getY(i); pa.setX(i, pa.getX(i) + Math.sin(yy * 0.6 + k) * 0.12); pa.setZ(i, pa.getZ(i) + Math.cos(yy * 0.5 + k * 2) * 0.12); } tg.computeVertexNormals(); scaleUV(tg, 1);
-      tg.translate(x, (LANT.dome + 1) / 2 - 0.3, z); trunks.push(tg); colliders.push({x:A.x + x, z:A.z + z, r:rad + 0.1, hollow:true});
+      tg.translate(x, (LANT.dome + 1) / 2 - 0.3, z); trunks.push(tg); colliders.push({x:A.x + x, z:A.z + z, r:rad + 0.1, hollow:true, h:LANT.dome + 0.7});
       if(q() < 0.7) for(let m = 0; m < 3; m++){ const ma = a + (q() - 0.5) * 0.5, mr = rr - rad - 0.2 - q() * 0.5, s = 0.08 + q() * 0.1; capList.push([Math.sin(ma) * mr, Math.cos(ma) * mr, s, q()]); } }
     mk(merge(trunks), Ms.bark, A.x, Y, A.z, g);
     capList.forEach(([x, z, s, r0]) => { caps.push(new THREE.SphereGeometry(s * 1.4, 14, 6, 0, TAU, 0, Math.PI / 2).scale(1, 0.6, 1).translate(x, s * 2.2, z)); });
@@ -13398,7 +13492,29 @@ function camTarget(){
   if(fp){ _t0.set(tx, ty, tz); _t1.set(tx - Math.sin(cam.yaw) * cp * 6, ty - Math.sin(cam.pitch) * 6, tz - Math.cos(cam.yaw) * cp * 6); }
   else { _t0.set(tx + Math.sin(cam.yaw) * cp * cam.dist, ty + Math.sin(cam.pitch) * cam.dist, tz + Math.cos(cam.yaw) * cp * cam.dist); _t1.set(tx, ty, tz); }
 }
-function snapCamera(){ camTarget(); camera.position.copy(_t0); camera.lookAt(_t1); }
+// the camera follows its target (smoothly; the Broadcast places it exactly), then keeps out of walls, domes, the ground and pocket ceilings
+// where the camera looks: at your head (_t1), as always; pressed in closer than a metre, at a point that far ahead along the view instead, so the view
+// keeps its direction however short the arm gets (looking at a point a few centimetres away would turn the picture on any small move)
+const _aim = new V3();
+function camAim(){
+  if(bc.on || cam.view === 2 || !camColl) return _t1;
+  const d = camera.position.distanceTo(_t1); if(d >= 1) return _t1;
+  const cp = Math.cos(cam.pitch), k = 1 - d; return _aim.set(_t1.x - Math.sin(cam.yaw) * cp * k, _t1.y - Math.sin(cam.pitch) * k, _t1.z - Math.cos(cam.yaw) * cp * k);
+}
+function camFollow(dt){
+  if(bc.on) camera.position.copy(_t0); else { camArmStep(dt); const cy = camera.position.y; camera.position.lerp(_t0, 1 - Math.exp(-dt * 10)); if(A11Y.calm) camera.position.y = cy + (_t0.y - cy) * (1 - Math.exp(-dt * 3.5)); clipCamera(); }   // Phase 4: reduce motion softens the vertical follow
+  const zv = [gym, drift].find(v => v && Math.hypot(p.x - v.x, p.z - v.z) < v.r);
+  if(zv){   // inside the gym (or The Drift) the camera stays under the dome
+    const dx = camera.position.x - zv.x, dz = camera.position.z - zv.z, d = Math.hypot(dx, dz), lim = zv.r - 0.5;
+    if(d > lim){ camera.position.x = zv.x + dx / d * lim; camera.position.z = zv.z + dz / d * lim; }
+    const c = gymCeil(camera.position.x, camera.position.z) - 0.5; if(camera.position.y > c) camera.position.y = c;
+  }
+  const cg = (pocketIn() ? pocketFloor(camera.position.x, camera.position.z) : G(camera.position.x, camera.position.z)) + 0.4; if(camera.position.y < cg) camera.position.y = cg; slCam(); fbCam();
+  if(qa && qa.inside && qa.M.ceil){ const top = qa.A.y + qa.M.ceil - 0.25; if(camera.position.y > top) camera.position.y = top; }
+  if(corr && corr.inside){ const top = CORR.y + CORR.h - 0.2 + (camera.position.z - CORR.z0 > CORR.zoneC ? 0.6 : 0); if(camera.position.y > top) camera.position.y = top; }
+  camera.lookAt(camAim()); if(corr && corr.inside && corr.roll) camera.rotateZ(corr.roll); camera.updateMatrixWorld(); camWorld.copy(camera.position);
+}
+function snapCamera(){ camTarget(); camArm = -1; camera.position.copy(_t0); camera.lookAt(_t1); }
 function lerpAngle(a, b, t){ const d = ((b - a + Math.PI) % TAU + TAU) % TAU - Math.PI; return a + d * t; }
 
 function update(dt, time){
@@ -13483,17 +13599,7 @@ function update(dt, time){
   if(bc.on) broadcastUpdate(dt, time);   // the Broadcast drives the camera (sets _t0/_t1) until it ends
   if(vr.on){ vrUpdate(dt); camera.getWorldPosition(camWorld); sky.position.copy(camWorld); sunLight.position.set(p.x + lightDir.x * 150, p.y + lightDir.y * 150, p.z + lightDir.z * 150); sunLight.target.position.set(p.x, p.y, p.z); sunLight.target.updateMatrixWorld(); if(gridSun) gridSun.lookAt(camWorld.x, gridSun.position.y, camWorld.z); waterNormal.offset.x += dt * 0.015; waterNormal.offset.y += dt * 0.01; }
   else {
-  if(bc.on) camera.position.copy(_t0); else { const cy = camera.position.y; camera.position.lerp(_t0, 1 - Math.exp(-dt * 10)); if(A11Y.calm) camera.position.y = cy + (_t0.y - cy) * (1 - Math.exp(-dt * 3.5)); clipCamera(); }   // Phase 4: reduce motion softens the vertical follow
-  const zv = [gym, drift].find(v => v && Math.hypot(p.x - v.x, p.z - v.z) < v.r);
-  if(zv){   // inside the gym (or The Drift) the camera stays under the dome
-    const dx = camera.position.x - zv.x, dz = camera.position.z - zv.z, d = Math.hypot(dx, dz), lim = zv.r - 0.5;
-    if(d > lim){ camera.position.x = zv.x + dx / d * lim; camera.position.z = zv.z + dz / d * lim; }
-    const c = gymCeil(camera.position.x, camera.position.z) - 0.5; if(camera.position.y > c) camera.position.y = c;
-  }
-  const cg = (pocketIn() ? pocketFloor(camera.position.x, camera.position.z) : G(camera.position.x, camera.position.z)) + 0.4; if(camera.position.y < cg) camera.position.y = cg; slCam(); fbCam();
-  if(qa && qa.inside && qa.M.ceil){ const top = qa.A.y + qa.M.ceil - 0.25; if(camera.position.y > top) camera.position.y = top; }
-  if(corr && corr.inside){ const top = CORR.y + CORR.h - 0.2 + (camera.position.z - CORR.z0 > CORR.zoneC ? 0.6 : 0); if(camera.position.y > top) camera.position.y = top; }
-  camera.lookAt(_t1); if(corr && corr.inside && corr.roll) camera.rotateZ(corr.roll); camera.updateMatrixWorld(); camWorld.copy(camera.position);
+  camFollow(dt);
   sky.position.copy(camera.position);
   sunLight.position.set(p.x + lightDir.x * 150, p.y + lightDir.y * 150, p.z + lightDir.z * 150);
   sunLight.target.position.set(p.x, p.y, p.z); sunLight.target.updateMatrixWorld();
@@ -14139,7 +14245,7 @@ document.querySelectorAll('#starling .rally-touch button').forEach(b => { const 
 window.addEventListener('resize', () => { if(starling.open) sizeStarling(); });
 $('#ashBtn').addEventListener('click', () => { if(ashNear) ashAct(); });
 // hooks for the tester (headless checks) and for debugging; not used by the game itself
-window.__hub = { state, p, cam, post, stats, WORLDS, scene, renderer, camera, sunLight, hemi, gl:GL_INFO, softwareGL:SOFTWARE_GL, travel, buildWorld, startGame, setPaused, degrade, parseDescription, makeFromWords, rebuildPlayer, cleanRecipe, snd, sfx, setMute, bike, mountBike, dismountBike, keys, update, trial, trialStart, COURSES, get me(){ return me; }, freezeQuality(){ warm = 1e9; }, get bake(){ return bakeOn; }, set bake(v){ bakeOn = !!v; }, bakeStat:() => Object.assign({}, bakeStat), bakeStatic:(root, o) => bakeStatic(root, o), get qLevel(){ return qLevel; }, get world(){ return state.world; }, get envRT(){ return envRT; },
+window.__hub = { state, p, cam, post, stats, WORLDS, scene, renderer, camera, sunLight, hemi, gl:GL_INFO, softwareGL:SOFTWARE_GL, travel, buildWorld, startGame, setPaused, degrade, parseDescription, makeFromWords, rebuildPlayer, cleanRecipe, snd, sfx, setMute, bike, mountBike, dismountBike, keys, update, trial, trialStart, COURSES, get me(){ return me; }, freezeQuality(){ warm = 1e9; }, camCollide(v){ if(v != null){ camColl = !!v; camArm = -1; } return camColl; }, camHit:(o, e) => camHit(o.x, o.y, o.z, e.x - o.x, e.y - o.y, e.z - o.z), get camArm(){ return camArm; }, get bake(){ return bakeOn; }, set bake(v){ bakeOn = !!v; }, bakeStat:() => Object.assign({}, bakeStat), bakeStatic:(root, o) => bakeStatic(root, o), get qLevel(){ return qLevel; }, get world(){ return state.world; }, get envRT(){ return envRT; },
   damage(n){ return hurt(n, 'test'); }, get hazards(){ return hazards.map(h => ({x:h.x, z:h.z, L:h.L})); },
   get bundles(){ return bundles.map(b => ({id:b.id, world:b.world, x:b.x, y:b.y, z:b.z, credits:b.credits, items:b.items.map(i => Object.assign({}, i)), why:b.why})); }, get zeroing(){ return zeroing; }, get hp(){ return state.hp; }, get maxHp(){ return maxHp(); }, get level(){ return lvlOf(state.xp); },
   ITEMS, RARITY, get inv(){ return Object.assign({}, state.inv); }, giveItem(id, n){ return giveItem(id, n); }, sell(id){ return sellItem(id); }, useItem, openInventory, closeInventory, openShop, closeShop,
@@ -16506,7 +16612,7 @@ BUILD.warfront = (r, n) => {
   { const fl = surface('flagstone'), top = new THREE.CircleGeometry(K.r - 0.02, 64).rotateX(-Math.PI / 2); scaleUV(top, 1);
     const uv = top.attributes.uv, a = top.attributes.position; for(let i = 0; i < uv.count; i++) uv.setXY(i, a.getX(i) / 3, a.getZ(i) / 3);
     mk(top, std(0xb8b0a4, {map:fl.map, normalMap:fl.normal, normalScale:new V2(0.8, 0.8), roughness:0.9}), K.x, kg + K.top + 0.005, K.z, g); }
-  platforms.push({x:K.x, z:K.z, r:K.r, top:kg + K.top, bottom:kg - 2});
+  platforms.push({x:K.x, z:K.z, r:K.r, top:kg + K.top, bottom:kg - 2, cr:K.r + 0.4});   // cr: the camera's radius for it (the battered stone foot is wider than its top)
   // the stair: 24 blocks of stone, each a platform you walk up (step:true, 0.3 m a step)
   const rise = (K.top) / K.steps, stair = [];
   for(let i = 0; i < K.steps; i++){ const a = K.a0 + i * K.da, x = K.x + Math.sin(a) * K.stairR, z = K.z + Math.cos(a) * K.stairR, top = kg + rise * (i + 1), gy = Math.min(G(x, z), kg) - 0.4;
@@ -16616,7 +16722,7 @@ ENDLESS.warfront = {
   tiers:[
     {name:'far', r:2, build(c, k){
       const q = c.q;
-      for(const b of bigOf(c.E, c.cx, c.cz)){ if(b.kind !== 'tower' || c.skip(b.x, b.z)) continue; const m = mk(k.towers[b.v], k.stoneM, b.x, G(b.x, b.z) - 0.2, b.z); m.scale.set(b.s, b.sy, b.s); colliders.push({x:b.x, z:b.z, r:3 * b.s + 0.2}); }
+      for(const b of bigOf(c.E, c.cx, c.cz)){ if(b.kind !== 'tower' || c.skip(b.x, b.z)) continue; const m = mk(k.towers[b.v], k.stoneM, b.x, G(b.x, b.z) - 0.2, b.z); m.scale.set(b.s, b.sy, b.s); colliders.push({x:b.x, z:b.z, r:3 * b.s + 0.2, ht:propTop(m)}); }
       const L = [[], [], []];
       for(let i = 0, n = 3 + Math.floor(q() * 6); i < n; i++){ const s = c.spot(1.6, {slope:0.7, tries:4}); if(!s) continue; const sc = 0.8 + q() * 0.6, ti = Math.floor(q() * 3);
         L[ti].push(mat4(s[0], G(s[0], s[1]) - 0.1, s[1], (q() - 0.5) * 0.14, q() * TAU, (q() - 0.5) * 0.14, sc)); c.local.push({x:s[0], z:s[1], r:0.6}); colliders.push({x:s[0], z:s[1], r:0.28 * sc}); }
@@ -17279,6 +17385,7 @@ function lbBuilding(B, r, P, K, o){
       if(r.awn && !o.lite){ const ac = LB_AWN[r.awc], d = 1.4; for(let u = 0.5; u < len - 1.5; u += 4){ const w = Math.min(3.3, len - u - 0.6), x0 = ax + (bx - ax) / len * u, z0 = az + (bz - az) / len * u, x1 = ax + (bx - ax) / len * (u + w), z1 = az + (bz - az) / len * (u + w);
           // a canvas awning sloping out over the sidewalk, striped, with a valance
           const cA = hexArr(ac[0]).map(v => Math.pow(v, 2.2)), cB = hexArr(ac[1]).map(v => Math.pow(v, 2.2)), n = 6;
+          camSolids.push({x:(x0 + x1) / 2 + nx * 0.72, z:(z0 + z1) / 2 + nz * 0.72, hx:w / 2, hz:0.72, y0:3.0, y1:3.9, c:(bx - ax) / len, s:(bz - az) / len});   // the camera stops at the canvas
           for(let k = 0; k < n; k++){ const t0 = k / n, t1 = (k + 1) / n, c = k % 2 ? cB : cA, px0 = x0 + (x1 - x0) * t0, pz0 = z0 + (z1 - z0) * t0, px1 = x0 + (x1 - x0) * t1, pz1 = z0 + (z1 - z0) * t1;
             lbQ(B.awn, [px1 + nx * 0.05, 3.9, pz1 + nz * 0.05, px0 + nx * 0.05, 3.9, pz0 + nz * 0.05, px0 + nx * d, 3.25, pz0 + nz * d, px1 + nx * d, 3.25, pz1 + nz * d], [nx * 0.42, 0.9, nz * 0.42], [0, 0, 1, 0, 1, 1, 0, 1], c);
             lbQ(B.awn, [px1 + nx * d, 3.25, pz1 + nz * d, px0 + nx * d, 3.25, pz0 + nz * d, px0 + nx * d, 3.0, pz0 + nz * d, px1 + nx * d, 3.0, pz1 + nz * d], [nx, 0, nz], [0, 0, 1, 0, 1, 1, 0, 1], c); } } }
@@ -17302,6 +17409,7 @@ function lbBuilding(B, r, P, K, o){
 function lbFireEscape(B, ax, az, bx, bz, nx, nz, len, floors){
   const tx = (bx - ax) / len, tz = (bz - az) / len, u0 = len * 0.5 - 2.2, u1 = u0 + 4.4, D = 1.25, I = B.iron;
   const P = (u, d) => [ax + tx * u + nx * d, az + tz * u + nz * d];
+  { const m = P((u0 + u1) / 2, D / 2); camSolids.push({x:m[0], z:m[1], hx:2.25, hz:D / 2 + 0.03, y0:LB.gf, y1:LB.gf + (floors - 2) * LB.fh + 1.1, c:tx, s:tz}); }   // to the camera the landings and stairs are one block
   const box = (ua, ub, da, db, y0, y1) => { const p0 = P(ua, da), p1 = P(ub, db); lbBox(I, Math.min(p0[0], p1[0]), Math.max(p0[0], p1[0]), y0, y1, Math.min(p0[1], p1[1]), Math.max(p0[1], p1[1]), 1); };
   for(let k = 1; k < floors; k++){ const y = LB.gf + (k - 1) * LB.fh + 0.05;
     box(u0, u1, 0.05, D, y, y + 0.06);                                                   // the grating
@@ -17326,7 +17434,7 @@ function lbStreet(B, cx, cz, P, o){
   // lamps (posts 0.6 m in from the kerb, heads out over the road): the same spots on every block, which the wet shader lights
   const sides = [['W', -1, 0], ['E', 1, 0], ['S', 0, -1], ['N', 0, 1]];
   sides.forEach(([s, nx, nz], si) => { LB.lamps.forEach(t => { const x = nx ? bx + (nx < 0 ? 6.6 : 41.4) : bx + t, z = nz ? bz + (nz < 0 ? 6.6 : 41.4) : bz + t;
-      B.lamps.push([x, k, z, Math.atan2(nx, nz)]); B.glows.push([x + nx * 1.6, 4.45 + k, z + nz * 1.6, 2.6, 0xffc07a, 0.5]); colliders.push({x, z, r:0.16}); });
+      B.lamps.push([x, k, z, Math.atan2(nx, nz)]); B.glows.push([x + nx * 1.6, 4.45 + k, z + nz * 1.6, 2.6, 0xffc07a, 0.5]); colliders.push({x, z, r:0.16, ht:k + 4.7}); });
     // parked cars, between the lamps, never on the El street or the square
     const elSide = (s === 'S' && cz === 0) || (s === 'N' && cz === -1), sqSide = o.core && ((s === 'W' && cx === 0 && cz === -1) || (s === 'E' && cx === -1 && cz === -1));
     if(!elSide && !sqSide && !o.noCars) [17, 31].forEach((t, j) => { if(P.carQ[si * 2 + j] > 0.45) return; const x = nx ? bx + (nx < 0 ? 4.85 : 43.15) : bx + t, z = nz ? bz + (nz < 0 ? 4.85 : 43.15) : bz + t, along = !!nx;
@@ -17377,7 +17485,7 @@ function lbEl(B, xa, xb){
   const E = LB.el;
   for(let k = Math.floor(xa / LB.S); k * LB.S < xb; k++) E.bents.forEach(t => { const x = k * LB.S + t; if(x < xa || x >= xb) return;
     [-1, 1].forEach(sd => { const z = sd * E.colZ; lbBox(B.steel, x - 0.22, x + 0.22, 0, 6.3, z - 0.22, z + 0.22, 2); lbBox(B.trim, x - 0.4, x + 0.4, 0, 0.45, z - 0.4, z + 0.4, 2, [0.6, 0.6, 0.62]);
-      lbBox(B.steel, x - 0.05, x + 0.05, 5.0, 6.25, z - sd * 0.2 - 0.05, z - sd * 1.6, 2); colliders.push({x, z, r:0.42}); });
+      lbBox(B.steel, x - 0.05, x + 0.05, 5.0, 6.25, z - sd * 0.2 - 0.05, z - sd * 1.6, 2); colliders.push({x, z, r:0.42, ht:6.3}); });
     lbBox(B.steel, x - 0.3, x + 0.3, 6.2, 6.9, -5.0, 5.0, 2); });
   [-3.45, 3.15].forEach(z => lbBox(B.steel, xa, xb, 5.95, 7.05, z, z + 0.3, 2));
   [-1.95, -1.25, 1.25, 1.95].forEach(z => lbBox(B.steel, xa, xb, 6.55, 7.0, z - 0.12, z + 0.12, 2));
@@ -17397,13 +17505,13 @@ function lbCore(K){
     lbFace(B.kerb, Q.x0, Q.z1, Q.x1, Q.z1, 0, k, 0, 0, 1, 1, () => LB_ONE); lbFace(B.kerb, Q.x1, Q.z0, Q.x0, Q.z0, 0, k, 0, 0, 1, 1, () => LB_ONE);
     // a four-faced clock on a post, and the evening paper's kiosk
     lbBox(B.iron, 4.4, 4.6, k, k + 4.2, -11.1, -10.9); B.ironGeo.push(new THREE.CylinderGeometry(0.2, 0.28, 0.6, 12).translate(4.5, k + 0.3, -11));
-    lbBox(B.steel, 4.05, 4.95, k + 4.2, k + 5.1, -11.45, -10.55); [[4.5, -11.47, 0, -1], [4.5, -10.53, 0, 1], [4.03, -11, -1, 0], [4.97, -11, 1, 0]].forEach(([x, z, nx, nz]) => B.signs.push({clock:true, x, y:k + 4.65, z, nx, nz, h:0.7})); colliders.push({x:4.5, z:-11, r:0.3});
-    lbBox(B.steel, 3.2, 5.8, k, k + 2.3, -37.2, -34.8, 2); lbBox(B.roof, 3.0, 6.0, k + 2.3, k + 2.45, -37.4, -34.6, 2); lbBox(dim, 3.18, 5.82, k + 0.9, k + 2.0, -34.82, -34.78); colliders.push({x:4.5, z:-36, r:1.6});
+    lbBox(B.steel, 4.05, 4.95, k + 4.2, k + 5.1, -11.45, -10.55); [[4.5, -11.47, 0, -1], [4.5, -10.53, 0, 1], [4.03, -11, -1, 0], [4.97, -11, 1, 0]].forEach(([x, z, nx, nz]) => B.signs.push({clock:true, x, y:k + 4.65, z, nx, nz, h:0.7})); colliders.push({x:4.5, z:-11, r:0.3, ht:k + 5.1});
+    lbBox(B.steel, 3.2, 5.8, k, k + 2.3, -37.2, -34.8, 2); lbBox(B.roof, 3.0, 6.0, k + 2.3, k + 2.45, -37.4, -34.6, 2); lbBox(dim, 3.18, 5.82, k + 0.9, k + 2.0, -34.82, -34.78); colliders.push({x:4.5, z:-36, r:1.6, ht:k + 2.45});
     B.signs.push({text:'EVENING WIRE', col:0xffe2b8, x:4.5, y:k + 2.75, z:-34.65, nx:0, nz:1, h:0.42}); B.glows.push([4.5, 2.7, -34.4, 2.6, 0xffe2b8, 0.35]); }
   lbEl(B, -96, 96);
   // Vesper Street station: the platform over the north kerb, its canopy and railings, the stair up the hotel's sidewalk
   { const k = LB.kerb, fy = LB.el.floor; lbBox(B.trim, W.x0, W.x1, fy - 0.45, fy, W.z0, W.z1, 2, [0.7, 0.7, 0.72]); lbBox(B.awn, W.x0, W.x1, fy, fy + 0.006, W.z0, W.z0 + 0.35, 1, [0.55, 0.42, 0.06]);
-    [14, 23].forEach(x => { lbBox(B.steel, x - 0.15, x + 0.15, 0, fy - 0.45, 6.45, 6.75, 2); colliders.push({x, z:6.6, r:0.3}); });
+    [14, 23].forEach(x => { lbBox(B.steel, x - 0.15, x + 0.15, 0, fy - 0.45, 6.45, 6.75, 2); colliders.push({x, z:6.6, r:0.3, ht:fy - 0.45}); });
     [13, 18.8, 24.6].forEach(x => lbBox(B.steel, x - 0.1, x + 0.1, fy, fy + 3, 6.55, 6.75, 2));
     lbBox(B.steel, W.x0 - 0.2, W.x1 + 0.2, fy + 3, fy + 3.2, 3.9, 7.1, 2); for(let x = 13; x < 25.5; x += 2.2) lbBox(lit, x, x + 1.2, fy + 2.96, fy + 3.0, 5.0, 5.3);
     lbBox(B.iron, W.x0, W.x1, fy + 1.0, fy + 1.05, 6.95, 7.0); lbBox(B.iron, W.x0 - 0.05, W.x0, fy + 1.0, fy + 1.05, W.z0, W.z1); for(let x = W.x0; x <= W.x1; x += 1.2) lbBox(B.iron, x - 0.025, x + 0.025, fy, fy + 1.0, 6.95, 7.0);
@@ -17443,7 +17551,7 @@ function lbCore(K){
   B.glows.push([8.6, 7.2, -37.2, 3.4, 0xffd8a8, 0.4], [-8.6, 8.0, -36.5, 3.6, 0xff4a6a, 0.4], [8.8, 4.0, -31.25, 3.2, 0xff6a50, 0.3]);
   // the alley: bins, crates, a steaming grate, a lamp over the side door
   { const k = LB.kerb; [[-34, -25.3], [-31.6, -25.4]].forEach(([x, z]) => { lbBox(B.steel, x - 0.9, x + 0.9, k, k + 1.3, z - 0.55, z + 0.55, 1); lbBox(B.iron, x - 0.95, x + 0.95, k + 1.3, k + 1.38, z - 0.6, z + 0.6, 1); addBox(x, z, 0.95, 0.6, -1, 1.4, {cam:false, full:true}); });
-    [[-15, -22.6, 0.6], [-14.2, -22.7, 0.5]].forEach(([x, z, s], i) => { lbBox(B.wood, x - s / 2, x + s / 2, k + i * 0.6, k + i * 0.6 + s, z - s / 2, z + s / 2, 1); }); colliders.push({x:-14.6, z:-22.65, r:0.6});
+    [[-15, -22.6, 0.6], [-14.2, -22.7, 0.5]].forEach(([x, z, s], i) => { lbBox(B.wood, x - s / 2, x + s / 2, k + i * 0.6, k + i * 0.6 + s, z - s / 2, z + s / 2, 1); }); colliders.push({x:-14.6, z:-22.65, r:0.6, ht:k + 1.7});
     lbBox(B.iron, -24.5, -23.5, 0.15, 0.165, -24.5, -23.5, 1); B.vents.push([-24, -24]); lbBox(lit, -20.6, -20.4, 3.0, 3.2, -22.15, -22.05); B.glows.push([-20.5, 3.1, -22.4, 2.4, 0xffc890, 0.5]); }
   lbFlush(B, K);
   { const g = lbGeo(lit); if(g){ const m = mk(g, K.bulb, 0, 0, 0); m.castShadow = false; } }
@@ -17992,7 +18100,7 @@ BUILD.saltlark = (r, n) => {
     mk(new THREE.ConeGeometry(rr * 0.9, 1.0, 32), std(0xb8343a, {roughness:0.5, metalness:0.2}), L.x, top + 2.72, L.z); mk(new THREE.SphereGeometry(0.16, 12, 8), iron, L.x, top + 3.3, L.z);
     glow(0xffd890, 5, L.x, top + 1.4, L.z, world, 0.55);
     sl.flash = glow(0xfff0c8, 6, L.x, top + 1.4, L.z, world, 0.4); sl.flash.userData.base = new V3(L.x, top + 1.4, L.z); sl.skip.push(sl.flash);   // the lens turns: a flash each time a beam sweeps past you (slUpdate)
-    colliders.push({x:L.x, z:L.z, r:L.r + 0.15}); }
+    colliders.push({x:L.x, z:L.z, r:L.r + 0.15, ht:top + 3.46}); }
   // ---- piles, posts, decks, rails, fascia and steps: one draw each
   instanced(new THREE.CylinderGeometry(0.12, 0.14, 1, 8), postM, piles.concat(K.posts), null, true);
   mk(boxGeo(K.deck, 3), deckM, 0, 0, 0);
@@ -18011,7 +18119,7 @@ BUILD.saltlark = (r, n) => {
   { const parts = [], globes = [], gl = []; for(let x = W.x0 + 4; x < W.x1; x += 12){ if(Math.abs(x) < 7) continue; const z = W.z0 + 0.35;
       parts.push(new THREE.CylinderGeometry(0.05, 0.07, 3.0, 8).translate(x, W.y + 1.5, z), new THREE.CylinderGeometry(0.12, 0.14, 0.2, 10).translate(x, W.y + 0.1, z)); globes.push(new THREE.SphereGeometry(0.19, 16, 12).translate(x, W.y + 3.15, z)); gl.push([x, W.y + 3.15, z, 1.4, 0xffd8a0, 0.35]);
       [-1, 1].forEach(sd => { const bx = x + sd * 3; parts.push(new THREE.BoxGeometry(1.6, 0.06, 0.45).translate(bx, W.y + 0.45, z + 0.05), new THREE.BoxGeometry(1.6, 0.4, 0.05).translate(bx, W.y + 0.75, z - 0.18), new THREE.BoxGeometry(0.06, 0.45, 0.4).translate(bx - 0.7, W.y + 0.22, z), new THREE.BoxGeometry(0.06, 0.45, 0.4).translate(bx + 0.7, W.y + 0.22, z)); });
-      colliders.push({x, z, r:0.15}); }
+      colliders.push({x, z, r:0.15, ht:W.y + 3.35}); }
     mk(merge(parts), mintM, 0, 0, 0); mk(merge(globes), glowM(0xffe2b0, 1.3), 0, 0, 0).castShadow = false; glowCloud(gl.map(g2 => [g2[0], g2[1], g2[2], g2[3], g2[4], g2[5]]), 0.35); }
   // ---- the Tidebell beach bar: a round thatched roof on posts over a ring counter, stools, a chalkboard
   { const B = SLK.bar, y = G(B.x, B.z), parts = [], th = []; for(let i = 0; i < 8; i++){ const an = i / 8 * TAU; parts.push(new THREE.CylinderGeometry(0.1, 0.12, 2.9, 8).translate(B.x + Math.sin(an) * (B.r - 0.2), y + 1.45, B.z + Math.cos(an) * (B.r - 0.2))); }
@@ -18022,11 +18130,11 @@ BUILD.saltlark = (r, n) => {
     const st = []; for(let i = 0; i < 7; i++){ const an = i / 7 * TAU + 0.3, rr = B.r + 0.35; st.push(new THREE.CylinderGeometry(0.22, 0.2, 0.08, 14).translate(B.x + Math.sin(an) * rr, y + 0.78, B.z + Math.cos(an) * rr), new THREE.CylinderGeometry(0.04, 0.05, 0.76, 6).translate(B.x + Math.sin(an) * rr, y + 0.38, B.z + Math.cos(an) * rr)); }
     mk(merge(st), mintM, 0, 0, 0);
     const sign = label('The Tidebell', {small:true, edge:'#7fd8c8', fg:'#fff3d6'}); sign.position.set(B.x, y + 5.3, B.z); world.add(sign);
-    colliders.push({x:B.x, z:B.z, r:B.r - 0.7}); }
+    colliders.push({x:B.x, z:B.z, r:B.r - 0.7, ht:y + 4.75}); }
   // ---- umbrellas and loungers on the beach
   { const ums = [[-14, 3, 0xf28f7a], [-8.5, 5.5, 0x7fc8e8], [16.5, 4.5, 0xf6d36a], [22, 2.5, 0x8fd8b0], [31, 3.5, 0xf4a6c8], [-31, 2, 0xb8a8e8]], cloth = [], poles = [], lounge = [];
     ums.forEach(([x, z, hex], i) => { const y = G(x, z), c = new THREE.ConeGeometry(1.5, 0.55, 16, 1, true); c.translate(0, 0, 0); const m = mk(c, std(hex, {map:T.stripe, roughness:0.85, side:THREE.DoubleSide}), x, y + 2.25, z); m.rotation.z = 0.12; m.rotation.y = i;
-      poles.push(new THREE.CylinderGeometry(0.03, 0.03, 2.3, 6).translate(x, y + 1.15, z)); colliders.push({x, z, r:0.12});
+      poles.push(new THREE.CylinderGeometry(0.03, 0.03, 2.3, 6).translate(x, y + 1.15, z)); colliders.push({x, z, r:0.12, ht:y + 2.3});
       const a = i * 0.9 + 0.4, lx = x + Math.sin(a) * 1.2, lz = z + Math.cos(a) * 1.2, ly = G(lx, lz), seat = new THREE.BoxGeometry(0.62, 0.08, 1.8); seat.rotateY(a); seat.translate(lx, ly + 0.3, lz); const back = new THREE.BoxGeometry(0.62, 0.06, 0.7); back.rotateX(-0.9); back.translate(0, 0, -0.95); back.rotateY(a); back.translate(lx, ly + 0.55, lz); lounge.push(seat, back);
       [[-0.25, -0.75], [0.25, -0.75], [-0.25, 0.75], [0.25, 0.75]].forEach(([u, v]) => lounge.push(new THREE.BoxGeometry(0.05, 0.3, 0.05).translate(lx + u * Math.cos(a) + v * Math.sin(a), ly + 0.15, lz - u * Math.sin(a) + v * Math.cos(a)))); });
     mk(merge(poles), whiteM, 0, 0, 0); mk(merge(lounge), std(0xf2ece0, {map:detailTex, roughness:0.8}), 0, 0, 0); }
@@ -18317,7 +18425,7 @@ function swimBed(x, z){ const P = SWIM.pool, e = 1 - ((x - P.x) / P.rx) ** 2 - (
 // each ring faces the way the course runs through it (from the ring before to the ring after)
 const swimRings = () => SWIM.rings.map((r, k) => { const a = k ? SWIM.rings[k - 1] : [0, 0], b = SWIM.rings[k + 1] || [r[0] + (r[0] - a[0]), r[1] + (r[1] - a[1])], dx = b[0] - a[0], dz = b[1] - a[1], l = Math.hypot(dx, dz); return {x:r[0], z:r[1], nx:dx / l, nz:dz / l}; });
 QM.swim = {
-  start:[0, 0, 0], ceil:10, view:[-5, 4.5, Math.PI + 0.65, 0.42, 7.5], water:SWIM.water,
+  start:[0, 0, 0], ceil:10, dome:{x:0, y:-0.6, z:12, r:22 * 0.94, h:22 * 0.48 * 0.94}, view:[-5, 4.5, Math.PI + 0.65, 0.42, 7.5], water:SWIM.water,   // dome: the grotto's rock (its lumps reach 6% in)
   light:{sky:0x86d4e4, ground:0x123a40, i:0.78, fog:0x041a20, fd:0.022},
   floor:(x, z) => Math.max(swimBed(x, z), SWIM.water - SLK.swim),
   init(att){ return {kind:'swim', state:'run', t:0, why:null, att, next:0, prevF:null, passes:[], wrong:0}; },
@@ -18685,7 +18793,7 @@ function fbStreets(B){
   { const S = K.slip; B.blockG.push(fbSheet(S.x0, S.x1, 32.1, S.z1, 3, 12, (x, z) => lerp(K.QY, S.y1, (z - 32.1) / (S.z1 - 32.1)) + 0.01, 4)); for(let z = 32.6; z < S.z1 - 0.01; z += 1.5){ const top = lerp(K.QY, S.y1, Math.min(1, (z + 1.5 - 32.1) / (S.z1 - 32.1))) - 0.02; B.block.push([S.x0 - 0.4, S.x0, -2.2, top, z, Math.min(S.z1, z + 1.5)], [S.x1, S.x1 + 0.4, -2.2, top, z, Math.min(S.z1, z + 1.5)]); } }   // the slip's side walls, stepped down under its edges
   { const S = K.steps; for(let k = 1; k <= 12; k++) B.block.push([S.x0 + (k - 1) * 0.33, S.x0 + k * 0.33, -2.2, K.QY - k * 0.2, S.z0, S.z1]); }
   // bollards along the quay, and the iron rings for the boats' ropes
-  for(let x = K.hb.x0 + 3; x < K.hb.x1; x += 9){ if(x > K.slip.x0 - 1 && x < K.slip.x1 + 1) continue; B.ironG.push(new THREE.CylinderGeometry(0.16, 0.2, 0.62, 12).translate(x, K.QY + 0.31, 32.25), new THREE.SphereGeometry(0.19, 12, 6, 0, TAU, 0, Math.PI / 2).translate(x, K.QY + 0.62, 32.25)); colliders.push({x, z:32.25, r:0.22}); }
+  for(let x = K.hb.x0 + 3; x < K.hb.x1; x += 9){ if(x > K.slip.x0 - 1 && x < K.slip.x1 + 1) continue; B.ironG.push(new THREE.CylinderGeometry(0.16, 0.2, 0.62, 12).translate(x, K.QY + 0.31, 32.25), new THREE.SphereGeometry(0.19, 12, 6, 0, TAU, 0, Math.PI / 2).translate(x, K.QY + 0.62, 32.25)); colliders.push({x, z:32.25, r:0.22, ht:K.QY + 0.62}); }
 }
 // Lantern Row: eight houses a side (No. 1 at the top on the west), the corners at its foot are shops on Harbour Street
 function fbRow(B, q){
@@ -18745,7 +18853,7 @@ function fbLamps(B){
   const K = FB, lantern = (x, y, z) => { B.flame.push(new THREE.BoxGeometry(0.17, 0.26, 0.17).translate(x, y, z)); B.ironG.push(new THREE.BoxGeometry(0.24, 0.05, 0.24).translate(x, y + 0.16, z), new THREE.ConeGeometry(0.14, 0.14, 4).rotateY(Math.PI / 4).translate(x, y + 0.25, z), new THREE.BoxGeometry(0.2, 0.04, 0.2).translate(x, y - 0.15, z));
     B.glows.push([x, y, z, 2.2, 0xffc078, 0.55], [x, y - 0.4, z, 4.4, 0xffa050, 0.12]); };
   for(let z = K.top + 3, k = 0; z < K.foot - 2; z += 6.5, k++){ const sd = k % 2 ? 1 : -1, xw = sd * K.hw, y = fbRowY(z) + 3.15; B.iron.push([Math.min(xw, xw - sd * 0.48), Math.max(xw, xw - sd * 0.48), y + 0.38, y + 0.42, z - 0.02, z + 0.02]); lantern(xw - sd * 0.42, y, z); }
-  const post = (x, z, y0, h) => { B.ironG.push(new THREE.CylinderGeometry(0.055, 0.09, h, 10).translate(x, y0 + h / 2, z), new THREE.CylinderGeometry(0.13, 0.15, 0.4, 10).translate(x, y0 + 0.2, z)); lantern(x, y0 + h + 0.14, z); colliders.push({x, z, r:0.16}); };
+  const post = (x, z, y0, h) => { B.ironG.push(new THREE.CylinderGeometry(0.055, 0.09, h, 10).translate(x, y0 + h / 2, z), new THREE.CylinderGeometry(0.13, 0.15, 0.4, 10).translate(x, y0 + 0.2, z)); lantern(x, y0 + h + 0.14, z); colliders.push({x, z, r:0.16, ht:y0 + h + 0.4}); };
   for(let x = -88; x <= 88; x += 14){ if(Math.abs(x - (K.slip.x0 + K.slip.x1) / 2) < 5 || (x > K.pier.x0 - 3 && x < K.pier.x1 + 3)) continue; post(x, 31.2, K.QY, 3.4); }
   for(let z = K.pier.z0 + 6, k = 0; z < K.pier.z1; z += 12, k++) post(k % 2 ? K.pier.x1 - 0.25 : K.pier.x0 + 0.25, z, K.pier.y, 3.0);
   post(-5.5, -36, K.RY, 3.4); post(5.5, -36, K.RY, 3.4);
@@ -18810,7 +18918,7 @@ function fbArcade(){
     const sc = new THREE.Mesh(sg, new THREE.MeshBasicMaterial({map:tex, toneMapped:false})); sc.position.set(0, 1.48, 0.2); sc.rotation.x = -0.22; g.add(sc);
     const w = new V3(0, 1.48, 0.6).applyAxisAngle(new V3(0, 1, 0), c.ry).add(g.position); fb.cabs.push({game:c.game, x:w.x, z:w.z, cv:c.cv, tex:c.tex, g});
     glow(c.game === 'rally' ? 0x7f9fff : c.game === 'starling' ? 0xff9a5a : 0x9ad8ff, 1.6, w.x, y + 1.5, w.z, world, 0.3);
-    const wc = new V3(0, 0, 0).applyAxisAngle(new V3(0, 1, 0), c.ry).add(g.position); colliders.push({x:wc.x, z:wc.z, r:0.55}); });
+    const wc = new V3(0, 0, 0).applyAxisAngle(new V3(0, 1, 0), c.ry).add(g.position); colliders.push({x:wc.x, z:wc.z, r:0.55, h:2}); });
 }
 // a fishing boat lying on the mud: the hull a box pulled into a V and a rising bow at +z, a wheelhouse aft, a short mast
 let fbBoatCache = null;
@@ -18847,7 +18955,7 @@ function fbLighthouse(B, q){
   mk(new THREE.ConeGeometry(rr * 0.9, 0.9, 24), std(0x2a2e34, {roughness:0.5, metalness:0.4}), L.x, top + 2.15, L.z);
   glow(0xffe0a0, 7, L.x, top + 1.0, L.z, world, 0.6);
   fb.flash = glow(0xfff0c8, 14, L.x, top + 1.0, L.z, world, 0.4); fb.flash.userData.base = new V3(L.x, top + 1.0, L.z); fb.skip.push(fb.flash);
-  colliders.push({x:L.x, z:L.z, r:L.r + 0.2});
+  colliders.push({x:L.x, z:L.z, r:L.r + 0.2, ht:top + 2.6});
   fbHouse(B, {face:'+z', X:L.z - 5, a0:L.x - 12, a1:L.x - 4, D:5.5, floor:hf(L.x - 8, L.z - 7) + 0.2, st:1, mat:0xeeeae2, lit:1, doorAt:'a1', smoke:1}, q);
 }
 // the night ferry, out on the bay with its lights on, crossing and crossing back for ever (fbUpdate moves it)
@@ -19323,14 +19431,14 @@ function denBuildRoom(){
   const gl = mk(new THREE.PlaneGeometry(hw * 2, 3.13), M.glass, X, Y + 0.55 + 3.13 / 2, Z - hd - 0.05, g); gl.castShadow = false; gl.receiveShadow = false; gl.renderOrder = 2;
   // steel I-beams under the ceiling and a skirting board round the brick
   const bm = []; [-3, 0, 3].forEach(z => { bm.push([-hw, hw, H - 0.04, H, z - 0.13, z + 0.13], [-hw, hw, H - 0.34, H - 0.04, z - 0.025, z + 0.025], [-hw, hw, H - 0.38, H - 0.34, z - 0.13, z + 0.13]); });
-  B(M.iron, 2, bm);
+  B(M.iron, 2, bm); [-3, 0, 3].forEach(z => camSolids.push({x:X, z:Z + z, hx:hw, hz:0.13, y0:Y + H - 0.38, y1:Y + H, c:1, s:0, hollow:true}));   // the camera stops under the beams
   B(M.skirt, 1, [[-hw, hw, 0, 0.12, hd - 0.02, hd], [-hw, -hw + 0.02, 0, 0.12, -hd, hd], [hw - 0.02, hw, 0, 0.12, -hd, hd]]);
   // pendant lamps over the room, each with a soft warm pool on the boards (no point lights: emissive, glow sprites and a floor decal)
   R.pools = [];
   [[-3.5, -0.6], [0, 1.6], [3.5, -0.6]].forEach(q => { const [x, z] = denW(q[0], q[1]);
     mk(new THREE.CylinderGeometry(0.008, 0.008, 1.15, 6), M.dark, x, Y + H - 0.4 - 0.575, z, g).castShadow = false;
     const sh = new THREE.LatheGeometry([new V2(0.04, 0.32), new V2(0.07, 0.3), new V2(0.2, 0.18), new V2(0.3, 0.02), new V2(0.31, 0)], 32); mk(sh, M.shade, x, Y + H - 2.0, z, g);
-    mk(new THREE.SphereGeometry(0.07, 16, 12), M.bulb, x, Y + H - 1.96, z, g).castShadow = false;
+    mk(new THREE.SphereGeometry(0.07, 16, 12), M.bulb, x, Y + H - 1.96, z, g).castShadow = false; camSolids.push({x, z, hx:0.31, hz:0.31, y0:Y + H - 2.0, y1:Y + H - 1.68, c:1, s:0, hollow:true});   // and at the shades
     glow(0xffc983, 1.6, x, Y + H - 2.0, z, g, 0.55); R.pools.push(denPool(g, x, Y, z, 3.4, 0.2)); });
   // the lift door on the east wall (brass leaves in a steel frame, a lamp above), and its way-out mat
   { const dz = DEN.door.z, dw = DEN.door.w, dh = DEN.door.h, [x, z] = denW(hw, dz);
