@@ -20625,6 +20625,24 @@ var SND_HOOKS = {
   space(){ const B = sndSp.bed; return {id:sndSp.id, now:sndSpaceNow(), out:snd.out ? +snd.out.gain.value.toFixed(3) : null, lp:snd.outLP ? Math.round(snd.outLP.frequency.value) : null,
     verb:{key:sndSp.verbKey || null, wet:snd.verbIn ? +snd.verbIn.gain.value.toFixed(3) : 0, want:sndSp.wantWet, connected:sndSp.connected, irSeconds:snd.conv && snd.conv.buffer ? +snd.conv.buffer.duration.toFixed(2) : 0, made:Object.keys(sndConvs), idleMs:+sndSp.irMs.toFixed(1)},
     bed:B ? {kind:B.kind, nodes:B.nodes.length, gain:+B.gain.gain.value.toFixed(3)} : null, changes:sndSp.changes, log:sndSp.log.slice(-8)}; },
+  // node counts that must come back to the same values: persistent = live sources that are not one-shot voices (beds, loops, engines)
+  count(){ const sc = snd.scene, loopN = sc ? Object.keys(sc.loops).reduce((a, k) => a + sc.loops[k].nodes.length, 0) : 0;
+    return {live:snd.live, voices:snd.voices, persistent:snd.live - snd.voices, bed:snd.nodes.length, loops:sc ? Object.keys(sc.loops) : [], loopNodes:loopN, fading:snd.fading.length, pocketBed:sndSp.bed ? sndSp.bed.nodes.length : 0, timers:snd.timers.length, made:snd.made}; },
+  // builds realms one after another (buildWorld, as travel does) and lets each crossfade finish; returns the counts in the first realm before and after
+  async leakTest(keys, n, waitMs){ keys = keys || WORLD_ORDER; n = n || 20; waitMs = waitMs || (SND_XF.out * 1000 + 700); const wait = ms => new Promise(r => setTimeout(r, ms)), out = {steps:[]};
+    const home = keys[0]; buildWorld(home); await wait(waitMs); snd.acc = 1; sndTick(0); out.before = SND_HOOKS.count();
+    for(let i = 1; i <= n; i++){ const k = keys[i % keys.length]; buildWorld(k); snd.acc = 1; sndTick(0); await wait(i === n ? 0 : 250); out.steps.push({k, live:snd.live, persistent:snd.live - snd.voices, fading:snd.fading.length}); }
+    buildWorld(home); await wait(waitMs); snd.acc = 1; sndTick(0); out.after = SND_HOOKS.count(); out.travels = n + 1; return out; },
+  // the crossfade on travel: builds the realm as travel does (buildWorld -> ambience) and samples the new bed's gain and every fading bed's gain
+  async crossfade(to, ms){ const out = [], t0 = performance.now(); buildWorld(to); const end = t0 + (ms || 4000);
+    while(performance.now() < end){ const s = snd.scene; out.push({ms:Math.round(performance.now() - t0), audioT:+snd.ctx.currentTime.toFixed(2), scene:s && s.key, gain:s ? +s.gain.gain.value.toFixed(3) : null, music:s && s.mus ? +s.mus.gain.gain.value.toFixed(3) : null,
+      fading:snd.fading.map(F => ({key:F.key, gain:F.gain ? +F.gain.gain.value.toFixed(3) : null}))}); await new Promise(r => setTimeout(r, 250)); }
+    return out; },
+  // debugging a leak: tag every source started from now on with the function that made it, and list the live ones by tag
+  debugLive(){ if(snd.dbgSet || !snd.ctx) return !!snd.dbgSet; const c = snd.ctx, S = snd.dbgSet = new Set();
+    ['createOscillator', 'createBufferSource'].forEach(k => { const f = c[k]; c[k] = function(){ const n = f.apply(c, arguments), st = n.start, who = ((new Error().stack || '').split('\n')[2] || '').trim().replace(/\(.*$|^at /g, '').trim();
+      n.start = function(){ const r = st.apply(n, arguments); S.add(n); n.__who = who; n.addEventListener('ended', () => S.delete(n)); return r; }; return n; }; }); return true; },
+  liveList(){ const o = {}; (snd.dbgSet || []).forEach(n => { o[n.__who] = (o[n.__who] || 0) + 1; }); return o; },
   // RMS level (dBFS) of the whole mix over ~ms, from an AnalyserNode tapped off the master (made on first use, removed after)
   level(ms){ return new Promise(res => { if(!snd.ctx) return res(null); const a = snd.ctx.createAnalyser(); a.fftSize = 2048; snd.master.connect(a); const buf = new Float32Array(a.fftSize); let sum = 0, n = 0, peak = 0;
     const end = performance.now() + (ms || 500), take = () => { a.getFloatTimeDomainData(buf); for(let i = 0; i < buf.length; i++){ sum += buf[i] * buf[i]; if(Math.abs(buf[i]) > peak) peak = Math.abs(buf[i]); } n += buf.length;
