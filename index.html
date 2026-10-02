@@ -20756,7 +20756,7 @@ function wfName(s){
   if(!s || /\d{3,}/.test(s) || LP_BANNED.test(s) || LP_PRIVATE.test(s) || lpAsks(s) || /\b(stupid|idiot|hate|kill|dumb|loser|ugly|admin|moderator)\b/i.test(s)) return '';
   return s;
 }
-function wfIdOk(s){ return typeof s === 'string' && /^[a-z0-9:_-]{1,40}$/i.test(s); }
+function wfIdOk(s){ return typeof s === 'string' && /^[a-z0-9:_-]{1,40}$/i.test(s) && !/^(__proto__|constructor|prototype)$/.test(s); }
 // the store, checked field by field on load and on import (a forged or old save is cut back to what the game would have written)
 function wfClean(o){
   o = o && typeof o === 'object' && !Array.isArray(o) ? o : {};
@@ -20765,7 +20765,7 @@ function wfClean(o){
   const time = Object.create(null), tsrc = bareMap(L.time);
   for(const k of Object.keys(tsrc)) if(wfIdOk(k) && typeof tsrc[k] === 'number' && isFinite(tsrc[k]) && tsrc[k] > 0) time[k] = Math.min(1e7, Math.floor(tsrc[k]));
   const hsrc = bareMap(o.hints), hints = Object.create(null); for(const k of Object.keys(hsrc)) if(wfIdOk(k)) hints[k] = clamp(Math.floor(num(hsrc[k], 0)), 0, 3);
-  const desc = typeof o.desc === 'string' ? scrubText(o.desc.replace(/[\u0000-\u001f<>]/g, ' ')).replace(/\s+/g, ' ').trim().slice(0, 200) : '';
+  const desc = typeof o.desc === 'string' ? scrubText(o.desc.replace(/<[^>]*>/g, '').replace(/[\u0000-\u001f<>]/g, ' ')).replace(/\s+/g, ' ').trim().slice(0, 200) : '';
   return {v:1, name:wfName(o.name) || WF_DEFAULT_NAME, desc, mode:WF_MODES.indexOf(o.mode) >= 0 ? o.mode : 'quiet', greeted:o.greeted === true,
     log:{realms:A(L.realms, 40, wfIdOk), shards:A(L.shards, 3, s => ['dunes', 'grid', 'sky'].indexOf(s) >= 0), artifacts:A(L.artifacts, 10, s => wfIdOk(s) && hasOwn(ART, s)), quests:A(L.quests, 24, wfIdOk),
       landmarks:A(L.landmarks, 30, s => wfIdOk(s) && hasOwn(QUEST_LANDMARKS, s)), planets:clamp(Math.floor(num(L.planets, 0)), 0, 99999), time},
@@ -20776,7 +20776,7 @@ function wfClean(o){
 // a new companion remembers what you did before you met it (so it does not cheer old deeds as new), from the game's own state
 function wfSeed(S){
   const L = S.log;
-  [...state.visited].forEach(k => { if(WORLDS[k] && !/^p:/.test(k) && L.realms.indexOf(k) < 0) L.realms.push(k); });
+  [...state.visited].forEach(k => { if(hasOwn(WORLDS, k) && wfIdOk(k) && !/^p:/.test(k) && L.realms.indexOf(k) < 0) L.realms.push(k); });
   [...state.shards].forEach(k => { if(L.shards.indexOf(k) < 0) L.shards.push(k); });
   if(state.art && state.art.won) ART_ORDER.forEach(id => { if(state.art.won[id] && L.artifacts.indexOf(id) < 0) L.artifacts.push(id); });
   QP_ORDER.forEach(k => { if(state.qp[k] && state.qp[k].wins > 0 && L.quests.indexOf('qp:' + k) < 0) L.quests.push('qp:' + k); });
@@ -21037,7 +21037,7 @@ var WF_GAP = {quiet:90, chatty:25}, WF_HINT_AFTER = {quiet:600, chatty:360};   /
 Object.assign(wf, {queue:[], nextAt:0, slowT:0, deedT:0, saveT:0, lastW:null, offered:false, arrivals:0, gapTest:null, hintTest:null});
 function wfKeyName(){ return keyName(hasOwn(KEY_DEF, 'wayfarer') ? keyEff('wayfarer') : 'KeyY'); }
 function wfGate(){ return wf.hintTest != null ? wf.hintTest : WF_HINT_AFTER[wf.store.mode] || WF_HINT_AFTER.quiet; }
-function wfPlace(k){ return WF_PLACE[k] || (WORLDS[k] ? WORLDS[k].name : 'here'); }
+function wfPlace(k){ return hasOwn(WF_PLACE, k) ? WF_PLACE[k] : hasOwn(WORLDS, k) ? WORLDS[k].name : 'here'; }
 // can it speak up now? never over something that needs you
 function wfCanTalk(){ return state.started && playing && !traveling && !zeroing && !bc.on && !ph.on && talkEl.classList.contains('hidden') && introEl.classList.contains('hidden') && !document.querySelector('.overlay:not(.hidden)')
   && !rally.open && !starling.open && !gate1.open && !(qa && qa.inside) && !(corr && corr.inside) && !(denRT && denRT.mode) && !wfCardOpen(); }
@@ -21125,8 +21125,8 @@ function wfSlow(){
 }
 // the log as words: where you have been together, what you found, and the favourite places (most time spent)
 function wfLogSummary(){
-  const L = wf.store.log, fav = Object.keys(L.time).filter(k => WORLDS[k]).sort((a, b) => L.time[b] - L.time[a]).slice(0, 3);
-  return {realms:L.realms.filter(k => WORLDS[k]).map(wfPlace), shards:L.shards.map(k => ({dunes:'Amber', grid:'Rose', sky:'Cyan'})[k] + ' Shard'), artifacts:L.artifacts.map(id => ITEMS[id] ? ITEMS[id].name : id),
+  const L = wf.store.log, fav = Object.keys(L.time).filter(k => hasOwn(WORLDS, k)).sort((a, b) => L.time[b] - L.time[a]).slice(0, 3);
+  return {realms:L.realms.filter(k => hasOwn(WORLDS, k)).map(wfPlace), shards:L.shards.map(k => ({dunes:'Amber', grid:'Rose', sky:'Cyan'})[k] + ' Shard'), artifacts:L.artifacts.map(id => ITEMS[id] ? ITEMS[id].name : id),
     quests:L.quests.filter(q => /^qp:/.test(q)).map(q => QPORTALS[q.slice(3)] ? QPORTALS[q.slice(3)].name : q.slice(3)), favours:L.quests.filter(q => /^fav:/.test(q)).length, planets:L.planets,
     landmarks:L.landmarks.map(id => QUEST_LANDMARKS[id] ? QUEST_LANDMARKS[id].name : id), favourites:fav.map(k => ({realm:wfPlace(k), minutes:Math.round(L.time[k] / 60)}))};
 }
@@ -21271,7 +21271,7 @@ async function wfTalkTo(text){
 }
 function wfRename(n){ const nn = wfName(n); if(!nn) return {ok:false, why:'Pick a kind name of letters and spaces (up to 16), nothing personal.'};
   const old = wf.store.name; wf.store.name = nn; wfSave(); wfHead(); if(nn !== old) wfSay('I am ' + nn + ' now. I like it!', 'spin'); return {ok:true, name:nn}; }
-function wfDescribe(text){ const t = scrubText(String(text || '').replace(/[\u0000-\u001f<>]/g, ' ')).replace(/\s+/g, ' ').trim().slice(0, 200);
+function wfDescribe(text){ const t = scrubText(String(text || '').replace(/<[^>]*>/g, '').replace(/[\u0000-\u001f<>]/g, ' ')).replace(/\s+/g, ' ').trim().slice(0, 200);
   if(/\[private\]/.test(t) || LP_PRIVATE.test(t)) return {ok:false, why:'Describe how it looks, nothing personal.'};
   wf.store.desc = t; wfSave(); wfBuild(); wfHead(); if(wf.store.mode !== 'off') wfSay(t ? 'How do I look?' : 'Back to my old self!', 'spin'); return {ok:true, look:JSON.parse(JSON.stringify(wf.look))}; }
 // the card: a side panel like the locals' (the world keeps drawing; the game pauses while you type)
