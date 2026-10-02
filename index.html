@@ -132,6 +132,20 @@ html,body{ height:100%; margin:0; overflow:hidden; background:#07061a; color:var
 #talkQ:focus{ outline:none; border-color:var(--cyan); }
 #talkSend{ padding:9px 16px; border:none; background:linear-gradient(90deg,var(--cyan),var(--pink)); color:var(--btn-ink); font:700 15px 'Chakra Petch','Trebuchet MS',sans-serif; cursor:pointer; } #talkSend:disabled{ opacity:.5; }
 #talkSrc{ display:block; margin-top:6px; color:var(--muted); font-size:11px; }
+/* photo mode: everything but the picture, the photo bar and captions goes away */
+body.photo > :not(#stage):not(#phBar):not(#phFrame):not(#caption):not(#phFlash):not(script){ visibility:hidden !important; }
+#phBar{ position:fixed; left:50%; transform:translateX(-50%); bottom:calc(env(safe-area-inset-bottom,0px) + 10px); z-index:11; width:min(760px,96vw); max-height:46vh; overflow:auto; padding:10px 14px; display:grid; gap:7px; font-size:13px; }
+#phBar.hidden{ display:none; } #phBar.min > :not(#phHelp){ display:none; } #phBar.min{ width:auto; padding:6px 12px; }
+.ph-row{ display:flex; flex-wrap:wrap; gap:6px 10px; align-items:center; } .ph-sl label{ display:flex; align-items:center; gap:6px; flex:1 1 150px; } .ph-sl input{ flex:1; min-width:70px; }
+#phFilters button, #phFrames button, .ph-go{ flex:1 1 auto; padding:6px 9px; border:1.5px solid rgba(255,255,255,.25); background:none; color:#f3f0ff; font:600 13px 'Chakra Petch','Trebuchet MS',sans-serif; cursor:pointer; }
+#phFilters button.on, #phFrames button.on{ border-color:#ffd166; color:#ffd166; } #phFilters button:disabled{ opacity:.4; } .ph-sp{ flex:1; } .ph-go.main{ background:linear-gradient(90deg,#ffd166,var(--pink)); color:var(--btn-ink); border:none; }
+#phHelp{ color:var(--muted); font-size:11.5px; }
+#phFrame{ position:fixed; inset:0; pointer-events:none; z-index:3; display:none; } body.photo #phFrame{ display:block; }
+#phFrame.f-thin{ box-shadow:inset 0 0 0 12px #f4f1ea; } #phFrame.f-postcard{ box-shadow:inset 0 0 0 26px #efe6d2; }
+#phFrame.f-postcard::after{ content:attr(data-stamp); position:absolute; left:34px; top:30px; font:italic 18px Georgia,'Times New Roman',serif; color:#3a2f22; background:rgba(239,230,210,.85); padding:2px 8px; }
+#phFrame.f-wide{ background:linear-gradient(#000 0 var(--bar,12%),transparent var(--bar,12%) calc(100% - var(--bar,12%)),#000 calc(100% - var(--bar,12%))); }
+#phFrame.f-snapshot{ border:18px solid #faf8f2; border-bottom-width:72px; }
+@media (max-height:500px){ #phBar{ max-height:58vh; padding:6px 10px; gap:5px; } #phHelp{ display:none; } }
 /* the Wayfarer's card: the same side card as a local's */
 #wfCard{ position:fixed; right:12px; bottom:calc(env(safe-area-inset-bottom,0px) + 16px); width:min(390px,calc(100vw - 24px)); z-index:10; padding:14px 16px 12px; max-height:calc(100vh - 32px); overflow:auto; }
 @media (min-width:600px){ #wfCard{ width:min(390px,48vw); } }
@@ -432,7 +446,7 @@ body.a11y-cues .hpbar.low i{ background:repeating-linear-gradient(135deg,rgba(0,
 
 <div id="corner">
   <canvas id="minimap" aria-label="Minimap"></canvas>
-  <div class="btns"><button class="hbtn" id="aiBtn" title="AI reality mode (R)">AI</button><button class="hbtn" id="lookBtn" title="Realm look (L)">Look</button><button class="hbtn" id="forgeBtn" title="Worldsmith: describe a realm (F)">Forge</button><button class="hbtn" id="rideBtn" style="display:none">Ride</button><button class="hbtn" id="sndBtn" title="Sound on/off (N)">Sound</button><button class="hbtn" id="shopBtn" style="display:none">Shop</button><button class="hbtn" id="vendBtn" style="display:none">Vend</button><button class="hbtn" id="enrolBtn" style="display:none">Enrol</button><button class="hbtn" id="archBtn" style="display:none">Inspect</button><button class="hbtn" id="hollowBtn" style="display:none">Knock</button><button class="hbtn" id="chimeBtn" style="display:none">Strike</button><button class="hbtn" id="ashBtn" style="display:none">Recite</button><button class="hbtn" id="denBtn" style="display:none" title="The Den (E; P decorates inside)">Den</button><button class="hbtn" id="qpBtn" style="display:none" title="Quest portal (E); Q leaves">Quest</button><button class="hbtn" id="talkBtn" style="display:none" title="Talk (E)">Talk</button><button class="hbtn" id="wfBtn" title="Your Wayfarer (Y)">Wayfarer</button><button class="hbtn" id="invBtn" title="Inventory (I)">Bag</button><button class="hbtn" id="mapBtn">Warp</button><button class="hbtn" id="helpBtn" aria-label="Avatar and controls">?</button></div>
+  <div class="btns"><button class="hbtn" id="aiBtn" title="AI reality mode (R)">AI</button><button class="hbtn" id="lookBtn" title="Realm look (L)">Look</button><button class="hbtn" id="forgeBtn" title="Worldsmith: describe a realm (F)">Forge</button><button class="hbtn" id="rideBtn" style="display:none">Ride</button><button class="hbtn" id="sndBtn" title="Sound on/off (N)">Sound</button><button class="hbtn" id="shopBtn" style="display:none">Shop</button><button class="hbtn" id="vendBtn" style="display:none">Vend</button><button class="hbtn" id="enrolBtn" style="display:none">Enrol</button><button class="hbtn" id="archBtn" style="display:none">Inspect</button><button class="hbtn" id="hollowBtn" style="display:none">Knock</button><button class="hbtn" id="chimeBtn" style="display:none">Strike</button><button class="hbtn" id="ashBtn" style="display:none">Recite</button><button class="hbtn" id="denBtn" style="display:none" title="The Den (E; P decorates inside)">Den</button><button class="hbtn" id="qpBtn" style="display:none" title="Quest portal (E); Q leaves">Quest</button><button class="hbtn" id="talkBtn" style="display:none" title="Talk (E)">Talk</button><button class="hbtn" id="wfBtn" title="Your Wayfarer (Y)">Wayfarer</button><button class="hbtn" id="phBtn" title="Photo mode (O)">Photo</button><button class="hbtn" id="invBtn" title="Inventory (I)">Bag</button><button class="hbtn" id="mapBtn">Warp</button><button class="hbtn" id="helpBtn" aria-label="Avatar and controls">?</button></div>
   <div id="artHud" hidden></div>
 </div>
 
@@ -662,6 +676,14 @@ body.a11y-cues .hpbar.low i{ background:repeating-linear-gradient(135deg,rgba(0,
     <small id="wfSetMsg" aria-live="polite"></small>
   </div>
   <small id="wfSrc"></small>
+</div>
+<div id="phFrame" aria-hidden="true"></div>
+<div id="phBar" class="panel hidden" role="dialog" aria-label="Photo mode">
+  <div class="ph-row ph-sl"><label>Zoom <input type="range" id="phFov" min="15" max="90" step="1"></label><label>Focus <input type="range" id="phFocus" min="0.5" max="60" step="0.1"></label><label>Blur <input type="range" id="phBlur" min="0" max="1" step="0.01"></label><label>Exposure <input type="range" id="phEv" min="-1.5" max="1.5" step="0.1"></label></div>
+  <div class="ph-row" id="phFilters" role="group" aria-label="Filter"><button data-f="none">Natural</button><button data-f="warm">Warm</button><button data-f="cool">Cool</button><button data-f="mono">Mono</button><button data-f="film">Film grain</button></div>
+  <div class="ph-row" id="phFrames" role="group" aria-label="Frame"><button data-fr="none">No frame</button><button data-fr="thin">Thin</button><button data-fr="postcard">Postcard</button><button data-fr="wide">Wide</button><button data-fr="snapshot">Snapshot</button></div>
+  <div class="ph-row"><label><input type="checkbox" id="phMe"> You</label><label><input type="checkbox" id="phWf"> Wayfarer</label><label><input type="checkbox" id="phLocals"> Locals</label><label><input type="checkbox" id="phLabels"> Labels</label><label><input type="checkbox" id="phCap"> Caption</label><span class="ph-sp"></span><button id="phExitBtn" class="ph-go">Exit (Esc)</button></div>
+  <small id="phHelp">W A S D move · Q / E down and up · drag or arrows to look · wheel zooms · H hides this bar · Esc leaves</small>
 </div>
 <div id="toast" class="panel" role="status"></div>
 <div id="fade"></div>
@@ -3796,7 +3818,7 @@ function label(text, o){
   x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillStyle = o.fg || '#f3f0ff'; x.fillText(text, c.width / 2, c.height / 2 + 2);
   const tex = new THREE.CanvasTexture(c); tex.encoding = THREE.sRGBEncoding;
   const s = new THREE.Sprite(new THREE.SpriteMaterial({map:tex, transparent:true, depthWrite:false, toneMapped:false}));
-  const k = o.small ? 0.0085 : 0.017; s.scale.set(c.width * k, c.height * k, 1); return s;
+  const k = o.small ? 0.0085 : 0.017; s.scale.set(c.width * k, c.height * k, 1); s.userData.label = true; return s;   // (marked so photo mode can hide labels)
 }
 
 /* ================= sky + environment ================= */
@@ -10229,6 +10251,7 @@ window.addEventListener('keydown', e => {
   if(starling.open){ starKey(e); return; }   // Goal 14: the Starling screen owns the keys while you play
   if(!seedEl.classList.contains('hidden')){ if(e.code === 'Escape' || e.code === 'Enter'){ e.preventDefault(); closeSeedCard(); } return; }   // Goal 14: the winning card
   if(gate1.open){ if(e.code === 'Escape'){ e.preventDefault(); closeGate1(); } else if(/^(Digit|Numpad)[123]$/.test(e.code) && !e.repeat){ e.preventDefault(); g1Answer(+e.code.slice(-1) - 1, 'played'); } return; }   // Goal 14: the First Gate owns the keys while it asks   // Goal 11: the Comet Rally cabinet owns the keys while you play
+  if(ph.on){ phKey(e); return; }   // photo mode owns the keys while it is on
   if(bc.on){ if(e.code === 'Escape'){ e.preventDefault(); skipBroadcast(); } else if(e.code === 'KeyN') setMute(snd.on); else if(e.code === 'Space' || e.code.indexOf('Arrow') === 0) e.preventDefault(); return; }   // the Broadcast owns the keys until it ends
   if(!ledgerEl.classList.contains('hidden')){ if(e.code === 'Escape'){ e.preventDefault(); closeLedger(); } else if(e.code === 'ArrowRight' || e.code === 'KeyD' || e.code === 'PageDown'){ e.preventDefault(); if(!$('#lgNext').disabled) turnLedger(1); } else if(e.code === 'ArrowLeft' || e.code === 'KeyA' || e.code === 'PageUp'){ e.preventDefault(); if(!$('#lgPrev').disabled) turnLedger(-1); } return; }
   if(!regEl.classList.contains('hidden')){ if(e.code === 'Escape') closeRegistrar(); return; }
@@ -10253,6 +10276,7 @@ window.addEventListener('keydown', e => {
   if(e.code === 'KeyE'){ interactKey(); return; }
   if(e.code === 'KeyN'){ setMute(snd.on); return; }
   if(e.code === 'KeyY'){ e.preventDefault(); if(!e.repeat) wfOpen(); return; }   // talk to your Wayfarer
+  if(e.code === 'KeyO'){ e.preventDefault(); if(!e.repeat) phEnter(); return; }   // photo mode
   if(e.code === 'KeyV'){ cycleView(); return; }
   if(e.code === 'KeyC'){ setCine(!post.cine); return; }
   if(e.code === 'Escape'){ if(dg.lens){ dgLens(false); return; } openIntro(); return; }
@@ -10782,9 +10806,9 @@ class SunRaysPass extends THREE.Pass {
 }
 const GRADE_SHADER = {
   uniforms:{ tDiffuse:{value:null}, tRays:{value:null}, vignette:{value:0.3}, saturation:{value:1.08}, contrast:{value:1.08}, grain:{value:0.03}, chroma:{value:0.0006}, time:uTime,
-    sunUV:{value:new V2(0.5, 0.5)}, flare:{value:0}, aspect:{value:1.78}, sunTint:{value:new THREE.Color(1, 0.85, 0.6)} },
+    sunUV:{value:new V2(0.5, 0.5)}, flare:{value:0}, aspect:{value:1.78}, sunTint:{value:new THREE.Color(1, 0.85, 0.6)}, tint:{value:new THREE.Vector3(1, 1, 1)} },   // tint: photo mode's colour filters
   vertexShader:'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
-  fragmentShader:'uniform sampler2D tDiffuse, tRays; uniform float vignette, saturation, contrast, grain, chroma, time, flare, aspect; uniform vec2 sunUV; uniform vec3 sunTint; varying vec2 vUv;' +
+  fragmentShader:'uniform sampler2D tDiffuse, tRays; uniform float vignette, saturation, contrast, grain, chroma, time, flare, aspect; uniform vec2 sunUV; uniform vec3 sunTint, tint; varying vec2 vUv;' +
     ' float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7)) + time * 7.0) * 43758.5453); }' +
     ' void main(){ vec2 d2 = vUv - 0.5; float d = length(d2); vec2 off = d2 * d * chroma * 8.0;' +
     '  vec4 c = texture2D(tDiffuse, vUv); c.r = texture2D(tDiffuse, vUv + off).r; c.b = texture2D(tDiffuse, vUv - off).b;' +
@@ -10799,7 +10823,7 @@ const GRADE_SHADER = {
     '        fl += gc * smoothstep(sz, sz * 0.35, gd) * (0.05 + 0.035 * (5.0 - fi)) * smoothstep(sz * 0.2, sz, gd); }' +
     '      c.rgb += fl * vis; } }' +
     '  float l = dot(c.rgb, vec3(0.2126, 0.7152, 0.0722)); c.rgb = mix(vec3(l), c.rgb, saturation); c.rgb = (c.rgb - 0.5) * contrast + 0.5;' +
-    '  c.rgb += (hash(vUv * 1000.0) - 0.5) * grain * (1.0 - l * 0.6);' +
+    '  c.rgb += (hash(vUv * 1000.0) - 0.5) * grain * (1.0 - l * 0.6); c.rgb *= tint;' +
     '  c.rgb *= 1.0 - smoothstep(0.5, 1.05, d) * vignette; gl_FragColor = c; }'
 };
 // a light sharpen after the anti-aliasing: contrast-adaptive, clamped to the neighbourhood so it never rings
@@ -13230,8 +13254,8 @@ function frame(t){
   const raw = clock.getDelta(), dt = Math.min(raw, 0.05);
   perfNote(raw);
   stats.ms += (dt * 1000 - stats.ms) * 0.05; stats.fps = 1000 / stats.ms; stats.frames++;
-  if(warm > 0) warm -= dt; else if(!document.hidden && !ai.on){ fAcc += dt; fN++; if(fAcc > 2.5){ if(fN / fAcc < (PERF.p.fps ? PERF.p.fps * 0.8 : 28) && qLevel < Q_MAX) degrade(); fAcc = 0; fN = 0; } }
-  update(dt, clock.elapsedTime);
+  if(warm > 0) warm -= dt; else if(!document.hidden && !ai.on && !ph.on){ fAcc += dt; fN++; if(fAcc > 2.5){ if(fN / fAcc < (PERF.p.fps ? PERF.p.fps * 0.8 : 28) && qLevel < Q_MAX) degrade(); fAcc = 0; fN = 0; } }
+  if(ph.on) phUpdate(dt); else update(dt, clock.elapsedTime);   // photo mode: the world holds still and only the photo camera moves
   if(snd.ctx) sndTick(raw);   // Phase 4 part 3: the sound's own housekeeping, five times a second of real time
   updateLods();
   renderer.shadowMap.needsUpdate = true;
@@ -13244,7 +13268,7 @@ function frame(t){
     if(showing){ camera.layers.set(1); renderer.setClearAlpha(0); renderer.render(scene, camera); renderer.setClearAlpha(1); }
     else { camera.layers.enable(1); renderer.render(scene, camera); }
     camera.layers.set(0); camera.layers.enable(1);
-  } else if(post.on && !vr.on){ if(post.dof && post.dof.enabled){ post.dof.uniforms.focus.value = camera.position.distanceTo(_t1); } updateSun(); renderMirrors(); post.composer.render(); dgAfter(); }
+  } else if(post.on && !vr.on){ if(post.dof && post.dof.enabled && !ph.on){ post.dof.uniforms.focus.value = camera.position.distanceTo(_t1); } updateSun(); renderMirrors(); post.composer.render(); dgAfter(); }
   else { renderMirrors(); renderer.render(scene, camera); }
   if(!vr.on) drawMap();
   localsBubbles(dt);
@@ -19882,7 +19906,7 @@ var KEY_ACTIONS = [
   ['view', 'Camera view', 'KeyV'], ['cine', 'Cinematic', 'KeyC'], ['sound', 'Sound on/off', 'KeyN'], ['lens', 'Dreamglass lens', 'KeyG'],
   ['ai', 'AI reality mode', 'KeyR'], ['look', 'Realm look', 'KeyL'], ['quit', 'Leave a quest', 'KeyQ'], ['decorate', 'Decorate (Den)', 'KeyP'],
   ['power1', 'Power: Bell Jar', 'KeyB'], ['power2', 'Power: Tide Shell', 'KeyT'], ['power3', 'Power: Window Lamp', 'KeyH'], ['power4', 'Power: Compass', 'KeyK'],
-  ['wayfarer', 'Talk to your Wayfarer', 'KeyY']];
+  ['wayfarer', 'Talk to your Wayfarer', 'KeyY'], ['photo', 'Photo mode', 'KeyO']];
 var KEY_DEF = Object.create(null); KEY_ACTIONS.forEach(a => { KEY_DEF[a[0]] = a[2]; });
 var KEY_OK = /^(Key[A-Z]|Digit[0-9]|Numpad[0-9]|Space|ShiftLeft|ShiftRight|Comma|Period|Slash|Semicolon|Quote|BracketLeft|BracketRight|Backslash|Minus|Equal|Backquote)$/;
 var KEYMAP = {rev:Object.create(null), orphan:Object.create(null)}, a11yListen = null;
@@ -21290,6 +21314,152 @@ Object.defineProperties(WF_HOOKS, {
   testResponse:{get:() => wfAI.testResponse, set:v => { wfAI.testResponse = v == null ? null : v; }, enumerable:true},   // a canned API reply, 'hang', or {__status:n}
   lastRequest:{get:() => wfAI.lastRequest && JSON.parse(JSON.stringify(wfAI.lastRequest)), enumerable:true}
 });
+
+/* ================= photo mode (O): the world holds still, the HUD goes, and a free camera moves on a leash round you =================
+   Entering saves every setting it touches (field of view, camera, exposure, depth of field, the grade pass's saturation, contrast, grain,
+   colour fringe, vignette and tint, who is visible); exiting puts each one back exactly. While it is on, frame() runs phUpdate instead of
+   update(), so nothing in the world moves, nothing can hurt you and no rng is drawn; the quality ladder waits. When it is off it costs one
+   boolean test a frame. Filters are only values for the existing grade pass (a tint uniform that is 1, 1, 1 the rest of the time). */
+var PH_FILTERS = {none:{}, warm:{tint:[1.08, 1.0, 0.86], sat:1.06}, cool:{tint:[0.88, 0.97, 1.1], sat:0.98}, mono:{sat:0, con:1.14}, film:{tint:[1.04, 1.0, 0.93], sat:0.9, grain:0.085, chroma:0.0012, vig:0.5}};
+var PH_FRAMES = ['none', 'thin', 'postcard', 'wide', 'snapshot'];
+Object.assign(ph, {saved:null, pos:new V3(), yaw:0, pitch:0, fov:50, focus:5, blur:0, ev:0, filter:'none', frame:'none', show:{player:true, wayfarer:true, locals:true}, caption:true, leash:12, drag:null, busy:false, barHidden:false});
+var phBarEl = document.getElementById('phBar'), phFrameEl = document.getElementById('phFrame');
+var _phF = new V3(), _phR = new V3(), _phH = new V3(), _phV = new V3();
+function phHead(){ const h = me && me.recipe ? me.recipe.height : 1.8; return _phH.set(p.x, p.y + h * 0.85, p.z); }
+function phWhyNot(){
+  if(!state.started) return 'Start the game first.'; if(traveling || zeroing) return 'Not while you are travelling.'; if(bc.on) return 'Not during the Broadcast.';
+  if(vr.on) return 'Photo mode is not available in VR.'; if(ai.on) return 'Turn AI reality mode (R) off first.';
+  if(rally.open || starling.open || gate1.open || !seedEl.classList.contains('hidden')) return 'Finish the game on the screen first.';
+  if(denRT && denRT.mode) return 'Finish decorating first.';
+  if(!playing || !introEl.classList.contains('hidden') || document.querySelector('.overlay:not(.hidden)') || !talkEl.classList.contains('hidden') || wfCardOpen() || !ledgerEl.classList.contains('hidden') || !regEl.classList.contains('hidden') || !memoEl.classList.contains('hidden')) return 'Close the open panel first.';
+  return null;
+}
+function phEnter(){
+  if(ph.on) return true; const why = phWhyNot(); if(why){ toast(why, 2200); return false; }
+  const G0 = post.on && post.grade ? post.grade.uniforms : null, D0 = post.on && post.dof ? post.dof : null;
+  ph.saved = {fov:camera.fov, camPos:camera.position.clone(), camQ:camera.quaternion.clone(), exposure:renderer.toneMappingExposure,
+    dof:D0 ? {enabled:D0.enabled, focus:D0.uniforms.focus.value, aperture:D0.uniforms.aperture.value, maxblur:D0.uniforms.maxblur.value} : null,
+    grade:G0 ? {saturation:G0.saturation.value, contrast:G0.contrast.value, grain:G0.grain.value, chroma:G0.chroma.value, vignette:G0.vignette.value, tint:G0.tint.value.clone()} : null,
+    me:me.g.visible, meTag:me.tag ? me.tag.visible : null, wf:wf.g ? wf.g.visible : null, npcs:npcs.map(n => ({n, g:n.av.g.visible, tag:n.av.tag ? n.av.tag.visible : null})), labels:[]};
+  scene.traverse(o => { if(o.isSprite && o.userData.label && !npcs.some(n => n.av.tag === o) && o !== me.tag) ph.saved.labels.push({o, v:o.visible}); });
+  for(const k in keys) keys[k] = false;
+  camera.getWorldDirection(_phF); ph.yaw = Math.atan2(-_phF.x, -_phF.z); ph.pitch = Math.asin(clamp(_phF.y, -1, 1));
+  ph.pos.copy(camera.position); ph.fov = camera.fov; ph.focus = clamp(+camera.position.distanceTo(phHead()).toFixed(1), 0.5, 60); ph.blur = 0; ph.ev = 0; ph.filter = 'none'; ph.frame = ph.frame || 'none';
+  ph.show = {player:true, wayfarer:true, locals:true, labels:false}; ph.leash = pocketIn() ? 5 : 12; ph.on = true; ph.barHidden = false;
+  document.body.classList.add('photo'); if(phBarEl) phBarEl.classList.remove('hidden');
+  phApply(); phUi(); phUpdate(0); sfx('ui'); caption('[Photo mode]', 1600);
+  return true;
+}
+function phExit(){
+  if(!ph.on) return false; const S = ph.saved;
+  camera.fov = S.fov; camera.updateProjectionMatrix(); camera.position.copy(S.camPos); camera.quaternion.copy(S.camQ); camera.updateMatrixWorld(); camWorld.copy(camera.position); sky.position.copy(camera.position);
+  renderer.toneMappingExposure = S.exposure;
+  if(S.dof && post.dof){ const d = post.dof; d.enabled = S.dof.enabled; d.uniforms.focus.value = S.dof.focus; d.uniforms.aperture.value = S.dof.aperture; d.uniforms.maxblur.value = S.dof.maxblur; }
+  if(S.grade && post.grade){ const g = post.grade.uniforms; g.saturation.value = S.grade.saturation; g.contrast.value = S.grade.contrast; g.grain.value = S.grade.grain; g.chroma.value = S.grade.chroma; g.vignette.value = S.grade.vignette; g.tint.value.copy(S.grade.tint); }
+  me.g.visible = S.me; if(me.tag && S.meTag != null) me.tag.visible = S.meTag; if(wf.g && S.wf != null) wf.g.visible = S.wf;
+  S.npcs.forEach(o => { if(npcs.indexOf(o.n) < 0) return; o.n.av.g.visible = o.g; if(o.n.av.tag && o.tag != null) o.n.av.tag.visible = o.tag; });
+  S.labels.forEach(L => { L.o.visible = L.v; });
+  ph.on = false; ph.drag = null; ph.saved = null; for(const k in keys) keys[k] = false; fAcc = 0; fN = 0;
+  document.body.classList.remove('photo'); if(phBarEl) phBarEl.classList.add('hidden'); if(phFrameEl) phFrameEl.className = '';
+  const al = document.getElementById('phAlbum'); if(al) al.hidden = true;
+  return true;
+}
+// the settings, applied to the live passes (each value was saved on the way in)
+function phApply(){
+  if(!ph.on) return; const S = ph.saved;
+  camera.fov = ph.fov; camera.updateProjectionMatrix();
+  renderer.toneMappingExposure = S.exposure * Math.pow(2, ph.ev);
+  if(post.on && post.dof){ const d = post.dof, on = ph.blur > 0.001; d.enabled = on; d.uniforms.focus.value = ph.focus; d.uniforms.aperture.value = 0.00004 + ph.blur * 0.0009; d.uniforms.maxblur.value = 0.003 + ph.blur * 0.012; }
+  if(post.on && post.grade && S.grade){ const g = post.grade.uniforms, F = PH_FILTERS[ph.filter] || {}, t = F.tint || [1, 1, 1];
+    g.saturation.value = S.grade.saturation * (F.sat != null ? F.sat : 1); g.contrast.value = S.grade.contrast * (F.con || 1); g.grain.value = F.grain != null ? F.grain : S.grade.grain;
+    g.chroma.value = F.chroma != null ? F.chroma : S.grade.chroma; g.vignette.value = F.vig != null ? F.vig : S.grade.vignette; g.tint.value.set(t[0], t[1], t[2]); }
+  me.g.visible = ph.show.player; if(me.tag) me.tag.visible = false;   // name tags never show in a photo
+  if(wf.g) wf.g.visible = ph.show.wayfarer && wf.store.mode !== 'off';
+  npcs.forEach(n => { n.av.g.visible = ph.show.locals; if(n.av.tag) n.av.tag.visible = false; });
+  S.labels.forEach(L => { L.o.visible = ph.show.labels ? L.v : false; });   // signs and names over things (Vending, portal names), off unless asked for
+  if(phFrameEl){ phFrameEl.className = 'f-' + ph.frame + (ph.barHidden ? ' clean' : ''); phFrameEl.dataset.stamp = 'Greetings from ' + wfPlace(state.world).replace(/^the /, 'the ');
+    const bar = Math.max(0, (innerHeight - innerWidth / 2.39) / 2); phFrameEl.style.setProperty('--bar', bar.toFixed(0) + 'px'); }
+}
+// every frame while it is on (instead of update): move and turn the camera, keep it on its leash, out of walls and above the ground
+function phUpdate(dt){
+  const sp = (keys.ShiftLeft || keys.ShiftRight ? 6 : 2.5) * dt, rot = 1.4 * dt;
+  if(keys.ArrowLeft) ph.yaw += rot; if(keys.ArrowRight) ph.yaw -= rot; if(keys.ArrowUp) ph.pitch += rot; if(keys.ArrowDown) ph.pitch -= rot; ph.pitch = clamp(ph.pitch, -1.45, 1.45);
+  const cp = Math.cos(ph.pitch); _phF.set(-Math.sin(ph.yaw) * cp, Math.sin(ph.pitch), -Math.cos(ph.yaw) * cp); _phR.set(Math.cos(ph.yaw), 0, -Math.sin(ph.yaw));
+  const fw = (keys.KeyW ? 1 : 0) - (keys.KeyS ? 1 : 0), sd = (keys.KeyD ? 1 : 0) - (keys.KeyA ? 1 : 0), up = (keys.KeyE || keys.Space ? 1 : 0) - (keys.KeyQ ? 1 : 0);
+  ph.pos.addScaledVector(_phF, fw * sp).addScaledVector(_phR, sd * sp); ph.pos.y += up * sp;
+  phLeash(); camera.position.copy(ph.pos);
+  const fl = (pocketIn() ? pocketFloor(ph.pos.x, ph.pos.z) : G(ph.pos.x, ph.pos.z)) + 0.25; if(camera.position.y < fl) camera.position.y = fl;
+  slCam(); fbCam();
+  if(qa && qa.inside && qa.M.ceil){ const top = qa.A.y + qa.M.ceil - 0.25; if(camera.position.y > top) camera.position.y = top; }
+  if(corr && corr.inside){ const top = CORR.y + CORR.h - 0.2; if(camera.position.y > top) camera.position.y = top; }
+  const zv = zgVol(camera.position.x, camera.position.z); if(zv){ const c = gymCeil(camera.position.x, camera.position.z) - 0.4; if(camera.position.y > c) camera.position.y = c; }
+  ph.pos.copy(camera.position);
+  _phV.copy(camera.position).add(_phF); camera.lookAt(_phV); camera.updateMatrixWorld(); camWorld.copy(camera.position); sky.position.copy(camera.position);
+}
+// the leash: at most ph.leash metres from your head, and never through a wall between you and the camera (the same boxes clipCamera uses)
+function phLeash(){
+  const H = phHead(); _phV.subVectors(ph.pos, H); const d = _phV.length(); if(d > ph.leash) ph.pos.copy(H).addScaledVector(_phV, ph.leash / d);
+  _phV.subVectors(ph.pos, H); let t = 1; for(const b of boxes) if(b.cam !== false && (!pocketIn() || b.hollow)){ const k = rayBoxT(H.x, H.y, H.z, _phV.x, _phV.y, _phV.z, b, 0.25); if(k < t) t = k; }
+  if(t < 1) ph.pos.copy(H).addScaledVector(_phV, Math.max(0, t - 0.02));
+}
+// the bar: sliders and buttons show the live values
+function phUi(){
+  if(!phBarEl) return; const set = (id, v) => { const el = document.getElementById(id); if(el) el.value = v; };
+  set('phFov', Math.round(ph.fov)); set('phFocus', ph.focus); set('phBlur', ph.blur); set('phEv', ph.ev);
+  const dof = !!(post.on && post.dof); ['phFocus', 'phBlur'].forEach(id => { const el = document.getElementById(id); if(el) el.disabled = !dof; });
+  document.querySelectorAll('#phFilters button').forEach(b => { const on = b.dataset.f === ph.filter; b.classList.toggle('on', on); b.setAttribute('aria-pressed', on ? 'true' : 'false'); b.disabled = !post.on && b.dataset.f !== 'none'; });
+  document.querySelectorAll('#phFrames button').forEach(b => { const on = b.dataset.fr === ph.frame; b.classList.toggle('on', on); b.setAttribute('aria-pressed', on ? 'true' : 'false'); });
+  [['phMe', 'player'], ['phWf', 'wayfarer'], ['phLocals', 'locals'], ['phLabels', 'labels']].forEach(([id, k]) => { const el = document.getElementById(id); if(el) el.checked = !!ph.show[k]; });
+  const c = document.getElementById('phCap'); if(c) c.checked = !!ph.caption;
+  phBarEl.classList.toggle('min', ph.barHidden);
+}
+function phSet(o){
+  o = o || {};
+  if(o.fov != null) ph.fov = clamp(+o.fov || 50, 15, 90); if(o.focus != null) ph.focus = clamp(+o.focus || 0.5, 0.5, 60); if(o.blur != null) ph.blur = clamp(+o.blur || 0, 0, 1); if(o.ev != null) ph.ev = clamp(+o.ev || 0, -1.5, 1.5);
+  if(o.filter != null && hasOwn(PH_FILTERS, o.filter)) ph.filter = o.filter; if(o.frame != null && PH_FRAMES.indexOf(o.frame) >= 0) ph.frame = o.frame;
+  ['player', 'wayfarer', 'locals', 'labels'].forEach(k => { if(o[k] != null) ph.show[k] = !!o[k]; }); if(o.caption != null) ph.caption = !!o.caption;
+  phApply(); phUi(); return phState();
+}
+function phState(){ return {on:ph.on, fov:ph.fov, focus:ph.focus, blur:ph.blur, ev:ph.ev, filter:ph.filter, frame:ph.frame, show:Object.assign({}, ph.show), caption:ph.caption, leash:ph.leash, pos:ph.pos.toArray().map(v => +v.toFixed(3)), yaw:+ph.yaw.toFixed(3), pitch:+ph.pitch.toFixed(3)}; }
+// what photo mode touches, read from the live objects (a test compares this before entering and after leaving)
+function phSnapshot(){ const g = post.on && post.grade ? post.grade.uniforms : null, d = post.on && post.dof ? post.dof : null, r = v => +(+v).toFixed(6);
+  return {fov:camera.fov, exposure:r(renderer.toneMappingExposure), cam:camera.position.toArray().map(r), dof:d ? {enabled:d.enabled, focus:r(d.uniforms.focus.value), aperture:r(d.uniforms.aperture.value), maxblur:r(d.uniforms.maxblur.value)} : null,
+    grade:g ? {saturation:r(g.saturation.value), contrast:r(g.contrast.value), grain:r(g.grain.value), chroma:r(g.chroma.value), vignette:r(g.vignette.value), tint:g.tint.value.toArray().map(r)} : null,
+    me:me.g.visible, meTag:me.tag ? me.tag.visible : null, wayfarer:wf.g ? wf.g.visible : null, npcs:npcs.map(n => n.av.g.visible).join(''), labels:(() => { let a = 0, b = 0; scene.traverse(o => { if(o.isSprite && o.userData.label){ a++; if(o.visible) b++; } }); return b + '/' + a; })(), photoClass:document.body.classList.contains('photo'), bar:phBarEl ? !phBarEl.classList.contains('hidden') : null, passes:post.on ? post.composer.passes.map(q => q.enabled ? 1 : 0).join('') : ''}; }
+// keys while it is on: Esc or O leaves, Enter takes the picture, H hides the bar, the rest move the camera
+function phKey(e){
+  const t = e.target, field = t && (t.tagName === 'INPUT' || t.tagName === 'SELECT' || t.tagName === 'TEXTAREA' || t.tagName === 'BUTTON');
+  if(e.code === 'Escape' || (e.code === 'KeyO' && !e.repeat)){ e.preventDefault(); phExit(); return; }
+  if(field && (e.code === 'Enter' || e.code === 'Space' || /^Arrow/.test(e.code))) return;   // a focused slider or button keeps its own keys
+  if(e.code === 'Enter'){ e.preventDefault(); if(!e.repeat && typeof phCapture === 'function') phCapture(); return; }
+  if(e.code === 'KeyH' && !e.repeat){ e.preventDefault(); ph.barHidden = !ph.barHidden; phApply(); phUi(); return; }
+  if(/^(Key[WASDQE]|Space|ShiftLeft|ShiftRight|Arrow(Up|Down|Left|Right))$/.test(e.code)){ e.preventDefault(); keys[e.code] = true; }
+}
+// look by dragging on the picture, zoom with the wheel (window capture listeners, ahead of the game's own camera drag)
+window.addEventListener('pointerdown', e => { if(!ph.on || e.target !== canvas) return; e.stopImmediatePropagation(); ph.drag = {id:e.pointerId, x:e.clientX, y:e.clientY}; try{ canvas.setPointerCapture(e.pointerId); }catch(x){} }, true);
+window.addEventListener('pointermove', e => { if(!ph.on || !ph.drag || e.pointerId !== ph.drag.id) return; e.stopImmediatePropagation(); const k = e.pointerType === 'touch' ? 0.006 : 0.004;
+  ph.yaw -= (e.clientX - ph.drag.x) * k; ph.pitch = clamp(ph.pitch - (e.clientY - ph.drag.y) * k * (A11Y.invertY ? -1 : 1), -1.45, 1.45); ph.drag.x = e.clientX; ph.drag.y = e.clientY; }, true);
+['pointerup', 'pointercancel'].forEach(n => window.addEventListener(n, e => { if(ph.drag && e.pointerId === ph.drag.id){ ph.drag = null; if(ph.on) e.stopImmediatePropagation(); } }, true));
+window.addEventListener('wheel', e => { if(!ph.on || e.target !== canvas) return; e.stopImmediatePropagation(); e.preventDefault(); ph.fov = clamp(ph.fov + e.deltaY * 0.02, 15, 90); phApply(); phUi(); }, {passive:false, capture:true});
+if(phBarEl){
+  const num = id => +document.getElementById(id).value;
+  [['phFov', 'fov'], ['phFocus', 'focus'], ['phBlur', 'blur'], ['phEv', 'ev']].forEach(([id, k]) => document.getElementById(id).addEventListener('input', () => phSet({[k]:num(id)})));
+  document.querySelectorAll('#phFilters button').forEach(b => b.addEventListener('click', () => phSet({filter:b.dataset.f})));
+  document.querySelectorAll('#phFrames button').forEach(b => b.addEventListener('click', () => phSet({frame:b.dataset.fr})));
+  [['phMe', 'player'], ['phWf', 'wayfarer'], ['phLocals', 'locals'], ['phLabels', 'labels']].forEach(([id, k]) => document.getElementById(id).addEventListener('change', e => phSet({[k]:e.target.checked})));
+  document.getElementById('phCap').addEventListener('change', e => phSet({caption:e.target.checked}));
+  document.getElementById('phExitBtn').addEventListener('click', () => phExit());
+  phBarEl.addEventListener('keydown', e => { if(e.code === 'Escape'){ e.preventDefault(); e.stopPropagation(); phExit(); } });
+}
+document.getElementById('phBtn').addEventListener('click', () => { if(ph.on) phExit(); else phEnter(); });
+var PH_HOOKS = {
+  enter:() => phEnter(), exit:() => phExit(), set:o => phSet(o), get state(){ return phState(); }, snapshot:() => phSnapshot(), whyNot:() => phWhyNot(),
+  // move the photo camera (metres along its own forward, right and up) through the real per-frame step, then report how far it is from your head
+  move(f, r, u){ ph.pos.addScaledVector(_phF, +f || 0).addScaledVector(_phR, +r || 0); ph.pos.y += +u || 0; phUpdate(0); return {pos:ph.pos.toArray().map(v => +v.toFixed(3)), fromHead:+ph.pos.distanceTo(phHead()).toFixed(3), leash:ph.leash}; },
+  look(yaw, pitch){ if(yaw != null) ph.yaw = +yaw; if(pitch != null) ph.pitch = clamp(+pitch, -1.45, 1.45); phUpdate(0); return phState(); },
+  key:code => { phKey({code, target:null, repeat:false, preventDefault(){}}); return phState(); }
+};
+Object.defineProperties(window.__hub, {photo:{value:PH_HOOKS}});
 })();
 </script>
 </body>
