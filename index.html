@@ -7868,6 +7868,7 @@ function coreSum(detail){
   if(mer && mer.g) skip.add(mer.g);   // Goal 18: Meridian's pylons come and go with the Hunt
   if(mon && mon.root) skip.add(mon.root);   // Goal 16: monsters move (and their loot comes and goes)
   if(qwRun && qwRun.g) skip.add(qwRun.g);   /* the Questwright: a player-made quest is added after the core and taken away again */
+  if(cult && cult.g) skip.add(cult.g);   /* Hub's own culture: the posters are added after the core */
   if(trial.pad) skip.add(trial.pad); trial.rings.forEach(rg => { if(rg.g) skip.add(rg.g); if(rg.m) skip.add(rg.m); });
   if(detail){ const list = []; sumObject(world, skip, list); return list; }
   return {world:sumObject(world, skip), terrain:mainTerrain ? hashNums(2166136261, mainTerrain.geometry.attributes.position.array, 7).toString(16) : null, centre:mainTerrain ? [mainTerrain.userData.terrain.cx, mainTerrain.userData.terrain.cz] : null};
@@ -8518,6 +8519,7 @@ function buildWorld(key){
   addQuestPortal(key);   // Goal 15: the realm's quest portal goes up last, at a fixed spot clear of everything above; it draws no rng
   addLatePortals(key);   // Goal 20: portals added after a realm's core was finished (the Spaceport's Warfront portal): no pad, no rng, nothing above moves
   denOnBuild(key);   // Goal 21: the Den's lift on the Spaceport goes up after the late portals: no pad, no rng, one box, nothing above moves
+  cultBuild(key);   /* Hub's own culture: posters on walls that are already solid; its own rng, no colliders, coreSum skips it */
   merBuild(key);   // Goal 18: Meridian's dome and pylons on Ashfall (no colliders, no rng; before monBuild so the Units keep clear of the glass)
   monBuild(key);   // Goal 16: the realm's monsters come last of all: their own rng, no colliders, nothing above moves
   bakeRealm(key, bakeFrom);   // fewer draw calls: the core's static props merged per material, once everything is placed (no rng, nothing moves)
@@ -11321,6 +11323,129 @@ function driftUpdate(dt, time){
 }
 function driftWall(){ const D = drift, e = 1 - Math.pow(1 - D.open, 3); D.panel.position.y = DRIFT.back.h / 2 - e * (DRIFT.back.h + 0.1); D.panelBox.y1 = DRIFT.back.h + 0.1 - e * (DRIFT.back.h + 1.3); }
 function driftSafe(){ return !!(drift && state.world === 'grid' && ((corr && corr.inside) || Math.hypot(p.x - drift.x, p.z - drift.z) < drift.r + DRIFT.porch + 2)); }
+
+/* ================= Hub's own culture on the walls (blueprint 9 and 11: "Neon and nostalgia") =================
+   Posters for Hub's invented games, songs, clubs and places. Every word on them is fixed and hand-written here (never AI or player text).
+   POSTERS holds the painters (each draws a 512 x 768 poster; the Den's Comet Rally and Starling prints are the same painters), painted once a
+   session into one atlas. POSTER_WALLS[realm]() lists the mounts {id, x, y, z, ry, w, h, rim}. cultBuild(key) runs after denOnBuild in
+   buildWorld: no draws from the realm's rng, no colliders, boxes or platforms (every poster hangs on something that is already solid),
+   three.js's uuid draws pointed at its own generator, and coreSum skips its group, so nothing in the core moves or changes.
+   Cost: one mesh for all the art, one for the backs, one for every rim (3 meshes: 3 draws, plus 3 more in the depth-of-field pass), no shadows, no SSAO. */
+const POSTER_FONT = '"Chakra Petch","Trebuchet MS",sans-serif', POSTER_CELL = [384, 576], POSTER_COLS = 4;
+// one line of poster text, shrunk until it fits the width
+function posterLine(x, t, cx, y, maxW, px, style, fam){ let s = px; do { x.font = style + ' ' + s + 'px ' + fam; s -= 2; } while(s > 10 && x.measureText(t).width > maxW); x.fillText(t, cx, y); }
+function paintDriftPoster(x, w, h){ const q = rng(2131), bx = w / 2, by = h * 0.36;
+  const g = x.createLinearGradient(0, 0, 0, h); g.addColorStop(0, '#12051f'); g.addColorStop(0.55, '#2a0a3a'); g.addColorStop(1, '#07030d'); x.fillStyle = g; x.fillRect(0, 0, w, h);
+  x.globalCompositeOperation = 'lighter';
+  for(let i = 0; i < 18; i++){ const a = i / 18 * TAU + 0.1; x.strokeStyle = i % 2 ? 'rgba(255,79,163,0.16)' : 'rgba(92,225,230,0.14)'; x.lineWidth = 10 + (i % 3) * 6; x.beginPath(); x.moveTo(bx, by); x.lineTo(bx + Math.cos(a) * 700, by + Math.sin(a) * 700); x.stroke(); }
+  for(let i = 0; i < 170; i++){ const s = 1.5 + q() * 2.5; x.fillStyle = 'rgba(255,230,244,' + (0.25 + q() * 0.6).toFixed(2) + ')'; x.fillRect(q() * w, 40 + q() * h * 0.78, s, s); }
+  x.globalCompositeOperation = 'source-over';
+  x.strokeStyle = '#8a7a9a'; x.lineWidth = 2; x.beginPath(); x.moveTo(bx, 0); x.lineTo(bx, by - 58); x.stroke();
+  const rg = x.createRadialGradient(bx - 18, by - 18, 6, bx, by, 60); rg.addColorStop(0, '#ffffff'); rg.addColorStop(0.5, '#c9c3d8'); rg.addColorStop(1, '#4a3a5e'); x.fillStyle = rg; x.beginPath(); x.arc(bx, by, 58, 0, TAU); x.fill();
+  x.save(); x.beginPath(); x.arc(bx, by, 58, 0, TAU); x.clip(); x.strokeStyle = 'rgba(40,20,60,0.55)'; x.lineWidth = 2;
+  for(let k = -60; k <= 60; k += 12){ x.beginPath(); x.moveTo(bx + k, by - 60); x.lineTo(bx + k, by + 60); x.moveTo(bx - 60, by + k); x.lineTo(bx + 60, by + k); x.stroke(); } x.restore();
+  // three dancers floating every which way: nobody in The Drift knows which way is up
+  const dancer = (cx, cy, rot, s, col) => { x.save(); x.translate(cx, cy); x.rotate(rot); x.scale(s, s); x.fillStyle = col; x.strokeStyle = col; x.lineCap = 'round';
+    x.beginPath(); x.arc(0, -46, 13, 0, TAU); x.fill(); x.lineWidth = 14; x.beginPath(); x.moveTo(0, -30); x.lineTo(0, 10); x.stroke();
+    x.lineWidth = 9; x.beginPath(); x.moveTo(0, -24); x.lineTo(-26, -46); x.moveTo(0, -24); x.lineTo(28, -8); x.moveTo(0, 10); x.lineTo(-18, 44); x.moveTo(0, 10); x.lineTo(22, 36); x.stroke(); x.restore(); };
+  dancer(w * 0.2, h * 0.6, -0.5, 1.0, '#ff4fa3'); dancer(w * 0.8, h * 0.54, 2.4, 0.9, '#5ce1e6'); dancer(w * 0.52, h * 0.7, 0.9, 0.75, '#ffd6ea');
+  x.textAlign = 'center'; x.shadowColor = '#ff4fa3'; x.shadowBlur = 18; x.fillStyle = '#ffd6ea'; posterLine(x, 'The Drift', w / 2, 112, w - 60, 104, 'italic 700', SERIF); x.shadowBlur = 0;
+  x.fillStyle = '#5ce1e6'; posterLine(x, 'ZERO-G NIGHTS', w / 2, 164, w - 80, 36, '700', POSTER_FONT);
+  x.fillStyle = '#f3e8ff'; posterLine(x, 'ON THE DECKS: ' + DRIFT.track.toUpperCase(), w / 2, h - 132, w - 60, 28, '600', POSTER_FONT);
+  x.fillStyle = '#ff9ccc'; posterLine(x, 'the floor lets go of you at nine', w / 2, h - 90, w - 60, 27, 'italic', SERIF);
+  x.fillStyle = '#5ce1e6'; posterLine(x, 'NEON GRID · ALL NIGHT, EVERY NIGHT', w / 2, h - 50, w - 60, 22, '600', POSTER_FONT);
+  x.strokeStyle = '#ff4fa3'; x.lineWidth = 5; x.strokeRect(12, 12, w - 24, h - 24); }
+function paintLoftPoster(x, w, h){ const q = rng(2137), cx = w / 2, cy = h * 0.47;
+  const g = x.createLinearGradient(0, 0, 0, h); g.addColorStop(0, '#f2c070'); g.addColorStop(0.55, '#d0703a'); g.addColorStop(1, '#4a1c14'); x.fillStyle = g; x.fillRect(0, 0, w, h);
+  // rooftops and lit loft windows along the bottom
+  x.fillStyle = '#2a0f0b'; x.beginPath(); x.moveTo(0, h); let rx = 0; while(rx < w){ const bw = 50 + q() * 70, bh = 120 + q() * 90; x.lineTo(rx, h - bh); x.lineTo(rx + bw * 0.5, h - bh - 26); x.lineTo(rx + bw, h - bh); rx += bw; } x.lineTo(w, h); x.closePath(); x.fill();
+  for(let i = 0; i < 26; i++){ x.fillStyle = q() < 0.6 ? '#ffc46a' : '#5a2a1a'; x.fillRect(26 + q() * (w - 62), h - 40 - q() * 80, 10, 14); }
+  // the record
+  x.fillStyle = '#121012'; x.beginPath(); x.arc(cx, cy, 176, 0, TAU); x.fill();
+  for(let r = 70; r < 172; r += 4){ x.strokeStyle = 'rgba(255,230,200,' + (0.03 + 0.04 * ((r / 4) % 3 === 0)).toFixed(3) + ')'; x.lineWidth = 1.5; x.beginPath(); x.arc(cx, cy, r, 0, TAU); x.stroke(); }
+  x.strokeStyle = 'rgba(255,240,220,0.35)'; x.lineWidth = 10; x.beginPath(); x.arc(cx, cy, 130, -2.3, -1.6); x.stroke(); x.beginPath(); x.arc(cx, cy, 130, 0.84, 1.54); x.stroke();
+  x.fillStyle = '#d9a24a'; x.beginPath(); x.arc(cx, cy, 60, 0, TAU); x.fill(); x.fillStyle = '#3b1410'; x.textAlign = 'center'; x.font = '700 20px ' + SERIF; x.fillText('LOFT', cx, cy - 16); x.fillText('LIGHTS', cx, cy + 30);
+  x.fillStyle = '#111'; x.beginPath(); x.arc(cx, cy, 6, 0, TAU); x.fill();
+  x.fillStyle = '#3b1410'; posterLine(x, 'Loft Lights', w / 2, 112, w - 60, 96, 'italic 700', SERIF);
+  posterLine(x, 'the long-player for slow evenings', w / 2, 160, w - 70, 27, 'italic', SERIF);
+  x.fillStyle = '#ffe2b0'; posterLine(x, 'HUB RECORDS · OUT NOW', w / 2, h - 34, w - 70, 24, '700', POSTER_FONT);
+  x.strokeStyle = '#3b1410'; x.lineWidth = 5; x.strokeRect(12, 12, w - 24, h - 24); }
+function paintSaltlarkPoster(x, w, h){ const q = rng(2141), hz = h * 0.5;
+  const g = x.createLinearGradient(0, 0, 0, hz); g.addColorStop(0, '#5fb9dc'); g.addColorStop(1, '#f7e6b8'); x.fillStyle = g; x.fillRect(0, 0, w, hz);
+  x.fillStyle = '#fff3c4'; x.beginPath(); x.arc(w * 0.3, hz - 40, 54, 0, TAU); x.fill();
+  [[0, '#2fb3b8'], [0.06, '#26a0aa'], [0.12, '#1f8a9a'], [0.18, '#3fc8c4']].forEach(([o, c]) => { x.fillStyle = c; x.fillRect(0, hz + o * h * 0.9, w, h * 0.06); });
+  x.fillStyle = 'rgba(255,255,255,0.55)'; for(let i = 0; i < 40; i++) x.fillRect(q() * w, hz + 8 + q() * h * 0.2, 18 + q() * 30, 2);
+  x.fillStyle = '#f2dcae'; x.beginPath(); x.moveTo(0, h * 0.7); x.quadraticCurveTo(w * 0.5, h * 0.66, w, h * 0.72); x.lineTo(w, h); x.lineTo(0, h); x.fill();
+  // the lighthouse on its headland, red and white
+  x.fillStyle = '#5c6b4a'; x.beginPath(); x.moveTo(w * 0.58, hz + 2); x.quadraticCurveTo(w * 0.75, hz - 40, w, hz - 30); x.lineTo(w, hz + 2); x.fill();
+  const lx = w * 0.78, top = hz - 210, base = hz - 36;
+  for(let i = 0; i < 6; i++){ const y0 = top + (base - top) * i / 6, y1 = top + (base - top) * (i + 1) / 6, k0 = 14 + 10 * i / 6, k1 = 14 + 10 * (i + 1) / 6; x.fillStyle = i % 2 ? '#f4f1ea' : '#c8352c'; x.beginPath(); x.moveTo(lx - k0, y0); x.lineTo(lx + k0, y0); x.lineTo(lx + k1, y1); x.lineTo(lx - k1, y1); x.fill(); }
+  x.fillStyle = '#2a2a2a'; x.fillRect(lx - 18, top - 26, 36, 26); x.fillStyle = '#ffe9a0'; x.fillRect(lx - 12, top - 22, 24, 16);
+  // striped umbrellas on the sand
+  [[0.18, 0.79, '#e8574a'], [0.46, 0.83, '#3a8fd0'], [0.74, 0.8, '#f2b134']].forEach(([ux, uy, c]) => { const X = w * ux, Y = h * uy;
+    x.strokeStyle = '#5a4a3a'; x.lineWidth = 3; x.beginPath(); x.moveTo(X, Y); x.lineTo(X, Y + 70); x.stroke();
+    for(let k = 0; k < 6; k++){ x.fillStyle = k % 2 ? '#fff6e8' : c; x.beginPath(); x.moveTo(X, Y); x.arc(X, Y, 46, Math.PI + k * Math.PI / 6, Math.PI + (k + 1) * Math.PI / 6); x.fill(); } });
+  x.textAlign = 'center'; x.fillStyle = '#0e4a63'; posterLine(x, 'SALTLARK ISLE', w / 2, 84, w - 60, 66, '800', POSTER_FONT);
+  x.fillStyle = '#1f6f86'; posterLine(x, 'wade the shallows, stay for the Tidebell', w / 2, 124, w - 70, 26, 'italic', SERIF);
+  x.fillStyle = '#7a3a1a'; posterLine(x, 'SECTOR ' + WORLDS.saltlark.sector + ' · WARP FROM THE SPACEPORT', w / 2, h - 30, w - 60, 22, '700', POSTER_FONT);
+  x.strokeStyle = '#0e4a63'; x.lineWidth = 5; x.strokeRect(12, 12, w - 24, h - 24); }
+function paintLampblackPoster(x, w, h){ const q = rng(2143), vx = w / 2, vy = h * 0.45;
+  const g = x.createLinearGradient(0, 0, 0, h); g.addColorStop(0, '#0b0d18'); g.addColorStop(0.5, '#1a1626'); g.addColorStop(1, '#07080d'); x.fillStyle = g; x.fillRect(0, 0, w, h);
+  // the street in perspective: two walls of windows, a wet road, lamps going away
+  [[-1, '#14121c'], [1, '#17141f']].forEach(([s, c]) => { x.fillStyle = c; x.beginPath(); x.moveTo(vx + s * 20, vy - 30); x.lineTo(vx + s * w * 0.6, 120); x.lineTo(vx + s * w * 0.6, h * 0.82); x.lineTo(vx + s * 20, vy + 14); x.fill();
+    for(let i = 0; i < 9; i++) for(let j = 0; j < 7; j++){ const t = Math.pow(0.78, i), X = vx + s * (26 + (w * 0.44 - 26) * t), Y = vy - 10 + (j - 4.5) * 40 * t, lit = q() < 0.55, warm = q() < 0.7, a = 0.5 + q() * 0.5; if(!lit) continue;
+      x.fillStyle = warm ? '#ffc46a' : '#bfe4ff'; x.globalAlpha = a; x.fillRect(X - (s > 0 ? 12 * t : 0), Y, 12 * t + 1, 18 * t + 1); } x.globalAlpha = 1; });
+  x.fillStyle = '#0d0e14'; x.beginPath(); x.moveTo(vx - 20, vy + 14); x.lineTo(vx + 20, vy + 14); x.lineTo(w, h * 0.86); x.lineTo(0, h * 0.86); x.fill();
+  for(let i = 0; i < 8; i++){ const s = i % 2 ? 1 : -1, t = Math.pow(0.8, i), X = vx + s * w * 0.38 * t, Y = vy + 14 + h * 0.36 * t, top = Y - 200 * t, R = 30 * t + 4;   // lamps down both kerbs, each with its streak on the wet road
+    x.strokeStyle = '#3a3a46'; x.lineWidth = Math.max(1, 5 * t); x.beginPath(); x.moveTo(X, Y); x.lineTo(X, top); x.stroke();
+    const lg = x.createRadialGradient(X, top, 0, X, top, R); lg.addColorStop(0, 'rgba(255,224,160,1)'); lg.addColorStop(0.3, 'rgba(255,200,120,0.6)'); lg.addColorStop(1, 'rgba(255,170,80,0)'); x.fillStyle = lg; x.fillRect(X - R, top - R, 2 * R, 2 * R);
+    x.fillStyle = 'rgba(255,190,110,0.22)'; x.fillRect(X - s * 40 * t - 3 * t, Y + 6 * t, 6 * t + 1, 110 * t); }
+  x.strokeStyle = 'rgba(200,210,255,0.16)'; x.lineWidth = 1.5; for(let i = 0; i < 160; i++){ const X = q() * w, Y = q() * h; x.beginPath(); x.moveTo(X, Y); x.lineTo(X - 8, Y + 26); x.stroke(); }
+  x.fillStyle = '#07080d'; x.fillRect(0, h * 0.86, w, h * 0.14);
+  x.textAlign = 'center'; x.shadowColor = '#ffb347'; x.shadowBlur = 16; x.fillStyle = '#ffd58a'; posterLine(x, 'LAMPBLACK', w / 2, 92, w - 60, 78, '800', POSTER_FONT); x.shadowBlur = 0;
+  x.fillStyle = '#e8dcc4'; posterLine(x, 'the city that keeps its lamps lit', w / 2, 132, w - 70, 27, 'italic', SERIF);
+  x.fillStyle = '#ffd58a'; posterLine(x, 'JAZZ AT THE LOW HOUR · RAIN MOST NIGHTS', w / 2, h - 66, w - 60, 22, '600', POSTER_FONT);
+  x.fillStyle = '#9fb0d8'; posterLine(x, 'SECTOR ' + WORLDS.lampblack.sector + ' · WARP FROM THE SPACEPORT', w / 2, h - 34, w - 60, 20, '600', POSTER_FONT);
+  x.strokeStyle = '#ffd58a'; x.lineWidth = 4; x.strokeRect(12, 12, w - 24, h - 24); }
+const POSTERS = {drift:paintDriftPoster, rally:paintRallyPoster, starling:paintStarlingPoster, loft:paintLoftPoster, saltlark:paintSaltlarkPoster, lampblack:paintLampblackPoster};
+const POSTER_IDS = Object.keys(POSTERS);
+// the mounts per realm. Neon Grid: a gig wall on the outside of The Drift, three lit boxes either side of the door (the drum's own walls are solid)
+const POSTER_WALLS = {
+  grid:() => { const D = DRIFT, R = D.r + D.t + 0.03;
+    return [['drift', -0.40, 0xff4fa3], ['rally', -0.53, 0x5ce1e6], ['lampblack', -0.66, 0xff4fa3], ['loft', 0.40, 0x5ce1e6], ['starling', 0.53, 0xff4fa3], ['saltlark', 0.66, 0x5ce1e6]]
+      .map(([id, d, rim]) => { const th = Math.PI + d; return {id, rim, x:D.x + Math.sin(th) * R, y:2.15, z:D.z + Math.cos(th) * R, ry:th, w:1.1, h:1.65}; }); }
+};
+function posterAtlas(){
+  const [cw, ch] = POSTER_CELL, rows = Math.ceil(POSTER_IDS.length / POSTER_COLS);
+  return archTex('posters', POSTER_COLS * cw, rows * ch, x => POSTER_IDS.forEach((id, i) => {
+    x.save(); x.translate((i % POSTER_COLS) * cw, Math.floor(i / POSTER_COLS) * ch); x.beginPath(); x.rect(0, 0, cw, ch); x.clip(); x.scale(cw / 512, ch / 768); POSTERS[id](x, 512, 768); x.restore(); }));
+}
+let cult = null;
+function cultBuild(key){
+  cult = null; const L = POSTER_WALLS[key]; if(!L || !world) return;
+  const mr = Math.random; Math.random = rng(9091);
+  try{
+    const mounts = L(), g = new THREE.Group(); g.name = 'posters'; world.add(g);
+    const tex = posterAtlas(), [cw, ch] = POSTER_CELL, W = tex.image.width, H = tex.image.height, art = [], back = [], rims = [];
+    mounts.forEach(m => {
+      const i = POSTER_IDS.indexOf(m.id); if(i < 0) return;
+      const c0 = (i % POSTER_COLS) * cw, r0 = Math.floor(i / POSTER_COLS) * ch, u0 = (c0 + 1) / W, u1 = (c0 + cw - 1) / W, v1 = 1 - (r0 + 1) / H, v0 = 1 - (r0 + ch - 1) / H;
+      const M = new THREE.Matrix4().makeRotationY(m.ry).setPosition(m.x, m.y, m.z), pl = new THREE.PlaneGeometry(m.w, m.h), uv = pl.attributes.uv;
+      for(let k = 0; k < uv.count; k++) uv.setXY(k, uv.getX(k) > 0.5 ? u1 : u0, uv.getY(k) > 0.5 ? v1 : v0);
+      art.push(pl.translate(0, 0, 0.012).applyMatrix4(M));
+      back.push(new THREE.BoxGeometry(m.w + 0.12, m.h + 0.12, 0.05).translate(0, 0, -0.02).applyMatrix4(M));
+      const e = 0.03, rc = C(m.rim);   // the neon rim: its colour rides in the vertices, so every rim colour is one draw
+      [[0, m.h / 2 + 0.045, m.w + 0.12, e], [0, -m.h / 2 - 0.045, m.w + 0.12, e], [m.w / 2 + 0.045, 0, e, m.h + 0.06], [-m.w / 2 - 0.045, 0, e, m.h + 0.06]]
+        .forEach(([fx, fy, fw, fh]) => { const b = new THREE.BoxGeometry(fw, fh, e).translate(fx, fy, 0.02).applyMatrix4(M), n = b.attributes.position.count, cl = new Float32Array(n * 3);
+          for(let k = 0; k < n; k++) cl.set([rc.r, rc.g, rc.b], k * 3); b.setAttribute('color', new THREE.BufferAttribute(cl, 3)); rims.push(b); });
+    });
+    const put = (geos, mat, off) => { if(!geos.length) return null; mat.polygonOffset = true; mat.polygonOffsetFactor = -1; mat.polygonOffsetUnits = -off; const o = mk(merge(geos), mat, 0, 0, 0, g); o.castShadow = false; o.userData.noAO = true; return o; };
+    put(art, std(0xffffff, {map:tex, emissive:C(0xffffff), emissiveMap:tex, emissiveIntensity:0.6, roughness:0.32}), 8);
+    put(back, phys(0x0b0914, {roughness:0.3, metalness:0.6}), 3);
+    put(rims, new THREE.MeshBasicMaterial({color:new THREE.Color(2.4, 2.4, 2.4), vertexColors:true}), 6);   // = glowM(rim, 2.4)'s emissive
+    cult = {g, key, mounts:mounts.length};
+  }finally{ Math.random = mr; }
+}
 
 /* ================= Goal 12: the hallway behind The Drift, and the Rose Shard =================
    Mara's ticket (Archive room 5): "go through the wall behind the dancers and keep walking. Nothing in there can touch you unless you turn round."
@@ -19415,6 +19540,26 @@ document.getElementById('denTabStore').addEventListener('click', () => { denTab 
 /* ---- how each piece is drawn: a group in its own frame (origin at the middle of its footprint on the floor, front towards +z;
    wall pieces: origin at the middle of the picture on the wall, facing +z). Painted textures are made once per session (archTex);
    shapes are drawn from their own rng seeds, so a piece looks the same every time. ---- */
+// the Comet Rally and Starling posters (drawn at 512 x 768): the Den's framed prints and the Neon Grid poster wall share them
+function paintRallyPoster(x, w, h){ const q = rng(2117);
+    const g = x.createLinearGradient(0, 0, 0, h); g.addColorStop(0, '#0b0820'); g.addColorStop(0.6, '#1b1240'); g.addColorStop(1, '#3a1430'); x.fillStyle = g; x.fillRect(0, 0, w, h);
+    for(let i = 0; i < 140; i++){ x.fillStyle = 'rgba(255,250,235,' + (0.3 + q() * 0.6).toFixed(2) + ')'; x.fillRect(q() * w, q() * h * 0.7, 1.5, 1.5); }
+    x.save(); x.translate(w / 2, h * 0.5); x.scale(1, 0.42); x.strokeStyle = '#ffb347'; x.lineWidth = 16; x.beginPath(); x.arc(0, 0, 190, 0, TAU); x.stroke(); x.strokeStyle = '#3a2a5a'; x.lineWidth = 4; x.beginPath(); x.arc(0, 0, 150, 0, TAU); x.stroke(); x.restore();
+    [[0.25, 0.42, '#5ce1e6'], [0.7, 0.58, '#ff6aa8'], [0.52, 0.34, '#ffe08a']].forEach((c, i) => { const cx = w * c[0], cy = h * c[1], tl = x.createLinearGradient(cx - 150, cy + 30, cx, cy); tl.addColorStop(0, 'rgba(0,0,0,0)'); tl.addColorStop(1, c[2]);
+      x.strokeStyle = tl; x.lineWidth = 12; x.lineCap = 'round'; x.beginPath(); x.moveTo(cx - 150, cy + 30 - i * 8); x.lineTo(cx, cy); x.stroke(); x.fillStyle = '#fff'; x.beginPath(); x.arc(cx, cy, 11, 0, TAU); x.fill(); });
+    x.textAlign = 'center'; x.fillStyle = '#ffd166'; x.font = 'italic 800 92px "Chakra Petch","Trebuchet MS",sans-serif'; x.fillText('COMET', w / 2, 140); x.fillText('RALLY', w / 2, 230);
+    x.fillStyle = '#f3f0ff'; x.font = '600 26px "Chakra Petch","Trebuchet MS",sans-serif'; x.fillText('THREE LAPS ROUND THE RING', w / 2, h - 120); x.fillStyle = '#5ce1e6'; x.fillText('ONE CREDIT · ONE CABINET', w / 2, h - 80);
+    x.strokeStyle = '#ffd166'; x.lineWidth = 6; x.strokeRect(14, 14, w - 28, h - 28); }
+function paintStarlingPoster(x, w, h){ const q = rng(2119);
+    const g = x.createLinearGradient(0, 0, 0, h); g.addColorStop(0, '#f2c46a'); g.addColorStop(0.55, '#e0704a'); g.addColorStop(1, '#3a1d3e'); x.fillStyle = g; x.fillRect(0, 0, w, h);
+    x.fillStyle = 'rgba(255,240,200,0.8)'; x.beginPath(); x.arc(w * 0.5, h * 0.5, 120, 0, TAU); x.fill();
+    const bird = (cx, cy, s) => { x.beginPath(); x.moveTo(cx - s, cy - s * 0.3); x.quadraticCurveTo(cx - s * 0.4, cy - s * 0.5, cx, cy); x.quadraticCurveTo(cx + s * 0.4, cy - s * 0.5, cx + s, cy - s * 0.3); x.quadraticCurveTo(cx + s * 0.4, cy - s * 0.1, cx, cy + s * 0.18); x.quadraticCurveTo(cx - s * 0.4, cy - s * 0.1, cx - s, cy - s * 0.3); x.fill(); };
+    x.fillStyle = '#1b1024'; for(let row = 0; row < 3; row++) for(let i = 0; i < 11; i++) bird(60 + i * 39 + (row % 2) * 18, 260 + row * 62 + Math.sin(i * 0.9 + row) * 10, 15 - row * 2);
+    x.fillStyle = '#1b1024'; x.beginPath(); x.moveTo(w / 2, h - 210); x.lineTo(w / 2 + 34, h - 150); x.lineTo(w / 2, h - 165); x.lineTo(w / 2 - 34, h - 150); x.fill();
+    x.fillStyle = '#fff2c8'; x.fillRect(w / 2 - 2, h - 290, 4, 60);
+    x.textAlign = 'center'; x.fillStyle = '#1b1024'; x.font = '800 96px ' + SERIF; x.fillText('Starling', w / 2, 130);
+    x.fillStyle = '#fff2c8'; x.font = 'italic 26px ' + SERIF; x.fillText('one screen, one ship,', w / 2, h - 90); x.fillText('and the birds come down in waves of eleven', w / 2, h - 56);
+    x.strokeStyle = '#1b1024'; x.lineWidth = 5; x.strokeRect(12, 12, w - 24, h - 24); }
 function denArt(key, w, h, draw){ return archTex('den:' + key, w, h, draw); }
 var DEN_ART = {
   ember:() => denArt('ember', 1024, 683, (x, w, h) => { const q = rng(2111);
@@ -19429,25 +19574,8 @@ var DEN_ART = {
     x.fillStyle = '#163c5a'; x.fillRect(0, 0, w, h);
     for(let r = 250, k = 0; r > 4; r -= 9 + (k % 3) * 2, k++){ x.strokeStyle = cols[k % cols.length]; x.lineWidth = 9 + (k % 3) * 2; x.beginPath(); x.arc(w / 2, h / 2, r - 4, 0, TAU); x.stroke(); }
     for(let i = 0; i < 9000; i++){ x.fillStyle = 'rgba(' + (q() < 0.5 ? '255,255,255' : '0,10,20') + ',' + (0.05 + q() * 0.07).toFixed(3) + ')'; x.fillRect(q() * w, q() * h, 1 + q() * 2, 1 + q() * 2); } }),
-  rally:() => denArt('rally', 512, 768, (x, w, h) => { const q = rng(2117);
-    const g = x.createLinearGradient(0, 0, 0, h); g.addColorStop(0, '#0b0820'); g.addColorStop(0.6, '#1b1240'); g.addColorStop(1, '#3a1430'); x.fillStyle = g; x.fillRect(0, 0, w, h);
-    for(let i = 0; i < 140; i++){ x.fillStyle = 'rgba(255,250,235,' + (0.3 + q() * 0.6).toFixed(2) + ')'; x.fillRect(q() * w, q() * h * 0.7, 1.5, 1.5); }
-    x.save(); x.translate(w / 2, h * 0.5); x.scale(1, 0.42); x.strokeStyle = '#ffb347'; x.lineWidth = 16; x.beginPath(); x.arc(0, 0, 190, 0, TAU); x.stroke(); x.strokeStyle = '#3a2a5a'; x.lineWidth = 4; x.beginPath(); x.arc(0, 0, 150, 0, TAU); x.stroke(); x.restore();
-    [[0.25, 0.42, '#5ce1e6'], [0.7, 0.58, '#ff6aa8'], [0.52, 0.34, '#ffe08a']].forEach((c, i) => { const cx = w * c[0], cy = h * c[1], tl = x.createLinearGradient(cx - 150, cy + 30, cx, cy); tl.addColorStop(0, 'rgba(0,0,0,0)'); tl.addColorStop(1, c[2]);
-      x.strokeStyle = tl; x.lineWidth = 12; x.lineCap = 'round'; x.beginPath(); x.moveTo(cx - 150, cy + 30 - i * 8); x.lineTo(cx, cy); x.stroke(); x.fillStyle = '#fff'; x.beginPath(); x.arc(cx, cy, 11, 0, TAU); x.fill(); });
-    x.textAlign = 'center'; x.fillStyle = '#ffd166'; x.font = 'italic 800 92px "Chakra Petch","Trebuchet MS",sans-serif'; x.fillText('COMET', w / 2, 140); x.fillText('RALLY', w / 2, 230);
-    x.fillStyle = '#f3f0ff'; x.font = '600 26px "Chakra Petch","Trebuchet MS",sans-serif'; x.fillText('THREE LAPS ROUND THE RING', w / 2, h - 120); x.fillStyle = '#5ce1e6'; x.fillText('ONE CREDIT · ONE CABINET', w / 2, h - 80);
-    x.strokeStyle = '#ffd166'; x.lineWidth = 6; x.strokeRect(14, 14, w - 28, h - 28); }),
-  starling:() => denArt('starling', 512, 768, (x, w, h) => { const q = rng(2119);
-    const g = x.createLinearGradient(0, 0, 0, h); g.addColorStop(0, '#f2c46a'); g.addColorStop(0.55, '#e0704a'); g.addColorStop(1, '#3a1d3e'); x.fillStyle = g; x.fillRect(0, 0, w, h);
-    x.fillStyle = 'rgba(255,240,200,0.8)'; x.beginPath(); x.arc(w * 0.5, h * 0.5, 120, 0, TAU); x.fill();
-    const bird = (cx, cy, s) => { x.beginPath(); x.moveTo(cx - s, cy - s * 0.3); x.quadraticCurveTo(cx - s * 0.4, cy - s * 0.5, cx, cy); x.quadraticCurveTo(cx + s * 0.4, cy - s * 0.5, cx + s, cy - s * 0.3); x.quadraticCurveTo(cx + s * 0.4, cy - s * 0.1, cx, cy + s * 0.18); x.quadraticCurveTo(cx - s * 0.4, cy - s * 0.1, cx - s, cy - s * 0.3); x.fill(); };
-    x.fillStyle = '#1b1024'; for(let row = 0; row < 3; row++) for(let i = 0; i < 11; i++) bird(60 + i * 39 + (row % 2) * 18, 260 + row * 62 + Math.sin(i * 0.9 + row) * 10, 15 - row * 2);
-    x.fillStyle = '#1b1024'; x.beginPath(); x.moveTo(w / 2, h - 210); x.lineTo(w / 2 + 34, h - 150); x.lineTo(w / 2, h - 165); x.lineTo(w / 2 - 34, h - 150); x.fill();
-    x.fillStyle = '#fff2c8'; x.fillRect(w / 2 - 2, h - 290, 4, 60);
-    x.textAlign = 'center'; x.fillStyle = '#1b1024'; x.font = '800 96px ' + SERIF; x.fillText('Starling', w / 2, 130);
-    x.fillStyle = '#fff2c8'; x.font = 'italic 26px ' + SERIF; x.fillText('one screen, one ship,', w / 2, h - 90); x.fillText('and the birds come down in waves of eleven', w / 2, h - 56);
-    x.strokeStyle = '#1b1024'; x.lineWidth = 5; x.strokeRect(12, 12, w - 24, h - 24); }),
+  rally:() => denArt('rally', 512, 768, paintRallyPoster),
+  starling:() => denArt('starling', 512, 768, paintStarlingPoster),
   label:() => denArt('label', 256, 256, (x, w, h) => { x.fillStyle = '#111'; x.fillRect(0, 0, w, h); x.fillStyle = '#d9a24a'; x.beginPath(); x.arc(128, 128, 70, 0, TAU); x.fill();
     x.fillStyle = '#3b1410'; x.textAlign = 'center'; x.font = '700 22px ' + SERIF; x.fillText('LOFT', 128, 112); x.fillText('LIGHTS', 128, 138); x.font = '14px ' + SERIF; x.fillText('Hub Records', 128, 162);
     x.fillStyle = '#111'; x.beginPath(); x.arc(128, 128, 6, 0, TAU); x.fill(); }),
